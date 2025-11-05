@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Flame, MessageSquare, User, Upload, Music } from 'lucide-react';
+import { Home, Flame, MessageSquare, User, PlusSquare, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -43,8 +43,8 @@ export function AppSidebar() {
       <div className="mt-auto">
         <Link href="/upload" passHref>
             <Button size="lg" className="w-full text-lg font-headline">
-                <Upload className="mr-2 h-5 w-5" />
-                Upload
+                <PlusSquare className="mr-2 h-5 w-5" />
+                Create
             </Button>
         </Link>
       </div>

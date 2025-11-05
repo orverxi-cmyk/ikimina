@@ -1,3 +1,4 @@
+'use client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -6,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { UploadCloud, Music, Video, Image as ImageIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useRouter } from 'next/navigation';
 
 interface UploadFormProps {
     title: string;
@@ -44,18 +46,20 @@ function UploadForm({ title, description, icon: Icon, fileType, children }: Uplo
         </div>
         <div className="space-y-2">
           <Label htmlFor={`description-${title}`}>Description</Label>
-          <Textarea id={`description-${title}`} placeholder="Tell us more about your upload..." />
+          <Textarea id={`description-${title}`} placeholder="Tell us more about your content..." />
         </div>
         {children}
       </CardContent>
       <CardFooter>
-        <Button className="w-full font-headline">Upload</Button>
+        <Button className="w-full font-headline">Create</Button>
       </CardFooter>
     </Card>
   );
 }
 
 export default function CreatePage() {
+  const router = useRouter();
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <h1 className="font-headline text-3xl font-bold mb-8">Create</h1>
@@ -66,13 +70,13 @@ export default function CreatePage() {
           <TabsTrigger value="story">Story</TabsTrigger>
         </TabsList>
         <TabsContent value="teel" className="mt-6">
-          <UploadForm title="Upload a Teel" description="Share a short video or photo with your followers." icon={Video} fileType="MP4, MOV, JPG, PNG" />
+          <UploadForm title="Create a Teel" description="Share a short video or photo with your followers." icon={Video} fileType="MP4, MOV, JPG, PNG" />
         </TabsContent>
         <TabsContent value="instrumental" className="mt-6">
-          <UploadForm title="Upload an Instrumental" description="Upload a beat for others to record vocals over." icon={Music} fileType="MP3, WAV" />
+          <UploadForm title="Create an Instrumental" description="Upload a beat for others to record vocals over." icon={Music} fileType="MP3, WAV" />
         </TabsContent>
         <TabsContent value="story" className="mt-6">
-          <UploadForm title="Upload a Story" description="Stories are visible for 24 hours." icon={ImageIcon} fileType="JPG, PNG, MP4" />
+          <UploadForm title="Create a Story" description="Stories are visible for 24 hours." icon={ImageIcon} fileType="JPG, PNG, MP4" />
         </TabsContent>
       </Tabs>
     </div>
