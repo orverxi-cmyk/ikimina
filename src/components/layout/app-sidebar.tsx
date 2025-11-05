@@ -10,6 +10,12 @@ import { useEffect, useState } from 'react';
 
 function SidebarAuth() {
   const { user, loading } = useUser();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
 
   const handleLogout = async () => {
     const auth = getAuth();
@@ -20,7 +26,7 @@ function SidebarAuth() {
     }
   };
 
-  if (loading) {
+  if (!isClient || loading) {
     return (
       <Button variant="outline" disabled className="w-full justify-start text-lg">
         <LogIn className="mr-2 h-6 w-6" />
@@ -90,12 +96,7 @@ export function AppSidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-2">
-        {isClient ? <SidebarAuth /> : (
-            <Button variant="outline" disabled className="w-full justify-start text-lg">
-                <LogIn className="mr-2 h-6 w-6" />
-                <span>Login</span>
-            </Button>
-        )}
+        <SidebarAuth />
       </div>
     </aside>
   );
