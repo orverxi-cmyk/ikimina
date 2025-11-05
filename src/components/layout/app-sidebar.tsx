@@ -24,7 +24,7 @@ function SidebarAuth() {
     return (
       <Button variant="outline" disabled className="w-full justify-start text-lg">
         <LogIn className="mr-2 h-6 w-6" />
-        Login
+        <span>Login</span>
       </Button>
     );
   }
@@ -32,14 +32,16 @@ function SidebarAuth() {
   return user ? (
     <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-lg">
       <LogOut className="mr-2 h-6 w-6" />
-      Logout
+      <span>Logout</span>
     </Button>
   ) : (
-    <Link href="/login">
-      <Button variant="outline" className="w-full justify-start text-lg">
-        <LogIn className="mr-2 h-6 w-6" />
-        Login
-      </Button>
+    <Link href="/login" legacyBehavior passHref>
+        <Button asChild variant="outline" className="w-full justify-start text-lg">
+            <a>
+                <LogIn className="mr-2 h-6 w-6" />
+                <span>Login</span>
+            </a>
+        </Button>
     </Link>
   );
 }
@@ -93,7 +95,7 @@ export function AppSidebar() {
         {isClient ? <SidebarAuth /> : (
             <Button variant="outline" disabled className="w-full justify-start text-lg">
                 <LogIn className="mr-2 h-6 w-6" />
-                Login
+                <span>Login</span>
             </Button>
         )}
       </div>
