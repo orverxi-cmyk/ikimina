@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ImageIcon } from 'lucide-react';
+import { useParams } from 'next/navigation';
 
 function ContentGrid() {
   return (
@@ -17,8 +18,9 @@ function ContentGrid() {
   );
 }
 
-export default function ProfilePage({ params }: { params: { username: string } }) {
-  const { username } = params;
+export default function ProfilePage() {
+  const params = useParams();
+  const username = params.username as string;
 
   return (
     <div className="w-full max-w-4xl mx-auto">
