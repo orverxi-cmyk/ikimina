@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
 import { getAuth, signOut } from 'firebase/auth';
+import { useEffect, useState } from 'react';
 
 function SidebarAuth() {
   const { user, loading } = useUser();
@@ -21,30 +22,36 @@ function SidebarAuth() {
 
   if (loading) {
     return (
-      <Button variant="outline" disabled className="w-full justify-start">
-        <LogIn className="mr-2 h-5 w-5" />
+      <Button variant="outline" disabled className="w-full justify-start text-lg">
+        <LogIn className="mr-2 h-6 w-6" />
         Login
       </Button>
     );
   }
 
   return user ? (
-    <Button variant="outline" onClick={handleLogout} className="w-full justify-start">
-      <LogOut className="mr-2 h-5 w-5" />
+    <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-lg">
+      <LogOut className="mr-2 h-6 w-6" />
       Logout
     </Button>
   ) : (
     <Link href="/login">
-      <Button variant="outline" className="w-full justify-start">
-        <LogIn className="mr-2 h-5 w-5" />
+      <Button variant="outline" className="w-full justify-start text-lg">
+        <LogIn className="mr-2 h-6 w-6" />
         Login
       </Button>
     </Link>
   );
 }
 
+
 export function AppSidebar() {
   const pathname = usePathname();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const menuItems = [
     { href: '/', label: 'For You', icon: Home },
@@ -63,8 +70,7 @@ export function AppSidebar() {
 
       <nav className="flex-1 flex flex-col space-y-2">
         {menuItems.map((item) => {
-          const isActive =
-            (pathname.startsWith(item.href) && item.href !== '/') || pathname === item.href;
+          const isActive = isClient && ((pathname.startsWith(item.href) && item.href !== '/') || pathname === item.href);
           return (
             <Link
               key={item.href}
@@ -84,7 +90,12 @@ export function AppSidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-2">
-        <SidebarAuth />
+        {isClient ? <SidebarAuth /> : (
+            <Button variant="outline" disabled className="w-full justify-start text-lg">
+                <LogIn className="mr-2 h-6 w-6" />
+                Login
+            </Button>
+        )}
       </div>
     </aside>
   );
