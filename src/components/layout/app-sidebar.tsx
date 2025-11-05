@@ -35,14 +35,12 @@ function SidebarAuth() {
       <span>Logout</span>
     </Button>
   ) : (
-    <Link href="/login" legacyBehavior passHref>
-        <Button asChild variant="outline" className="w-full justify-start text-lg">
-            <a>
-                <LogIn className="mr-2 h-6 w-6" />
-                <span>Login</span>
-            </a>
-        </Button>
-    </Link>
+    <Button asChild variant="outline" className="w-full justify-start text-lg">
+      <Link href="/login">
+        <LogIn className="mr-2 h-6 w-6" />
+        <span>Login</span>
+      </Link>
+    </Button>
   );
 }
 
