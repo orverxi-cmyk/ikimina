@@ -1,5 +1,6 @@
+'use client';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components.../ui/slider';
+import { Slider } from '@/components/ui/slider';
 import { Mic, Video, Music, FlipHorizontal, Timer, X } from 'lucide-react';
 import Link from 'next/link';
 
