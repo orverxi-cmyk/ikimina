@@ -10,11 +10,6 @@ import { getAuth, signOut } from 'firebase/auth';
 
 function SidebarAuth() {
   const { user, loading } = useUser();
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   const handleLogout = async () => {
     const auth = getAuth();
@@ -25,9 +20,9 @@ function SidebarAuth() {
     }
   };
 
-  if (!isClient || loading) {
+  if (loading) {
     return (
-      <Button variant="outline" disabled className="w-full justify-start">
+       <Button variant="outline" disabled className="w-full justify-start">
         <LogIn className="mr-2 h-5 w-5" />
         Login
       </Button>
@@ -52,6 +47,7 @@ function SidebarAuth() {
     </Link>
   );
 }
+
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -98,7 +94,13 @@ export function AppSidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-2">
-        <SidebarAuth />
+        {isClient && <SidebarAuth />}
+        {!isClient && (
+           <Button variant="outline" disabled className="w-full justify-start">
+            <LogIn className="mr-2 h-5 w-5" />
+            Login
+          </Button>
+        )}
       </div>
     </aside>
   );
