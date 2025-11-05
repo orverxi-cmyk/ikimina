@@ -1,5 +1,5 @@
 'use client';
-import { User, Settings, Play } from 'lucide-react';
+import { User, Settings } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +18,8 @@ function ContentGrid() {
 }
 
 export default function ProfilePage({ params }: { params: { username: string } }) {
+  const { username } = params;
+
   return (
     <div className="w-full max-w-4xl mx-auto">
       <Card className="border-none bg-transparent md:bg-card md:border">
@@ -32,14 +34,14 @@ export default function ProfilePage({ params }: { params: { username: string } }
           
           <div className="pt-16 px-6 pb-6">
             <div className="flex justify-end">
-                {params.username === 'me' ? (
+                {username === 'me' ? (
                      <Button variant="outline"><Settings className="w-4 h-4 mr-2" />Edit Profile</Button>
                 ) : (
                     <Button>Follow</Button>
                 )}
             </div>
 
-            <h2 className="font-headline text-3xl font-bold">@{params.username}</h2>
+            <h2 className="font-headline text-3xl font-bold">@{username}</h2>
             <p className="text-muted-foreground mt-1 text-lg"></p>
             <p className="mt-4 max-w-prose"></p>
 
