@@ -12,7 +12,6 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user, loading } = useUser();
   const [isClient, setIsClient] = useState(false);
-  const auth = getAuth();
 
   useEffect(() => {
     setIsClient(true);
@@ -28,6 +27,7 @@ export function AppSidebar() {
   ];
 
   const handleLogout = async () => {
+    const auth = getAuth();
     try {
       await signOut(auth);
     } catch (error) {
@@ -64,7 +64,7 @@ export function AppSidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-2">
-        {loading || !isClient ? (
+        {!isClient || loading ? (
             <Button variant="outline" disabled className="w-full justify-start">
                 <LogIn className="mr-2 h-5 w-5" />
                 Login
