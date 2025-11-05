@@ -1,13 +1,107 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+
+    // --- UTILITIES ---
+    function signedIn() {
+      return request.auth != null;
     }
 
+    function isOwner(ownerId) {
+      return signedIn() && request.auth.uid == ownerId;
+    }
+
+    // --- USERS ---
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if true;
+      allow create, update, delete: if isOwner(userId);
+
+      match /payouts/{payoutId} {
+        allow read, list, create, update, delete: if isOwner(userId);
+      }
+    }
+
+    // --- TOP-LEVEL COLLECTIONS (Publicly readable) ---
+    match /songs/{songId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.singerId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.singerId);
+    }
+
+    match /instrumentals-new/{instrumentalId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.creatorId);
+    }
+
+    match /timeline_posts/{postId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.authorId);
+    }
+    
+    match /teels/{teelId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.creatorId);
+    }
+
+    match /advertisements/{adId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.creatorId);
+    }
+
+    match /battles/{battleId} {
+      allow read: if true;
+      allow create, update, delete: if false; // Admin only
+    }
+
+    match /polls/{pollId} {
+      allow read: if true;
+      allow create, update, delete: if false; // Admin only
+    }
+
+    match /stories/{storyId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    match /playlists/{playlistId} {
+      allow read: if resource.data.isPublic == true || (signedIn() && isOwner(resource.data.creatorId));
+      allow create: if signedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.creatorId);
+    }
+
+    // --- CHAT ---
+    match /chatRooms/{roomId} {
+      function isParticipant() {
+        return signedIn() && request.auth.uid in resource.data.participantIds;
+      }
+
+      allow read, write: if isParticipant();
+
+      match /messages/{messageId} {
+        allow read, create: if isParticipant();
+        allow update, delete: if isParticipant() && request.auth.uid == resource.data.senderId;
+      }
+    }
+
+    // --- ADMIN & PLATFORM ---
+    match /dailyStats/{statId} {
+      allow read: if true;
+      allow write: if false; // Server-only
+    }
+
+    match /platform_settings/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.type == 'admin';
+    }
+    
+    match /supportTickets/{ticketId} {
+        allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+        allow read, update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.type == 'admin';
     }
   }
 }
