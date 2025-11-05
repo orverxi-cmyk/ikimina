@@ -18,6 +18,7 @@ export function AppSidebar() {
     { href: '/popular', label: 'Popular', icon: Flame },
     { href: '/messages', label: 'Messages', icon: MessageSquare },
     { href: '/profile/me', label: 'Profile', icon: User },
+    { href: '/upload', label: 'Create', icon: PlusSquare },
   ];
 
   const handleLogout = async () => {
@@ -56,12 +57,6 @@ export function AppSidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-2">
-        <Link href="/upload" passHref>
-            <Button size="lg" className="w-full text-lg font-headline">
-                <PlusSquare className="mr-2 h-5 w-5" />
-                Create
-            </Button>
-        </Link>
         {!loading && (
           user ? (
             <Button variant="outline" onClick={handleLogout}>
