@@ -4,47 +4,37 @@ import { usePathname } from 'next/navigation';
 import { Home, Flame, MessageSquare, User, PlusSquare, Music, LogIn, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useEffect, useState } from 'react';
 import { useUser } from '@/firebase/auth/use-user';
 import { getAuth, signOut } from 'firebase/auth';
 
 function SidebarAuth() {
   const { user, loading } = useUser();
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   const handleLogout = async () => {
     const auth = getAuth();
     try {
       await signOut(auth);
     } catch (error) {
-      console.error("Error signing out: ", error);
+      console.error('Error signing out:', error);
     }
   };
-  
-  if (!isClient || loading) {
+
+  if (loading) {
     return (
-       <Button variant="outline" disabled className="w-full justify-start">
+      <Button variant="outline" disabled className="w-full justify-start">
         <LogIn className="mr-2 h-5 w-5" />
         Login
       </Button>
     );
   }
 
-  if (user) {
-    return (
-      <Button variant="outline" onClick={handleLogout} className="w-full justify-start">
-        <LogOut className="mr-2 h-5 w-5" />
-        Logout
-      </Button>
-    );
-  }
-
-  return (
-    <Link href="/login" passHref>
+  return user ? (
+    <Button variant="outline" onClick={handleLogout} className="w-full justify-start">
+      <LogOut className="mr-2 h-5 w-5" />
+      Logout
+    </Button>
+  ) : (
+    <Link href="/login">
       <Button variant="outline" className="w-full justify-start">
         <LogIn className="mr-2 h-5 w-5" />
         Login
@@ -53,14 +43,8 @@ function SidebarAuth() {
   );
 }
 
-
 export function AppSidebar() {
   const pathname = usePathname();
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   const menuItems = [
     { href: '/', label: 'For You', icon: Home },
@@ -76,10 +60,11 @@ export function AppSidebar() {
         <Music className="h-8 w-8 text-primary" />
         <span className="font-headline text-2xl font-bold">LopRok</span>
       </Link>
-      
+
       <nav className="flex-1 flex flex-col space-y-2">
         {menuItems.map((item) => {
-          const isActive = isClient && ((pathname.startsWith(item.href) && item.href !== '/') || pathname === item.href);
+          const isActive =
+            (pathname.startsWith(item.href) && item.href !== '/') || pathname === item.href;
           return (
             <Link
               key={item.href}
