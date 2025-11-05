@@ -22,7 +22,7 @@ export default function UploadPage() {
 
   const options = [
     {
-      href: '/create/teel',
+      href: '/create',
       label: 'Upload a Teel',
       description: 'Share a short video or photo.',
       icon: Video,
