@@ -57,20 +57,23 @@ export function AppSidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-2">
-        {!loading && (
-          user ? (
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="mr-2 h-5 w-5" />
-              Logout
-            </Button>
-          ) : (
-            <Link href="/login" passHref>
-              <Button variant="outline" className="w-full">
+        {loading ? (
+            <Button variant="outline" disabled className="w-full">
                 <LogIn className="mr-2 h-5 w-5" />
                 Login
-              </Button>
-            </Link>
-          )
+            </Button>
+        ) : user ? (
+          <Button variant="outline" onClick={handleLogout}>
+            <LogOut className="mr-2 h-5 w-5" />
+            Logout
+          </Button>
+        ) : (
+          <Link href="/login" passHref>
+            <Button variant="outline" className="w-full">
+              <LogIn className="mr-2 h-5 w-5" />
+              Login
+            </Button>
+          </Link>
         )}
       </div>
     </aside>
