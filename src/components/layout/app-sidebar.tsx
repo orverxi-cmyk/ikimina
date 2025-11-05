@@ -10,12 +10,6 @@ import { useEffect, useState } from 'react';
 
 function SidebarAuth() {
   const { user, loading } = useUser();
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
 
   const handleLogout = async () => {
     const auth = getAuth();
@@ -26,7 +20,7 @@ function SidebarAuth() {
     }
   };
 
-  if (!isClient || loading) {
+  if (loading) {
     return (
       <Button variant="outline" disabled className="w-full justify-start text-lg">
         <LogIn className="mr-2 h-6 w-6" />
@@ -53,10 +47,10 @@ function SidebarAuth() {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const [isClient, setIsClient] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    setMounted(true);
   }, []);
 
   const menuItems = [
@@ -76,7 +70,7 @@ export function AppSidebar() {
 
       <nav className="flex-1 flex flex-col space-y-2">
         {menuItems.map((item) => {
-          const isActive = isClient && ((pathname.startsWith(item.href) && item.href !== '/') || pathname === item.href);
+          const isActive = mounted && ((pathname.startsWith(item.href) && item.href !== '/') || pathname === item.href);
           return (
             <Link
               key={item.href}
