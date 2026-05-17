@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, MoreVertical, Edit2, Trash2, UserPlus, Loader2, ShieldAlert, Download, Mail } from 'lucide-react';
+import { Plus, Search, MoreVertical, Edit2, Trash2, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -32,10 +32,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCollection, useDoc } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -48,10 +49,10 @@ export default function MembersPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const isAdmin = userData?.role === 'admin';
 
-  // Firestore subscription for members
   const membersQuery = useMemo(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
   const { data: membersSnap, loading: membersLoading } = useCollection(membersQuery);
 
@@ -69,31 +70,16 @@ export default function MembersPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "scdt_members_template.csv");
+    link.setAttribute("download", "ikimina_members_template.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  if (userLoading || membersLoading) {
-    return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-        <ShieldAlert className="h-12 w-12 text-destructive" />
-        <h2 className="text-2xl font-bold">Access Denied</h2>
-        <p className="text-muted-foreground">Only administrators can manage the member directory.</p>
-      </div>
-    );
-  }
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
-    
     const memberData: any = {
       name: formData.get('name') as string,
       email: (formData.get('email') as string).toLowerCase(),
@@ -104,126 +90,135 @@ export default function MembersPage() {
     try {
       if (isEditing && selectedMember) {
         await updateDoc(doc(firestore, 'users', selectedMember.id), memberData);
-        toast({ title: "Success", description: "Member updated successfully" });
+        toast({ title: "Success", description: "Member updated." });
       } else {
         await addDoc(collection(firestore, 'users'), {
           ...memberData,
           joinedAt: serverTimestamp(),
           status: 'pending',
         });
-        toast({ 
-          title: "Invitation Prepared", 
-          description: `${memberData.name} can now activate their account via the login page.`,
-        });
+        toast({ title: "Invited", description: "Member can now activate their account via login." });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);
       setSelectedMember(null);
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to save member" });
+      toast({ variant: "destructive", title: "Error", description: "Failed to save member." });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleEdit = (member: any) => {
-    setSelectedMember(member);
-    setIsEditing(true);
-    setIsAddDialogOpen(true);
-  };
+  if (userLoading || membersLoading) {
+    return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
 
-  const handleDelete = async (memberId: string) => {
-    if (confirm("Are you sure you want to remove this member?")) {
-      try {
-        await deleteDoc(doc(firestore, 'users', memberId));
-        toast({ title: "Success", description: "Member removed" });
-      } catch (error) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to remove member" });
-      }
-    }
-  };
+  if (!isAdmin) {
+    return <div className="p-8 text-center"><ShieldAlert className="h-12 w-12 mx-auto mb-4" />Access Denied</div>;
+  }
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Member Directory</h1>
-          <p className="text-muted-foreground">Manage SCDT Tontine participants and roles</p>
+          <p className="text-muted-foreground">Manage participants and view loan schedules</p>
         </div>
         
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={handleDownloadTemplate}>
-            <Download className="mr-2 h-4 w-4" /> Template
-          </Button>
-          <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-            setIsAddDialogOpen(open);
-            if (!open) {
-              setIsEditing(false);
-              setSelectedMember(null);
-            }
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="mr-2 h-4 w-4" /> Add New Member
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <form onSubmit={handleSubmit}>
-                <DialogHeader>
-                  <DialogTitle>{isEditing ? 'Edit Member' : 'Add New Member'}</DialogTitle>
-                  <DialogDescription>
-                    {isEditing ? 'Update member information' : 'Create a new profile. Members activate their account using their email.'}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">Name</Label>
-                    <Input id="name" name="name" defaultValue={selectedMember?.name} className="col-span-3" required />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="email" className="text-right">Email</Label>
-                    <Input id="email" name="email" type="email" defaultValue={selectedMember?.email} className="col-span-3" required disabled={isEditing} />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="phone" className="text-right">Phone</Label>
-                    <Input id="phone" name="phone" defaultValue={selectedMember?.phone} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="role" className="text-right">Role</Label>
-                    <Select name="role" defaultValue={selectedMember?.role || 'member'}>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="management">Management</SelectItem>
-                        <SelectItem value="member">Member</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isEditing ? 'Save Changes' : 'Invite Member'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" onClick={handleDownloadTemplate}><Download className="mr-2 h-4 w-4" /> Template</Button>
+          <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setIsAddDialogOpen(true); }}><UserPlus className="mr-2 h-4 w-4" /> Add New Member</Button>
         </div>
       </div>
 
-      <Card className="bg-card/50">
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <form onSubmit={handleSubmit}>
+            <DialogHeader>
+              <DialogTitle>{isEditing ? 'Edit Member' : 'Add New Member'}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Name</Label>
+                <Input name="name" defaultValue={selectedMember?.name} required />
+              </div>
+              <div className="grid gap-2">
+                <Label>Email</Label>
+                <Input name="email" type="email" defaultValue={selectedMember?.email} required disabled={isEditing} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Phone</Label>
+                <Input name="phone" defaultValue={selectedMember?.phone} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Role</Label>
+                <Select name="role" defaultValue={selectedMember?.role || 'member'}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="management">Management</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting}>Save Member</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Dialog for Amortization Schedule View */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedMember?.name}'s Repayment Schedule</DialogTitle>
+            <DialogDescription>Full amortization overview for active loans.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {selectedMember?.amortizationSchedule ? (
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Installment</TableHead>
+                      <TableHead>Due Date</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedMember.amortizationSchedule.map((inst: any, idx: number) => {
+                      const d = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell>#{inst.installmentNumber || idx + 1}</TableCell>
+                          <TableCell>{format(d, 'MMM d, yyyy')}</TableCell>
+                          <TableCell>{inst.amount?.toLocaleString()} RWF</TableCell>
+                          <TableCell>
+                            <Badge variant={inst.status === 'paid' ? 'default' : 'secondary'} className={cn(inst.status === 'paid' && "bg-green-500 hover:bg-green-600")}>
+                              {inst.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground italic">No active loan schedule found for this user.</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Card>
         <CardHeader>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search members by name, email or phone..." 
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <Input placeholder="Search members..." className="pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </CardHeader>
         <CardContent>
@@ -233,45 +228,35 @@ export default function MembersPage() {
                 <TableHead>Member</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Contact</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredMembers.map((member: any) => (
-                <TableRow key={member.id} className="hover:bg-accent/50 transition-colors">
+                <TableRow key={member.id}>
                   <TableCell>
                     <div className="font-medium">{member.name}</div>
                     <div className="text-xs text-muted-foreground">{member.email}</div>
                   </TableCell>
+                  <TableCell><Badge variant="outline">{member.role}</Badge></TableCell>
                   <TableCell>
-                    <Badge variant={member.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
-                      {member.role}
-                    </Badge>
+                    <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>{member.status || 'pending'}</Badge>
                   </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="outline" 
-                      className={member.status === 'active' ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-orange-500/10 text-orange-600 border-orange-500/20'}
-                    >
-                      {member.status || 'pending'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">{member.phone || 'N/A'}</TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(member)}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(member.id)} className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" /> Remove
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex justify-end gap-2">
+                       <Button size="icon" variant="ghost" onClick={() => { setSelectedMember(member); setIsDetailOpen(true); }}>
+                         <CalendarIcon className="h-4 w-4" />
+                       </Button>
+                       <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem onClick={async () => {
+                            if(confirm("Remove member?")) await deleteDoc(doc(firestore, 'users', member.id));
+                          }} className="text-destructive">Remove</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

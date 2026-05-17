@@ -3,7 +3,7 @@
   "entities": {
     "user": {
       "title": "User",
-      "description": "A member of the SCDT Tontine.",
+      "description": "A member of the Ikimina App.",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
@@ -16,7 +16,20 @@
         },
         "joinedAt": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["pending", "active"] },
-        "activatedAt": { "type": "string", "format": "date-time" }
+        "activatedAt": { "type": "string", "format": "date-time" },
+        "amortizationSchedule": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "dueDate": { "type": "string", "format": "date-time" },
+              "amount": { "type": "number" },
+              "status": { "type": "string", "enum": ["pending", "paid", "overdue"] },
+              "proofUrl": { "type": "string" },
+              "paidAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
       },
       "required": ["name", "email", "role"]
     },
@@ -26,7 +39,7 @@
       "properties": {
         "memberId": { "type": "string" },
         "amount": { "type": "number" },
-        "period": { "type": "string", "description": "e.g., 'October 2023'" },
+        "period": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
         "recordedBy": { "type": "string" }
       },
@@ -39,15 +52,18 @@
         "memberId": { "type": "string" },
         "amount": { "type": "number" },
         "interestAmount": { "type": "number" },
+        "interestRate": { "type": "number", "description": "Monthly interest rate as a decimal" },
         "interestType": { "type": "string", "enum": ["immediate", "afterward"] },
         "status": { "type": "string", "enum": ["requested", "approved", "rejected", "completed"] },
         "requestDate": { "type": "string", "format": "date-time" },
+        "startDate": { "type": "string", "format": "date-time" },
         "dueDate": { "type": "string", "format": "date-time" },
-        "penaltyRate": { "type": "number", "description": "Daily penalty rate as a decimal (e.g. 0.0015 for 0.15%)" },
-        "penaltyAmount": { "type": "number" },
+        "penaltyRate": { "type": "number" },
         "balance": { "type": "number" },
+        "durationMonths": { "type": "number" },
         "description": { "type": "string" },
-        "checkUrl": { "type": "string", "description": "URL to the check image uploaded on approval" }
+        "checkUrl": { "type": "string" },
+        "amortization": { "type": "array" }
       },
       "required": ["memberId", "amount", "status"]
     },
@@ -59,7 +75,7 @@
         "memberId": { "type": "string" },
         "amount": { "type": "number" },
         "date": { "type": "string", "format": "date-time" },
-        "proofUrl": { "type": "string", "description": "URL to the proof of payment image" },
+        "proofUrl": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "verified"] }
       },
       "required": ["loanId", "memberId", "amount", "date", "proofUrl"]
