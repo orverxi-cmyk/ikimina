@@ -1,282 +1,54 @@
+
 {
   "entities": {
     "user": {
       "title": "User",
-      "description": "A user of the application.",
+      "description": "A member of the SCDT Tontine.",
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "The user's name."
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "role": { 
+          "type": "string", 
+          "enum": ["admin", "management", "member"],
+          "description": "Admin (Full control), Management (Loan approvals/Reports), Member (Own data/Requests)"
         },
-        "email": {
-          "type": "string",
-          "description": "The user's email address.",
-          "format": "email"
-        },
-        "type": {
-          "type": "string",
-          "description": "The user's role.",
-          "enum": ["user", "admin"]
-        }
+        "joinedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "email"]
+      "required": ["name", "email", "role"]
     },
-    "payout": {
-      "title": "Payout",
-      "description": "A payout record for a user.",
+    "contribution": {
+      "title": "Contribution",
       "type": "object",
       "properties": {
-        "amount": {
-          "type": "number"
-        },
-        "status": {
-          "type": "string"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      }
-    },
-    "song": {
-      "title": "Song",
-      "type": "object",
-      "properties": {
-        "singerId": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string",
-          "format": "uri"
-        }
+        "memberId": { "type": "string" },
+        "amount": { "type": "number" },
+        "period": { "type": "string", "description": "e.g., 'October 2023'" },
+        "date": { "type": "string", "format": "date-time" },
+        "recordedBy": { "type": "string" }
       },
-      "required": ["singerId", "title", "url"]
+      "required": ["memberId", "amount", "period", "date"]
     },
-    "instrumental": {
-      "title": "Instrumental",
+    "loan": {
+      "title": "Loan",
       "type": "object",
       "properties": {
-        "creatorId": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "genre": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string",
-          "format": "uri"
-        }
+        "memberId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["requested", "approved", "rejected", "completed"] },
+        "requestDate": { "type": "string", "format": "date-time" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "penaltyAmount": { "type": "number" },
+        "balance": { "type": "number" },
+        "description": { "type": "string" }
       },
-      "required": ["creatorId", "title", "url"]
-    },
-    "timelinePost": {
-      "title": "Timeline Post",
-      "type": "object",
-      "properties": {
-        "authorId": {
-          "type": "string"
-        },
-        "content": {
-          "type": "string"
-        }
-      },
-      "required": ["authorId", "content"]
-    },
-    "teel": {
-      "title": "Teel",
-      "type": "object",
-      "properties": {
-        "creatorId": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string",
-          "format": "uri"
-        }
-      },
-      "required": ["creatorId", "url"]
-    },
-    "advertisement": {
-      "title": "Advertisement",
-      "type": "object",
-      "properties": {
-        "creatorId": {
-          "type": "string"
-        },
-        "campaignName": {
-          "type": "string"
-        },
-        "budget": {
-          "type": "number"
-        }
-      },
-      "required": ["creatorId", "campaignName", "budget"]
-    },
-    "story": {
-      "title": "Story",
-      "type": "object",
-      "properties": {
-        "userId": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string",
-          "format": "uri"
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": ["userId", "url", "expiresAt"]
-    },
-    "playlist": {
-      "title": "Playlist",
-      "type": "object",
-      "properties": {
-        "creatorId": {
-          "type": "string"
-        },
-        "isPublic": {
-          "type": "boolean"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": ["creatorId", "isPublic", "name"]
-    },
-    "chatRoom": {
-      "title": "Chat Room",
-      "type": "object",
-      "properties": {
-        "participantIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": ["participantIds"]
-    },
-    "chatMessage": {
-      "title": "Chat Message",
-      "type": "object",
-      "properties": {
-        "senderId": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": ["senderId", "text"]
-    },
-    "supportTicket": {
-      "title": "Support Ticket",
-      "type": "object",
-      "properties": {
-        "userId": {
-          "type": "string"
-        },
-        "subject": {
-          "type": "string"
-        },
-        "message": {
-          "type": "string"
-        }
-      },
-      "required": ["userId", "subject"]
+      "required": ["memberId", "amount", "status"]
     }
-  },
-  "auth": {
-    "providers": ["anonymous"]
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": {
-        "$ref": "#/entities/user"
-      },
-      "description": "User profile information."
-    },
-    "/users/{userId}/payouts/{payoutId}": {
-      "schema": {
-        "$ref": "#/entities/payout"
-      },
-      "description": "User payout records."
-    },
-    "/songs/{songId}": {
-      "schema": {
-        "$ref": "#/entities/song"
-      },
-      "description": "Songs created by users."
-    },
-    "/instrumentals-new/{instrumentalId}": {
-      "schema": {
-        "$ref": "#/entities/instrumental"
-      },
-      "description": "Instrumentals uploaded by users."
-    },
-    "/timeline_posts/{postId}": {
-      "schema": {
-        "$ref": "#/entities/timelinePost"
-      },
-      "description": "Posts on the main timeline."
-    },
-    "/teels/{teelId}": {
-      "schema": {
-        "$ref": "#/entities/teel"
-      },
-      "description": "Short video or photo content."
-    },
-    "/advertisements/{adId}": {
-      "schema": {
-        "$ref": "#/entities/advertisement"
-      },
-      "description": "Ad campaigns."
-    },
-    "/stories/{storyId}": {
-      "schema": {
-        "$ref": "#/entities/story"
-      },
-      "description": "Temporary stories from users."
-    },
-    "/playlists/{playlistId}": {
-      "schema": {
-        "$ref": "#/entities/playlist"
-      },
-      "description": "User-created playlists of songs."
-    },
-    "/chatRooms/{roomId}": {
-      "schema": {
-        "$ref": "#/entities/chatRoom"
-      },
-      "description": "Chat rooms between users."
-    },
-    "/chatRooms/{roomId}/messages/{messageId}": {
-      "schema": {
-        "$ref": "#/entities/chatMessage"
-      },
-      "description": "Messages within a chat room."
-    },
-    "/supportTickets/{ticketId}": {
-      "schema": {
-        "$ref": "#/entities/supportTicket"
-      },
-      "description": "Support tickets submitted by users."
-    }
+    "/users/{userId}": { "schema": { "$ref": "#/entities/user" } },
+    "/contributions/{contributionId}": { "schema": { "$ref": "#/entities/contribution" } },
+    "/loans/{loanId}": { "schema": { "$ref": "#/entities/loan" } }
   }
 }
