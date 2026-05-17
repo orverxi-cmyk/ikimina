@@ -1,9 +1,6 @@
-
 'use client';
 /**
- * @fileOverview Bridge functions to call secure Cloud Functions.
- * These are client-side helpers that use the Firebase SDK to trigger
- * server-side logic in the /functions directory.
+ * @fileOverview Client-side bridge to call secure Cloud Functions.
  */
 
 import { initializeFirebase } from '@/firebase';
@@ -17,71 +14,41 @@ const getFinanceFunctions = () => {
 export async function registerMemberAction(uid: string, memberData: any) {
   const functions = getFinanceFunctions();
   const registerFn = httpsCallable(functions, 'registerMember');
-  
-  try {
-    const result = await registerFn({ memberData, justification: memberData.justification });
-    return result.data;
-  } catch (error: any) {
-    throw new Error(error.message || 'Failed to register member');
-  }
+  const result = await registerFn({ memberData, justification: memberData.justification });
+  return result.data;
 }
 
 export async function logAdminAction(data: { adminId: string, action: string, justification: string, details?: any }) {
   const functions = getFinanceFunctions();
   const logFn = httpsCallable(functions, 'logAdminAction');
-  
-  try {
-    const result = await logFn(data);
-    return result.data;
-  } catch (error: any) {
-    throw new Error(error.message || 'Failed to log action');
-  }
+  const result = await logFn(data);
+  return result.data;
 }
 
 export async function bulkRegisterMembersAction(uid: string, members: any[], justification: string) {
   const functions = getFinanceFunctions();
   const bulkFn = httpsCallable(functions, 'bulkRegisterMembers');
-  
-  try {
-    const result = await bulkFn({ members, justification });
-    return result.data;
-  } catch (error: any) {
-    throw new Error(error.message || 'Failed bulk registration');
-  }
+  const result = await bulkFn({ members, justification });
+  return result.data;
 }
 
 export async function recordContributionAction(uid: string, data: { memberId: string, amount: number, period: string, justification: string }) {
   const functions = getFinanceFunctions();
   const recordFn = httpsCallable(functions, 'recordContribution');
-  
-  try {
-    const result = await recordFn(data);
-    return result.data;
-  } catch (error: any) {
-    throw new Error(error.message || 'Failed to record contribution');
-  }
+  const result = await recordFn(data);
+  return result.data;
 }
 
 export async function allocateInterestAction(uid: string, data: { totalInterestToDistribute: number, justification: string }) {
   const functions = getFinanceFunctions();
   const allocateFn = httpsCallable(functions, 'allocateInterest');
-  
-  try {
-    const result = await allocateFn(data);
-    return result.data;
-  } catch (error: any) {
-    throw new Error(error.message || 'Failed interest allocation');
-  }
+  const result = await allocateFn(data);
+  return result.data;
 }
 
 export async function updateFinancialSettingsAction(data: { loanInterestRate: number, contributionInterestRate: number, justification: string }) {
   const functions = getFinanceFunctions();
   const settingsFn = httpsCallable(functions, 'updateFinancialSettings');
-  
-  try {
-    const result = await settingsFn(data);
-    return result.data;
-  } catch (error: any) {
-    throw new Error(error.message || 'Failed to update financial settings');
-  }
+  const result = await settingsFn(data);
+  return result.data;
 }

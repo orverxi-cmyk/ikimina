@@ -31,13 +31,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { registerMemberAction, bulkRegisterMembersAction, logAdminAction } from '@/app/actions/finance';
+import { registerMemberAction, bulkRegisterMembersAction, logAdminAction } from '@/lib/finance-client';
+import { Timestamp } from 'firebase/firestore';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -111,7 +112,8 @@ export default function MembersPage() {
         
         if (email && firstName) {
           membersToRegister.push({
-            name: `${firstName} ${surname}`.trim(),
+            firstName,
+            surname,
             email: email.toLowerCase(),
             phone: phone || '',
             role: (role?.toLowerCase() as any) || 'member',
@@ -121,7 +123,7 @@ export default function MembersPage() {
 
       try {
         await bulkRegisterMembersAction(user.uid, membersToRegister, justification);
-        toast({ title: "Bulk Upload Success", description: `Successfully registered ${membersToRegister.length} members via Cloud Functions.` });
+        toast({ title: "Bulk Upload Success", description: `Successfully registered ${membersToRegister.length} members.` });
       } catch (error: any) {
         toast({ variant: "destructive", title: "Upload Failed", description: error.message });
       } finally {
@@ -150,7 +152,6 @@ export default function MembersPage() {
 
     try {
       if (isEditing && selectedMember) {
-        const { updateDoc } = await import('firebase/firestore');
         await updateDoc(doc(firestore, 'users', selectedMember.id), {
           name: `${memberData.firstName} ${memberData.surname}`.trim(),
           phone: memberData.phone,
@@ -167,7 +168,7 @@ export default function MembersPage() {
         toast({ title: "Success", description: "Member updated successfully." });
       } else {
         await registerMemberAction(user.uid, memberData);
-        toast({ title: "Invited", description: "Member registered successfully via secure Cloud Function." });
+        toast({ title: "Invited", description: "Member registered successfully." });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);
@@ -235,57 +236,26 @@ export default function MembersPage() {
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle className="text-2xl font-headline">{isEditing ? 'Edit Member Profile' : 'Register New Member'}</DialogTitle>
-              <DialogDescription>
-                Ensure legal names match official identification documents.
-              </DialogDescription>
+              <DialogDescription>Ensure names match official identification documents.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input 
-                    id="firstName"
-                    name="firstName" 
-                    placeholder="e.g. Jean"
-                    defaultValue={selectedMember ? splitName(selectedMember.name).firstName : ''} 
-                    required 
-                    className="h-11 rounded-xl"
-                  />
+                  <Input id="firstName" name="firstName" placeholder="e.g. Jean" defaultValue={selectedMember ? splitName(selectedMember.name).firstName : ''} required className="h-11 rounded-xl" />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="surname">Surname</Label>
-                  <Input 
-                    id="surname"
-                    name="surname" 
-                    placeholder="e.g. Mugisha"
-                    defaultValue={selectedMember ? splitName(selectedMember.name).surname : ''} 
-                    required 
-                    className="h-11 rounded-xl"
-                  />
+                  <Input id="surname" name="surname" placeholder="e.g. Mugisha" defaultValue={selectedMember ? splitName(selectedMember.name).surname : ''} required className="h-11 rounded-xl" />
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email Address</Label>
-                <Input 
-                  id="email"
-                  name="email" 
-                  type="email" 
-                  placeholder="member@example.com"
-                  defaultValue={selectedMember?.email} 
-                  required 
-                  disabled={isEditing} 
-                  className="h-11 rounded-xl"
-                />
+                <Input id="email" name="email" type="email" placeholder="member@example.com" defaultValue={selectedMember?.email} required disabled={isEditing} className="h-11 rounded-xl" />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input 
-                  id="phone"
-                  name="phone" 
-                  placeholder="+250..."
-                  defaultValue={selectedMember?.phone} 
-                  className="h-11 rounded-xl"
-                />
+                <Input id="phone" name="phone" placeholder="+250..." defaultValue={selectedMember?.phone} className="h-11 rounded-xl" />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="role">System Access Role</Label>
@@ -304,18 +274,12 @@ export default function MembersPage() {
                 <Label htmlFor="justification" className="flex items-center gap-1">
                   Justification <AlertCircle className="h-3 w-3 text-destructive" />
                 </Label>
-                <Textarea 
-                  id="justification"
-                  name="justification" 
-                  placeholder="Legal reason for this action (for audit logs)..."
-                  required 
-                  className="rounded-xl min-h-[80px]"
-                />
+                <Textarea id="justification" name="justification" placeholder="Reason for this action..." required className="rounded-xl min-h-[80px]" />
               </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl">
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEditing ? 'Update Member Profile' : 'Register Member'}
               </Button>
             </DialogFooter>
@@ -350,13 +314,7 @@ export default function MembersPage() {
                           <TableCell>{format(d, 'MMM d, yyyy')}</TableCell>
                           <TableCell className="font-bold">{inst.amount?.toLocaleString()} RWF</TableCell>
                           <TableCell>
-                            <Badge 
-                              variant={inst.status === 'paid' ? 'default' : 'secondary'} 
-                              className={cn(
-                                "rounded-lg font-bold uppercase text-[10px]",
-                                inst.status === 'paid' && "bg-green-500 hover:bg-green-600"
-                              )}
-                            >
+                            <Badge variant={inst.status === 'paid' ? 'default' : 'secondary'} className={cn("rounded-lg font-bold uppercase text-[10px]", inst.status === 'paid' && "bg-green-500 hover:bg-green-600")}>
                               {inst.status}
                             </Badge>
                           </TableCell>
@@ -369,7 +327,7 @@ export default function MembersPage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground italic space-y-4">
                 <CalendarIcon className="h-12 w-12 opacity-20" />
-                <p>No active loan schedule found for this user.</p>
+                <p>No active loan schedule found.</p>
               </div>
             )}
           </div>
@@ -380,12 +338,7 @@ export default function MembersPage() {
         <CardHeader className="bg-muted/20 pb-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search by name, email, or phone..." 
-              className="pl-10 h-11 bg-background rounded-xl border-primary/10" 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-            />
+            <Input placeholder="Search by name, email, or phone..." className="pl-10 h-11 bg-background rounded-xl border-primary/10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -401,9 +354,7 @@ export default function MembersPage() {
             <TableBody>
               {filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-48 text-center text-muted-foreground">
-                    {searchTerm ? "No members match your search criteria." : "No members found in the directory."}
-                  </TableCell>
+                  <TableCell colSpan={4} className="h-48 text-center text-muted-foreground">No members match your search.</TableCell>
                 </TableRow>
               ) : (
                 filteredMembers.map((member: any) => (
@@ -416,65 +367,33 @@ export default function MembersPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize border-primary/20 text-primary font-bold">
-                        {member.role}
-                      </Badge>
+                      <Badge variant="outline" className="capitalize border-primary/20 text-primary font-bold">{member.role}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge 
-                        variant={member.status === 'active' ? 'default' : 'secondary'} 
-                        className={cn(
-                          "rounded-lg font-bold uppercase text-[10px]",
-                          member.status === 'active' ? "bg-green-500" : "bg-orange-500/10 text-orange-600"
-                        )}
-                      >
+                      <Badge variant={member.status === 'active' ? 'default' : 'secondary'} className={cn("rounded-lg font-bold uppercase text-[10px]", member.status === 'active' ? "bg-green-500" : "bg-orange-500/10 text-orange-600")}>
                         {member.status || 'pending'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right px-6">
                       <div className="flex justify-end gap-2">
-                         <Button 
-                           size="icon" 
-                           variant="ghost" 
-                           className="rounded-lg hover:bg-primary/10 hover:text-primary"
-                           onClick={() => { setSelectedMember(member); setIsDetailOpen(true); }}
-                         >
+                         <Button size="icon" variant="ghost" className="rounded-lg" onClick={() => { setSelectedMember(member); setIsDetailOpen(true); }}>
                            <CalendarIcon className="h-4 w-4" />
                          </Button>
                          <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-lg">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
+                            <Button variant="ghost" size="icon" className="rounded-lg"><MoreVertical className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl w-48">
-                            <DropdownMenuItem 
-                              className="py-2.5"
-                              onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}
-                            >
-                              Edit Profile
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="py-2.5 text-destructive focus:text-destructive"
-                              onClick={async () => {
-                                if(user && confirm(`Confirm deletion of member: ${member.name}? This action is irreversible.`)) {
-                                  const justification = window.prompt("Please provide a justification for this deletion:");
+                            <DropdownMenuItem className="py-2.5" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Profile</DropdownMenuItem>
+                            <DropdownMenuItem className="py-2.5 text-destructive focus:text-destructive" onClick={async () => {
+                                if(user && confirm(`Confirm deletion of member: ${member.name}?`)) {
+                                  const justification = window.prompt("Reason for deletion:");
                                   if (!justification) return;
-                                  
                                   await deleteDoc(doc(firestore, 'users', member.id));
-                                  await logAdminAction({
-                                    adminId: user.uid,
-                                    action: 'DELETE_MEMBER_RECORD',
-                                    justification,
-                                    details: { memberId: member.id, memberName: member.name }
-                                  });
-                                  
-                                  toast({ title: "Deleted", description: "Member record has been removed and logged." });
+                                  await logAdminAction({ adminId: user.uid, action: 'DELETE_MEMBER_RECORD', justification, details: { memberId: member.id, memberName: member.name } });
+                                  toast({ title: "Deleted", description: "Member record has been removed." });
                                 }
-                              }}
-                            >
-                              Remove Member
-                            </DropdownMenuItem>
+                              }}>Remove Member</DropdownMenuItem>
                           </DropdownMenuContent>
                          </DropdownMenu>
                       </div>

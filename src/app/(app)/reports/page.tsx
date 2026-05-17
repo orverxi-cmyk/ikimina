@@ -1,13 +1,31 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, FileText, Loader2, PieChart, ShieldAlert, TrendingUp, Wallet, HandCoins, AlertTriangle, Settings2, Percent } from 'lucide-react';
+import { 
+  FileText, 
+  Loader2, 
+  ShieldAlert, 
+  Settings2, 
+  Percent,
+  ArrowUpRight,
+  ArrowDownRight,
+  History,
+  Calendar,
+  AlertTriangle,
+  HandCoins
+} from 'lucide-react';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { 
@@ -21,8 +39,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { allocateInterestAction, updateFinancialSettingsAction } from '@/app/actions/finance';
+import { allocateInterestAction, updateFinancialSettingsAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
+import { isWithinInterval, getYear } from 'date-fns';
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -39,6 +58,8 @@ export default function ReportsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  
+  const [periodFilter, setPeriodFilter] = useState<string>(new Date().getFullYear().toString());
 
   const role = userData?.role || 'member';
   const isAdmin = role === 'admin';
@@ -59,18 +80,65 @@ export default function ReportsPage() {
     return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
   }, [isAuthorized]);
 
+  const auditLogsQuery = useMemoFirebase(() => {
+    if (!isAuthorized) return null;
+    return query(collection(firestore, 'audit_logs'), orderBy('timestamp', 'desc'));
+  }, [isAuthorized]);
+
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
   const { data: contributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
+  const { data: auditLogsSnap, loading: loadingLogs } = useCollection(auditLogsQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
+  const auditLogs = useMemo(() => auditLogsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [auditLogsSnap]);
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    years.add(new Date().getFullYear());
+    loans.forEach((l: any) => {
+      if (l.approvedAt) years.add(getYear(l.approvedAt.toDate()));
+    });
+    auditLogs.forEach((log: any) => {
+      if (log.timestamp) years.add(getYear(log.timestamp.toDate()));
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [loans, auditLogs]);
 
   const reportData = useMemo(() => {
+    const isLifetime = periodFilter === 'lifetime';
+    const filterYear = parseInt(periodFilter);
+    const filterInterval = isLifetime ? null : {
+      start: new Date(filterYear, 0, 1),
+      end: new Date(filterYear, 11, 31, 23, 59, 59)
+    };
+
     const totalContributed = contributions.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
-    const totalInterestPaid = members.reduce((acc, curr: any) => acc + (Number(curr.accruedInterest) || 0), 0);
     
+    const filteredInterestIn = loans.reduce((acc, loan: any) => {
+      if (loan.status === 'approved' && loan.approvedAt) {
+        const approvedDate = loan.approvedAt.toDate();
+        const isInPeriod = isLifetime || (filterInterval && isWithinInterval(approvedDate, filterInterval));
+        if (isInPeriod) {
+          return acc + (Number(loan.interestAmount) || 0);
+        }
+      }
+      return acc;
+    }, 0);
+
+    const filteredInterestOut = auditLogs.reduce((acc, log: any) => {
+      if (log.action === 'ALLOCATE_INTEREST' && log.timestamp) {
+        const logDate = log.timestamp.toDate();
+        const isInPeriod = isLifetime || (filterInterval && isWithinInterval(logDate, filterInterval));
+        if (isInPeriod) {
+          return acc + (Number(log.details?.totalDistributed) || 0);
+        }
+      }
+      return acc;
+    }, 0);
+
     const loanStats = loans.reduce((acc, loan: any) => {
       const balance = Number(loan.balance) || 0;
       if (loan.status === 'approved') {
@@ -81,12 +149,16 @@ export default function ReportsPage() {
     }, { outstandingBalance: 0, activeCount: 0 });
 
     const memberSummaries = members.map((m: any) => {
-      const memberConts = contributions.filter((c: any) => c.memberId === m.id);
-      const total = memberConts.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
-      const memberLoans = loans.filter((l: any) => l.memberId === m.id && l.status === 'approved');
-      const debt = memberLoans.reduce((acc, curr: any) => acc + (Number(curr.balance) || 0), 0);
+      const total = contributions
+        .filter((c: any) => c.memberId === m.id)
+        .reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
+      
+      const debt = loans
+        .filter((l: any) => l.memberId === m.id && l.status === 'approved')
+        .reduce((acc, curr: any) => acc + (Number(curr.balance) || 0), 0);
       
       return {
+        id: m.id,
         name: m.name,
         email: m.email,
         totalContributed: total,
@@ -98,13 +170,14 @@ export default function ReportsPage() {
 
     return {
       totalContributed,
-      totalInterestPaid,
+      filteredInterestIn,
+      filteredInterestOut,
       outstandingLoansBalance: loanStats.outstandingBalance,
       activeLoansCount: loanStats.activeCount,
       netPotValue: totalContributed - loanStats.outstandingBalance,
       memberSummaries
     };
-  }, [members, contributions, loans]);
+  }, [members, contributions, loans, auditLogs, periodFilter]);
 
   const handleAllocateInterest = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -117,7 +190,7 @@ export default function ReportsPage() {
 
     try {
       await allocateInterestAction(user.uid, { totalInterestToDistribute, justification });
-      toast({ title: "Distribution Complete", description: "Interest has been allocated pro-rata to all active members." });
+      toast({ title: "Distribution Complete", description: "Interest has been allocated pro-rata." });
       setIsDialogOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Allocation Failed", description: error.message });
@@ -138,7 +211,7 @@ export default function ReportsPage() {
 
     try {
       await updateFinancialSettingsAction({ loanInterestRate, contributionInterestRate, justification });
-      toast({ title: "Settings Updated", description: "Global interest rates have been securely updated." });
+      toast({ title: "Settings Updated", description: "Global interest rates updated." });
       setIsSettingsOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Update Failed", description: error.message });
@@ -147,7 +220,7 @@ export default function ReportsPage() {
     }
   };
 
-  if (userLoading || (isAuthorized && (loadingMembers || loadingContributions || loadingLoans))) {
+  if (userLoading || (isAuthorized && (loadingMembers || loadingContributions || loadingLoans || loadingLogs))) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
@@ -169,31 +242,94 @@ export default function ReportsPage() {
           <p className="text-muted-foreground font-medium">Internal audits and standing reports</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-xl mr-2">
+            <Select value={periodFilter} onValueChange={setPeriodFilter}>
+              <SelectTrigger className="w-[180px] h-9 border-none bg-transparent">
+                <Calendar className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Select Period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="lifetime">Lifetime (All Time)</SelectItem>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year.toString()}>Year {year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {isAdmin && (
             <>
-              <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="rounded-xl">
-                <Settings2 className="mr-2 h-4 w-4" /> Global Rates
+              <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="rounded-xl h-9">
+                <Settings2 className="mr-2 h-4 w-4" /> Rates
               </Button>
-              <Button onClick={() => setIsDialogOpen(true)} className="rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
-                <HandCoins className="mr-2 h-4 w-4" /> Distribute Interest
+              <Button onClick={() => setIsDialogOpen(true)} className="rounded-xl h-9">
+                <History className="mr-2 h-4 w-4" /> Distribute
               </Button>
             </>
           )}
-          <Button variant="outline" onClick={() => window.print()} className="rounded-xl hidden md:flex">
-            <FileText className="mr-2 h-4 w-4" /> Print PDF
+          <Button variant="outline" onClick={() => window.print()} className="rounded-xl h-9 hidden md:flex">
+            <FileText className="mr-2 h-4 w-4" /> Export
           </Button>
         </div>
       </div>
 
-      {/* Settings Dialog */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-none shadow-md bg-green-500/5 border border-green-500/10">
+          <CardHeader className="pb-2">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-green-700">Interest In</CardTitle>
+              <ArrowUpRight className="h-4 w-4 text-green-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{reportData.filteredInterestIn.toLocaleString()} RWF</div>
+            <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">
+              {periodFilter === 'lifetime' ? 'Lifetime Earnings' : `Earnings in ${periodFilter}`}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-md bg-primary/5 border border-primary/10">
+          <CardHeader className="pb-2">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-primary">Interest Out</CardTitle>
+              <ArrowDownRight className="h-4 w-4 text-primary" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{reportData.filteredInterestOut.toLocaleString()} RWF</div>
+            <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">
+              {periodFilter === 'lifetime' ? 'Lifetime Shared' : `Distributed in ${periodFilter}`}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-md bg-card/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Active Loan Book</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{reportData.outstandingLoansBalance.toLocaleString()} RWF</div>
+            <p className="text-[10px] text-orange-600 font-bold mt-1 uppercase">{reportData.activeLoansCount} Active Loans</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-md bg-card/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Net Available Pot</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{reportData.netPotValue.toLocaleString()} RWF</div>
+            <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Total Liquid Capital</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent className="rounded-2xl">
           <form onSubmit={handleUpdateSettings}>
             <DialogHeader>
               <DialogTitle className="text-2xl font-headline">Global Interest Rates</DialogTitle>
-              <DialogDescription>
-                Set the default percentages for loans and contribution yields.
-              </DialogDescription>
+              <DialogDescription>Set default percentages for loans and contribution yields.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
               <div className="grid grid-cols-2 gap-4">
@@ -219,7 +355,7 @@ export default function ReportsPage() {
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isUpdatingSettings} className="w-full h-11 rounded-xl font-bold">
-                {isUpdatingSettings ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Settings2 className="mr-2 h-4 w-4" />}
+                {isUpdatingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>
             </DialogFooter>
@@ -232,16 +368,12 @@ export default function ReportsPage() {
           <form onSubmit={handleAllocateInterest}>
             <DialogHeader>
               <DialogTitle className="text-2xl font-headline">Pro-Rata Interest Distribution</DialogTitle>
-              <DialogDescription>
-                Allocates profits to members based on their percentage share of the total contribution pool.
-              </DialogDescription>
+              <DialogDescription>Allocates profits based on member share of total contributions.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
               <div className="bg-orange-500/10 p-4 rounded-xl border border-orange-200 flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0 mt-1" />
-                <p className="text-xs text-orange-800 leading-relaxed font-medium">
-                  This action is irreversible. All active members with contributions will receive their mathematical share of the amount specified.
-                </p>
+                <p className="text-xs text-orange-800 leading-relaxed font-medium">Irreversible action. All active members will receive their share.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="amount">Total Interest to Distribute (RWF)</Label>
@@ -249,60 +381,18 @@ export default function ReportsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="justification">Audit Justification</Label>
-                <Textarea name="justification" placeholder="E.g., End of year profit sharing cycle..." required className="rounded-xl min-h-[80px]" />
+                <Textarea name="justification" placeholder="Reason for this distribution..." required className="rounded-xl min-h-[80px]" />
               </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isAllocating} className="w-full h-11 rounded-xl font-bold">
-                {isAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <HandCoins className="mr-2 h-4 w-4" />}
-                Confirm & Distribute
+                {isAllocating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirm Distribution
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-none shadow-md bg-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Capital</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{reportData.totalContributed.toLocaleString()} RWF</div>
-            <TrendingUp className="h-4 w-4 text-green-500 mt-1" />
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-md bg-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Active Loan Book</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{reportData.outstandingLoansBalance.toLocaleString()} RWF</div>
-            <p className="text-[10px] text-orange-600 font-bold mt-1 uppercase">{reportData.activeLoansCount} Active Loans</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-md bg-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Accrued Profit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{reportData.totalInterestPaid.toLocaleString()} RWF</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Distributed to date</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-md bg-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Net Available Pot</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{reportData.netPotValue.toLocaleString()} RWF</div>
-            <Wallet className="h-4 w-4 text-green-500 mt-1" />
-          </CardContent>
-        </Card>
-      </div>
 
       <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm rounded-2xl overflow-hidden">
         <CardHeader className="bg-muted/20">
@@ -321,8 +411,8 @@ export default function ReportsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reportData.memberSummaries.map((m, idx) => (
-                <TableRow key={idx} className="hover:bg-muted/30 transition-colors">
+              {reportData.memberSummaries.map((m) => (
+                <TableRow key={m.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell className="py-4 px-6">
                     <div className="font-bold">{m.name}</div>
                     <div className="text-[10px] text-muted-foreground">{m.email}</div>
