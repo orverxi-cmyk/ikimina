@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, HandCoins, Users, TrendingUp, Calendar, ArrowUpRight } from 'lucide-react';
+import { Wallet, HandCoins, Users, TrendingUp, Calendar, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where, orderBy, limit } from 'firebase/firestore';
@@ -33,8 +33,7 @@ export default function DashboardPage() {
       return acc + (data.status === 'approved' ? (data.balance || 0) : 0);
     }, 0) || 0;
     
-    // Pot balance: Total Contributions - (Initial Principal Given) + (Repayments so far)
-    // Simplified: Total Contributions - Current Outstanding Balance
+    // Pot balance: Total Contributions - Current Outstanding Balance
     const availablePot = totalConts - activeLoansBalance;
 
     return [
