@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
@@ -107,7 +106,9 @@ export default function MembersPage() {
       const membersToRegister: any[] = [];
       
       dataRows.forEach(row => {
-        const [firstName, surname, email, phone, role] = row.split(',').map(s => s.trim());
+        const columns = row.split(',').map(s => s.trim());
+        const [firstName, surname, email, phone, role] = columns;
+        
         if (email && firstName) {
           membersToRegister.push({
             name: `${firstName} ${surname}`.trim(),
@@ -120,7 +121,7 @@ export default function MembersPage() {
 
       try {
         await bulkRegisterMembersAction(user.uid, membersToRegister, justification);
-        toast({ title: "Bulk Upload Success", description: `Successfully registered ${membersToRegister.length} members.` });
+        toast({ title: "Bulk Upload Success", description: `Successfully registered ${membersToRegister.length} members via Cloud Functions.` });
       } catch (error: any) {
         toast({ variant: "destructive", title: "Upload Failed", description: error.message });
       } finally {
@@ -166,7 +167,7 @@ export default function MembersPage() {
         toast({ title: "Success", description: "Member updated successfully." });
       } else {
         await registerMemberAction(user.uid, memberData);
-        toast({ title: "Invited", description: "Member registered successfully via secure server action." });
+        toast({ title: "Invited", description: "Member registered successfully via secure Cloud Function." });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);

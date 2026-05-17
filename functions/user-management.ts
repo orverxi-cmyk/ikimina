@@ -44,6 +44,62 @@ export const registerMember = onCall({ cors: true }, async (request) => {
 });
 
 /**
+ * Registers multiple members in a single batch operation.
+ */
+export const bulkRegisterMembers = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    
+    if (adminSnap.data()?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Only administrators can perform bulk registration.');
+    }
+
+    const { members, justification } = request.data;
+    if (!Array.isArray(members)) {
+        throw new HttpsError('invalid-argument', 'The "members" parameter must be an array.');
+    }
+
+    try {
+        const batchSize = 500;
+        const totalBatches = Math.ceil(members.length / batchSize);
+        
+        for (let i = 0; i < totalBatches; i++) {
+            const batch = db.batch();
+            const chunk = members.slice(i * batchSize, (i + 1) * batchSize);
+            
+            chunk.forEach(m => {
+                const userRef = db.collection('users').doc();
+                batch.set(userRef, {
+                    name: m.name,
+                    email: m.email.toLowerCase(),
+                    phone: m.phone || '',
+                    role: m.role || 'member',
+                    joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'pending',
+                });
+            });
+            
+            await batch.commit();
+        }
+
+        // Log the administrative action
+        await db.collection('audit_logs').add({
+            adminId: request.auth.uid,
+            action: 'BULK_REGISTER_MEMBERS',
+            justification,
+            details: { count: members.length },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return { success: true, count: members.length };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
  * Updates a user's role and applies custom claims for security.
  */
 export const updateUserRole = onCall({ cors: true }, async (request) => {
