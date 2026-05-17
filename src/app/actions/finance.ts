@@ -1,48 +1,73 @@
-'use server';
-
 /**
- * @fileOverview Bridge actions to call secure Cloud Functions from the Next.js server context.
- * This maintains the unified UI while utilizing the robust Firebase Admin infrastructure.
+ * @fileOverview Bridge functions to call secure Cloud Functions.
+ * These are client-side helpers that use the Firebase SDK to trigger
+ * server-side logic in the /functions directory.
  */
 
 import { initializeFirebase } from '@/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
-export async function registerMemberAction(adminId: string, memberData: any) {
-    const { app } = initializeFirebase();
-    const functions = getFunctions(app);
-    const registerFn = httpsCallable(functions, 'registerMember');
-    
-    try {
-        const result = await registerFn({ memberData, justification: memberData.justification });
-        return result.data;
-    } catch (error: any) {
-        throw new Error(error.message);
-    }
+const getFinanceFunctions = () => {
+  const { app } = initializeFirebase();
+  return getFunctions(app);
+};
+
+export async function registerMemberAction(memberData: any) {
+  const functions = getFinanceFunctions();
+  const registerFn = httpsCallable(functions, 'registerMember');
+  
+  try {
+    const result = await registerFn({ memberData, justification: memberData.justification });
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to register member');
+  }
 }
 
-export async function logAdminAction(data: { adminId: string, action: string, justification: string, details?: any }) {
-    const { app } = initializeFirebase();
-    const functions = getFunctions(app);
-    const logFn = httpsCallable(functions, 'logAdminAction');
-    
-    try {
-        const result = await logFn(data);
-        return result.data;
-    } catch (error: any) {
-        throw new Error(error.message);
-    }
+export async function logAdminAction(data: { action: string, justification: string, details?: any }) {
+  const functions = getFinanceFunctions();
+  const logFn = httpsCallable(functions, 'logAdminAction');
+  
+  try {
+    const result = await logFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to log action');
+  }
 }
 
-export async function bulkRegisterMembersAction(adminId: string, members: any[], justification: string) {
-    const { app } = initializeFirebase();
-    const functions = getFunctions(app);
-    const bulkFn = httpsCallable(functions, 'bulkRegisterMembers');
-    
-    try {
-        const result = await bulkFn({ members, justification });
-        return result.data;
-    } catch (error: any) {
-        throw new Error(error.message);
-    }
+export async function bulkRegisterMembersAction(members: any[], justification: string) {
+  const functions = getFinanceFunctions();
+  const bulkFn = httpsCallable(functions, 'bulkRegisterMembers');
+  
+  try {
+    const result = await bulkFn({ members, justification });
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed bulk registration');
+  }
+}
+
+export async function recordContributionAction(data: { memberId: string, amount: number, period: string, justification: string }) {
+  const functions = getFinanceFunctions();
+  const recordFn = httpsCallable(functions, 'recordContribution');
+  
+  try {
+    const result = await recordFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to record contribution');
+  }
+}
+
+export async function allocateInterestAction(data: { totalInterestToDistribute: number, justification: string }) {
+  const functions = getFinanceFunctions();
+  const allocateFn = httpsCallable(functions, 'allocateInterest');
+  
+  try {
+    const result = await allocateFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed interest allocation');
+  }
 }

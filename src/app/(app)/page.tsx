@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, HandCoins, Users, TrendingUp, Calendar, ArrowUpRight, CheckCircle2, Loader2 } from 'lucide-react';
+import { Wallet, HandCoins, Users, TrendingUp, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where } from 'firebase/firestore';
@@ -22,7 +23,6 @@ export default function DashboardPage() {
   const isManagement = role === 'admin' || role === 'management';
   const isLoading = userAuthLoading || userDataLoading;
 
-  // Filtered queries to satisfy security rules
   const contributionsQuery = useMemoFirebase(() => {
     if (!user || isLoading) return null;
     if (isManagement) return query(collection(firestore, 'contributions'));
@@ -56,8 +56,8 @@ export default function DashboardPage() {
     const availablePot = totalConts - activeLoansBalance;
 
     const baseStats = [
-      { title: isManagement ? 'Available Pot' : 'My Total Balance', value: availablePot.toLocaleString() + ' RWF', icon: Wallet, color: 'text-green-500', bg: 'bg-green-500/10' },
-      { title: isManagement ? 'Total Tontine Wealth' : 'Group Contribution', value: totalConts.toLocaleString() + ' RWF', icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+      { title: isManagement ? 'Available Pot' : 'My Contributions', value: (isManagement ? availablePot : (contributionsSnap?.docs.reduce((acc, d) => acc + (d.data().amount || 0), 0) || 0)).toLocaleString() + ' RWF', icon: Wallet, color: 'text-green-500', bg: 'bg-green-500/10' },
+      { title: isManagement ? 'Total Tontine Wealth' : 'Accrued Interest', value: (isManagement ? totalConts : (userData?.accruedInterest || 0)).toLocaleString() + ' RWF', icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
       { title: isManagement ? 'Active Loan Book' : 'My Active Debt', value: activeLoansBalance.toLocaleString() + ' RWF', icon: HandCoins, color: 'text-orange-500', bg: 'bg-orange-500/10' },
     ];
 
@@ -66,7 +66,7 @@ export default function DashboardPage() {
     }
 
     return baseStats;
-  }, [contributionsSnap, loansSnap, membersSnap, isManagement, isLoading, loadingConts, loadingLoans]);
+  }, [contributionsSnap, loansSnap, membersSnap, isManagement, isLoading, loadingConts, loadingLoans, userData]);
 
   const myParticipation = useMemo(() => {
     if (!user || !contributionsSnap || !loansSnap) return { contributions: 0, debt: 0, nextPayment: null };
@@ -136,8 +136,8 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center p-5 bg-background/50 rounded-2xl border border-primary/5 hover:border-primary/20 transition-colors">
-              <span className="text-muted-foreground font-medium">My Contributions</span>
-              <span className="font-bold text-xl">{myParticipation.contributions.toLocaleString()} RWF</span>
+              <span className="text-muted-foreground font-medium">Accumulated Interest</span>
+              <span className="font-bold text-xl text-primary">+{(userData?.accruedInterest || 0).toLocaleString()} RWF</span>
             </div>
             <div className="flex justify-between items-center p-5 bg-background/50 rounded-2xl border border-orange-500/5 hover:border-orange-500/20 transition-colors">
               <span className="text-muted-foreground font-medium">Outstanding Debt</span>

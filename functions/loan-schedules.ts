@@ -1,3 +1,4 @@
+import * as admin from 'firebase-admin';
 import { addMonths } from 'date-fns';
 
 /**
@@ -26,6 +27,3 @@ export function calculateAmortizationSchedule(
   
   return schedule;
 }
-
-// Re-exporting admin for use in main file if needed
-import * as admin from 'firebase-admin';

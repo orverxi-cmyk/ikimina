@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -7,15 +8,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Wallet, History, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { Wallet, History, AlertCircle, Loader2, Trash2, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, addDoc, serverTimestamp, getDocs, writeBatch, where, doc } from 'firebase/firestore';
+import { collection, query, orderBy, where, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { recordContributionAction } from '@/app/actions/finance';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function ContributionsPage() {
   const { toast } = useToast();
@@ -39,7 +42,6 @@ export default function ContributionsPage() {
   const contributionsQuery = useMemoFirebase(() => {
     if (!user) return null;
     if (isManagement) return query(collection(firestore, 'contributions'), orderBy('date', 'desc'));
-    // Members only see their own contributions
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid), orderBy('date', 'desc'));
   }, [user, isManagement]);
 
@@ -49,56 +51,37 @@ export default function ContributionsPage() {
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
 
-  // Calculations
   const totalBalance = useMemo(() => contributions.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0), [contributions]);
   
   const unpaidMembers = useMemo(() => {
     if (!isManagement) return [];
     const paidMemberIds = new Set(contributions.filter((c: any) => c.period === selectedPeriod).map((c: any) => c.memberId));
-    return members.filter((m: any) => !paidMemberIds.has(m.id));
+    return members.filter((m: any) => m.role === 'member' && !paidMemberIds.has(m.id));
   }, [members, contributions, selectedPeriod, isManagement]);
 
   const handleRecordPayment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isAdmin) return;
+    if (!isManagement || !user) return;
     
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const memberId = formData.get('memberId') as string;
     const amount = Number(formData.get('amount'));
     const period = formData.get('period') as string;
+    const justification = formData.get('justification') as string;
 
     try {
-      await addDoc(collection(firestore, 'contributions'), {
+      await recordContributionAction(user.uid, {
         memberId,
         amount,
         period,
-        date: serverTimestamp(),
-        recordedBy: user?.uid,
+        justification
       });
       
-      toast({ title: "Success", description: "Contribution recorded successfully" });
+      toast({ title: "Success", description: "Contribution recorded via secure backend." });
       (e.target as HTMLFormElement).reset();
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to record contribution" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleClearHistory = async () => {
-    if (!isAdmin) return;
-    if (!confirm("Are you sure you want to clear ALL contribution history? This action cannot be undone.")) return;
-    
-    setIsSubmitting(true);
-    try {
-      const batch = writeBatch(firestore);
-      const snapshot = await getDocs(collection(firestore, 'contributions'));
-      snapshot.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-      toast({ title: "History Cleared", description: "All contribution records have been removed." });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to clear history" });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -124,9 +107,9 @@ export default function ContributionsPage() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
-        {/* Record Payment Form - Admin Only */}
-        {isAdmin && (
-          <Card className="lg:col-span-1 border-primary/20 bg-primary/5 h-fit">
+        {/* Record Payment Form - Management Only */}
+        {isManagement && (
+          <Card className="lg:col-span-1 border-primary/20 bg-primary/5 h-fit sticky top-8">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-primary">
                 <Wallet className="h-5 w-5" /> Record Payment
@@ -138,7 +121,7 @@ export default function ContributionsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="memberId">Select Member</Label>
                   <Select name="memberId" required>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 rounded-xl">
                       <SelectValue placeholder={loadingMembers ? "Loading members..." : "Choose a member"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -148,25 +131,33 @@ export default function ContributionsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="period">Period</Label>
-                  <Select name="period" defaultValue={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger><SelectValue placeholder="Select period" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={format(new Date(), 'MMMM yyyy')}>{format(new Date(), 'MMMM yyyy')}</SelectItem>
-                      <SelectItem value={format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'MMMM yyyy')}>
-                        {format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'MMMM yyyy')}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="period">Period</Label>
+                    <Select name="period" defaultValue={selectedPeriod} onValueChange={setSelectedPeriod}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Period" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={format(new Date(), 'MMMM yyyy')}>{format(new Date(), 'MMMM yyyy')}</SelectItem>
+                        <SelectItem value={format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'MMMM yyyy')}>
+                          {format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'MMMM yyyy')}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount (RWF)</Label>
+                    <Input name="amount" type="number" defaultValue="50000" required className="h-11 rounded-xl" />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount (RWF)</Label>
-                  <Input name="amount" type="number" defaultValue="50000" required />
+                  <Label htmlFor="justification" className="flex items-center gap-1">
+                    Audit Justification <ShieldCheck className="h-3 w-3 text-primary" />
+                  </Label>
+                  <Textarea name="justification" placeholder="E.g., Cash received at meeting..." required className="rounded-xl min-h-[80px]" />
                 </div>
-                <Button className="w-full" type="submit" disabled={isSubmitting || loadingMembers}>
+                <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isSubmitting || loadingMembers}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Confirm Record
+                  Confirm & Record
                 </Button>
               </form>
             </CardContent>
@@ -174,26 +165,27 @@ export default function ContributionsPage() {
         )}
 
         {/* History & Alerts */}
-        <div className={cn("space-y-6", isAdmin ? "lg:col-span-2" : "lg:col-span-3")}>
-          {/* Pending Alerts - Management Only */}
+        <div className={cn("space-y-6", isManagement ? "lg:col-span-2" : "lg:col-span-3")}>
           {isManagement && (
-            <Card>
+            <Card className="border-none shadow-lg">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <AlertCircle className="h-5 w-5 text-orange-500" /> Pending for {selectedPeriod}
                 </CardTitle>
-                <CardDescription>Members who have not yet contributed for this period</CardDescription>
+                <CardDescription>Members with no recorded payments this month</CardDescription>
               </CardHeader>
               <CardContent>
                 {unpaidMembers.length === 0 ? (
-                  <p className="text-sm text-green-600 font-medium">All members have paid for this period!</p>
+                  <div className="flex items-center gap-2 text-green-600 bg-green-500/10 p-4 rounded-xl font-bold">
+                    <ShieldCheck className="h-5 w-5" /> All members have paid for this period!
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {unpaidMembers.map((m: any) => (
-                      <Alert key={m.id} variant="default" className="border-orange-500/20 bg-orange-500/5">
-                        <AlertTitle className="text-orange-500 font-bold">{m.name}</AlertTitle>
-                        <AlertDescription className="text-xs">No payment recorded for {selectedPeriod}</AlertDescription>
-                      </Alert>
+                      <div key={m.id} className="p-3 border rounded-xl bg-muted/30 flex justify-between items-center">
+                        <span className="font-bold text-sm">{m.name}</span>
+                        <Badge variant="secondary" className="text-[9px] uppercase">Unpaid</Badge>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -201,22 +193,11 @@ export default function ContributionsPage() {
             </Card>
           )}
 
-          <Card>
+          <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" /> {isMember ? "My Payments" : "Recent Payments"}
               </CardTitle>
-              {isAdmin && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleClearHistory}
-                  disabled={isSubmitting || contributions.length === 0}
-                  className="text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Clear History
-                </Button>
-              )}
             </CardHeader>
             <CardContent>
               <Table>
@@ -237,17 +218,17 @@ export default function ContributionsPage() {
                     </TableRow>
                   ) : contributions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isManagement ? 4 : 3} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={isManagement ? 4 : 3} className="h-24 text-center text-muted-foreground italic">
                         No payments recorded yet.
                       </TableCell>
                     </TableRow>
                   ) : (
                     contributions.map((h: any) => (
                       <TableRow key={h.id}>
-                        {isManagement && <TableCell className="font-medium">{getMemberName(h.memberId)}</TableCell>}
+                        {isManagement && <TableCell className="font-bold">{getMemberName(h.memberId)}</TableCell>}
                         <TableCell>{h.period}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Pending...'}
+                          {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Processing...'}
                         </TableCell>
                         <TableCell className="text-right font-bold">{h.amount?.toLocaleString()} RWF</TableCell>
                       </TableRow>

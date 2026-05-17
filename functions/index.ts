@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 
-// Initialize the Admin SDK globally for all modular functions
+// Initialize the Admin SDK globally
 if (!admin.apps.length) {
     admin.initializeApp();
 }
@@ -12,3 +12,5 @@ if (!admin.apps.length) {
 export * from './user-management';
 export * from './loan-management';
 export * from './audit-management';
+export * from './contribution-management';
+export * from './financial-management';

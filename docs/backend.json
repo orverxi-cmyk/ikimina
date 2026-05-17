@@ -17,6 +17,7 @@
         "joinedAt": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["pending", "active"] },
         "activatedAt": { "type": "string", "format": "date-time" },
+        "accruedInterest": { "type": "number", "default": 0 },
         "amortizationSchedule": {
           "type": "array",
           "items": {
