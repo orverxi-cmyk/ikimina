@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type {
   DocumentData,
-  DocumentReference,
   Query,
   QuerySnapshot,
 } from 'firebase/firestore';
-import { onSnapshot } from 'firebase/firestore';
+import { onSnapshot, DocumentReference } from 'firebase/firestore';
 
 import { useFirestore } from '../provider';
 import { errorEmitter }from '@/firebase/error-emitter';
