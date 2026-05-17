@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon } from 'lucide-react';
+import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +42,7 @@ export default function MembersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
@@ -55,7 +56,6 @@ export default function MembersPage() {
 
   const isAdmin = userData?.role === 'admin';
 
-  // Only initiate the members query if the user is authorized
   const membersQuery = useMemoFirebase(() => {
     if (!isAdmin) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
@@ -81,6 +81,59 @@ export default function MembersPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      const rows = text.split('\n').filter(row => row.trim() !== '');
+      // Skip headers
+      const dataRows = rows.slice(1);
+
+      if (dataRows.length === 0) {
+        toast({ variant: "destructive", title: "Empty File", description: "No data found in the uploaded file." });
+        return;
+      }
+
+      setIsSubmitting(true);
+      let successCount = 0;
+      let failCount = 0;
+
+      try {
+        for (const row of dataRows) {
+          const [firstName, surname, email, phone, role] = row.split(',').map(s => s.trim());
+          if (!email || !firstName) {
+            failCount++;
+            continue;
+          }
+
+          await addDoc(collection(firestore, 'users'), {
+            name: `${firstName} ${surname}`.trim(),
+            email: email.toLowerCase(),
+            phone: phone || '',
+            role: (role?.toLowerCase() as any) || 'member',
+            joinedAt: serverTimestamp(),
+            status: 'pending',
+          });
+          successCount++;
+        }
+
+        toast({ 
+          title: "Bulk Upload Complete", 
+          description: `Successfully invited ${successCount} members. ${failCount > 0 ? `Failed to process ${failCount} rows.` : ''}` 
+        });
+      } catch (error) {
+        toast({ variant: "destructive", title: "Upload Error", description: "An error occurred during bulk processing." });
+      } finally {
+        setIsSubmitting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -150,11 +203,22 @@ export default function MembersPage() {
         </div>
         
         <div className="flex flex-wrap gap-2">
+          <input 
+            type="file" 
+            accept=".csv" 
+            className="hidden" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+          />
           <Button variant="outline" onClick={handleDownloadTemplate} className="rounded-xl">
             <Download className="mr-2 h-4 w-4" /> Template
           </Button>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="rounded-xl" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+            Upload CSV
+          </Button>
           <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setIsAddDialogOpen(true); }} className="rounded-xl shadow-lg shadow-primary/20">
-            <UserPlus className="mr-2 h-4 w-4" /> Add New Member
+            <UserPlus className="mr-2 h-4 w-4" /> Add Member
           </Button>
         </div>
       </div>
