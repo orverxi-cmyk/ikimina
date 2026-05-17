@@ -18,7 +18,8 @@ import {
   updateDoc, 
   doc, 
   serverTimestamp,
-  limit
+  limit,
+  getDoc
 } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase/provider';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  // Handle returning from Email Link
   useEffect(() => {
     const handleAuthLink = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
@@ -53,28 +55,36 @@ export default function LoginPage() {
         if (emailForLink) {
           setIsLoading(true);
           try {
-            await signInWithEmailLink(auth, emailForLink, window.location.href);
+            const result = await signInWithEmailLink(auth, emailForLink, window.location.href);
             window.localStorage.removeItem('emailForSignIn');
             
-            // Once signed in, search for the user doc to see if activation is needed
-            const q = query(
-              collection(firestore, 'users'), 
-              where('email', '==', emailForLink.toLowerCase()), 
-              limit(1)
-            );
-            const snap = await getDocs(q);
+            // User is now signed in. Fetch doc directly via UID.
+            const userDoc = await getDoc(doc(firestore, 'users', result.user.uid));
             
-            if (!snap.empty) {
-              const member = snap.docs[0];
-              setMemberDocId(member.id);
+            if (userDoc.exists()) {
+              const data = userDoc.data();
+              setMemberDocId(userDoc.id);
               setEmail(emailForLink);
-              if (member.data().status === 'pending') {
+              if (data.status === 'pending') {
                 setStep('set-password');
               } else {
                 router.push('/');
               }
             } else {
-              router.push('/');
+              // Fallback: If UID doc doesn't exist, check by email (might be different UID)
+              const q = query(
+                collection(firestore, 'users'), 
+                where('email', '==', emailForLink.toLowerCase()), 
+                limit(1)
+              );
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                setMemberDocId(snap.docs[0].id);
+                setStep('set-password');
+              } else {
+                toast({ title: "Account Not Found", description: "You are signed in but no member profile was found." });
+                router.push('/');
+              }
             }
           } catch (error: any) {
             toast({ variant: 'destructive', title: 'Invalid Link', description: error.message });
@@ -126,6 +136,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const actionCodeSettings = {
+        // Ensure this domain is authorized in Firebase Console -> Auth -> Settings
         url: window.location.origin + '/login',
         handleCodeInApp: true,
       };
@@ -133,10 +144,10 @@ export default function LoginPage() {
       window.localStorage.setItem('emailForSignIn', email);
       toast({ 
         title: "Link Sent!", 
-        description: "Please check your email to activate your account." 
+        description: "Check your inbox (and spam) to activate your account." 
       });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Error', description: "Failed to send link. Please ensure your email is correct." });
     } finally {
       setIsLoading(false);
     }
@@ -144,6 +155,9 @@ export default function LoginPage() {
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 6) {
+      return toast({ variant: 'destructive', title: 'Error', description: 'Password must be at least 6 characters.' });
+    }
     if (password !== confirmPassword) {
       return toast({ variant: 'destructive', title: 'Error', description: 'Passwords do not match.' });
     }
@@ -152,11 +166,12 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await updatePassword(auth.currentUser, password);
+      // Update the user document to active
       await updateDoc(doc(firestore, 'users', memberDocId), {
         status: 'active',
         activatedAt: serverTimestamp(),
       });
-      toast({ title: 'Success', description: 'Password set and account activated!' });
+      toast({ title: 'Account Activated', description: 'Welcome to Ikimina App!' });
       router.push('/');
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -172,7 +187,7 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Login Failed', description: 'Invalid password.' });
+      toast({ variant: 'destructive', title: 'Login Failed', description: 'Invalid email or password.' });
     } finally {
       setIsLoading(false);
     }
@@ -207,7 +222,7 @@ export default function LoginPage() {
                     id="email"
                     type="email"
                     placeholder="name@example.com"
-                    className="pl-10"
+                    className="pl-10 h-11"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -225,16 +240,21 @@ export default function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input value={email} disabled className="bg-muted" />
+                <Input value={email} disabled className="bg-muted h-11" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Button variant="link" className="px-0 h-auto text-xs" onClick={() => toast({ title: "Contact Admin", description: "Please ask an administrator to reset your password if forgotten." })}>
+                    Forgot password?
+                  </Button>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
                     type="password"
-                    className="pl-10"
+                    className="pl-10 h-11"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -257,9 +277,9 @@ export default function LoginPage() {
               <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-lg flex gap-3 items-start">
                 <ShieldCheck className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-orange-900">Invite Found</p>
+                  <p className="text-sm font-semibold text-orange-900">Activation Required</p>
                   <p className="text-xs text-orange-800 leading-relaxed">
-                    An account has been prepared for you. We need to verify your email to activate your account.
+                    An account has been created for you. Click the button below to receive an activation link in your email.
                   </p>
                 </div>
               </div>
@@ -268,7 +288,7 @@ export default function LoginPage() {
                 Send Activation Link
               </Button>
               <Button variant="ghost" className="w-full text-xs" onClick={() => setStep('email')}>
-                Back
+                Back to Login
               </Button>
             </div>
           )}
@@ -277,16 +297,19 @@ export default function LoginPage() {
             <form onSubmit={handleSetPassword} className="space-y-4">
               <div className="bg-green-500/10 border border-green-500/20 p-3 rounded-lg flex gap-2 items-center">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <p className="text-xs text-green-800 font-medium">Link verified. Now set your password.</p>
+                <p className="text-xs text-green-800 font-medium">Link verified. Now set your secure password.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="new-password">Create Password</Label>
+                <Label htmlFor="new-password">Create New Password</Label>
                 <Input
                   id="new-password"
                   type="password"
+                  className="h-11"
+                  placeholder="Min. 6 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoFocus
                 />
               </div>
               <div className="space-y-2">
@@ -294,6 +317,7 @@ export default function LoginPage() {
                 <Input
                   id="confirm-password"
                   type="password"
+                  className="h-11"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required

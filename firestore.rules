@@ -15,8 +15,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow searching for a user by email (for login/activation)
-      // We allow this if the query is limited to 1 result.
+      // Allow unauthenticated lookup by email for login/activation check
+      // We allow list if the query is limited to 1 result.
       allow list: if (request.query.limit <= 1) || signedIn();
       
       // Allow individual document reads if signed in and authorized
