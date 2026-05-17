@@ -1,3 +1,4 @@
+
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 
@@ -22,7 +23,6 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
     }
 
     try {
-        // 1. Get all contributions to calculate weights
         const contribsSnap = await db.collection('contributions').get();
         const memberTotals: { [memberId: string]: number } = {};
         let totalPool = 0;
@@ -37,7 +37,6 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
 
         if (totalPool === 0) throw new HttpsError('failed-precondition', 'Total contribution pool is empty.');
 
-        // 2. Calculate and apply shares
         const membersSnap = await db.collection('users').get();
         const batch = db.batch();
         let recipientsCount = 0;
@@ -59,7 +58,6 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
             }
         });
 
-        // 3. Log the audit record
         const logRef = db.collection('audit_logs').doc();
         batch.set(logRef, {
             adminId: request.auth.uid,
@@ -75,6 +73,47 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
 
         await batch.commit();
         return { success: true, recipients: recipientsCount };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * Updates global financial settings like default interest rates.
+ */
+export const updateFinancialSettings = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (adminSnap.data()?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Admin privileges required.');
+    }
+
+    const { loanInterestRate, contributionInterestRate, justification } = request.data;
+
+    try {
+        const batch = db.batch();
+        const settingsRef = db.collection('settings').doc('financials');
+        
+        batch.set(settingsRef, {
+            loanInterestRate: Number(loanInterestRate),
+            contributionInterestRate: Number(contributionInterestRate),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedBy: request.auth.uid
+        }, { merge: true });
+
+        const logRef = db.collection('audit_logs').doc();
+        batch.set(logRef, {
+            adminId: request.auth.uid,
+            action: 'UPDATE_FINANCIAL_SETTINGS',
+            justification,
+            details: { loanInterestRate, contributionInterestRate },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await batch.commit();
+        return { success: true };
     } catch (error: any) {
         throw new HttpsError('internal', error.message);
     }

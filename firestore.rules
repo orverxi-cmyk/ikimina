@@ -16,20 +16,20 @@ service cloud.firestore {
       allow write: if signedIn() || !exists(/databases/$(database)/documents/settings/bootstrap);
     }
 
+    match /settings/financials {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
     match /users/{userId} {
-      // Allow management to see all members.
-      // Allow unauthenticated lookup by email for the login screen (limit 1).
-      // Allow authenticated users to search for their own record by email.
       allow list: if isManagement() || 
                     (request.query.limit <= 1) || 
                     (signedIn() && request.query.filters.hasAll([['email', '==', request.auth.token.email.lower()]]));
       
-      // Allow get for everyone to verify existence or profile.
       allow get: if signedIn() || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
 
       allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
       
-      // Strict update rules for profile activation
       allow update: if isAdmin() || 
                     (signedIn() && (isOwner(userId) || isEmailOwner(resource.data.email)));
       

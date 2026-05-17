@@ -92,6 +92,16 @@
         "details": { "type": "object" }
       },
       "required": ["adminId", "action", "justification", "timestamp"]
+    },
+    "financial_settings": {
+      "title": "Financial Settings",
+      "type": "object",
+      "properties": {
+        "loanInterestRate": { "type": "number" },
+        "contributionInterestRate": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -99,6 +109,7 @@
     "/contributions/{contributionId}": { "schema": { "$ref": "#/entities/contribution" } },
     "/loans/{loanId}": { "schema": { "$ref": "#/entities/loan" } },
     "/repayments/{repaymentId}": { "schema": { "$ref": "#/entities/repayment" } },
-    "/audit_logs/{logId}": { "schema": { "$ref": "#/entities/audit_log" } }
+    "/audit_logs/{logId}": { "schema": { "$ref": "#/entities/audit_log" } },
+    "/settings/financials": { "schema": { "$ref": "#/entities/financial_settings" } }
   }
 }

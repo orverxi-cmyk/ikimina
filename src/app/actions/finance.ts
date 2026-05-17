@@ -1,3 +1,4 @@
+'use client';
 /**
  * @fileOverview Bridge functions to call secure Cloud Functions.
  * These are client-side helpers that use the Firebase SDK to trigger
@@ -12,7 +13,7 @@ const getFinanceFunctions = () => {
   return getFunctions(app);
 };
 
-export async function registerMemberAction(memberData: any) {
+export async function registerMemberAction(uid: string, memberData: any) {
   const functions = getFinanceFunctions();
   const registerFn = httpsCallable(functions, 'registerMember');
   
@@ -24,7 +25,7 @@ export async function registerMemberAction(memberData: any) {
   }
 }
 
-export async function logAdminAction(data: { action: string, justification: string, details?: any }) {
+export async function logAdminAction(data: { adminId: string, action: string, justification: string, details?: any }) {
   const functions = getFinanceFunctions();
   const logFn = httpsCallable(functions, 'logAdminAction');
   
@@ -36,7 +37,7 @@ export async function logAdminAction(data: { action: string, justification: stri
   }
 }
 
-export async function bulkRegisterMembersAction(members: any[], justification: string) {
+export async function bulkRegisterMembersAction(uid: string, members: any[], justification: string) {
   const functions = getFinanceFunctions();
   const bulkFn = httpsCallable(functions, 'bulkRegisterMembers');
   
@@ -48,7 +49,7 @@ export async function bulkRegisterMembersAction(members: any[], justification: s
   }
 }
 
-export async function recordContributionAction(data: { memberId: string, amount: number, period: string, justification: string }) {
+export async function recordContributionAction(uid: string, data: { memberId: string, amount: number, period: string, justification: string }) {
   const functions = getFinanceFunctions();
   const recordFn = httpsCallable(functions, 'recordContribution');
   
@@ -60,7 +61,7 @@ export async function recordContributionAction(data: { memberId: string, amount:
   }
 }
 
-export async function allocateInterestAction(data: { totalInterestToDistribute: number, justification: string }) {
+export async function allocateInterestAction(uid: string, data: { totalInterestToDistribute: number, justification: string }) {
   const functions = getFinanceFunctions();
   const allocateFn = httpsCallable(functions, 'allocateInterest');
   
@@ -69,5 +70,17 @@ export async function allocateInterestAction(data: { totalInterestToDistribute: 
     return result.data;
   } catch (error: any) {
     throw new Error(error.message || 'Failed interest allocation');
+  }
+}
+
+export async function updateFinancialSettingsAction(data: { loanInterestRate: number, contributionInterestRate: number, justification: string }) {
+  const functions = getFinanceFunctions();
+  const settingsFn = httpsCallable(functions, 'updateFinancialSettings');
+  
+  try {
+    const result = await settingsFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to update financial settings');
   }
 }

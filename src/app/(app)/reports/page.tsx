@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, FileText, Loader2, PieChart, ShieldAlert, TrendingUp, Wallet, HandCoins, AlertTriangle } from 'lucide-react';
+import { Download, FileText, Loader2, PieChart, ShieldAlert, TrendingUp, Wallet, HandCoins, AlertTriangle, Settings2, Percent } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
@@ -21,7 +21,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { allocateInterestAction } from '@/app/actions/finance';
+import { allocateInterestAction, updateFinancialSettingsAction } from '@/app/actions/finance';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ReportsPage() {
@@ -32,8 +32,13 @@ export default function ReportsPage() {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
 
+  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
+  const { data: settingsData } = useDoc(settingsRef);
+
   const [isAllocating, setIsAllocating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
 
   const role = userData?.role || 'member';
   const isAdmin = role === 'admin';
@@ -121,6 +126,27 @@ export default function ReportsPage() {
     }
   };
 
+  const handleUpdateSettings = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    setIsUpdatingSettings(true);
+    const formData = new FormData(e.currentTarget);
+    const loanInterestRate = Number(formData.get('loanInterestRate'));
+    const contributionInterestRate = Number(formData.get('contributionInterestRate'));
+    const justification = formData.get('justification') as string;
+
+    try {
+      await updateFinancialSettingsAction({ loanInterestRate, contributionInterestRate, justification });
+      toast({ title: "Settings Updated", description: "Global interest rates have been securely updated." });
+      setIsSettingsOpen(false);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: error.message });
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
   if (userLoading || (isAuthorized && (loadingMembers || loadingContributions || loadingLoans))) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
@@ -142,17 +168,64 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-headline font-bold">Financial Health</h1>
           <p className="text-muted-foreground font-medium">Internal audits and standing reports</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isAdmin && (
-            <Button onClick={() => setIsDialogOpen(true)} className="rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
-              <HandCoins className="mr-2 h-4 w-4" /> Distribute Interest
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="rounded-xl">
+                <Settings2 className="mr-2 h-4 w-4" /> Global Rates
+              </Button>
+              <Button onClick={() => setIsDialogOpen(true)} className="rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
+                <HandCoins className="mr-2 h-4 w-4" /> Distribute Interest
+              </Button>
+            </>
           )}
           <Button variant="outline" onClick={() => window.print()} className="rounded-xl hidden md:flex">
             <FileText className="mr-2 h-4 w-4" /> Print PDF
           </Button>
         </div>
       </div>
+
+      {/* Settings Dialog */}
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="rounded-2xl">
+          <form onSubmit={handleUpdateSettings}>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline">Global Interest Rates</DialogTitle>
+              <DialogDescription>
+                Set the default percentages for loans and contribution yields.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-6 py-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="loanInterestRate">Loan Int. Rate (%)</Label>
+                  <div className="relative">
+                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input name="loanInterestRate" type="number" step="0.1" defaultValue={settingsData?.loanInterestRate || 5} required className="h-11 rounded-xl" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contributionInterestRate">Contrib. Yield (%)</Label>
+                   <div className="relative">
+                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input name="contributionInterestRate" type="number" step="0.1" defaultValue={settingsData?.contributionInterestRate || 2} required className="h-11 rounded-xl" />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="justification">Audit Justification</Label>
+                <Textarea name="justification" placeholder="Reason for changing policy rates..." required className="rounded-xl min-h-[80px]" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isUpdatingSettings} className="w-full h-11 rounded-xl font-bold">
+                {isUpdatingSettings ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Settings2 className="mr-2 h-4 w-4" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="rounded-2xl">
