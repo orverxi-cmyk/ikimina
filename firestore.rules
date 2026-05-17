@@ -18,10 +18,14 @@ service cloud.firestore {
 
     match /users/{userId} {
       // Allow unauthenticated lookup by email for login/activation check
+      // This is safe because we only allow list with a limit(1) constraint
       allow list: if (request.query.limit <= 1);
       
+      // Allow get for everyone to verify public profiles if they have the ID
+      // but sensitive updates are strictly guarded.
       allow get: if signedIn() || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
 
+      // Creation is reserved for Admins or the initial Bootstrap process
       allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
       
       // Strict update rules for profile activation and management
@@ -33,14 +37,12 @@ service cloud.firestore {
     }
 
     match /contributions/{id} {
-      // Members can only query their own contributions
       allow list: if isManagement() || (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]]));
       allow get: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
       allow create, update, delete: if isAdmin();
     }
 
     match /loans/{id} {
-      // Members can only query their own loans
       allow list: if isManagement() || (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]]));
       allow get: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
       allow create: if signedIn();

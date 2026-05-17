@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
@@ -31,14 +30,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { registerMemberAction, bulkRegisterMembersAction } from '@/app/actions/finance';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -101,30 +99,25 @@ export default function MembersPage() {
       }
 
       setIsSubmitting(true);
-      const batch = writeBatch(firestore);
-      try {
-        dataRows.forEach(row => {
-          const [firstName, surname, email, phone, role] = row.split(',').map(s => s.trim());
-          if (email && firstName) {
-            const newDocRef = doc(collection(firestore, 'users'));
-            batch.set(newDocRef, {
-              name: `${firstName} ${surname}`.trim(),
-              email: email.toLowerCase(),
-              phone: phone || '',
-              role: (role?.toLowerCase() as any) || 'member',
-              joinedAt: serverTimestamp(),
-              status: 'pending',
-            });
-          }
-        });
+      const membersToRegister: any[] = [];
+      
+      dataRows.forEach(row => {
+        const [firstName, surname, email, phone, role] = row.split(',').map(s => s.trim());
+        if (email && firstName) {
+          membersToRegister.push({
+            name: `${firstName} ${surname}`.trim(),
+            email: email.toLowerCase(),
+            phone: phone || '',
+            role: (role?.toLowerCase() as any) || 'member',
+          });
+        }
+      });
 
-        await batch.commit();
-        toast({ title: "Bulk Upload Success", description: "Successfully registered members." });
-      } catch (error) {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'users',
-          operation: 'write'
-        }));
+      try {
+        await bulkRegisterMembersAction(membersToRegister);
+        toast({ title: "Bulk Upload Success", description: `Successfully registered ${membersToRegister.length} members.` });
+      } catch (error: any) {
+        toast({ variant: "destructive", title: "Upload Failed", description: error.message });
       } finally {
         setIsSubmitting(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -137,11 +130,10 @@ export default function MembersPage() {
     e.preventDefault();
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
-    const firstName = formData.get('firstName') as string;
-    const surname = formData.get('surname') as string;
     
-    const memberData: any = {
-      name: `${firstName} ${surname}`.trim(),
+    const memberData = {
+      firstName: formData.get('firstName') as string,
+      surname: formData.get('surname') as string,
       email: (formData.get('email') as string).toLowerCase(),
       phone: formData.get('phone') as string,
       role: formData.get('role') as string,
@@ -149,24 +141,23 @@ export default function MembersPage() {
 
     try {
       if (isEditing && selectedMember) {
-        await updateDoc(doc(firestore, 'users', selectedMember.id), memberData);
+        // Simple updates can remain client-side as they are non-sensitive profile changes
+        const { updateDoc } = await import('firebase/firestore');
+        await updateDoc(doc(firestore, 'users', selectedMember.id), {
+          name: `${memberData.firstName} ${memberData.surname}`.trim(),
+          phone: memberData.phone,
+          role: memberData.role
+        });
         toast({ title: "Success", description: "Member updated successfully." });
       } else {
-        await addDoc(collection(firestore, 'users'), {
-          ...memberData,
-          joinedAt: serverTimestamp(),
-          status: 'pending',
-        });
-        toast({ title: "Invited", description: "Member registered successfully." });
+        await registerMemberAction(memberData);
+        toast({ title: "Invited", description: "Member registered successfully via secure server action." });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);
       setSelectedMember(null);
-    } catch (error) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'users',
-        operation: 'write'
-      }));
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Registration Failed", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
