@@ -15,7 +15,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "set-admin": "node scripts/set-admin.js",
-    "deploy": "firebase deploy"
+    "deploy": "firebase deploy",
+    "deploy:functions": "echo \"Info: This project uses Next.js Server Actions. Backend logic is deployed automatically via Firebase App Hosting when you build the app. No standalone Cloud Functions are used.\""
   },
   "dependencies": {
     "@genkit-ai/google-genai": "latest",

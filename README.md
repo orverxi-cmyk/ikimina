@@ -19,6 +19,7 @@ The Ikimina App is designed to be deployed using **Firebase App Hosting**.
 
 - **No Standalone Functions**: This app does not use the `firebase-functions` SDK. All backend logic, including Genkit AI flows, is implemented as **Next.js Server Actions**.
 - **Automatic Deployment**: When you push to your connected GitHub repository, Firebase App Hosting automatically builds and deploys your Next.js application, including all Server Actions, using Node.js 22.
+- **Rules Deployment**: To deploy Firestore and Storage rules, use `npm run deploy` (requires Firebase CLI).
 
 ### Ensuring Email Delivery Success
 
