@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, CheckCircle2, XCircle, Clock, Loader2, AlertTriangle, Info } from 'lucide-react';
+import { Plus, CheckCircle2, XCircle, Clock, Loader2, Info, ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -20,7 +20,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCollection, useDoc } from '@/firebase/firestore/hooks';
 import { collection, query, addDoc, updateDoc, doc, serverTimestamp, orderBy, where, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
@@ -39,6 +38,7 @@ export default function LoansPage() {
 
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
+  const isMember = role === 'member';
 
   // Firestore Queries
   const loansQuery = useMemo(() => {
@@ -82,7 +82,6 @@ export default function LoansPage() {
     const dueDate = loan.dueDate.toDate();
     if (isAfter(now, dueDate)) {
       const daysLate = differenceInDays(now, dueDate);
-      // Example: 1% penalty per week late (simplified to 0.15% per day)
       return Math.floor(loan.amount * 0.0015 * daysLate);
     }
     return 0;
@@ -117,10 +116,10 @@ export default function LoansPage() {
   };
 
   const handleUpdateStatus = async (loanId: string, status: 'approved' | 'rejected') => {
+    if (!isManagement) return;
     try {
       const updates: any = { status };
       if (status === 'approved') {
-        // Set due date to 3 months from now by default
         const dueDate = new Date();
         dueDate.setMonth(dueDate.getMonth() + 3);
         updates.dueDate = Timestamp.fromDate(dueDate);
@@ -139,46 +138,53 @@ export default function LoansPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Loan Management</h1>
-          <p className="text-muted-foreground">Track requests, approvals and repayments</p>
+          <p className="text-muted-foreground">
+            {isManagement ? "Track requests, approvals and repayments" : "Manage my personal loans"}
+          </p>
         </div>
         
-        <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> Request Loan
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <form onSubmit={handleRequestLoan}>
-              <DialogHeader>
-                <DialogTitle>Loan Request</DialogTitle>
-                <DialogDescription>Submit a request for a loan from the Tontine funds.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Requested Amount (RWF)</Label>
-                  <Input name="amount" type="number" placeholder="500000" required />
+        {/* Members can request loans */}
+        {isMember && (
+          <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> Request Loan
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form onSubmit={handleRequestLoan}>
+                <DialogHeader>
+                  <DialogTitle>Loan Request</DialogTitle>
+                  <DialogDescription>Submit a request for a loan from the Tontine funds.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Requested Amount (RWF)</Label>
+                    <Input name="amount" type="number" placeholder="500000" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Purpose of Loan</Label>
+                    <Textarea name="description" placeholder="Briefly describe why you need this loan..." required />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Purpose of Loan</Label>
-                  <Textarea name="description" placeholder="Briefly describe why you need this loan..." required />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Submit Request
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Submit Request
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="bg-green-500/10 border-green-500/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-green-600 uppercase tracking-wider">Active Portfolio</CardTitle>
+            <CardTitle className="text-sm text-green-600 uppercase tracking-wider">
+              {isManagement ? "Active Portfolio" : "My Active Loans"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats.active.toLocaleString()} RWF</div>
@@ -213,7 +219,7 @@ export default function LoansPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Member</TableHead>
+                <TableHead>{isManagement ? "Member" : "Purpose"}</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Repayment</TableHead>
@@ -244,8 +250,8 @@ export default function LoansPage() {
                   return (
                     <TableRow key={loan.id}>
                       <TableCell className="font-medium">
-                        {isManagement ? getMemberName(loan.memberId) : "My Loan"}
-                        {loan.description && (
+                        {isManagement ? getMemberName(loan.memberId) : (loan.description || "General Loan")}
+                        {isManagement && loan.description && (
                           <div className="text-[10px] text-muted-foreground italic truncate max-w-[150px]">
                             {loan.description}
                           </div>

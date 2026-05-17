@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -24,7 +23,7 @@ import { getAuth, signOut } from 'firebase/auth';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { user, loading: authLoading } = useUser();
+  const { user } = useUser();
   const firestore = useFirestore();
   const { data: userData } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
   const [mounted, setMounted] = useState(false);
@@ -38,7 +37,18 @@ export function AppSidebar() {
     await signOut(auth);
   };
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <aside className="hidden md:flex flex-col w-64 border-r bg-card p-6 space-y-6">
+        <div className="flex items-center gap-3 px-2">
+          <div className="bg-primary p-2 rounded-lg">
+            <Wallet className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <span className="font-headline text-xl font-bold tracking-tight">SCDT Tontine</span>
+        </div>
+      </aside>
+    );
+  }
 
   const role = userData?.role || 'member';
 
@@ -48,13 +58,14 @@ export function AppSidebar() {
     { href: '/loans', label: 'Loans', icon: HandCoins },
   ];
 
+  // Admin only: Manage Members
   if (role === 'admin') {
     menuItems.push({ href: '/members', label: 'Members', icon: Users });
   }
 
+  // Admin & Management: Reports
   if (role === 'admin' || role === 'management') {
     menuItems.push({ href: '/reports', label: 'Reports', icon: FileText });
-    menuItems.push({ href: '/admin', label: 'Admin', icon: ShieldCheck });
   }
 
   return (
@@ -90,7 +101,7 @@ export function AppSidebar() {
           <div className="space-y-4">
             <div className="px-4 py-2 bg-accent/50 rounded-lg">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Signed in as</p>
-              <p className="text-sm font-medium truncate">{user.email}</p>
+              <p className="text-sm font-medium truncate">{userData?.name || user.email}</p>
               <p className="text-[10px] text-primary font-bold uppercase">{role}</p>
             </div>
             <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10">

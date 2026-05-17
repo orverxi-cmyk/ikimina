@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, MoreVertical, Edit2, Trash2, UserPlus, Loader2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, Edit2, Trash2, UserPlus, Loader2, ShieldAlert } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -30,31 +30,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCollection } from '@/firebase/firestore/hooks';
+import { useCollection, useDoc } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
+import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 
 export default function MembersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user } = useUser();
+  const { data: userData, loading: userLoading } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isAdmin = userData?.role === 'admin';
+
   // Firestore subscription for members
-  const membersQuery = query(collection(firestore, 'users'), orderBy('name', 'asc'));
-  const { data: membersSnap, loading } = useCollection(membersQuery);
+  const membersQuery = useMemo(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
+  const { data: membersSnap, loading: membersLoading } = useCollection(membersQuery);
 
-  const members = membersSnap?.docs.map(doc => ({ id: doc.id, ...doc.data() })) || [];
+  const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
 
-  const filteredMembers = members.filter((m: any) => 
+  const filteredMembers = useMemo(() => members.filter((m: any) => 
     m.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.phone?.includes(searchTerm)
-  );
+  ), [members, searchTerm]);
+
+  if (userLoading || membersLoading) {
+    return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  // Access Control: Only Admins can manage members
+  if (!isAdmin) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+        <ShieldAlert className="h-12 w-12 text-destructive" />
+        <h2 className="text-2xl font-bold">Access Denied</h2>
+        <p className="text-muted-foreground">Only administrators can manage the member directory.</p>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -66,7 +87,6 @@ export default function MembersPage() {
       email: formData.get('email') as string,
       phone: formData.get('phone') as string,
       role: formData.get('role') as string,
-      status: 'active',
     };
 
     try {
@@ -84,7 +104,6 @@ export default function MembersPage() {
       setIsEditing(false);
       setSelectedMember(null);
     } catch (error) {
-      console.error("Error saving member:", error);
       toast({ variant: "destructive", title: "Error", description: "Failed to save member" });
     } finally {
       setIsSubmitting(false);
@@ -134,7 +153,7 @@ export default function MembersPage() {
               <DialogHeader>
                 <DialogTitle>{isEditing ? 'Edit Member' : 'Add New Member'}</DialogTitle>
                 <DialogDescription>
-                  Enter the member's details below. Click save when you're done.
+                  Enter the member's details below.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
@@ -194,59 +213,39 @@ export default function MembersPage() {
                 <TableHead>Member</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Contact</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+              {filteredMembers.map((member: any) => (
+                <TableRow key={member.id} className="hover:bg-accent/50 transition-colors">
+                  <TableCell>
+                    <div className="font-medium">{member.name}</div>
+                    <div className="text-xs text-muted-foreground">{member.email}</div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={member.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
+                      {member.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">{member.phone || 'N/A'}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(member)}>
+                          <Edit2 className="mr-2 h-4 w-4" /> Edit Profile
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDelete(member.id)} className="text-destructive">
+                          <Trash2 className="mr-2 h-4 w-4" /> Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ) : filteredMembers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                    No members found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredMembers.map((member: any) => (
-                  <TableRow key={member.id} className="hover:bg-accent/50 transition-colors">
-                    <TableCell>
-                      <div className="font-medium">{member.name}</div>
-                      <div className="text-xs text-muted-foreground">{member.email}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={member.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
-                        {member.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">{member.phone || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge variant={member.status === 'active' ? 'outline' : 'destructive'} className="bg-green-500/10 text-green-500 border-green-500/20">
-                        {member.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(member)}>
-                            <Edit2 className="mr-2 h-4 w-4" /> Edit Profile
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDelete(member.id)} className="text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" /> Remove
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
         </CardContent>
