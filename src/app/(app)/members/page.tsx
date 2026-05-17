@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
@@ -30,13 +31,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { bulkRegisterMembersAction } from '@/app/actions/finance';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -99,24 +101,30 @@ export default function MembersPage() {
       }
 
       setIsSubmitting(true);
+      const batch = writeBatch(firestore);
       try {
-        const payload = dataRows.map(row => {
+        dataRows.forEach(row => {
           const [firstName, surname, email, phone, role] = row.split(',').map(s => s.trim());
-          return {
-            name: `${firstName} ${surname}`.trim(),
-            email: email.toLowerCase(),
-            phone: phone || '',
-            role: (role?.toLowerCase() as any) || 'member',
-          };
-        }).filter(m => m.email && m.name);
-
-        const result = await bulkRegisterMembersAction(payload);
-        toast({ 
-          title: "Bulk Upload Success", 
-          description: `Successfully registered ${result.count} members via secure backend.` 
+          if (email && firstName) {
+            const newDocRef = doc(collection(firestore, 'users'));
+            batch.set(newDocRef, {
+              name: `${firstName} ${surname}`.trim(),
+              email: email.toLowerCase(),
+              phone: phone || '',
+              role: (role?.toLowerCase() as any) || 'member',
+              joinedAt: serverTimestamp(),
+              status: 'pending',
+            });
+          }
         });
+
+        await batch.commit();
+        toast({ title: "Bulk Upload Success", description: "Successfully registered members." });
       } catch (error) {
-        toast({ variant: "destructive", title: "Upload Error", description: "Failed to process bulk registration." });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'users',
+          operation: 'write'
+        }));
       } finally {
         setIsSubmitting(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -149,13 +157,16 @@ export default function MembersPage() {
           joinedAt: serverTimestamp(),
           status: 'pending',
         });
-        toast({ title: "Invited", description: "Member added via secure endpoint." });
+        toast({ title: "Invited", description: "Member registered successfully." });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);
       setSelectedMember(null);
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to save member details." });
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'users',
+        operation: 'write'
+      }));
     } finally {
       setIsSubmitting(false);
     }

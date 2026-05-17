@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -21,13 +22,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, addDoc, doc, serverTimestamp, orderBy, where, Timestamp } from 'firebase/firestore';
+import { collection, query, addDoc, doc, serverTimestamp, orderBy, where, Timestamp, writeBatch, increment } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, isAfter, differenceInDays } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { approveLoanAction, processRepaymentAction } from '@/app/actions/finance';
+import { generateAmortizationSchedule } from '@/lib/loan-utils';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function LoansPage() {
   const { toast } = useToast();
@@ -85,7 +88,7 @@ export default function LoansPage() {
     }, { active: 0, overdue: 0, requested: 0 });
   }, [loans]);
 
-  const handleRequestLoan = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleRequestLoan = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
     setIsSubmitting(true);
@@ -93,26 +96,33 @@ export default function LoansPage() {
     const amount = Number(formData.get('amount'));
     const description = formData.get('description') as string;
 
-    try {
-      await addDoc(collection(firestore, 'loans'), {
-        memberId: user.uid,
-        amount,
-        balance: amount,
-        status: 'requested',
-        requestDate: serverTimestamp(),
-        description,
-        penaltyAmount: 0,
-        penaltyRate: 0.0015,
-        interestAmount: 0,
-        interestType: 'afterward',
+    const loanData = {
+      memberId: user.uid,
+      amount,
+      balance: amount,
+      status: 'requested',
+      requestDate: serverTimestamp(),
+      description,
+      penaltyAmount: 0,
+      penaltyRate: 0.0015,
+      interestAmount: 0,
+      interestType: 'afterward',
+    };
+
+    addDoc(collection(firestore, 'loans'), loanData)
+      .then(() => {
+        toast({ title: "Request Sent", description: "Your loan request has been submitted." });
+        setIsRequestOpen(false);
+        setIsSubmitting(false);
+      })
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'loans',
+          operation: 'create',
+          requestResourceData: loanData
+        }));
+        setIsSubmitting(false);
       });
-      toast({ title: "Request Sent", description: "Your loan request has been submitted." });
-      setIsRequestOpen(false);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to submit request." });
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const handleApproveLoan = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -134,22 +144,46 @@ export default function LoansPage() {
         checkUrl = await getDownloadURL(fileRef);
       }
 
-      await approveLoanAction(selectedLoan.id, {
-        memberId: selectedLoan.memberId,
-        amount: selectedLoan.amount,
+      const batch = writeBatch(firestore);
+      const startDate = new Date(startDateRaw || new Date());
+      const dueDate = new Date(startDate);
+      dueDate.setMonth(dueDate.getMonth() + durationMonths);
+
+      const interestTotal = interestType === 'afterward' ? interestAmount : 0;
+      const totalBalance = selectedLoan.amount + interestTotal;
+
+      const schedule = generateAmortizationSchedule(selectedLoan.amount, interestTotal, durationMonths, startDate);
+
+      batch.update(doc(firestore, 'loans', selectedLoan.id), {
+        status: 'approved',
+        startDate: Timestamp.fromDate(startDate),
+        dueDate: Timestamp.fromDate(dueDate),
+        checkUrl,
         interestAmount,
         interestType,
         penaltyRate,
+        balance: totalBalance,
         durationMonths,
-        startDate: startDateRaw || format(new Date(), 'yyyy-MM-dd'),
-        checkUrl,
+        amortization: schedule,
+        approvedAt: serverTimestamp(),
       });
 
-      toast({ title: "Loan Approved", description: "Secure backend approval complete." });
+      batch.update(doc(firestore, 'users', selectedLoan.memberId), {
+        amortizationSchedule: schedule.map(s => ({
+          ...s,
+          dueDate: Timestamp.fromDate(s.dueDate)
+        }))
+      });
+
+      await batch.commit();
+      toast({ title: "Loan Approved", description: "Approval processed successfully." });
       setIsApproveOpen(false);
       setSelectedLoan(null);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `loans/${selectedLoan.id}`,
+        operation: 'write'
+      }));
     } finally {
       setIsSubmitting(false);
     }
@@ -171,21 +205,53 @@ export default function LoansPage() {
         proofUrl = await getDownloadURL(fileRef);
       }
 
-      await processRepaymentAction({
+      const batch = writeBatch(firestore);
+      const updatedAmortization = selectedLoan.amortization.map((inst: any) => {
+        if (inst.installmentNumber === selectedInstallment) {
+          return { 
+            ...inst, 
+            status: 'paid', 
+            proofUrl, 
+            paidAt: new Date() 
+          };
+        }
+        return inst;
+      });
+
+      batch.update(doc(firestore, 'loans', selectedLoan.id), {
+        balance: increment(-amount),
+        amortization: updatedAmortization,
+      });
+
+      batch.update(doc(firestore, 'users', selectedLoan.memberId), {
+        amortizationSchedule: updatedAmortization.map((s: any) => ({
+          ...s,
+          dueDate: s.dueDate instanceof Timestamp ? s.dueDate : Timestamp.fromDate(new Date(s.dueDate)),
+          paidAt: s.paidAt ? Timestamp.fromDate(new Date(s.paidAt)) : null
+        }))
+      });
+
+      const repaymentRef = doc(collection(firestore, 'repayments'));
+      batch.set(repaymentRef, {
         loanId: selectedLoan.id,
-        memberId: user.uid,
+        memberId: selectedLoan.memberId,
         amount,
         installmentNumber: selectedInstallment,
         proofUrl,
-        currentAmortization: selectedLoan.amortization,
+        date: serverTimestamp(),
+        status: 'pending'
       });
 
-      toast({ title: "Repayment Sent", description: "Payment recorded securely on server." });
+      await batch.commit();
+      toast({ title: "Repayment Sent", description: "Payment recorded successfully." });
       setIsRepayOpen(false);
       setSelectedLoan(null);
       setSelectedInstallment(null);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `loans/${selectedLoan.id}`,
+        operation: 'write'
+      }));
     } finally {
       setIsSubmitting(false);
     }
