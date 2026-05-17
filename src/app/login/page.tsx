@@ -291,7 +291,7 @@ export default function LoginPage() {
         <CardFooter className="justify-center border-t p-4">
           <p className="text-xs text-muted-foreground text-center italic">
             Secure Member-Only Access <br />
-            Powered by Ikimina App
+            Powered by ORVEXI Limited
           </p>
         </CardFooter>
       </Card>
