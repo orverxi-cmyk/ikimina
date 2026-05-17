@@ -1,7 +1,11 @@
 
 # Ikimina App
 
-This is a professional financial management platform for SCDT Tontine contributions and loans.
+This is a professional financial management platform for Ikimina App contributions and loans.
+
+## Prerequisites
+
+- **Node.js**: Version 22 is required.
 
 ## Getting Started
 
@@ -14,7 +18,7 @@ This is a professional financial management platform for SCDT Tontine contributi
 The Ikimina App is designed to be deployed using **Firebase App Hosting**. 
 
 - **No Standalone Functions**: This app does not use the `firebase-functions` SDK. All backend logic, including Genkit AI flows, is implemented as **Next.js Server Actions**.
-- **Automatic Deployment**: When you push to your connected GitHub repository, Firebase App Hosting automatically builds and deploys your Next.js application, including all Server Actions.
+- **Automatic Deployment**: When you push to your connected GitHub repository, Firebase App Hosting automatically builds and deploys your Next.js application, including all Server Actions, using Node.js 22.
 
 ### Ensuring Email Delivery Success
 

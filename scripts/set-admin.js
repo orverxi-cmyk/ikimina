@@ -15,7 +15,7 @@ if (admin.apps.length === 0) {
 }
 
 async function setAdmin() {
-  const email = "orverxi@loprok.com"; // Replace with your email
+  const email = "admin@ikimina.com"; // Updated to Ikimina App domain
   try {
     const user = await admin.auth().getUserByEmail(email);
     
