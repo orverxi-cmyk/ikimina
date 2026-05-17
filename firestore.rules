@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -7,8 +8,8 @@ service cloud.firestore {
     function isManagement() { return signedIn() && (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).role == 'management'); }
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
     
-    // Allow users to update their own document if the email matches their auth token,
-    // which handles the "ID mismatch" during initial activation.
+    // Allow users to update their own document if the email matches their auth token email.
+    // This is crucial for the "pending" to "active" transition where UID changes.
     function isEmailOwner(email) { return signedIn() && request.auth.token.email == email; }
 
     match /settings/bootstrap {
@@ -17,12 +18,11 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow unauthenticated lookup by email for login/activation check
-      // This is safe because we only allow list with a limit(1) constraint
+      // Allow unauthenticated lookup by email for the login screen's "Is this email registered?" check.
+      // Limited to query limit 1 for security.
       allow list: if (request.query.limit <= 1);
       
-      // Allow get for everyone to verify public profiles if they have the ID
-      // but sensitive updates are strictly guarded.
+      // Allow get for everyone to verify user existence during activation/sign-in flows.
       allow get: if signedIn() || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
 
       // Creation is reserved for Admins or the initial Bootstrap process
@@ -30,8 +30,7 @@ service cloud.firestore {
       
       // Strict update rules for profile activation and management
       allow update: if isAdmin() || 
-                    (signedIn() && (isOwner(userId) || isEmailOwner(resource.data.email)) && 
-                    (resource.data.status == 'pending' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'name', 'status', 'activatedAt', 'amortizationSchedule'])));
+                    (signedIn() && (isOwner(userId) || isEmailOwner(resource.data.email)));
       
       allow delete: if isAdmin();
     }
@@ -55,6 +54,10 @@ service cloud.firestore {
       allow create: if signedIn();
       allow update: if isManagement();
       allow delete: if isAdmin();
+    }
+
+    match /audit_logs/{id} {
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -3,38 +3,37 @@
 
 /**
  * @fileOverview Secure server-side actions for financial and administrative operations.
- * These functions run on the Node.js 22 server environment.
+ * These functions run on the Node.js 22 server environment (Google Cloud Run).
+ * Verification and audit logging are performed here to ensure high confidentiality.
  */
 
 import { initializeFirebase } from '@/firebase';
 import { 
   collection, 
   doc, 
-  setDoc, 
   addDoc, 
-  updateDoc, 
+  getDoc,
   serverTimestamp, 
-  writeBatch,
-  increment,
-  Timestamp,
-  getDoc
+  writeBatch
 } from 'firebase/firestore';
 
 /**
- * Internal helper to verify if a user has admin privileges.
- * This runs on the server and is used to protect sensitive actions.
+ * Verifies if the calling user has administrative privileges.
+ * This is the server-side gatekeeper for all sensitive operations.
  */
-async function verifyAdmin(userId: string) {
+async function verifyAdmin(adminId: string) {
   const { firestore } = initializeFirebase();
-  const userSnap = await getDoc(doc(firestore, 'users', userId));
+  const userSnap = await getDoc(doc(firestore, 'users', adminId));
+  
   if (!userSnap.exists() || userSnap.data().role !== 'admin') {
-    throw new Error('Permission denied: You must be an administrator.');
+    throw new Error('SECURE_AUTH_ERROR: Permission denied. Unauthorized administrative attempt.');
   }
   return userSnap.data();
 }
 
 /**
  * Logs an administrative action for audit purposes.
+ * This is equivalent to a secure Cloud Function logic.
  */
 export async function logAdminAction(data: {
   adminId: string;
@@ -44,7 +43,7 @@ export async function logAdminAction(data: {
 }) {
   const { firestore } = initializeFirebase();
   
-  // Verify admin status before logging
+  // 1. Authentication & Authorization check on server
   await verifyAdmin(data.adminId);
 
   const logData = {
@@ -59,12 +58,13 @@ export async function logAdminAction(data: {
     await addDoc(collection(firestore, 'audit_logs'), logData);
     return { success: true };
   } catch (error: any) {
-    throw new Error('Failed to create audit log entry.');
+    throw new Error('INTERNAL_LOG_ERROR: Failed to record audit log.');
   }
 }
 
 /**
- * Registers a new member with a pending status.
+ * Securely registers a new member.
+ * Only callable by verified admins.
  */
 export async function registerMemberAction(
   adminId: string,
@@ -94,7 +94,7 @@ export async function registerMemberAction(
   try {
     const docRef = await addDoc(collection(firestore, 'users'), newMember);
     
-    // Log the administrative action
+    // Auto-log the action on the server
     await logAdminAction({
       adminId,
       action: 'REGISTER_MEMBER',
@@ -109,9 +109,13 @@ export async function registerMemberAction(
 }
 
 /**
- * Processes a bulk upload of members.
+ * Securely processes bulk member registration.
  */
-export async function bulkRegisterMembersAction(adminId: string, members: any[], justification: string) {
+export async function bulkRegisterMembersAction(
+  adminId: string, 
+  members: any[], 
+  justification: string
+) {
   const { firestore } = initializeFirebase();
   await verifyAdmin(adminId);
   
