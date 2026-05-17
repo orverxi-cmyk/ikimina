@@ -38,9 +38,12 @@
       "properties": {
         "memberId": { "type": "string" },
         "amount": { "type": "number" },
+        "interestAmount": { "type": "number" },
+        "interestType": { "type": "string", "enum": ["immediate", "afterward"] },
         "status": { "type": "string", "enum": ["requested", "approved", "rejected", "completed"] },
         "requestDate": { "type": "string", "format": "date-time" },
         "dueDate": { "type": "string", "format": "date-time" },
+        "penaltyRate": { "type": "number", "description": "Daily penalty rate as a decimal (e.g. 0.0015 for 0.15%)" },
         "penaltyAmount": { "type": "number" },
         "balance": { "type": "number" },
         "description": { "type": "string" },
