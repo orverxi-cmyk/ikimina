@@ -16,7 +16,8 @@ import {
   getDocs, 
   updateDoc, 
   doc, 
-  serverTimestamp 
+  serverTimestamp,
+  limit
 } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase/provider';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,8 @@ export default function LoginPage() {
         signInWithEmailLink(auth, emailForLink, window.location.href)
           .then(async (result) => {
             window.localStorage.removeItem('emailForSignIn');
-            const q = query(collection(firestore, 'users'), where('email', '==', emailForLink!.toLowerCase()));
+            // This query is authenticated now, but limit(1) is still good practice
+            const q = query(collection(firestore, 'users'), where('email', '==', emailForLink!.toLowerCase()), limit(1));
             const snap = await getDocs(q);
             if (!snap.empty) {
               const member = snap.docs[0];
@@ -80,7 +82,8 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const q = query(collection(firestore, 'users'), where('email', '==', email.toLowerCase()));
+      // Security rules require limit(1) for unauthenticated queries on users collection
+      const q = query(collection(firestore, 'users'), where('email', '==', email.toLowerCase()), limit(1));
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
