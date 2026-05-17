@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, HandCoins, Users, TrendingUp, Calendar, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Wallet, HandCoins, Users, TrendingUp, Calendar, ArrowUpRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, doc, query } from 'firebase/firestore';
+import { collection, doc, query, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -16,34 +16,56 @@ export default function DashboardPage() {
   const firestore = useFirestore();
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
-  const { data: userData } = useDoc(userRef);
+  const { data: userData, loading: userLoading } = useDoc(userRef);
   
-  // Real-time Queries for Stats
-  const contributionsQuery = useMemoFirebase(() => query(collection(firestore, 'contributions')), []);
-  const loansQuery = useMemoFirebase(() => query(collection(firestore, 'loans')), []);
-  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users')), []);
+  const role = userData?.role || 'member';
+  const isManagement = role === 'admin' || role === 'management';
 
-  const { data: contributionsSnap } = useCollection(contributionsQuery);
-  const { data: loansSnap } = useCollection(loansQuery);
-  const { data: membersSnap } = useCollection(membersQuery);
+  // Role-aware queries to avoid permission errors
+  const contributionsQuery = useMemoFirebase(() => {
+    if (!user || userLoading) return null;
+    if (isManagement) return query(collection(firestore, 'contributions'));
+    return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
+  }, [user, isManagement, userLoading]);
+
+  const loansQuery = useMemoFirebase(() => {
+    if (!user || userLoading) return null;
+    if (isManagement) return query(collection(firestore, 'loans'));
+    return query(collection(firestore, 'loans'), where('memberId', '==', user.uid));
+  }, [user, isManagement, userLoading]);
+
+  const membersQuery = useMemoFirebase(() => {
+    if (!user || userLoading || !isManagement) return null;
+    return query(collection(firestore, 'users'));
+  }, [user, isManagement, userLoading]);
+
+  const { data: contributionsSnap, loading: loadingConts } = useCollection(contributionsQuery);
+  const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
+  const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
 
   const stats = useMemo(() => {
+    if (userLoading || loadingConts || loadingLoans) return [];
+
     const totalConts = contributionsSnap?.docs.reduce((acc, d) => acc + (d.data().amount || 0), 0) || 0;
     const activeLoansBalance = loansSnap?.docs.reduce((acc, d) => {
       const data = d.data();
       return acc + (data.status === 'approved' ? (data.balance || 0) : 0);
     }, 0) || 0;
     
-    // Pot balance: Total Contributions - Current Outstanding Balance
     const availablePot = totalConts - activeLoansBalance;
 
-    return [
-      { title: 'Available Pot', value: availablePot.toLocaleString() + ' RWF', icon: Wallet, color: 'text-green-500', bg: 'bg-green-500/10' },
-      { title: 'Total Tontine Wealth', value: totalConts.toLocaleString() + ' RWF', icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-      { title: 'Active Loan Book', value: activeLoansBalance.toLocaleString() + ' RWF', icon: HandCoins, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-      { title: 'Member Count', value: membersSnap?.size || '0', icon: Users, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+    const baseStats = [
+      { title: isManagement ? 'Available Pot' : 'My Total Balance', value: availablePot.toLocaleString() + ' RWF', icon: Wallet, color: 'text-green-500', bg: 'bg-green-500/10' },
+      { title: isManagement ? 'Total Tontine Wealth' : 'Group Contribution', value: totalConts.toLocaleString() + ' RWF', icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+      { title: isManagement ? 'Active Loan Book' : 'My Active Debt', value: activeLoansBalance.toLocaleString() + ' RWF', icon: HandCoins, color: 'text-orange-500', bg: 'bg-orange-500/10' },
     ];
-  }, [contributionsSnap, loansSnap, membersSnap]);
+
+    if (isManagement) {
+      baseStats.push({ title: 'Member Count', value: membersSnap?.size.toString() || '0', icon: Users, color: 'text-purple-500', bg: 'bg-purple-500/10' });
+    }
+
+    return baseStats;
+  }, [contributionsSnap, loansSnap, membersSnap, isManagement, userLoading, loadingConts, loadingLoans]);
 
   const myParticipation = useMemo(() => {
     if (!user || !contributionsSnap || !loansSnap) return { contributions: 0, debt: 0, nextPayment: null };
@@ -57,7 +79,6 @@ export default function DashboardPage() {
       
     const totalDebt = myActiveLoans.reduce((acc, d) => acc + (d.data().balance || 0), 0);
 
-    // Find next pending installment
     let nextInst = null;
     if (userData?.amortizationSchedule) {
       nextInst = userData.amortizationSchedule
@@ -71,6 +92,10 @@ export default function DashboardPage() {
 
     return { contributions: myConts, debt: totalDebt, nextPayment: nextInst };
   }, [user, contributionsSnap, loansSnap, userData]);
+
+  if (userLoading) {
+    return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">

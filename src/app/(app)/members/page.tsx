@@ -55,7 +55,12 @@ export default function MembersPage() {
 
   const isAdmin = userData?.role === 'admin';
 
-  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
+  // Only initiate the members query if the user is authorized
+  const membersQuery = useMemoFirebase(() => {
+    if (!isAdmin) return null;
+    return query(collection(firestore, 'users'), orderBy('name', 'asc'));
+  }, [isAdmin]);
+
   const { data: membersSnap, loading: membersLoading } = useCollection(membersQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
@@ -122,7 +127,7 @@ export default function MembersPage() {
     };
   };
 
-  if (userLoading || membersLoading) {
+  if (userLoading || (isAdmin && membersLoading)) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 

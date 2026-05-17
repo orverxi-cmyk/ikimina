@@ -20,18 +20,29 @@ export default function ReportsPage() {
   const role = userData?.role || 'member';
   const isAuthorized = role === 'admin' || role === 'management';
 
-  // Firestore Queries
-  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
-  const contributionsQuery = useMemoFirebase(() => query(collection(firestore, 'contributions'), orderBy('date', 'desc')), []);
-  const loansQuery = useMemoFirebase(() => query(collection(firestore, 'loans'), orderBy('requestDate', 'desc')), []);
+  // Only initiate queries if the user is authorized for reports
+  const membersQuery = useMemoFirebase(() => {
+    if (!isAuthorized) return null;
+    return query(collection(firestore, 'users'), orderBy('name', 'asc'));
+  }, [isAuthorized]);
+
+  const contributionsQuery = useMemoFirebase(() => {
+    if (!isAuthorized) return null;
+    return query(collection(firestore, 'contributions'), orderBy('date', 'desc'));
+  }, [isAuthorized]);
+
+  const loansQuery = useMemoFirebase(() => {
+    if (!isAuthorized) return null;
+    return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
+  }, [isAuthorized]);
 
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
-  const { data: loadingContributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);
-  const { data: loadingLoansSnap, loading: loadingLoans } = useCollection(loansQuery);
+  const { data: contributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);
+  const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
-  const contributions = useMemo(() => loadingContributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loadingContributionsSnap]);
-  const loans = useMemo(() => loadingLoansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loadingLoansSnap]);
+  const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
+  const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
 
   // Financial Calculations
   const reportData = useMemo(() => {
@@ -108,7 +119,7 @@ export default function ReportsPage() {
     document.body.removeChild(link);
   };
 
-  if (userLoading || loadingMembers || loadingContributions || loadingLoans) {
+  if (userLoading || (isAuthorized && (loadingMembers || loadingContributions || loadingLoans))) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
