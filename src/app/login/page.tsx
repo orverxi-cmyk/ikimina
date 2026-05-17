@@ -1,15 +1,13 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   signInWithEmailAndPassword, 
-  sendPasswordResetEmail,
-  sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
-  updatePassword
+  updatePassword,
+  sendSignInLinkToEmail
 } from 'firebase/auth';
 import { 
   collection, 
@@ -42,7 +40,6 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Handle Landing from Email Link
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let emailForLink = window.localStorage.getItem('emailForSignIn');
@@ -55,8 +52,7 @@ export default function LoginPage() {
         signInWithEmailLink(auth, emailForLink, window.location.href)
           .then(async (result) => {
             window.localStorage.removeItem('emailForSignIn');
-            // Check if user needs to set password
-            const q = query(collection(firestore, 'users'), where('email', '==', emailForLink.toLowerCase()));
+            const q = query(collection(firestore, 'users'), where('email', '==', emailForLink!.toLowerCase()));
             const snap = await getDocs(q);
             if (!snap.empty) {
               const member = snap.docs[0];
@@ -172,7 +168,7 @@ export default function LoginPage() {
               <Wallet className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-headline font-bold">SCDT Tontine</CardTitle>
+          <CardTitle className="text-3xl font-headline font-bold">Ikimina App</CardTitle>
           <CardDescription>
             {step === 'email' && "Enter your email to continue"}
             {step === 'password' && "Welcome back! Enter your password"}
@@ -244,7 +240,7 @@ export default function LoginPage() {
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-orange-900">Invite Found</p>
                   <p className="text-xs text-orange-800 leading-relaxed">
-                    An account has been prepared for you. To set your password and activate your account, we need to verify your email.
+                    An account has been prepared for you. We need to verify your email to activate your account.
                   </p>
                 </div>
               </div>
@@ -262,7 +258,7 @@ export default function LoginPage() {
             <form onSubmit={handleSetPassword} className="space-y-4">
               <div className="bg-green-500/10 border border-green-500/20 p-3 rounded-lg flex gap-2 items-center">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <p className="text-xs text-green-800 font-medium">Email verified. Now set your password.</p>
+                <p className="text-xs text-green-800 font-medium">Link verified. Now set your password.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="new-password">Create Password</Label>
@@ -295,7 +291,7 @@ export default function LoginPage() {
         <CardFooter className="justify-center border-t p-4">
           <p className="text-xs text-muted-foreground text-center italic">
             Secure Member-Only Access <br />
-            Powered by Firebase
+            Powered by Ikimina App
           </p>
         </CardFooter>
       </Card>

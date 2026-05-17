@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Home, Users, Music, DollarSign, Flag } from 'lucide-react';
+import { Home, Users, Wallet, DollarSign, Flag } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -12,8 +12,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-16 items-center border-b px-6">
             <Link href="/admin" className="flex items-center gap-2 font-semibold">
-              <Music className="h-6 w-6 text-primary" />
-              <span className="font-headline">LopRok Admin</span>
+              <Wallet className="h-6 w-6 text-primary" />
+              <span className="font-headline">Ikimina App Admin</span>
             </Link>
           </div>
           <div className="flex-1 overflow-auto py-2">
@@ -22,21 +22,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <Home className="h-4 w-4" />
                 Dashboard
               </Link>
-              <Link href="#" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+              <Link href="/members" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
                 <Users className="h-4 w-4" />
-                Users
+                Members
               </Link>
-              <Link href="#" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
-                <Music className="h-4 w-4" />
-                Content
+              <Link href="/contributions" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                <Wallet className="h-4 w-4" />
+                Contributions
               </Link>
-               <Link href="#" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+               <Link href="/reports" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
                 <Flag className="h-4 w-4" />
                 Reports
-              </Link>
-              <Link href="/admin/ads" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
-                <DollarSign className="h-4 w-4" />
-                Advertising
               </Link>
             </nav>
           </div>
@@ -45,7 +41,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="flex flex-col">
         <header className="flex h-16 items-center gap-4 border-b bg-card px-6">
           <div className="w-full flex-1">
-            {/* Can add a search bar here if needed */}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

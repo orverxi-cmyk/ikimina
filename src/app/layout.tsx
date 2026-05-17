@@ -4,8 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
-  title: 'LopRok',
-  description: 'Create and share music.',
+  title: 'Ikimina App',
+  description: 'Manage SCDT Tontine contributions and loans efficiently.',
 };
 
 export default function RootLayout({

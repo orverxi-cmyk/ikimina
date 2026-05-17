@@ -10,8 +10,7 @@ import {
   HandCoins, 
   FileText, 
   LogOut, 
-  LogIn,
-  ShieldCheck
+  LogIn
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -44,7 +43,7 @@ export function AppSidebar() {
           <div className="bg-primary p-2 rounded-lg">
             <Wallet className="h-6 w-6 text-primary-foreground" />
           </div>
-          <span className="font-headline text-xl font-bold tracking-tight">SCDT Tontine</span>
+          <span className="font-headline text-xl font-bold tracking-tight">Ikimina App</span>
         </div>
       </aside>
     );
@@ -58,12 +57,10 @@ export function AppSidebar() {
     { href: '/loans', label: 'Loans', icon: HandCoins },
   ];
 
-  // Admin only: Manage Members
   if (role === 'admin') {
     menuItems.push({ href: '/members', label: 'Members', icon: Users });
   }
 
-  // Admin & Management: Reports
   if (role === 'admin' || role === 'management') {
     menuItems.push({ href: '/reports', label: 'Reports', icon: FileText });
   }
@@ -74,7 +71,7 @@ export function AppSidebar() {
         <div className="bg-primary p-2 rounded-lg">
           <Wallet className="h-6 w-6 text-primary-foreground" />
         </div>
-        <span className="font-headline text-xl font-bold tracking-tight">SCDT Tontine</span>
+        <span className="font-headline text-xl font-bold tracking-tight">Ikimina App</span>
       </div>
 
       <nav className="flex-1 space-y-2">

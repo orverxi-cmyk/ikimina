@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,12 +6,12 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
+import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   
-  // Basic mock data stats (Real app would use Firestore aggregations)
   const stats = [
     { title: 'Total Tontine Balance', value: '4,250,000 RWF', icon: Wallet, color: 'text-green-500' },
     { title: 'Total Contributions', value: '12,500,000 RWF', icon: TrendingUp, color: 'text-blue-500' },
@@ -24,7 +23,7 @@ export default function DashboardPage() {
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <div>
         <h1 className="text-3xl font-headline font-bold">Financial Overview</h1>
-        <p className="text-muted-foreground">SCDT Tontine Management Dashboard</p>
+        <p className="text-muted-foreground">Ikimina App Dashboard</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -81,5 +80,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-import { cn } from '@/lib/utils';
