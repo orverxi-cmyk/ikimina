@@ -12,39 +12,39 @@ import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 
 export default function DashboardPage() {
-  const { user } = useUser();
+  const { user, loading: userAuthLoading } = useUser();
   const firestore = useFirestore();
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
-  const { data: userData, loading: userLoading } = useDoc(userRef);
+  const { data: userData, loading: userDataLoading } = useDoc(userRef);
   
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
+  const isLoading = userAuthLoading || userDataLoading;
 
-  // Role-aware queries to avoid permission errors
   const contributionsQuery = useMemoFirebase(() => {
-    if (!user || userLoading) return null;
+    if (!user || isLoading) return null;
     if (isManagement) return query(collection(firestore, 'contributions'));
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
-  }, [user, isManagement, userLoading]);
+  }, [user, isManagement, isLoading]);
 
   const loansQuery = useMemoFirebase(() => {
-    if (!user || userLoading) return null;
+    if (!user || isLoading) return null;
     if (isManagement) return query(collection(firestore, 'loans'));
     return query(collection(firestore, 'loans'), where('memberId', '==', user.uid));
-  }, [user, isManagement, userLoading]);
+  }, [user, isManagement, isLoading]);
 
   const membersQuery = useMemoFirebase(() => {
-    if (!user || userLoading || !isManagement) return null;
+    if (!user || isLoading || !isManagement) return null;
     return query(collection(firestore, 'users'));
-  }, [user, isManagement, userLoading]);
+  }, [user, isManagement, isLoading]);
 
   const { data: contributionsSnap, loading: loadingConts } = useCollection(contributionsQuery);
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
 
   const stats = useMemo(() => {
-    if (userLoading || loadingConts || loadingLoans) return [];
+    if (isLoading || loadingConts || loadingLoans) return [];
 
     const totalConts = contributionsSnap?.docs.reduce((acc, d) => acc + (d.data().amount || 0), 0) || 0;
     const activeLoansBalance = loansSnap?.docs.reduce((acc, d) => {
@@ -65,7 +65,7 @@ export default function DashboardPage() {
     }
 
     return baseStats;
-  }, [contributionsSnap, loansSnap, membersSnap, isManagement, userLoading, loadingConts, loadingLoans]);
+  }, [contributionsSnap, loansSnap, membersSnap, isManagement, isLoading, loadingConts, loadingLoans]);
 
   const myParticipation = useMemo(() => {
     if (!user || !contributionsSnap || !loansSnap) return { contributions: 0, debt: 0, nextPayment: null };
@@ -93,7 +93,7 @@ export default function DashboardPage() {
     return { contributions: myConts, debt: totalDebt, nextPayment: nextInst };
   }, [user, contributionsSnap, loansSnap, userData]);
 
-  if (userLoading) {
+  if (isLoading) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 

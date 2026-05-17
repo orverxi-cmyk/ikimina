@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -43,7 +42,6 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Handle returning from Email Link
   useEffect(() => {
     const handleAuthLink = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
@@ -71,7 +69,7 @@ export default function LoginPage() {
                 router.push('/');
               }
             } else {
-              // Fallback: If UID doc doesn't exist, check by email (might be different UID)
+              // Fallback: If UID doc doesn't exist, check by email
               const q = query(
                 collection(firestore, 'users'), 
                 where('email', '==', emailForLink.toLowerCase()), 
@@ -104,7 +102,6 @@ export default function LoginPage() {
     
     setIsLoading(true);
     try {
-      // Security rules allow unauthenticated list if limit is 1
       const q = query(
         collection(firestore, 'users'), 
         where('email', '==', email.trim().toLowerCase()), 
@@ -136,7 +133,6 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const actionCodeSettings = {
-        // Ensure this domain is authorized in Firebase Console -> Auth -> Settings
         url: window.location.origin + '/login',
         handleCodeInApp: true,
       };
@@ -147,7 +143,7 @@ export default function LoginPage() {
         description: "Check your inbox (and spam) to activate your account." 
       });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: "Failed to send link. Please ensure your email is correct." });
+      toast({ variant: 'destructive', title: 'Error', description: "Failed to send link." });
     } finally {
       setIsLoading(false);
     }
@@ -166,7 +162,6 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await updatePassword(auth.currentUser, password);
-      // Update the user document to active
       await updateDoc(doc(firestore, 'users', memberDocId), {
         status: 'active',
         activatedAt: serverTimestamp(),

@@ -10,16 +10,16 @@ service cloud.firestore {
     match /settings/bootstrap {
       // Publicly readable so the app can check if it's initialized
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if signedIn() || !exists(/databases/$(database)/documents/settings/bootstrap);
     }
 
     match /users/{userId} {
       // Allow unauthenticated lookup by email for login/activation check
-      // We allow list if the query is limited to 1 result.
+      // CRITICAL: Must use limit(1) in the query
       allow list: if (request.query.limit <= 1) || signedIn();
       
       // Allow individual document reads if signed in and authorized
-      allow get: if signedIn() && (isOwner(userId) || isManagement());
+      allow get: if (signedIn() && (isOwner(userId) || isManagement())) || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
 
       // Allow creation if Admin OR if the bootstrap setting doesn't exist yet (Emergency First Admin)
       allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
@@ -32,7 +32,8 @@ service cloud.firestore {
 
     match /contributions/{id} {
       allow read: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     match /loans/{id} {
