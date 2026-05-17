@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "set-admin": "node scripts/set-admin.js",
     "deploy": "firebase deploy",
-    "deploy:functions": "firebase deploy --only functions"
+    "deploy:functions": "echo 'Checking auth...' && firebase login && firebase deploy --only functions"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "latest",

@@ -9,7 +9,6 @@ service cloud.firestore {
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
     
     // Allow users to update their own document if the email matches their auth token email.
-    // Crucial for activation where doc ID is a random string and not the UID.
     function isEmailOwner(email) { return signedIn() && request.auth.token.email.lower() == email.lower(); }
 
     match /settings/bootstrap {
@@ -18,11 +17,14 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow unauthenticated lookup by email for the login screen.
-      // Allow authenticated users to search for their own record.
-      allow list: if (request.query.limit <= 1) || (signedIn() && request.query.filters.hasAll([['email', '==', request.auth.token.email.lower()]]));
+      // Allow management to see all members.
+      // Allow unauthenticated lookup by email for the login screen (limit 1).
+      // Allow authenticated users to search for their own record by email.
+      allow list: if isManagement() || 
+                    (request.query.limit <= 1) || 
+                    (signedIn() && request.query.filters.hasAll([['email', '==', request.auth.token.email.lower()]]));
       
-      // Allow get for everyone to verify existence.
+      // Allow get for everyone to verify existence or profile.
       allow get: if signedIn() || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
 
       allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
