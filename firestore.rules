@@ -9,8 +9,8 @@ service cloud.firestore {
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
     
     // Allow users to update their own document if the email matches their auth token email.
-    // This is crucial for the "pending" to "active" transition where UID changes.
-    function isEmailOwner(email) { return signedIn() && request.auth.token.email == email; }
+    // Crucial for activation where doc ID is a random string and not the UID.
+    function isEmailOwner(email) { return signedIn() && request.auth.token.email.lower() == email.lower(); }
 
     match /settings/bootstrap {
       allow read: if true;
@@ -18,17 +18,16 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow unauthenticated lookup by email for the login screen's "Is this email registered?" check.
-      // Limited to query limit 1 for security.
-      allow list: if (request.query.limit <= 1);
+      // Allow unauthenticated lookup by email for the login screen.
+      // Allow authenticated users to search for their own record.
+      allow list: if (request.query.limit <= 1) || (signedIn() && request.query.filters.hasAll([['email', '==', request.auth.token.email.lower()]]));
       
-      // Allow get for everyone to verify user existence during activation/sign-in flows.
+      // Allow get for everyone to verify existence.
       allow get: if signedIn() || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
 
-      // Creation is reserved for Admins or the initial Bootstrap process
       allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
       
-      // Strict update rules for profile activation and management
+      // Strict update rules for profile activation
       allow update: if isAdmin() || 
                     (signedIn() && (isOwner(userId) || isEmailOwner(resource.data.email)));
       
@@ -57,7 +56,8 @@ service cloud.firestore {
     }
 
     match /audit_logs/{id} {
-      allow read, write: if isAdmin();
+      allow read: if isManagement();
+      allow write: if isAdmin();
     }
   }
 }

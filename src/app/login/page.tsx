@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -56,7 +57,7 @@ export default function LoginPage() {
             const result = await signInWithEmailLink(auth, emailForLink, window.location.href);
             window.localStorage.removeItem('emailForSignIn');
             
-            // First check if a doc exists with the user's new UID
+            // 1. Check if user already has a doc matching their UID
             const userDocByUid = await getDoc(doc(firestore, 'users', result.user.uid));
             
             if (userDocByUid.exists()) {
@@ -67,7 +68,7 @@ export default function LoginPage() {
                 router.push('/');
               }
             } else {
-              // Lookup by email to find the "pending" invitation doc
+              // 2. Lookup by email to find the invitation doc (which has a random ID)
               const q = query(
                 collection(firestore, 'users'), 
                 where('email', '==', emailForLink.toLowerCase()), 
@@ -78,12 +79,12 @@ export default function LoginPage() {
                 setMemberDocId(snap.docs[0].id);
                 setStep('set-password');
               } else {
-                toast({ title: "Profile Missing", description: "Authenticated successfully, but no member profile found." });
+                toast({ title: "Profile Missing", description: "You are logged in, but we couldn't find your member profile." });
                 router.push('/');
               }
             }
           } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Invalid Link', description: error.message });
+            toast({ variant: 'destructive', title: 'Activation Error', description: error.message });
           } finally {
             setIsLoading(false);
           }
@@ -137,11 +138,11 @@ export default function LoginPage() {
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
       toast({ 
-        title: "Link Sent!", 
-        description: "Activation link sent to " + email
+        title: "Activation Sent", 
+        description: "A secure link has been sent to " + email
       });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: "Failed to send link." });
+      toast({ variant: 'destructive', title: 'Delivery Failed', description: "Ensure your email domain is authorized in Firebase." });
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +151,7 @@ export default function LoginPage() {
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
-      return toast({ variant: 'destructive', title: 'Error', description: 'Password must be at least 6 characters.' });
+      return toast({ variant: 'destructive', title: 'Error', description: 'Password must be 6+ characters.' });
     }
     if (password !== confirmPassword) {
       return toast({ variant: 'destructive', title: 'Error', description: 'Passwords do not match.' });
@@ -160,12 +161,14 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await updatePassword(auth.currentUser, password);
-      // Security rules now allow update by email-match if UID is different
+      
+      // Update the Firestore doc. Security rules allow this based on email match.
       await updateDoc(doc(firestore, 'users', memberDocId), {
         status: 'active',
         activatedAt: serverTimestamp(),
       });
-      toast({ title: 'Welcome', description: 'Your account is now active.' });
+      
+      toast({ title: 'Success', description: 'Account activated successfully.' });
       router.push('/');
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Activation Failed', description: error.message });
@@ -181,7 +184,7 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Login Failed', description: 'Invalid email or password.' });
+      toast({ variant: 'destructive', title: 'Login Failed', description: 'Invalid credentials provided.' });
     } finally {
       setIsLoading(false);
     }
@@ -198,10 +201,10 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-3xl font-headline font-bold">Ikimina App</CardTitle>
           <CardDescription>
-            {step === 'email' && "Enter your email to continue"}
-            {step === 'password' && "Welcome back! Enter your password"}
-            {step === 'pending-activation' && "Account Activation Required"}
-            {step === 'set-password' && "Create your permanent password"}
+            {step === 'email' && "Verify your member email"}
+            {step === 'password' && "Enter your password to sign in"}
+            {step === 'pending-activation' && "Secure Account Activation"}
+            {step === 'set-password' && "Set your final account password"}
           </CardDescription>
         </CardHeader>
 
@@ -216,14 +219,14 @@ export default function LoginPage() {
                     id="email"
                     type="email"
                     placeholder="name@example.com"
-                    className="pl-10 h-11"
+                    className="pl-10 h-11 rounded-xl"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </div>
               </div>
-              <Button className="w-full h-11" type="submit" disabled={isLoading}>
+              <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
                 Continue
               </Button>
@@ -234,18 +237,16 @@ export default function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input value={email} disabled className="bg-muted h-11" />
+                <Input value={email} disabled className="bg-muted h-11 rounded-xl" />
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                </div>
+                <Label htmlFor="password">Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
                     type="password"
-                    className="pl-10 h-11"
+                    className="pl-10 h-11 rounded-xl"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -253,7 +254,7 @@ export default function LoginPage() {
                   />
                 </div>
               </div>
-              <Button className="w-full h-11" type="submit" disabled={isLoading}>
+              <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
                 Sign In
               </Button>
@@ -262,34 +263,34 @@ export default function LoginPage() {
 
           {step === 'pending-activation' && (
             <div className="space-y-6">
-              <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-lg flex gap-3 items-start text-left">
+              <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl flex gap-3 items-start text-left">
                 <ShieldCheck className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-orange-900">Activation Required</p>
+                  <p className="text-sm font-semibold text-orange-900">One Last Step</p>
                   <p className="text-xs text-orange-800 leading-relaxed">
-                    Click the button below to receive an activation link. You will need this to set your permanent password.
+                    Your account exists but isn't active. We will send a secure activation link to your email to verify your identity.
                   </p>
                 </div>
               </div>
-              <Button className="w-full h-11 bg-orange-600 hover:bg-orange-700 text-white" onClick={handleSendActivationLink} disabled={isLoading}>
+              <Button className="w-full h-11 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold" onClick={handleSendActivationLink} disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Mail className="mr-2 h-5 w-5" />}
-                Send Activation Link
+                Request Activation Link
               </Button>
             </div>
           )}
 
           {step === 'set-password' && (
             <form onSubmit={handleSetPassword} className="space-y-4">
-              <div className="bg-green-500/10 border border-green-500/20 p-3 rounded-lg flex gap-2 items-center">
+              <div className="bg-green-500/10 border border-green-500/20 p-3 rounded-xl flex gap-2 items-center">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <p className="text-xs text-green-800 font-medium text-left">Link verified. Create your secure password.</p>
+                <p className="text-xs text-green-800 font-medium text-left">Verification successful. Set your password.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="new-password">New Password</Label>
                 <Input
                   id="new-password"
                   type="password"
-                  className="h-11"
+                  className="h-11 rounded-xl"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -301,13 +302,13 @@ export default function LoginPage() {
                 <Input
                   id="confirm-password"
                   type="password"
-                  className="h-11"
+                  className="h-11 rounded-xl"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                 />
               </div>
-              <Button className="w-full h-11 bg-green-600 hover:bg-green-700 text-white" type="submit" disabled={isLoading}>
+              <Button className="w-full h-11 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold" type="submit" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Lock className="mr-2 h-5 w-5" />}
                 Activate My Account
               </Button>
@@ -316,9 +317,8 @@ export default function LoginPage() {
         </CardContent>
 
         <CardFooter className="justify-center border-t p-4">
-          <p className="text-xs text-muted-foreground text-center italic">
-            Secure Member-Only Access <br />
-            Powered by ORVEXI Limited
+          <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold">
+            Secure Infrastructure Provided by ORVEXI
           </p>
         </CardFooter>
       </Card>
