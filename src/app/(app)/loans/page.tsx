@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, CheckCircle2, XCircle, Clock, Loader2, Info, ShieldAlert } from 'lucide-react';
+import { Plus, CheckCircle2, XCircle, Clock, Loader2, Info, FileText, Upload, ExternalLink, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -21,20 +22,26 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useDoc } from '@/firebase/firestore/hooks';
-import { collection, query, addDoc, updateDoc, doc, serverTimestamp, orderBy, where, Timestamp } from 'firebase/firestore';
-import { useFirestore } from '@/firebase/provider';
+import { collection, query, addDoc, updateDoc, doc, serverTimestamp, orderBy, where, Timestamp, increment } from 'firebase/firestore';
+import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, isAfter, differenceInDays } from 'date-fns';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export default function LoansPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const firebaseApp = useFirebaseApp();
+  const storage = getStorage(firebaseApp);
   const { user } = useUser();
   const { data: userData } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestOpen, setIsRequestOpen] = useState(false);
+  const [isRepayOpen, setIsRepayOpen] = useState(false);
+  const [isApproveOpen, setIsApproveOpen] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState<any>(null);
 
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
@@ -55,7 +62,7 @@ export default function LoansPage() {
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
 
-  // Calculations
+  // Stats
   const stats = useMemo(() => {
     const now = new Date();
     return loans.reduce((acc, loan: any) => {
@@ -91,7 +98,6 @@ export default function LoansPage() {
     e.preventDefault();
     if (!user) return;
     setIsSubmitting(true);
-
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('amount'));
     const description = formData.get('description') as string;
@@ -115,19 +121,77 @@ export default function LoansPage() {
     }
   };
 
-  const handleUpdateStatus = async (loanId: string, status: 'approved' | 'rejected') => {
-    if (!isManagement) return;
+  const handleApproveLoan = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedLoan || !isManagement) return;
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const checkFile = formData.get('checkFile') as File;
+
     try {
-      const updates: any = { status };
-      if (status === 'approved') {
-        const dueDate = new Date();
-        dueDate.setMonth(dueDate.getMonth() + 3);
-        updates.dueDate = Timestamp.fromDate(dueDate);
+      let checkUrl = '';
+      if (checkFile && checkFile.size > 0) {
+        const fileRef = ref(storage, `loan_checks/${selectedLoan.id}/${checkFile.name}`);
+        await uploadBytes(fileRef, checkFile);
+        checkUrl = await getDownloadURL(fileRef);
       }
-      await updateDoc(doc(firestore, 'loans', loanId), updates);
-      toast({ title: "Loan Updated", description: `Loan has been ${status}.` });
+
+      const dueDate = new Date();
+      dueDate.setMonth(dueDate.getMonth() + 3);
+
+      await updateDoc(doc(firestore, 'loans', selectedLoan.id), {
+        status: 'approved',
+        dueDate: Timestamp.fromDate(dueDate),
+        checkUrl,
+      });
+
+      toast({ title: "Loan Approved", description: "Loan has been approved and check recorded." });
+      setIsApproveOpen(false);
+      setSelectedLoan(null);
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to update loan." });
+      toast({ variant: "destructive", title: "Error", description: "Failed to approve loan." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRepayLoan = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedLoan || !user) return;
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const amount = Number(formData.get('amount'));
+    const proofFile = formData.get('proofFile') as File;
+
+    try {
+      let proofUrl = '';
+      if (proofFile && proofFile.size > 0) {
+        const fileRef = ref(storage, `repayment_proofs/${user.uid}/${selectedLoan.id}/${proofFile.name}`);
+        await uploadBytes(fileRef, proofFile);
+        proofUrl = await getDownloadURL(fileRef);
+      }
+
+      await addDoc(collection(firestore, 'repayments'), {
+        loanId: selectedLoan.id,
+        memberId: user.uid,
+        amount,
+        proofUrl,
+        date: serverTimestamp(),
+        status: 'pending'
+      });
+
+      // Optimistically update balance (In a real app, this might wait for verification)
+      await updateDoc(doc(firestore, 'loans', selectedLoan.id), {
+        balance: increment(-amount),
+      });
+
+      toast({ title: "Repayment Sent", description: "Repayment proof uploaded successfully." });
+      setIsRepayOpen(false);
+      setSelectedLoan(null);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to upload repayment proof." });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -143,13 +207,10 @@ export default function LoansPage() {
           </p>
         </div>
         
-        {/* Members can request loans */}
         {isMember && (
           <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" /> Request Loan
-              </Button>
+              <Button><Plus className="mr-2 h-4 w-4" /> Request Loan</Button>
             </DialogTrigger>
             <DialogContent>
               <form onSubmit={handleRequestLoan}>
@@ -179,42 +240,88 @@ export default function LoansPage() {
         )}
       </div>
 
+      {/* Repayment Dialog */}
+      <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
+        <DialogContent>
+          <form onSubmit={handleRepayLoan}>
+            <DialogHeader>
+              <DialogTitle>Record Repayment</DialogTitle>
+              <DialogDescription>Enter installment amount and upload proof of payment.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Repayment Amount (RWF)</Label>
+                <Input name="amount" type="number" placeholder="50000" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="proofFile">Proof of Payment (Image/PDF)</Label>
+                <Input name="proofFile" type="file" accept="image/*,.pdf" required />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Submit Repayment
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approval Dialog */}
+      <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
+        <DialogContent>
+          <form onSubmit={handleApproveLoan}>
+            <DialogHeader>
+              <DialogTitle>Approve Loan</DialogTitle>
+              <DialogDescription>Verify the request and upload the check image to finalize approval.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Loan Details</Label>
+                <div className="text-sm border p-3 rounded bg-muted">
+                  <p><strong>Member:</strong> {selectedLoan && getMemberName(selectedLoan.memberId)}</p>
+                  <p><strong>Amount:</strong> {selectedLoan?.amount?.toLocaleString()} RWF</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="checkFile">Upload Check Image</Label>
+                <Input name="checkFile" type="file" accept="image/*" required />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirm Approval
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="bg-green-500/10 border-green-500/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-green-600 uppercase tracking-wider">
-              {isManagement ? "Active Portfolio" : "My Active Loans"}
-            </CardTitle>
+            <CardTitle className="text-sm text-green-600 uppercase tracking-wider">{isManagement ? "Active Portfolio" : "My Active Loans"}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats.active.toLocaleString()} RWF</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold">{stats.active.toLocaleString()} RWF</div></CardContent>
         </Card>
         <Card className="bg-orange-500/10 border-orange-500/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-orange-600 uppercase tracking-wider">Overdue Balance</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-orange-600">{stats.overdue.toLocaleString()} RWF</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold text-orange-600">{stats.overdue.toLocaleString()} RWF</div></CardContent>
         </Card>
         <Card className="bg-blue-500/10 border-blue-500/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-blue-600 uppercase tracking-wider">Pending Requests</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats.requested.toLocaleString()} RWF</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold">{stats.requested.toLocaleString()} RWF</div></CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Loan Directory</CardTitle>
-          <CardDescription>
-            {isManagement ? "Overview of all member loans" : "History of your personal loans"}
-          </CardDescription>
-        </CardHeader>
+        <CardHeader><CardTitle>Loan Directory</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -222,25 +329,17 @@ export default function LoansPage() {
                 <TableHead>{isManagement ? "Member" : "Purpose"}</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Check</TableHead>
                 <TableHead>Repayment</TableHead>
                 <TableHead>Due Date</TableHead>
-                <TableHead>Penalty</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loadingLoans ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
               ) : loans.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    No loan records found.
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No loans found.</TableCell></TableRow>
               ) : (
                 loans.map((loan: any) => {
                   const penalty = calculatePenalty(loan);
@@ -251,22 +350,25 @@ export default function LoansPage() {
                     <TableRow key={loan.id}>
                       <TableCell className="font-medium">
                         {isManagement ? getMemberName(loan.memberId) : (loan.description || "General Loan")}
-                        {isManagement && loan.description && (
-                          <div className="text-[10px] text-muted-foreground italic truncate max-w-[150px]">
-                            {loan.description}
-                          </div>
-                        )}
+                        {penalty > 0 && <div className="text-[10px] text-destructive font-bold">Penalty: +{penalty.toLocaleString()} RWF</div>}
                       </TableCell>
                       <TableCell>{loan.amount?.toLocaleString()} RWF</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn(
-                          "capitalize border-none",
-                          loan.status === 'approved' && !isOverdue ? 'bg-green-500/10 text-green-600' : 
-                          loan.status === 'rejected' ? 'bg-destructive/10 text-destructive' :
-                          isOverdue ? 'bg-orange-500/10 text-orange-600' : 'bg-secondary'
+                          "capitalize",
+                          loan.status === 'approved' && !isOverdue ? 'bg-green-500/10 text-green-600 border-green-500/20' : 
+                          loan.status === 'rejected' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                          isOverdue ? 'bg-orange-500/10 text-orange-600 border-orange-500/20' : 'bg-secondary'
                         )}>
                           {isOverdue ? 'Overdue' : loan.status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {loan.checkUrl ? (
+                          <Button variant="ghost" size="icon" asChild>
+                            <a href={loan.checkUrl} target="_blank" rel="noopener noreferrer"><FileText className="h-4 w-4" /></a>
+                          </Button>
+                        ) : '-'}
                       </TableCell>
                       <TableCell className="w-[150px]">
                         {loan.status === 'approved' ? (
@@ -279,37 +381,39 @@ export default function LoansPage() {
                           </div>
                         ) : '-'}
                       </TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="text-xs">
                         {loan.dueDate ? format(loan.dueDate.toDate(), 'MMM d, yyyy') : '-'}
                       </TableCell>
-                      <TableCell className="text-destructive font-bold">
-                        {penalty > 0 ? `+${penalty.toLocaleString()}` : '-'}
-                      </TableCell>
                       <TableCell className="text-right">
-                        {isManagement && loan.status === 'requested' ? (
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-green-600 border-green-500/20 hover:bg-green-500/10"
-                              onClick={() => handleUpdateStatus(loan.id, 'approved')}
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
+                        <div className="flex justify-end gap-2">
+                          {isManagement && loan.status === 'requested' && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="text-green-600"
+                                onClick={() => { setSelectedLoan(loan); setIsApproveOpen(true); }}
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="text-destructive"
+                                onClick={async () => {
+                                  if (confirm("Reject this loan?")) await updateDoc(doc(firestore, 'loans', loan.id), { status: 'rejected' });
+                                }}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          {isMember && loan.status === 'approved' && loan.balance > 0 && (
+                            <Button size="sm" onClick={() => { setSelectedLoan(loan); setIsRepayOpen(true); }}>
+                              <Upload className="h-4 w-4 mr-1" /> Repay
                             </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-destructive border-destructive/20 hover:bg-destructive/10"
-                              onClick={() => handleUpdateStatus(loan.id, 'rejected')}
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button size="sm" variant="ghost" disabled>
-                            <Info className="h-4 w-4" />
-                          </Button>
-                        )}
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -322,3 +426,4 @@ export default function LoansPage() {
     </div>
   );
 }
+

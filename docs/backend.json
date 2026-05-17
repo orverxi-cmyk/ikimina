@@ -41,14 +41,29 @@
         "dueDate": { "type": "string", "format": "date-time" },
         "penaltyAmount": { "type": "number" },
         "balance": { "type": "number" },
-        "description": { "type": "string" }
+        "description": { "type": "string" },
+        "checkUrl": { "type": "string", "description": "URL to the check image uploaded on approval" }
       },
       "required": ["memberId", "amount", "status"]
+    },
+    "repayment": {
+      "title": "Repayment",
+      "type": "object",
+      "properties": {
+        "loanId": { "type": "string" },
+        "memberId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "proofUrl": { "type": "string", "description": "URL to the proof of payment image" },
+        "status": { "type": "string", "enum": ["pending", "verified"] }
+      },
+      "required": ["loanId", "memberId", "amount", "date", "proofUrl"]
     }
   },
   "firestore": {
     "/users/{userId}": { "schema": { "$ref": "#/entities/user" } },
     "/contributions/{contributionId}": { "schema": { "$ref": "#/entities/contribution" } },
-    "/loans/{loanId}": { "schema": { "$ref": "#/entities/loan" } }
+    "/loans/{loanId}": { "schema": { "$ref": "#/entities/loan" } },
+    "/repayments/{repaymentId}": { "schema": { "$ref": "#/entities/repayment" } }
   }
 }
