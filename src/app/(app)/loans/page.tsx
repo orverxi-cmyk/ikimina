@@ -21,13 +21,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, addDoc, doc, serverTimestamp, orderBy, where, Timestamp, increment, writeBatch } from 'firebase/firestore';
+import { collection, query, addDoc, doc, serverTimestamp, orderBy, where, Timestamp } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, isAfter, differenceInDays } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { generateAmortizationSchedule } from '@/lib/loan-utils';
+import { approveLoanAction, processRepaymentAction } from '@/app/actions/finance';
 
 export default function LoansPage() {
   const { toast } = useToast();
@@ -125,7 +125,6 @@ export default function LoansPage() {
     const penaltyRate = Number(formData.get('penaltyRate')) / 100;
     const durationMonths = Number(formData.get('duration')) || 3;
     const startDateRaw = formData.get('startDate') as string;
-    const startDate = startDateRaw ? new Date(startDateRaw) : new Date();
 
     try {
       let checkUrl = '';
@@ -135,45 +134,22 @@ export default function LoansPage() {
         checkUrl = await getDownloadURL(fileRef);
       }
 
-      const dueDate = new Date(startDate);
-      dueDate.setMonth(dueDate.getMonth() + durationMonths);
-
-      const interestTotal = interestType === 'afterward' ? interestAmount : 0;
-      const principal = selectedLoan.amount;
-      const totalBalance = principal + interestTotal;
-
-      const schedule = generateAmortizationSchedule(principal, interestTotal, durationMonths, startDate);
-
-      const batch = writeBatch(firestore);
-      
-      batch.update(doc(firestore, 'loans', selectedLoan.id), {
-        status: 'approved',
-        startDate: Timestamp.fromDate(startDate),
-        dueDate: Timestamp.fromDate(dueDate),
-        checkUrl,
+      await approveLoanAction(selectedLoan.id, {
+        memberId: selectedLoan.memberId,
+        amount: selectedLoan.amount,
         interestAmount,
         interestType,
         penaltyRate,
-        balance: totalBalance,
         durationMonths,
-        amortization: schedule,
-        approvedAt: serverTimestamp(),
+        startDate: startDateRaw || format(new Date(), 'yyyy-MM-dd'),
+        checkUrl,
       });
 
-      batch.update(doc(firestore, 'users', selectedLoan.memberId), {
-        amortizationSchedule: schedule.map(s => ({
-          ...s,
-          dueDate: Timestamp.fromDate(s.dueDate)
-        }))
-      });
-
-      await batch.commit();
-
-      toast({ title: "Loan Approved", description: "Schedule generated and pot updated." });
+      toast({ title: "Loan Approved", description: "Secure backend approval complete." });
       setIsApproveOpen(false);
       setSelectedLoan(null);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to approve loan." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -195,47 +171,21 @@ export default function LoansPage() {
         proofUrl = await getDownloadURL(fileRef);
       }
 
-      const updatedAmortization = selectedLoan.amortization.map((inst: any) => {
-        if (inst.installmentNumber === selectedInstallment) {
-          return { ...inst, status: 'paid', proofUrl, paidAt: new Date() };
-        }
-        return inst;
-      });
-
-      const batch = writeBatch(firestore);
-      
-      batch.update(doc(firestore, 'loans', selectedLoan.id), {
-        balance: increment(-amount),
-        amortization: updatedAmortization,
-        status: (selectedLoan.balance - amount <= 0) ? 'completed' : 'approved'
-      });
-
-      batch.update(doc(firestore, 'users', selectedLoan.memberId), {
-        amortizationSchedule: updatedAmortization.map((s: any) => ({
-          ...s,
-          dueDate: s.dueDate instanceof Timestamp ? s.dueDate : Timestamp.fromDate(new Date(s.dueDate)),
-          paidAt: s.paidAt ? Timestamp.fromDate(new Date(s.paidAt)) : null
-        }))
-      });
-
-      await addDoc(collection(firestore, 'repayments'), {
+      await processRepaymentAction({
         loanId: selectedLoan.id,
         memberId: user.uid,
         amount,
         installmentNumber: selectedInstallment,
         proofUrl,
-        date: serverTimestamp(),
-        status: 'pending'
+        currentAmortization: selectedLoan.amortization,
       });
 
-      await batch.commit();
-
-      toast({ title: "Repayment Sent", description: "Proof uploaded and balance updated." });
+      toast({ title: "Repayment Sent", description: "Payment recorded securely on server." });
       setIsRepayOpen(false);
       setSelectedLoan(null);
       setSelectedInstallment(null);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to record repayment." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -269,7 +219,6 @@ export default function LoansPage() {
         )}
       </div>
 
-      {/* Stats Cards */}
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="bg-green-500/5 border-green-500/20 shadow-none">
           <CardHeader className="pb-2">

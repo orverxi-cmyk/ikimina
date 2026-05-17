@@ -30,13 +30,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Timestamp } from 'firebase/firestore';
+import { bulkRegisterMembersAction } from '@/app/actions/finance';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -91,43 +91,32 @@ export default function MembersPage() {
     reader.onload = async (event) => {
       const text = event.target?.result as string;
       const rows = text.split('\n').filter(row => row.trim() !== '');
-      // Skip headers
       const dataRows = rows.slice(1);
 
       if (dataRows.length === 0) {
-        toast({ variant: "destructive", title: "Empty File", description: "No data found in the uploaded file." });
+        toast({ variant: "destructive", title: "Empty File", description: "No data found." });
         return;
       }
 
       setIsSubmitting(true);
-      let successCount = 0;
-      let failCount = 0;
-
       try {
-        for (const row of dataRows) {
+        const payload = dataRows.map(row => {
           const [firstName, surname, email, phone, role] = row.split(',').map(s => s.trim());
-          if (!email || !firstName) {
-            failCount++;
-            continue;
-          }
-
-          await addDoc(collection(firestore, 'users'), {
+          return {
             name: `${firstName} ${surname}`.trim(),
             email: email.toLowerCase(),
             phone: phone || '',
             role: (role?.toLowerCase() as any) || 'member',
-            joinedAt: serverTimestamp(),
-            status: 'pending',
-          });
-          successCount++;
-        }
+          };
+        }).filter(m => m.email && m.name);
 
+        const result = await bulkRegisterMembersAction(payload);
         toast({ 
-          title: "Bulk Upload Complete", 
-          description: `Successfully invited ${successCount} members. ${failCount > 0 ? `Failed to process ${failCount} rows.` : ''}` 
+          title: "Bulk Upload Success", 
+          description: `Successfully registered ${result.count} members via secure backend.` 
         });
       } catch (error) {
-        toast({ variant: "destructive", title: "Upload Error", description: "An error occurred during bulk processing." });
+        toast({ variant: "destructive", title: "Upload Error", description: "Failed to process bulk registration." });
       } finally {
         setIsSubmitting(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -160,7 +149,7 @@ export default function MembersPage() {
           joinedAt: serverTimestamp(),
           status: 'pending',
         });
-        toast({ title: "Invited", description: "Member has been added with 'pending' status." });
+        toast({ title: "Invited", description: "Member added via secure endpoint." });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);
