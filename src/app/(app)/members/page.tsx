@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, MoreVertical, Edit2, Trash2, UserPlus, Loader2, ShieldAlert } from 'lucide-react';
+import { Plus, Search, MoreVertical, Edit2, Trash2, UserPlus, Loader2, ShieldAlert, Download, FileSpreadsheet, Key } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -62,11 +63,24 @@ export default function MembersPage() {
     m.phone?.includes(searchTerm)
   ), [members, searchTerm]);
 
+  const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+  const handleDownloadTemplate = () => {
+    const headers = ['Name', 'Email', 'Phone', 'Role (admin/management/member)'];
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "scdt_members_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (userLoading || membersLoading) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
-  // Access Control: Only Admins can manage members
   if (!isAdmin) {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
@@ -82,7 +96,7 @@ export default function MembersPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     
-    const memberData = {
+    const memberData: any = {
       name: formData.get('name') as string,
       email: formData.get('email') as string,
       phone: formData.get('phone') as string,
@@ -94,11 +108,18 @@ export default function MembersPage() {
         await updateDoc(doc(firestore, 'users', selectedMember.id), memberData);
         toast({ title: "Success", description: "Member updated successfully" });
       } else {
+        const otp = generateOTP();
         await addDoc(collection(firestore, 'users'), {
           ...memberData,
           joinedAt: serverTimestamp(),
+          status: 'pending',
+          otp: otp,
         });
-        toast({ title: "Success", description: "Member added successfully" });
+        toast({ 
+          title: "Member Created", 
+          description: `Account created. Activation code for ${memberData.name} is: ${otp}`,
+          duration: 10000 
+        });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);
@@ -135,63 +156,67 @@ export default function MembersPage() {
           <p className="text-muted-foreground">Manage SCDT Tontine participants and roles</p>
         </div>
         
-        <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-          setIsAddDialogOpen(open);
-          if (!open) {
-            setIsEditing(false);
-            setSelectedMember(null);
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button className="w-full md:w-auto">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add New Member
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <form onSubmit={handleSubmit}>
-              <DialogHeader>
-                <DialogTitle>{isEditing ? 'Edit Member' : 'Add New Member'}</DialogTitle>
-                <DialogDescription>
-                  Enter the member's details below.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">Name</Label>
-                  <Input id="name" name="name" defaultValue={selectedMember?.name} className="col-span-3" required />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={handleDownloadTemplate}>
+            <Download className="mr-2 h-4 w-4" /> Template
+          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+            setIsAddDialogOpen(open);
+            if (!open) {
+              setIsEditing(false);
+              setSelectedMember(null);
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="mr-2 h-4 w-4" /> Add New Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <form onSubmit={handleSubmit}>
+                <DialogHeader>
+                  <DialogTitle>{isEditing ? 'Edit Member' : 'Add New Member'}</DialogTitle>
+                  <DialogDescription>
+                    {isEditing ? 'Update member information' : 'Create a new profile. An OTP will be generated for activation.'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="name" className="text-right">Name</Label>
+                    <Input id="name" name="name" defaultValue={selectedMember?.name} className="col-span-3" required />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="email" className="text-right">Email</Label>
+                    <Input id="email" name="email" type="email" defaultValue={selectedMember?.email} className="col-span-3" required />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="phone" className="text-right">Phone</Label>
+                    <Input id="phone" name="phone" defaultValue={selectedMember?.phone} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="role" className="text-right">Role</Label>
+                    <Select name="role" defaultValue={selectedMember?.role || 'member'}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="management">Management</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email" className="text-right">Email</Label>
-                  <Input id="email" name="email" type="email" defaultValue={selectedMember?.email} className="col-span-3" required />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="phone" className="text-right">Phone</Label>
-                  <Input id="phone" name="phone" defaultValue={selectedMember?.phone} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="role" className="text-right">Role</Label>
-                  <Select name="role" defaultValue={selectedMember?.role || 'member'}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="management">Management</SelectItem>
-                      <SelectItem value="member">Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isEditing ? 'Save Changes' : 'Add Member'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isEditing ? 'Save Changes' : 'Create Profile'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card className="bg-card/50">
@@ -212,6 +237,7 @@ export default function MembersPage() {
               <TableRow>
                 <TableHead>Member</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -228,21 +254,41 @@ export default function MembersPage() {
                       {member.role}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant="outline" 
+                      className={member.status === 'active' ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-orange-500/10 text-orange-600 border-orange-500/20'}
+                    >
+                      {member.status || 'pending'}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-sm">{member.phone || 'N/A'}</TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(member)}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(member.id)} className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" /> Remove
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex justify-end items-center gap-2">
+                      {member.status !== 'active' && member.otp && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          title="View OTP" 
+                          onClick={() => alert(`Activation Code for ${member.name}: ${member.otp}`)}
+                        >
+                          <Key className="h-4 w-4 text-orange-500" />
+                        </Button>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(member)}>
+                            <Edit2 className="mr-2 h-4 w-4" /> Edit Profile
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDelete(member.id)} className="text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Remove
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

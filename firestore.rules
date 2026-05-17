@@ -3,14 +3,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function getUserData() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
-    function isAdmin() { return signedIn() && getUserData().role == 'admin'; }
-    function isManagement() { return signedIn() && (getUserData().role == 'admin' || getUserData().role == 'management'); }
+    function getUserData(uid) { return get(/databases/$(database)/documents/users/$(uid)).data; }
+    function isAdmin() { return signedIn() && getUserData(request.auth.uid).role == 'admin'; }
+    function isManagement() { return signedIn() && (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).role == 'management'); }
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
 
     match /users/{userId} {
-      allow read: if signedIn();
-      allow write: if isAdmin() || isOwner(userId);
+      // Allow read if signed in or if trying to find profile during activation via list query
+      allow read: if signedIn() || (request.query.limit <= 1); 
+      // Admin can manage anyone. Users can update their own profile during activation.
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (signedIn() && isOwner(userId)) || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'otp']));
+      allow delete: if isAdmin();
     }
 
     match /contributions/{id} {
@@ -19,6 +23,13 @@ service cloud.firestore {
     }
 
     match /loans/{id} {
+      allow read: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
+      allow create: if signedIn();
+      allow update: if isManagement();
+      allow delete: if isAdmin();
+    }
+    
+    match /repayments/{id} {
       allow read: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
       allow create: if signedIn();
       allow update: if isManagement();
