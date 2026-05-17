@@ -9,11 +9,11 @@ service cloud.firestore {
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
 
     match /users/{userId} {
-      // Allow read if signed in or if trying to find profile during activation via list query
+      // Allow read if signed in or if trying to find profile during invitation check via list query
       allow read: if signedIn() || (request.query.limit <= 1); 
-      // Admin can manage anyone. Users can update their own profile during activation.
+      // Only admins can create profiles. Users can update their own profile only once during activation.
       allow create: if isAdmin();
-      allow update: if isAdmin() || (signedIn() && isOwner(userId)) || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'otp']));
+      allow update: if isAdmin() || (signedIn() && isOwner(userId) && (resource.data.status == 'pending' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'name'])));
       allow delete: if isAdmin();
     }
 
