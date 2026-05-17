@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, MoreVertical, Edit2, Trash2, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Info } from 'lucide-react';
+import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -21,7 +20,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,18 +29,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCollection, useDoc } from '@/firebase/firestore/hooks';
+import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 export default function MembersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
-  const { data: userData, loading: userLoading } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
+  
+  const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
+  const { data: userData, loading: userLoading } = useDoc(userRef);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -53,7 +54,7 @@ export default function MembersPage() {
 
   const isAdmin = userData?.role === 'admin';
 
-  const membersQuery = useMemo(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
+  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
   const { data: membersSnap, loading: membersLoading } = useCollection(membersQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
@@ -255,7 +256,7 @@ export default function MembersPage() {
                             if(confirm("Remove member?")) await deleteDoc(doc(firestore, 'users', member.id));
                           }} className="text-destructive">Remove</DropdownMenuItem>
                         </DropdownMenuContent>
-                      </DropdownMenu>
+                       </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>

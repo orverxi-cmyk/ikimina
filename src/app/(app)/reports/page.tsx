@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, FileText, Loader2, PieChart, ShieldAlert, TrendingUp, Wallet, HandCoins } from 'lucide-react';
-import { useCollection, useDoc } from '@/firebase/firestore/hooks';
+import { Download, FileText, Loader2, PieChart, ShieldAlert, TrendingUp, Wallet } from 'lucide-react';
+import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
@@ -13,23 +13,25 @@ import { useUser } from '@/firebase/auth/use-user';
 export default function ReportsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
-  const { data: userData, loading: userLoading } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
+  
+  const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
+  const { data: userData, loading: userLoading } = useDoc(userRef);
 
   const role = userData?.role || 'member';
   const isAuthorized = role === 'admin' || role === 'management';
 
   // Firestore Queries
-  const membersQuery = useMemo(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
-  const contributionsQuery = useMemo(() => query(collection(firestore, 'contributions'), orderBy('date', 'desc')), [firestore]);
-  const loansQuery = useMemo(() => query(collection(firestore, 'loans'), orderBy('requestDate', 'desc')), [firestore]);
+  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
+  const contributionsQuery = useMemoFirebase(() => query(collection(firestore, 'contributions'), orderBy('date', 'desc')), []);
+  const loansQuery = useMemoFirebase(() => query(collection(firestore, 'loans'), orderBy('requestDate', 'desc')), []);
 
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
-  const { data: contributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);
-  const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
+  const { data: loadingContributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);
+  const { data: loadingLoansSnap, loading: loadingLoans } = useCollection(loansQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
-  const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
-  const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
+  const contributions = useMemo(() => loadingContributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loadingContributionsSnap]);
+  const loans = useMemo(() => loadingLoansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loadingLoansSnap]);
 
   // Financial Calculations
   const reportData = useMemo(() => {
@@ -83,12 +85,12 @@ export default function ReportsPage() {
     ]);
 
     const csvContent = [
-      ['SCDT TONTINE FINANCIAL REPORT'],
+      ['IKIMINA APP FINANCIAL REPORT'],
       [`Generated on: ${new Date().toLocaleDateString()}`],
       [],
       ['SUMMARY'],
       ['Total Contributions', reportData.totalContributed.toString()],
-      ['Total SCDT Balance', reportData.totalSCDTBalance.toString()],
+      ['Total Balance', reportData.totalSCDTBalance.toString()],
       ['Active Loans', reportData.activeLoansCount.toString()],
       [],
       headers,
@@ -99,7 +101,7 @@ export default function ReportsPage() {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `SCDT_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `Ikimina_Report_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -129,7 +131,7 @@ export default function ReportsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Financial Reports</h1>
-          <p className="text-muted-foreground">Comprehensive overview of SCDT Tontine health</p>
+          <p className="text-muted-foreground">Comprehensive overview of Ikimina App health</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => window.print()} className="hidden md:flex">
@@ -154,7 +156,7 @@ export default function ReportsPage() {
 
         <Card className="bg-green-500/5 border-green-500/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-green-600">SCDT Total Balance</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-green-600">Total Balance</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{reportData.totalSCDTBalance.toLocaleString()} RWF</div>

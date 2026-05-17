@@ -7,20 +7,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Wallet, History, AlertCircle, Loader2, Trash2, Info } from 'lucide-react';
+import { Wallet, History, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useCollection, useDoc } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, where } from 'firebase/firestore';
+import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
+import { collection, query, orderBy, addDoc, serverTimestamp, getDocs, writeBatch, where, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 export default function ContributionsPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
-  const { data: userData } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
+  
+  const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
+  const { data: userData } = useDoc(userRef);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
@@ -31,14 +34,14 @@ export default function ContributionsPage() {
   const isMember = role === 'member';
 
   // Firestore Subscriptions
-  const membersQuery = useMemo(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
+  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
   
-  const contributionsQuery = useMemo(() => {
+  const contributionsQuery = useMemoFirebase(() => {
     if (!user) return null;
     if (isManagement) return query(collection(firestore, 'contributions'), orderBy('date', 'desc'));
     // Members only see their own contributions
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid), orderBy('date', 'desc'));
-  }, [firestore, user, isManagement]);
+  }, [user, isManagement]);
 
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
   const { data: contributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);

@@ -4,23 +4,24 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Wallet, HandCoins, Users, TrendingUp, Calendar, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
-import { useDoc, useCollection } from '@/firebase/firestore/hooks';
-import { collection, doc, query, where, orderBy, limit } from 'firebase/firestore';
+import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
+import { collection, doc, query } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { cn } from '@/lib/utils';
-import { format, isAfter } from 'date-fns';
+import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 
 export default function DashboardPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   
-  const { data: userData } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
+  const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
+  const { data: userData } = useDoc(userRef);
   
   // Real-time Queries for Stats
-  const contributionsQuery = useMemo(() => query(collection(firestore, 'contributions')), [firestore]);
-  const loansQuery = useMemo(() => query(collection(firestore, 'loans')), [firestore]);
-  const membersQuery = useMemo(() => query(collection(firestore, 'users')), [firestore]);
+  const contributionsQuery = useMemoFirebase(() => query(collection(firestore, 'contributions')), []);
+  const loansQuery = useMemoFirebase(() => query(collection(firestore, 'loans')), []);
+  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users')), []);
 
   const { data: contributionsSnap } = useCollection(contributionsQuery);
   const { data: loansSnap } = useCollection(loansQuery);

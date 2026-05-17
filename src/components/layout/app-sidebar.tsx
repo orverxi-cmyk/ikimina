@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
-import { useDoc } from '@/firebase/firestore/hooks';
+import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { getAuth, signOut } from 'firebase/auth';
@@ -24,7 +24,10 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user } = useUser();
   const firestore = useFirestore();
-  const { data: userData } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
+  
+  const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
+  const { data: userData } = useDoc(userRef);
+  
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

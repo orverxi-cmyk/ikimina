@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, CheckCircle2, XCircle, Loader2, FileText, Upload, Wallet, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -14,15 +14,14 @@ import {
   DialogDescription, 
   DialogFooter, 
   DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
+  DialogTitle 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCollection, useDoc } from '@/firebase/firestore/hooks';
-import { collection, query, addDoc, updateDoc, doc, serverTimestamp, orderBy, where, Timestamp, increment, writeBatch } from 'firebase/firestore';
+import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
+import { collection, query, addDoc, doc, serverTimestamp, orderBy, where, Timestamp, increment, writeBatch } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
@@ -36,7 +35,9 @@ export default function LoansPage() {
   const firebaseApp = useFirebaseApp();
   const storage = getStorage(firebaseApp);
   const { user } = useUser();
-  const { data: userData } = useDoc(user ? doc(firestore, 'users', user.uid) : null);
+  
+  const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
+  const { data: userData } = useDoc(userRef);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestOpen, setIsRequestOpen] = useState(false);
@@ -50,13 +51,13 @@ export default function LoansPage() {
   const isManagement = role === 'admin' || role === 'management';
   const isMember = role === 'member';
 
-  const loansQuery = useMemo(() => {
+  const loansQuery = useMemoFirebase(() => {
     if (!user) return null;
     if (isManagement) return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
     return query(collection(firestore, 'loans'), where('memberId', '==', user.uid), orderBy('requestDate', 'desc'));
-  }, [firestore, user, isManagement]);
+  }, [user, isManagement]);
 
-  const membersQuery = useMemo(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
+  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
 
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: membersSnap } = useCollection(membersQuery);
@@ -331,7 +332,7 @@ export default function LoansPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="proofFile">Proof of Payment (Image/PDF)</Label>
-                <div className="border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-accent cursor-pointer transition-colors">
+                <div className="border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-accent cursor-pointer transition-colors relative">
                   <Upload className="h-6 w-6 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">Click to upload file</span>
                   <Input name="proofFile" type="file" accept="image/*,.pdf" required className="absolute inset-0 opacity-0 cursor-pointer" />
