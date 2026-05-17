@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload } from 'lucide-react';
+import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -22,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -36,7 +38,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { registerMemberAction, bulkRegisterMembersAction } from '@/app/actions/finance';
+import { registerMemberAction, bulkRegisterMembersAction, logAdminAction } from '@/app/actions/finance';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -85,7 +87,10 @@ export default function MembersPage() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
+
+    const justification = window.prompt("Please provide a justification for this bulk upload:");
+    if (!justification) return;
 
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -114,7 +119,7 @@ export default function MembersPage() {
       });
 
       try {
-        await bulkRegisterMembersAction(membersToRegister);
+        await bulkRegisterMembersAction(user.uid, membersToRegister, justification);
         toast({ title: "Bulk Upload Success", description: `Successfully registered ${membersToRegister.length} members.` });
       } catch (error: any) {
         toast({ variant: "destructive", title: "Upload Failed", description: error.message });
@@ -128,6 +133,8 @@ export default function MembersPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!user) return;
+    
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     
@@ -137,27 +144,35 @@ export default function MembersPage() {
       email: (formData.get('email') as string).toLowerCase(),
       phone: formData.get('phone') as string,
       role: formData.get('role') as string,
+      justification: formData.get('justification') as string,
     };
 
     try {
       if (isEditing && selectedMember) {
-        // Simple updates can remain client-side as they are non-sensitive profile changes
         const { updateDoc } = await import('firebase/firestore');
         await updateDoc(doc(firestore, 'users', selectedMember.id), {
           name: `${memberData.firstName} ${memberData.surname}`.trim(),
           phone: memberData.phone,
           role: memberData.role
         });
+        
+        await logAdminAction({
+          adminId: user.uid,
+          action: 'UPDATE_MEMBER_PROFILE',
+          justification: memberData.justification,
+          details: { memberId: selectedMember.id, changes: { name: `${memberData.firstName} ${memberData.surname}`, role: memberData.role } }
+        });
+        
         toast({ title: "Success", description: "Member updated successfully." });
       } else {
-        await registerMemberAction(memberData);
+        await registerMemberAction(user.uid, memberData);
         toast({ title: "Invited", description: "Member registered successfully via secure server action." });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);
       setSelectedMember(null);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Registration Failed", description: error.message });
+      toast({ variant: "destructive", title: "Operation Failed", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -283,6 +298,18 @@ export default function MembersPage() {
                     <SelectItem value="member">General Member (View Own Only)</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="justification" className="flex items-center gap-1">
+                  Justification <AlertCircle className="h-3 w-3 text-destructive" />
+                </Label>
+                <Textarea 
+                  id="justification"
+                  name="justification" 
+                  placeholder="Legal reason for this action (for audit logs)..."
+                  required 
+                  className="rounded-xl min-h-[80px]"
+                />
               </div>
             </div>
             <DialogFooter>
@@ -429,9 +456,19 @@ export default function MembersPage() {
                             <DropdownMenuItem 
                               className="py-2.5 text-destructive focus:text-destructive"
                               onClick={async () => {
-                                if(confirm(`Confirm deletion of member: ${member.name}? This action is irreversible.`)) {
+                                if(user && confirm(`Confirm deletion of member: ${member.name}? This action is irreversible.`)) {
+                                  const justification = window.prompt("Please provide a justification for this deletion:");
+                                  if (!justification) return;
+                                  
                                   await deleteDoc(doc(firestore, 'users', member.id));
-                                  toast({ title: "Deleted", description: "Member record has been removed." });
+                                  await logAdminAction({
+                                    adminId: user.uid,
+                                    action: 'DELETE_MEMBER_RECORD',
+                                    justification,
+                                    details: { memberId: member.id, memberName: member.name }
+                                  });
+                                  
+                                  toast({ title: "Deleted", description: "Member record has been removed and logged." });
                                 }
                               }}
                             >

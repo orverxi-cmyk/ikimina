@@ -79,12 +79,25 @@
         "status": { "type": "string", "enum": ["pending", "verified"] }
       },
       "required": ["loanId", "memberId", "amount", "date", "proofUrl"]
+    },
+    "audit_log": {
+      "title": "Audit Log",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "action": { "type": "string" },
+        "justification": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "details": { "type": "object" }
+      },
+      "required": ["adminId", "action", "justification", "timestamp"]
     }
   },
   "firestore": {
     "/users/{userId}": { "schema": { "$ref": "#/entities/user" } },
     "/contributions/{contributionId}": { "schema": { "$ref": "#/entities/contribution" } },
     "/loans/{loanId}": { "schema": { "$ref": "#/entities/loan" } },
-    "/repayments/{repaymentId}": { "schema": { "$ref": "#/entities/repayment" } }
+    "/repayments/{repaymentId}": { "schema": { "$ref": "#/entities/repayment" } },
+    "/audit_logs/{logId}": { "schema": { "$ref": "#/entities/audit_log" } }
   }
 }
