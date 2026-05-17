@@ -56,20 +56,18 @@ export default function LoginPage() {
             const result = await signInWithEmailLink(auth, emailForLink, window.location.href);
             window.localStorage.removeItem('emailForSignIn');
             
-            // User is now signed in. Fetch doc directly via UID.
-            const userDoc = await getDoc(doc(firestore, 'users', result.user.uid));
+            // First check if a doc exists with the user's new UID
+            const userDocByUid = await getDoc(doc(firestore, 'users', result.user.uid));
             
-            if (userDoc.exists()) {
-              const data = userDoc.data();
-              setMemberDocId(userDoc.id);
-              setEmail(emailForLink);
-              if (data.status === 'pending') {
+            if (userDocByUid.exists()) {
+              setMemberDocId(result.user.uid);
+              if (userDocByUid.data().status === 'pending') {
                 setStep('set-password');
               } else {
                 router.push('/');
               }
             } else {
-              // Fallback: If UID doc doesn't exist, check by email
+              // Lookup by email to find the "pending" invitation doc
               const q = query(
                 collection(firestore, 'users'), 
                 where('email', '==', emailForLink.toLowerCase()), 
@@ -80,7 +78,7 @@ export default function LoginPage() {
                 setMemberDocId(snap.docs[0].id);
                 setStep('set-password');
               } else {
-                toast({ title: "Account Not Found", description: "You are signed in but no member profile was found." });
+                toast({ title: "Profile Missing", description: "Authenticated successfully, but no member profile found." });
                 router.push('/');
               }
             }
@@ -110,12 +108,12 @@ export default function LoginPage() {
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        throw new Error('This email is not registered. Please contact your administrator.');
+        throw new Error('Email not found. Please contact an administrator.');
       }
 
-      const memberDoc = querySnapshot.docs[0];
-      const memberData = memberDoc.data();
-      setMemberDocId(memberDoc.id);
+      const memberData = querySnapshot.docs[0].data();
+      setMemberDocId(querySnapshot.docs[0].id);
+      setEmail(email.trim().toLowerCase());
 
       if (memberData.status === 'active') {
         setStep('password');
@@ -140,7 +138,7 @@ export default function LoginPage() {
       window.localStorage.setItem('emailForSignIn', email);
       toast({ 
         title: "Link Sent!", 
-        description: "Check your inbox (and spam) to activate your account." 
+        description: "Activation link sent to " + email
       });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: "Failed to send link." });
@@ -162,14 +160,15 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await updatePassword(auth.currentUser, password);
+      // Security rules now allow update by email-match if UID is different
       await updateDoc(doc(firestore, 'users', memberDocId), {
         status: 'active',
         activatedAt: serverTimestamp(),
       });
-      toast({ title: 'Account Activated', description: 'Welcome to Ikimina App!' });
+      toast({ title: 'Welcome', description: 'Your account is now active.' });
       router.push('/');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Activation Failed', description: error.message });
     } finally {
       setIsLoading(false);
     }
@@ -240,9 +239,6 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Button variant="link" className="px-0 h-auto text-xs" onClick={() => toast({ title: "Contact Admin", description: "Please ask an administrator to reset your password if forgotten." })}>
-                    Forgot password?
-                  </Button>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -261,29 +257,23 @@ export default function LoginPage() {
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
                 Sign In
               </Button>
-              <Button variant="ghost" className="w-full text-xs" onClick={() => setStep('email')}>
-                Use a different email
-              </Button>
             </form>
           )}
 
           {step === 'pending-activation' && (
             <div className="space-y-6">
-              <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-lg flex gap-3 items-start">
+              <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-lg flex gap-3 items-start text-left">
                 <ShieldCheck className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-orange-900">Activation Required</p>
                   <p className="text-xs text-orange-800 leading-relaxed">
-                    An account has been created for you. Click the button below to receive an activation link in your email.
+                    Click the button below to receive an activation link. You will need this to set your permanent password.
                   </p>
                 </div>
               </div>
-              <Button className="w-full h-11 bg-orange-600 hover:bg-orange-700" onClick={handleSendActivationLink} disabled={isLoading}>
+              <Button className="w-full h-11 bg-orange-600 hover:bg-orange-700 text-white" onClick={handleSendActivationLink} disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Mail className="mr-2 h-5 w-5" />}
                 Send Activation Link
-              </Button>
-              <Button variant="ghost" className="w-full text-xs" onClick={() => setStep('email')}>
-                Back to Login
               </Button>
             </div>
           )}
@@ -292,15 +282,14 @@ export default function LoginPage() {
             <form onSubmit={handleSetPassword} className="space-y-4">
               <div className="bg-green-500/10 border border-green-500/20 p-3 rounded-lg flex gap-2 items-center">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <p className="text-xs text-green-800 font-medium">Link verified. Now set your secure password.</p>
+                <p className="text-xs text-green-800 font-medium text-left">Link verified. Create your secure password.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="new-password">Create New Password</Label>
+                <Label htmlFor="new-password">New Password</Label>
                 <Input
                   id="new-password"
                   type="password"
                   className="h-11"
-                  placeholder="Min. 6 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -318,7 +307,7 @@ export default function LoginPage() {
                   required
                 />
               </div>
-              <Button className="w-full h-11 bg-green-600 hover:bg-green-700" type="submit" disabled={isLoading}>
+              <Button className="w-full h-11 bg-green-600 hover:bg-green-700 text-white" type="submit" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Lock className="mr-2 h-5 w-5" />}
                 Activate My Account
               </Button>

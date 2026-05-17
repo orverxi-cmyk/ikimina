@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const isManagement = role === 'admin' || role === 'management';
   const isLoading = userAuthLoading || userDataLoading;
 
+  // Filtered queries to satisfy security rules
   const contributionsQuery = useMemoFirebase(() => {
     if (!user || isLoading) return null;
     if (isManagement) return query(collection(firestore, 'contributions'));

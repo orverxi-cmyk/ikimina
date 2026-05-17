@@ -6,40 +6,45 @@ service cloud.firestore {
     function isAdmin() { return signedIn() && getUserData(request.auth.uid).role == 'admin'; }
     function isManagement() { return signedIn() && (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).role == 'management'); }
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
+    
+    // Allow users to update their own document if the email matches their auth token,
+    // which handles the "ID mismatch" during initial activation.
+    function isEmailOwner(email) { return signedIn() && request.auth.token.email == email; }
 
     match /settings/bootstrap {
-      // Publicly readable so the app can check if it's initialized
       allow read: if true;
       allow write: if signedIn() || !exists(/databases/$(database)/documents/settings/bootstrap);
     }
 
     match /users/{userId} {
       // Allow unauthenticated lookup by email for login/activation check
-      // CRITICAL: Must use limit(1) in the query
-      allow list: if (request.query.limit <= 1) || signedIn();
+      allow list: if (request.query.limit <= 1);
       
-      // Allow individual document reads if signed in and authorized
-      allow get: if (signedIn() && (isOwner(userId) || isManagement())) || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
+      allow get: if signedIn() || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
 
-      // Allow creation if Admin OR if the bootstrap setting doesn't exist yet (Emergency First Admin)
       allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
       
-      // Allow updates for profile management
-      allow update: if isAdmin() || (signedIn() && isOwner(userId) && (resource.data.status == 'pending' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'name', 'status', 'activatedAt', 'amortizationSchedule'])));
+      // Strict update rules for profile activation and management
+      allow update: if isAdmin() || 
+                    (signedIn() && (isOwner(userId) || isEmailOwner(resource.data.email)) && 
+                    (resource.data.status == 'pending' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'name', 'status', 'activatedAt', 'amortizationSchedule'])));
       
       allow delete: if isAdmin();
     }
 
     match /contributions/{id} {
-      allow read: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin();
+      // Members can only query their own contributions
+      allow list: if isManagement() || (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]]));
+      allow get: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
     }
 
     match /loans/{id} {
-      allow read: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
+      // Members can only query their own loans
+      allow list: if isManagement() || (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]]));
+      allow get: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
       allow create: if signedIn();
-      allow update: if isManagement();
+      allow update: if isManagement() || (signedIn() && isOwner(resource.data.memberId));
       allow delete: if isAdmin();
     }
     
