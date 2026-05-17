@@ -14,8 +14,7 @@ import {
   ArrowDownRight,
   History,
   Calendar,
-  AlertTriangle,
-  HandCoins
+  AlertTriangle
 } from 'lucide-react';
 import { 
   Select, 
@@ -25,7 +24,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { 

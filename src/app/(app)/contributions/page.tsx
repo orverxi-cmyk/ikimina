@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -8,17 +7,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Wallet, History, AlertCircle, Loader2, Trash2, ShieldCheck } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Wallet, History, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, where, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, where, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { recordContributionAction } from '@/app/actions/finance';
+import { recordContributionAction } from '@/lib/finance-client';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 
 export default function ContributionsPage() {
   const { toast } = useToast();
@@ -32,9 +31,7 @@ export default function ContributionsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
 
   const role = userData?.role || 'member';
-  const isAdmin = role === 'admin';
   const isManagement = role === 'management' || role === 'admin';
-  const isMember = role === 'member';
 
   // Firestore Subscriptions
   const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
@@ -107,7 +104,6 @@ export default function ContributionsPage() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
-        {/* Record Payment Form - Management Only */}
         {isManagement && (
           <Card className="lg:col-span-1 border-primary/20 bg-primary/5 h-fit sticky top-8">
             <CardHeader>
@@ -164,7 +160,6 @@ export default function ContributionsPage() {
           </Card>
         )}
 
-        {/* History & Alerts */}
         <div className={cn("space-y-6", isManagement ? "lg:col-span-2" : "lg:col-span-3")}>
           {isManagement && (
             <Card className="border-none shadow-lg">
@@ -196,7 +191,7 @@ export default function ContributionsPage() {
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" /> {isMember ? "My Payments" : "Recent Payments"}
+                <History className="h-5 w-5" /> {role === 'member' ? "My Payments" : "Recent Payments"}
               </CardTitle>
             </CardHeader>
             <CardContent>
