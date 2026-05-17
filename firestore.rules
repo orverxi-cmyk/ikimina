@@ -8,12 +8,16 @@ service cloud.firestore {
     function isManagement() { return signedIn() && (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).role == 'management'); }
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
 
+    match /settings/bootstrap {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
     match /users/{userId} {
-      // Allow read if signed in or if trying to find profile during invitation check via list query
       allow read: if signedIn() || (request.query.limit <= 1); 
-      // Only admins can create profiles. Users can update their own profile only once during activation.
-      allow create: if isAdmin();
-      allow update: if isAdmin() || (signedIn() && isOwner(userId) && (resource.data.status == 'pending' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'name'])));
+      // Allow creation if Admin OR if the bootstrap setting doesn't exist yet (Emergency First Admin)
+      allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
+      allow update: if isAdmin() || (signedIn() && isOwner(userId) && (resource.data.status == 'pending' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'name', 'status', 'activatedAt'])));
       allow delete: if isAdmin();
     }
 
