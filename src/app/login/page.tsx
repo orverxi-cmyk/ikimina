@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -42,24 +43,31 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      let emailForLink = window.localStorage.getItem('emailForSignIn');
-      if (!emailForLink) {
-        emailForLink = window.prompt('Please provide your email for confirmation');
-      }
+    const handleAuthLink = async () => {
+      if (isSignInWithEmailLink(auth, window.location.href)) {
+        let emailForLink = window.localStorage.getItem('emailForSignIn');
+        if (!emailForLink) {
+          emailForLink = window.prompt('Please provide your email for confirmation');
+        }
 
-      if (emailForLink) {
-        setIsLoading(true);
-        signInWithEmailLink(auth, emailForLink, window.location.href)
-          .then(async (result) => {
+        if (emailForLink) {
+          setIsLoading(true);
+          try {
+            await signInWithEmailLink(auth, emailForLink, window.location.href);
             window.localStorage.removeItem('emailForSignIn');
-            // This query is authenticated now, but limit(1) is still good practice
-            const q = query(collection(firestore, 'users'), where('email', '==', emailForLink!.toLowerCase()), limit(1));
+            
+            // Once signed in, search for the user doc to see if activation is needed
+            const q = query(
+              collection(firestore, 'users'), 
+              where('email', '==', emailForLink.toLowerCase()), 
+              limit(1)
+            );
             const snap = await getDocs(q);
+            
             if (!snap.empty) {
               const member = snap.docs[0];
               setMemberDocId(member.id);
-              setEmail(emailForLink!);
+              setEmail(emailForLink);
               if (member.data().status === 'pending') {
                 setStep('set-password');
               } else {
@@ -68,22 +76,30 @@ export default function LoginPage() {
             } else {
               router.push('/');
             }
-          })
-          .catch((error) => {
+          } catch (error: any) {
             toast({ variant: 'destructive', title: 'Invalid Link', description: error.message });
-          })
-          .finally(() => setIsLoading(false));
+          } finally {
+            setIsLoading(false);
+          }
+        }
       }
-    }
+    };
+
+    handleAuthLink();
   }, [auth, firestore, router, toast]);
 
   const handleCheckEmail = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email) return;
+    
     setIsLoading(true);
-
     try {
-      // Security rules require limit(1) for unauthenticated queries on users collection
-      const q = query(collection(firestore, 'users'), where('email', '==', email.toLowerCase()), limit(1));
+      // Security rules allow unauthenticated list if limit is 1
+      const q = query(
+        collection(firestore, 'users'), 
+        where('email', '==', email.trim().toLowerCase()), 
+        limit(1)
+      );
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
@@ -100,7 +116,7 @@ export default function LoginPage() {
         setStep('pending-activation');
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Check Failed', description: error.message });
+      toast({ variant: 'destructive', title: 'Lookup Failed', description: error.message });
     } finally {
       setIsLoading(false);
     }

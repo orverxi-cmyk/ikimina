@@ -9,15 +9,25 @@ service cloud.firestore {
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
 
     match /settings/bootstrap {
+      // Publicly readable so the app can check if it's initialized
       allow read: if true;
       allow write: if signedIn();
     }
 
     match /users/{userId} {
-      allow read: if signedIn() || (request.query.limit <= 1); 
+      // Allow searching for a user by email (for login/activation)
+      // We allow this if the query is limited to 1 result.
+      allow list: if (request.query.limit <= 1) || signedIn();
+      
+      // Allow individual document reads if signed in and authorized
+      allow get: if signedIn() && (isOwner(userId) || isManagement());
+
       // Allow creation if Admin OR if the bootstrap setting doesn't exist yet (Emergency First Admin)
       allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
+      
+      // Allow updates for profile management
       allow update: if isAdmin() || (signedIn() && isOwner(userId) && (resource.data.status == 'pending' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'name', 'status', 'activatedAt'])));
+      
       allow delete: if isAdmin();
     }
 
