@@ -5,14 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
-  FileText, 
   Loader2, 
   ShieldAlert, 
   Settings2, 
   Percent,
   TrendingUp,
   TrendingDown,
-  History,
   Calendar,
   AlertTriangle,
   ArrowRight
@@ -41,7 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { allocateInterestAction, updateFinancialSettingsAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
-import { isWithinInterval, getYear, startOfYear, endOfYear, format } from 'date-fns';
+import { isWithinInterval, getYear, startOfYear, endOfYear } from 'date-fns';
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -121,7 +119,7 @@ export default function ReportsPage() {
 
     const totalContributed = contributions.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
     
-    // Interest In: Earnings generated from approved loans in the period
+    // Interest In: Earnings generated from approved loans in the selected period
     const filteredInterestIn = loans.reduce((acc, loan: any) => {
       if (loan.status === 'approved' && loan.approvedAt) {
         const approvedDate = loan.approvedAt.toDate();
@@ -133,7 +131,7 @@ export default function ReportsPage() {
       return acc;
     }, 0);
 
-    // Interest Out: Profit shared with members in the period (tracked via audit logs)
+    // Interest Out: Profit shared with members in the selected period (tracked via audit logs)
     const filteredInterestOut = auditLogs.reduce((acc, log: any) => {
       if (log.action === 'ALLOCATE_INTEREST' && log.timestamp) {
         const logDate = log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp);
@@ -241,7 +239,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Financial Standing</h1>
@@ -275,6 +273,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* Yearly Cumulative Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-none shadow-md bg-green-500/5 border border-green-500/10">
           <CardHeader className="pb-2">

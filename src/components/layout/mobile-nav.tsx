@@ -1,58 +1,63 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Flame, User, Video, MessageSquare } from 'lucide-react';
+import { Home, User, MessageSquare, MoreHorizontal, HandCoins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function MobileNav() {
   const pathname = usePathname();
 
-  const menuItems = [
+  const leftItems = [
     { href: '/', label: 'Home', icon: Home },
-    { href: '/popular', label: 'Popular', icon: Flame },
     { href: '/messages', label: 'Inbox', icon: MessageSquare },
-    { href: '/profile/me', label: 'Me', icon: User },
+  ];
+
+  const rightItems = [
+    { href: '/profile/me', label: 'Profile', icon: User },
+    { href: '/more', label: 'More', icon: MoreHorizontal },
   ];
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t z-50">
-      <nav className="flex justify-around items-center h-16">
-        {menuItems.slice(0,2).map((item) => (
+      <nav className="flex justify-around items-center h-16 px-2">
+        {leftItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             className={cn(
-              'flex flex-col items-center justify-center w-full h-full',
+              'flex flex-col items-center justify-center w-full h-full transition-colors',
               pathname === item.href ? 'text-primary' : 'text-muted-foreground'
             )}
           >
-            <item.icon className="h-6 w-6" />
-            <span className="text-xs mt-1">{item.label}</span>
+            <item.icon className="h-5 w-5" />
+            <span className="text-[10px] mt-1 font-medium">{item.label}</span>
           </Link>
         ))}
         
-        <div className="w-full" /> 
+        {/* Streamlined "Apply" Action in the Center */}
+        <div className="relative w-full h-full flex items-center justify-center">
+          <Link 
+            href="/loans" 
+            className="absolute -top-6 bg-primary rounded-2xl w-14 h-14 shadow-lg shadow-primary/30 border-4 border-background flex flex-col items-center justify-center text-primary-foreground group active:scale-95 transition-transform"
+          >
+            <HandCoins className="h-6 w-6" />
+            <span className="text-[8px] font-bold uppercase mt-0.5">Apply</span>
+          </Link>
+        </div>
 
-        {menuItems.slice(2).map((item) => (
+        {rightItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             className={cn(
-              'flex flex-col items-center justify-center w-full h-full',
+              'flex flex-col items-center justify-center w-full h-full transition-colors',
               pathname === item.href ? 'text-primary' : 'text-muted-foreground'
             )}
           >
-            <item.icon className="h-6 w-6" />
-            <span className="text-xs mt-1">{item.label}</span>
+            <item.icon className="h-5 w-5" />
+            <span className="text-[10px] mt-1 font-medium">{item.label}</span>
           </Link>
         ))}
-
-        {/* Special button for Record */}
-        <Link href="/record" className="absolute left-1/2 -translate-x-1/2 -top-5">
-          <div className="flex items-center justify-center bg-primary rounded-2xl w-16 h-10 shadow-lg shadow-primary/30 border-4 border-background">
-            <Video className="h-5 w-5 text-primary-foreground" />
-          </div>
-        </Link>
       </nav>
     </div>
   );
