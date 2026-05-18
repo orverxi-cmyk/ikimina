@@ -10,13 +10,12 @@ import {
   ShieldAlert, 
   Settings2, 
   Percent,
-  ArrowUpRight,
-  ArrowDownRight,
+  TrendingUp,
+  TrendingDown,
   History,
   Calendar,
   AlertTriangle,
-  TrendingUp,
-  TrendingDown
+  ArrowRight
 } from 'lucide-react';
 import { 
   Select, 
@@ -42,7 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { allocateInterestAction, updateFinancialSettingsAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
-import { isWithinInterval, getYear, startOfYear, endOfYear } from 'date-fns';
+import { isWithinInterval, getYear, startOfYear, endOfYear, format } from 'date-fns';
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -60,7 +59,8 @@ export default function ReportsPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   
-  const [periodFilter, setPeriodFilter] = useState<string>(new Date().getFullYear().toString());
+  const currentYear = new Date().getFullYear().toString();
+  const [periodFilter, setPeriodFilter] = useState<string>(currentYear);
 
   const role = userData?.role || 'member';
   const isAdmin = role === 'admin';
@@ -103,7 +103,10 @@ export default function ReportsPage() {
       if (l.approvedAt) years.add(getYear(l.approvedAt.toDate()));
     });
     auditLogs.forEach((log: any) => {
-      if (log.timestamp) years.add(getYear(log.timestamp.toDate()));
+      if (log.timestamp) {
+        const d = log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp);
+        years.add(getYear(d));
+      }
     });
     return Array.from(years).sort((a, b) => b - a);
   }, [loans, auditLogs]);
@@ -118,6 +121,7 @@ export default function ReportsPage() {
 
     const totalContributed = contributions.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
     
+    // Interest In: Earnings generated from approved loans in the period
     const filteredInterestIn = loans.reduce((acc, loan: any) => {
       if (loan.status === 'approved' && loan.approvedAt) {
         const approvedDate = loan.approvedAt.toDate();
@@ -129,6 +133,7 @@ export default function ReportsPage() {
       return acc;
     }, 0);
 
+    // Interest Out: Profit shared with members in the period (tracked via audit logs)
     const filteredInterestOut = auditLogs.reduce((acc, log: any) => {
       if (log.action === 'ALLOCATE_INTEREST' && log.timestamp) {
         const logDate = log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp);
@@ -239,18 +244,18 @@ export default function ReportsPage() {
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold">Financial Health</h1>
-          <p className="text-muted-foreground font-medium">Internal audits and standing reports</p>
+          <h1 className="text-3xl font-headline font-bold">Financial Standing</h1>
+          <p className="text-muted-foreground font-medium">Internal audit and yearly performance tracking</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-xl mr-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-xl mr-2">
+            <Calendar className="ml-2 h-4 w-4 text-muted-foreground" />
             <Select value={periodFilter} onValueChange={setPeriodFilter}>
-              <SelectTrigger className="w-[180px] h-9 border-none bg-transparent">
-                <Calendar className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Select Period" />
+              <SelectTrigger className="w-[160px] h-8 border-none bg-transparent shadow-none focus:ring-0">
+                <SelectValue placeholder="Period" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="lifetime">Lifetime (All Time)</SelectItem>
+                <SelectItem value="lifetime">Lifetime</SelectItem>
                 {availableYears.map(year => (
                   <SelectItem key={year} value={year.toString()}>Year {year}</SelectItem>
                 ))}
@@ -259,17 +264,14 @@ export default function ReportsPage() {
           </div>
           {isAdmin && (
             <>
-              <Button variant="outline" onClick={() => setIsSettingsOpen(true)} className="rounded-xl h-9">
-                <Settings2 className="mr-2 h-4 w-4" /> Rates
+              <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)} className="rounded-xl h-9">
+                <Settings2 className="mr-2 h-4 w-4" /> Global Rates
               </Button>
-              <Button onClick={() => setIsDialogOpen(true)} className="rounded-xl h-9">
-                <History className="mr-2 h-4 w-4" /> Distribute
+              <Button size="sm" onClick={() => setIsDialogOpen(true)} className="rounded-xl h-9">
+                <TrendingUp className="mr-2 h-4 w-4" /> Distribute Profit
               </Button>
             </>
           )}
-          <Button variant="outline" onClick={() => window.print()} className="rounded-xl h-9 hidden md:flex">
-            <FileText className="mr-2 h-4 w-4" /> Export
-          </Button>
         </div>
       </div>
 
@@ -277,14 +279,14 @@ export default function ReportsPage() {
         <Card className="border-none shadow-md bg-green-500/5 border border-green-500/10">
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-green-700">Interest In</CardTitle>
+              <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-green-700">Interest In (Revenue)</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-600" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{reportData.filteredInterestIn.toLocaleString()} RWF</div>
-            <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">
-              {periodFilter === 'lifetime' ? 'Lifetime Earnings' : `Earnings in ${periodFilter}`}
+            <p className="text-[9px] text-muted-foreground mt-1 uppercase font-bold">
+              {periodFilter === 'lifetime' ? 'All-Time Earnings' : `Earned in ${periodFilter}`}
             </p>
           </CardContent>
         </Card>
@@ -292,35 +294,35 @@ export default function ReportsPage() {
         <Card className="border-none shadow-md bg-primary/5 border border-primary/10">
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-primary">Interest Out</CardTitle>
+              <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-primary">Interest Out (Shared)</CardTitle>
               <TrendingDown className="h-4 w-4 text-primary" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{reportData.filteredInterestOut.toLocaleString()} RWF</div>
-            <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">
-              {periodFilter === 'lifetime' ? 'Lifetime Shared' : `Distributed in ${periodFilter}`}
+            <p className="text-[9px] text-muted-foreground mt-1 uppercase font-bold">
+              {periodFilter === 'lifetime' ? 'Total Distributed' : `Distributed in ${periodFilter}`}
             </p>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-md bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Active Loan Book</CardTitle>
+            <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Outstanding Loans</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{reportData.outstandingLoansBalance.toLocaleString()} RWF</div>
-            <p className="text-[10px] text-orange-600 font-bold mt-1 uppercase">{reportData.activeLoansCount} Active Loans</p>
+            <p className="text-[9px] text-orange-600 font-bold mt-1 uppercase">{reportData.activeLoansCount} Active Books</p>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-md bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Net Available Pot</CardTitle>
+            <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Tontine Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{reportData.netPotValue.toLocaleString()} RWF</div>
-            <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Total Liquid Capital</p>
+            <div className="text-2xl font-bold text-green-600">{(reportData.totalContributed + reportData.filteredInterestIn - reportData.filteredInterestOut).toLocaleString()} RWF</div>
+            <p className="text-[9px] text-muted-foreground mt-1 uppercase font-bold">Current Fund Net Worth</p>
           </CardContent>
         </Card>
       </div>
@@ -329,35 +331,35 @@ export default function ReportsPage() {
         <DialogContent className="rounded-2xl">
           <form onSubmit={handleUpdateSettings}>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">Global Interest Rates</DialogTitle>
-              <DialogDescription>Set default percentages for loans and contribution yields.</DialogDescription>
+              <DialogTitle className="text-2xl font-headline">System Configuration</DialogTitle>
+              <DialogDescription>Set default global percentages for interest and yields.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="loanInterestRate">Loan Int. Rate (%)</Label>
+                  <Label>Loan Rate (%)</Label>
                   <div className="relative">
                     <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input name="loanInterestRate" type="number" step="0.1" defaultValue={settingsData?.loanInterestRate || 5} required className="h-11 rounded-xl" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="contributionInterestRate">Contrib. Yield (%)</Label>
-                   <div className="relative">
+                  <Label>Contribution Yield (%)</Label>
+                  <div className="relative">
                     <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input name="contributionInterestRate" type="number" step="0.1" defaultValue={settingsData?.contributionInterestRate || 2} required className="h-11 rounded-xl" />
                   </div>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="justification">Audit Justification</Label>
-                <Textarea name="justification" placeholder="Reason for changing policy rates..." required className="rounded-xl min-h-[80px]" />
+                <Label>Audit Justification</Label>
+                <Textarea name="justification" placeholder="Why are rates being changed?" required className="rounded-xl min-h-[80px]" />
               </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isUpdatingSettings} className="w-full h-11 rounded-xl font-bold">
                 {isUpdatingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Changes
+                Confirm Changes
               </Button>
             </DialogFooter>
           </form>
@@ -368,27 +370,27 @@ export default function ReportsPage() {
         <DialogContent className="rounded-2xl">
           <form onSubmit={handleAllocateInterest}>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">Pro-Rata Interest Distribution</DialogTitle>
-              <DialogDescription>Allocates profits based on member share of total contributions.</DialogDescription>
+              <DialogTitle className="text-2xl font-headline">Allocate Interest</DialogTitle>
+              <DialogDescription>Distribute accrued profits pro-rata based on member contributions.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
               <div className="bg-orange-500/10 p-4 rounded-xl border border-orange-200 flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0 mt-1" />
-                <p className="text-xs text-orange-800 leading-relaxed font-medium">Irreversible action. All active members will receive their share.</p>
+                <p className="text-xs text-orange-800 leading-relaxed font-medium">This is an irreversible audit action. Ensure the total distribution amount is verified.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="amount">Total Interest to Distribute (RWF)</Label>
-                <Input name="amount" type="number" placeholder="e.g. 500000" required className="h-11 rounded-xl" />
+                <Label>Distribution Amount (RWF)</Label>
+                <Input name="amount" type="number" placeholder="500000" required className="h-11 rounded-xl" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="justification">Audit Justification</Label>
-                <Textarea name="justification" placeholder="Reason for this distribution..." required className="rounded-xl min-h-[80px]" />
+                <Label>Justification</Label>
+                <Textarea name="justification" placeholder="E.g. Annual profit distribution..." required className="rounded-xl min-h-[80px]" />
               </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isAllocating} className="w-full h-11 rounded-xl font-bold">
                 {isAllocating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirm Distribution
+                Execute Allocation
               </Button>
             </DialogFooter>
           </form>
@@ -396,38 +398,44 @@ export default function ReportsPage() {
       </Dialog>
 
       <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm rounded-2xl overflow-hidden">
-        <CardHeader className="bg-muted/20">
-          <CardTitle className="text-xl">Member Standings Audit</CardTitle>
-          <CardDescription>Individual contribution totals, accrued interest, and current liabilities</CardDescription>
+        <CardHeader className="bg-muted/20 border-b">
+          <CardTitle className="text-lg">Member Standings Audit</CardTitle>
+          <CardDescription>Individual contribution history and current liability status</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader className="bg-muted/10">
+            <TableHeader className="bg-muted/5">
               <TableRow>
                 <TableHead className="py-4 px-6">Member</TableHead>
                 <TableHead className="text-right">Contributions</TableHead>
-                <TableHead className="text-right text-primary">Interest Share</TableHead>
+                <TableHead className="text-right text-primary">Interest Earned</TableHead>
                 <TableHead className="text-right text-orange-600">Active Debt</TableHead>
-                <TableHead className="text-right px-6 font-bold">Net Standing</TableHead>
+                <TableHead className="text-right px-6 font-bold">Net Balance</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reportData.memberSummaries.map((m) => (
-                <TableRow key={m.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="py-4 px-6">
-                    <div className="font-bold">{m.name}</div>
-                    <div className="text-[10px] text-muted-foreground">{m.email}</div>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">{m.totalContributed.toLocaleString()} RWF</TableCell>
-                  <TableCell className="text-right text-primary font-bold">+{m.accruedInterest.toLocaleString()} RWF</TableCell>
-                  <TableCell className="text-right text-orange-600 font-medium">
-                    {m.currentDebt > 0 ? `-${m.currentDebt.toLocaleString()} RWF` : '0 RWF'}
-                  </TableCell>
-                  <TableCell className="text-right px-6 font-bold text-lg">
-                    {m.netBalance.toLocaleString()} RWF
-                  </TableCell>
+              {reportData.memberSummaries.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic">No members found.</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                reportData.memberSummaries.map((m) => (
+                  <TableRow key={m.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="py-4 px-6">
+                      <div className="font-bold">{m.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{m.email}</div>
+                    </TableCell>
+                    <TableCell className="text-right font-medium">{m.totalContributed.toLocaleString()} RWF</TableCell>
+                    <TableCell className="text-right text-primary font-bold">+{m.accruedInterest.toLocaleString()} RWF</TableCell>
+                    <TableCell className="text-right text-orange-600 font-medium">
+                      {m.currentDebt > 0 ? `-${m.currentDebt.toLocaleString()} RWF` : '0 RWF'}
+                    </TableCell>
+                    <TableCell className="text-right px-6 font-bold text-lg">
+                      {m.netBalance.toLocaleString()} RWF
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
