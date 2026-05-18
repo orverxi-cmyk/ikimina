@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,7 +18,9 @@ import {
   doc, 
   serverTimestamp,
   limit,
-  getDoc
+  getDoc,
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase/provider';
 import { Button } from '@/components/ui/button';
@@ -54,7 +55,7 @@ export default function LoginPage() {
         if (emailForLink) {
           setIsLoading(true);
           try {
-            const result = await signInWithEmailLink(auth, emailForLink, window.location.href);
+            const result = await signInWithEmailLink(auth, emailForLink.toLowerCase(), window.location.href);
             window.localStorage.removeItem('emailForSignIn');
             
             // 1. Check if user already has a doc matching their UID
@@ -135,8 +136,8 @@ export default function LoginPage() {
         url: window.location.origin + '/login',
         handleCodeInApp: true,
       };
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
+      await sendSignInLinkToEmail(auth, email.toLowerCase(), actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', email.toLowerCase());
       toast({ 
         title: "Activation Sent", 
         description: "A secure link has been sent to " + email
@@ -162,11 +163,28 @@ export default function LoginPage() {
     try {
       await updatePassword(auth.currentUser, password);
       
-      // Update the Firestore doc. Security rules allow this based on email match.
-      await updateDoc(doc(firestore, 'users', memberDocId), {
+      const isMigrationNeeded = memberDocId !== auth.currentUser.uid;
+      let memberData: any = {
         status: 'active',
         activatedAt: serverTimestamp(),
-      });
+      };
+
+      if (isMigrationNeeded) {
+        const oldDocRef = doc(firestore, 'users', memberDocId);
+        const oldDocSnap = await getDoc(oldDocRef);
+        if (oldDocSnap.exists()) {
+          memberData = {
+            ...oldDocSnap.data(),
+            ...memberData,
+            email: oldDocSnap.data().email.toLowerCase()
+          };
+        }
+        
+        await setDoc(doc(firestore, 'users', auth.currentUser.uid), memberData);
+        await deleteDoc(oldDocRef);
+      } else {
+        await updateDoc(doc(firestore, 'users', memberDocId), memberData);
+      }
       
       toast({ title: 'Success', description: 'Account activated successfully.' });
       router.push('/');
@@ -181,7 +199,7 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.toLowerCase(), password);
       router.push('/');
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Login Failed', description: 'Invalid credentials provided.' });

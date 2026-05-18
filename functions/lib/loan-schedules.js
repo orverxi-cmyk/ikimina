@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.calculateAmortizationSchedule = calculateAmortizationSchedule;
+const admin = __importStar(require("firebase-admin"));
 const date_fns_1 = require("date-fns");
 /**
  * Pure logic for generating amortization schedules.
@@ -53,6 +54,4 @@ function calculateAmortizationSchedule(principal, interestTotal, months, startDa
     }
     return schedule;
 }
-// Re-exporting admin for use in main file if needed
-const admin = __importStar(require("firebase-admin"));
 //# sourceMappingURL=loan-schedules.js.map

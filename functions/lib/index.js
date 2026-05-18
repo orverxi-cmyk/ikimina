@@ -37,7 +37,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const admin = __importStar(require("firebase-admin"));
-// Initialize the Admin SDK globally for all modular functions
+// Initialize the Admin SDK globally
 if (!admin.apps.length) {
     admin.initializeApp();
 }
@@ -48,4 +48,6 @@ if (!admin.apps.length) {
 __exportStar(require("./user-management"), exports);
 __exportStar(require("./loan-management"), exports);
 __exportStar(require("./audit-management"), exports);
+__exportStar(require("./contribution-management"), exports);
+__exportStar(require("./financial-management"), exports);
 //# sourceMappingURL=index.js.map

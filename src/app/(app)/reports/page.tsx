@@ -14,7 +14,9 @@ import {
   ArrowDownRight,
   History,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 import { 
   Select, 
@@ -24,7 +26,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { 
@@ -40,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { allocateInterestAction, updateFinancialSettingsAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
-import { isWithinInterval, getYear } from 'date-fns';
+import { isWithinInterval, getYear, startOfYear, endOfYear } from 'date-fns';
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -110,8 +112,8 @@ export default function ReportsPage() {
     const isLifetime = periodFilter === 'lifetime';
     const filterYear = parseInt(periodFilter);
     const filterInterval = isLifetime ? null : {
-      start: new Date(filterYear, 0, 1),
-      end: new Date(filterYear, 11, 31, 23, 59, 59)
+      start: startOfYear(new Date(filterYear, 0, 1)),
+      end: endOfYear(new Date(filterYear, 0, 1))
     };
 
     const totalContributed = contributions.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
@@ -129,7 +131,7 @@ export default function ReportsPage() {
 
     const filteredInterestOut = auditLogs.reduce((acc, log: any) => {
       if (log.action === 'ALLOCATE_INTEREST' && log.timestamp) {
-        const logDate = log.timestamp.toDate();
+        const logDate = log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp);
         const isInPeriod = isLifetime || (filterInterval && isWithinInterval(logDate, filterInterval));
         if (isInPeriod) {
           return acc + (Number(log.details?.totalDistributed) || 0);
@@ -276,7 +278,7 @@ export default function ReportsPage() {
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
               <CardTitle className="text-xs font-bold uppercase tracking-wider text-green-700">Interest In</CardTitle>
-              <ArrowUpRight className="h-4 w-4 text-green-600" />
+              <TrendingUp className="h-4 w-4 text-green-600" />
             </div>
           </CardHeader>
           <CardContent>
@@ -291,7 +293,7 @@ export default function ReportsPage() {
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
               <CardTitle className="text-xs font-bold uppercase tracking-wider text-primary">Interest Out</CardTitle>
-              <ArrowDownRight className="h-4 w-4 text-primary" />
+              <TrendingDown className="h-4 w-4 text-primary" />
             </div>
           </CardHeader>
           <CardContent>

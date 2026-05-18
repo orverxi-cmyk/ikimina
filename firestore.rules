@@ -9,7 +9,11 @@ service cloud.firestore {
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
     
     // Allow users to update their own document if the email matches their auth token email.
-    function isEmailOwner(email) { return signedIn() && request.auth.token.email.lower() == email.lower(); }
+    function isEmailOwner(email) { 
+      return signedIn() && 
+             request.auth.token.email != null && 
+             request.auth.token.email.lower() == email.lower(); 
+    }
 
     match /settings/bootstrap {
       allow read: if true;
@@ -26,14 +30,15 @@ service cloud.firestore {
                     (request.query.limit <= 1) || 
                     (signedIn() && request.query.filters.hasAll([['email', '==', request.auth.token.email.lower()]]));
       
-      allow get: if signedIn() || (!signedIn() && exists(/databases/$(database)/documents/users/$(userId)));
+      allow get: if signedIn();
 
-      allow create: if isAdmin() || (signedIn() && !exists(/databases/$(database)/documents/settings/bootstrap));
+      allow create: if isAdmin() || 
+                    (signedIn() && (userId == request.auth.uid || !exists(/databases/$(database)/documents/settings/bootstrap)));
       
       allow update: if isAdmin() || 
                     (signedIn() && (isOwner(userId) || isEmailOwner(resource.data.email)));
       
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && isEmailOwner(resource.data.email));
     }
 
     match /contributions/{id} {
