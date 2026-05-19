@@ -77,3 +77,14 @@ export async function updateFinancialSettingsAction(data: { loanInterestRate: nu
     throw new Error(error.message || 'Failed to update financial settings');
   }
 }
+
+export async function rejectLoanAction(data: { loanId: string, justification: string }) {
+  const functions = getFinanceFunctions();
+  const rejectFn = httpsCallable(functions, 'rejectLoan');
+  try {
+    const result = await rejectFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to reject loan');
+  }
+}

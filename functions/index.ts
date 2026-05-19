@@ -1,4 +1,3 @@
-
 import * as admin from 'firebase-admin';
 
 // Initialize the Admin SDK globally

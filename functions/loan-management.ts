@@ -68,3 +68,47 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         throw new HttpsError('internal', error.message);
     }
 });
+
+/**
+ * Rejects a loan request and logs the action for audit.
+ */
+export const rejectLoan = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    
+    const db = admin.firestore();
+    const userSnap = await db.collection('users').doc(request.auth.uid).get();
+    
+    if (userSnap.data()?.role !== 'admin' && userSnap.data()?.role !== 'management') {
+        throw new HttpsError('permission-denied', 'Management authority required.');
+    }
+
+    const { loanId, justification } = request.data;
+
+    try {
+        const loanRef = db.collection('loans').doc(loanId);
+        const loanSnap = await loanRef.get();
+        if (!loanSnap.exists) throw new HttpsError('not-found', 'Loan record not found.');
+        
+        const loanData = loanSnap.data()!;
+        const batch = db.batch();
+        
+        batch.update(loanRef, {
+            status: 'rejected',
+            rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            rejectionJustification: justification
+        });
+
+        batch.set(db.collection('audit_logs').doc(), {
+            adminId: request.auth.uid,
+            action: 'REJECT_LOAN',
+            justification,
+            details: { loanId, memberId: loanData.memberId, amount: loanData.amount },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await batch.commit();
+        return { success: true };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});

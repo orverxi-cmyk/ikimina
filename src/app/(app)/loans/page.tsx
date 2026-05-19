@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, XCircle, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { generateAmortizationSchedule } from '@/lib/loan-utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { rejectLoanAction } from '@/lib/finance-client';
 
 export default function LoansPage() {
   const { toast } = useToast();
@@ -45,6 +46,7 @@ export default function LoansPage() {
   const [isRequestOpen, setIsRequestOpen] = useState(false);
   const [isRepayOpen, setIsRepayOpen] = useState(false);
   const [isApproveOpen, setIsApproveOpen] = useState(false);
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedInstallment, setSelectedInstallment] = useState<number | null>(null);
   const [interestType, setInterestType] = useState<'immediate' | 'afterward'>('afterward');
@@ -52,9 +54,6 @@ export default function LoansPage() {
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
   
-  // All active members can request loans
-  const canRequestLoan = !!user && userData?.status === 'active';
-
   const loansQuery = useMemoFirebase(() => {
     if (!user) return null;
     if (isManagement) return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
@@ -68,6 +67,12 @@ export default function LoansPage() {
 
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
+
+  const hasActiveOrPendingLoan = useMemo(() => {
+    return loans.some((l: any) => l.memberId === user?.uid && (l.status === 'requested' || l.status === 'approved'));
+  }, [loans, user]);
+
+  const canRequestLoan = !!user && userData?.status === 'active' && !hasActiveOrPendingLoan;
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -91,7 +96,8 @@ export default function LoansPage() {
 
   const handleRequestLoan = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || hasActiveOrPendingLoan) return;
+    
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('amount'));
@@ -134,6 +140,7 @@ export default function LoansPage() {
     const penaltyRate = Number(formData.get('penaltyRate')) / 100;
     const durationMonths = Number(formData.get('duration')) || 3;
     const startDateRaw = formData.get('startDate') as string;
+    const justification = formData.get('justification') as string;
 
     try {
       let checkUrl = '';
@@ -174,12 +181,40 @@ export default function LoansPage() {
         }))
       });
 
+      batch.set(doc(collection(firestore, 'audit_logs')), {
+        adminId: user?.uid,
+        action: 'APPROVE_LOAN',
+        justification,
+        details: { loanId: selectedLoan.id, memberId: selectedLoan.memberId, amount: selectedLoan.amount },
+        timestamp: serverTimestamp()
+      });
+
       await batch.commit();
       toast({ title: "Loan Approved", description: "Schedule generated and terms applied." });
       setIsApproveOpen(false);
       setSelectedLoan(null);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Approval Failed", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRejectLoan = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedLoan || !isManagement) return;
+    
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const justification = formData.get('justification') as string;
+
+    try {
+      await rejectLoanAction({ loanId: selectedLoan.id, justification });
+      toast({ title: "Loan Rejected", description: "The request has been officially denied." });
+      setIsRejectOpen(false);
+      setSelectedLoan(null);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Action Failed", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -264,18 +299,27 @@ export default function LoansPage() {
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Loan Portfolio</h1>
-          <p className="text-muted-foreground">Repayment schedules and debt management</p>
+          <p className="text-muted-foreground font-medium">Repayment schedules and debt management</p>
         </div>
         
-        {canRequestLoan && (
-          <Button onClick={() => setIsRequestOpen(true)} className="rounded-xl shadow-lg shadow-primary/20 h-11 px-6">
+        <div className="flex flex-col items-end gap-2">
+          <Button 
+            onClick={() => setIsRequestOpen(true)} 
+            className="rounded-xl shadow-lg shadow-primary/20 h-11 px-6 font-bold"
+            disabled={!canRequestLoan}
+          >
             <Plus className="mr-2 h-4 w-4" /> Request New Loan
           </Button>
-        )}
+          {hasActiveOrPendingLoan && (
+            <p className="text-[10px] text-orange-600 font-bold uppercase tracking-tight flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" /> One active/pending loan allowed at a time
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -367,8 +411,8 @@ export default function LoansPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <form onSubmit={handleApproveLoan}>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">Approve Loan</DialogTitle>
-              <DialogDescription>Generate the binding amortization schedule.</DialogDescription>
+              <DialogTitle className="text-2xl font-headline text-green-600">Approve Loan</DialogTitle>
+              <DialogDescription>Generate the binding amortization schedule for this applicant.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
               <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 text-sm space-y-2">
@@ -416,6 +460,11 @@ export default function LoansPage() {
               </div>
 
               <div className="space-y-2">
+                <Label>Audit Justification</Label>
+                <Textarea name="justification" placeholder="E.g. Approved based on contribution standing..." required className="rounded-xl min-h-[80px]" />
+              </div>
+
+              <div className="space-y-2">
                 <Label>Upload Disbursed Check Scan</Label>
                 <Input name="checkFile" type="file" accept="image/*" required className="rounded-xl" />
               </div>
@@ -424,6 +473,39 @@ export default function LoansPage() {
               <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Approve & Execute
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
+        <DialogContent className="rounded-2xl">
+          <form onSubmit={handleRejectLoan}>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline text-destructive">Reject Loan Request</DialogTitle>
+              <DialogDescription>This action is irreversible. Please provide a clear reason.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-6 py-6">
+              <div className="bg-destructive/5 p-4 rounded-xl border border-destructive/10 text-sm space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Applicant:</span>
+                  <span className="font-bold">{selectedLoan && getMemberName(selectedLoan.memberId)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount:</span>
+                  <span className="font-bold">{selectedLoan?.amount?.toLocaleString()} RWF</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Rejection Reason (Audit Justification)</Label>
+                <Textarea name="justification" placeholder="e.g., Member has insufficient contribution weight..." required className="rounded-xl min-h-[100px]" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" variant="destructive" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold">
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirm Rejection
               </Button>
             </DialogFooter>
           </form>
@@ -465,10 +547,14 @@ export default function LoansPage() {
                           <Badge variant="outline" className={cn(
                             "w-fit text-[10px] uppercase font-bold",
                             loan.status === 'approved' ? "text-green-600 border-green-200" :
-                            loan.status === 'requested' ? "text-blue-600 border-blue-200" : "text-muted-foreground"
+                            loan.status === 'requested' ? "text-blue-600 border-blue-200" : 
+                            loan.status === 'rejected' ? "text-destructive border-destructive/20" : "text-muted-foreground"
                           )}>
                             {loan.status}
                           </Badge>
+                          {loan.rejectionJustification && (
+                            <p className="text-[10px] italic text-muted-foreground mt-1 max-w-[200px]">"{loan.rejectionJustification}"</p>
+                          )}
                           {penalty > 0 && (
                             <div className="flex items-center gap-1.5 text-[10px] text-orange-600 font-bold mt-1 bg-orange-500/10 p-1.5 rounded-lg w-fit">
                               <AlertTriangle className="h-3.5 w-3.5" /> Penalty Applied: {penalty.toLocaleString()} RWF
@@ -490,7 +576,9 @@ export default function LoansPage() {
                           <div className="flex items-center gap-2 text-green-600 font-bold text-sm">
                              <CheckCircle2 className="h-4 w-4" /> Fully Repaid
                           </div>
-                        ) : <span className="text-muted-foreground text-xs italic">Review pending</span>}
+                        ) : <span className="text-muted-foreground text-xs italic">
+                          {loan.status === 'requested' ? "Review pending" : "No active schedule"}
+                        </span>}
                       </TableCell>
                       <TableCell className="py-4">
                         {loan.amortization ? (
@@ -530,17 +618,35 @@ export default function LoansPage() {
                               );
                             })}
                           </div>
-                        ) : <span className="text-muted-foreground italic text-xs">Waiting for terms approval</span>}
+                        ) : (
+                          <div className="flex items-center gap-2 text-muted-foreground/40 italic text-xs">
+                             <Info className="h-3 w-3" /> Waiting for terms
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right align-top px-6 pt-6">
                         <div className="flex justify-end gap-2">
                           {isManagement && loan.status === 'requested' && (
-                            <Button size="sm" onClick={() => { setSelectedLoan(loan); setIsApproveOpen(true); }} className="rounded-xl font-bold px-4">
-                               Approve
-                            </Button>
+                            <>
+                              <Button 
+                                size="sm" 
+                                onClick={() => { setSelectedLoan(loan); setIsApproveOpen(true); }} 
+                                className="rounded-xl font-bold px-4 h-9"
+                              >
+                                Approve
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => { setSelectedLoan(loan); setIsRejectOpen(true); }} 
+                                className="rounded-xl font-bold px-4 h-9 text-destructive border-destructive/20 hover:bg-destructive/10"
+                              >
+                                Reject
+                              </Button>
+                            </>
                           )}
                           {loan.checkUrl && (
-                            <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" asChild>
+                            <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" asChild title="View Disbursed Check">
                               <a href={loan.checkUrl} target="_blank" rel="noopener noreferrer"><FileText className="h-4 w-4" /></a>
                             </Button>
                           )}
