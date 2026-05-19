@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,22 +48,48 @@ export default function ContributionsPage() {
   const isManagement = role === 'management' || role === 'admin';
   const isLoading = userDataLoading;
 
-  // Firestore Subscriptions
+  // Firestore Subscriptions with performance-optimized filtering
   const membersQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Wait for userData and ensure user is management
     if (!user || isLoading || !userData || !isManagement) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
   }, [user, isManagement, isLoading, userData]);
   
   const contributionsQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Wait for userData to avoid list permission errors
     if (!user || isLoading || !userData) return null;
-    if (isManagement) return query(collection(firestore, 'contributions'), orderBy('date', 'desc'));
-    return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid), orderBy('date', 'desc'));
+    
+    if (isManagement) {
+      // Management: View all records, chronologically
+      return query(
+        collection(firestore, 'contributions'), 
+        orderBy('date', 'desc')
+      );
+    }
+    
+    // Member: Strict ownership filter before ordering
+    return query(
+      collection(firestore, 'contributions'), 
+      where('memberId', '==', user.uid),
+      orderBy('date', 'desc')
+    );
   }, [user, isManagement, isLoading, userData]);
 
-  const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
-  const { data: contributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);
+  const { data: membersSnap } = useCollection(membersQuery);
+  const { data: contributionsSnap, loading: loadingContributions, error: contributionsError } = useCollection(contributionsQuery);
+
+  // Monitor for Missing Indexes to provide creation links
+  useEffect(() => {
+    if (contributionsError) {
+      console.error('Firestore Query Error:', contributionsError);
+      if (contributionsError.message.includes('index')) {
+        toast({
+          variant: "destructive",
+          title: "Database Index Required",
+          description: "Check the console for the Firestore index creation link.",
+          duration: 10000,
+        });
+      }
+    }
+  }, [contributionsError, toast]);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   
@@ -116,7 +141,7 @@ export default function ContributionsPage() {
       toast({ title: "Submitted", description: "Your contribution has been submitted for verification." });
       (e.target as HTMLFormElement).reset();
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      toast({ variant: "destructive", title: "Submission Failed", description: error.message });
     } finally {
       setIsSubmitting(false);
     }

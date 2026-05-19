@@ -1,90 +1,64 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
-    
-    function getUserData(uid) { 
-      return get(/databases/$(database)/documents/users/$(uid)).data; 
+    // Helpers for professional security evaluation
+    function isSignedIn() {
+      return request.auth != null;
     }
     
-    function userDocExists(uid) {
-      return exists(/databases/$(database)/documents/users/$(uid));
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     
-    function isAdmin() { 
-      return signedIn() && 
-             userDocExists(request.auth.uid) && 
-             getUserData(request.auth.uid).role == 'admin'; 
+    function isManagement() {
+      return isSignedIn() && (getUserData().role == 'management' || getUserData().role == 'admin');
     }
     
-    function isManagement() { 
-      return signedIn() && 
-             userDocExists(request.auth.uid) && 
-             (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).role == 'management'); 
-    }
-    
-    function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
-    
-    // Allow users to update their own document if the email matches their auth token email.
-    function isEmailOwner(email) { 
-      return signedIn() && 
-             request.auth.token.email != null && 
-             request.auth.token.email.lower() == email.lower(); 
+    function isAdmin() {
+      return isSignedIn() && getUserData().role == 'admin';
     }
 
+    // Initial system bootstrap logic
     match /settings/bootstrap {
-      allow read: if true;
-      allow write: if signedIn() || !exists(/databases/$(database)/documents/settings/bootstrap);
+      allow read, write: if !exists(/databases/$(database)/documents/settings/bootstrap);
+    }
+
+    // User profile permissions
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'accruedInterest']));
+    }
+
+    // Financial transaction permissions
+    match /contributions/{contributionId} {
+      allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
+      allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isManagement();
+    }
+
+    match /loans/{loanId} {
+      allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
+      allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isManagement();
+    }
+    
+    match /repayments/{repaymentId} {
+      allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
+      allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isManagement();
+    }
+
+    // System audit and financial logs
+    match /audit_logs/{logId} {
+      allow read: if isManagement();
+      allow create: if isSignedIn(); // Allow creation for audit trail tracking
     }
 
     match /settings/financials {
-      allow read: if signedIn();
-      allow write: if isAdmin();
-    }
-
-    match /users/{userId} {
-      allow list: if isManagement() || 
-                    (request.query.limit <= 1) || 
-                    (signedIn() && request.query.filters.hasAll([['email', '==', request.auth.token.email.lower()]]));
-      
-      allow get: if signedIn();
-
-      allow create: if isAdmin() || 
-                    (signedIn() && (userId == request.auth.uid || !exists(/databases/$(database)/documents/settings/bootstrap)));
-      
-      allow update: if isAdmin() || 
-                    (signedIn() && (isOwner(userId) || isEmailOwner(resource.data.email)));
-      
-      allow delete: if isAdmin() || (signedIn() && isEmailOwner(resource.data.email));
-    }
-
-    match /contributions/{id} {
-      // Prioritize owner filter check to avoid management role lookup if not needed
-      allow list: if (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]])) || isManagement();
-      allow get: if (signedIn() && resource.data.memberId == request.auth.uid) || isManagement();
-      allow create: if signedIn();
-      allow update, delete: if isAdmin();
-    }
-
-    match /loans/{id} {
-      // Prioritize owner filter check to avoid management role lookup if not needed
-      allow list: if (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]])) || isManagement();
-      allow get: if (signedIn() && resource.data.memberId == request.auth.uid) || isManagement();
-      allow create: if signedIn();
-      allow update: if isManagement() || (signedIn() && isOwner(resource.data.memberId));
-      allow delete: if isAdmin();
-    }
-    
-    match /repayments/{id} {
-      allow read: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
-      allow create: if signedIn();
-      allow update: if isManagement();
-      allow delete: if isAdmin();
-    }
-
-    match /audit_logs/{id} {
-      allow read: if isManagement();
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
   }
