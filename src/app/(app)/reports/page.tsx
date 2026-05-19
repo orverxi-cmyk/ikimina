@@ -10,7 +10,8 @@ import {
   ShieldAlert, 
   TrendingUp,
   TrendingDown,
-  Calendar
+  Calendar,
+  DollarSign
 } from 'lucide-react';
 import { 
   Select, 
@@ -37,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { allocateInterestAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
 import { isWithinInterval, getYear, startOfYear, endOfYear } from 'date-fns';
+import { formatCurrency } from '@/lib/currency';
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -45,6 +47,10 @@ export default function ReportsPage() {
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
+
+  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
+  const { data: settingsData } = useDoc(settingsRef);
+  const currency = settingsData?.currency || 'RWF';
 
   const [isAllocating, setIsAllocating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -90,7 +96,10 @@ export default function ReportsPage() {
     const years = new Set<number>();
     years.add(new Date().getFullYear());
     loans.forEach((l: any) => {
-      if (l.approvedAt) years.add(getYear(l.approvedAt.toDate()));
+      if (l.approvedAt) {
+        const d = l.approvedAt instanceof Timestamp ? l.approvedAt.toDate() : new Date(l.approvedAt);
+        years.add(getYear(d));
+      }
     });
     auditLogs.forEach((log: any) => {
       if (log.timestamp) {
@@ -113,7 +122,7 @@ export default function ReportsPage() {
     
     const filteredInterestIn = loans.reduce((acc, loan: any) => {
       if (loan.status === 'approved' && loan.approvedAt) {
-        const approvedDate = loan.approvedAt.toDate();
+        const approvedDate = loan.approvedAt instanceof Timestamp ? loan.approvedAt.toDate() : new Date(loan.approvedAt);
         const isInPeriod = isLifetime || (filterInterval && isWithinInterval(approvedDate, filterInterval));
         if (isInPeriod) {
           return acc + (Number(loan.interestAmount) || 0);
@@ -238,7 +247,49 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {/* ... (Existing metric cards) ... */}
+        <Card className="bg-card border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Cumulative Interest In</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-2">
+               <div className="text-2xl font-bold text-green-600">+{formatCurrency(reportData.filteredInterestIn, currency)}</div>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">Earnings from loan interest ({periodFilter})</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Cumulative Interest Out</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-2">
+               <div className="text-2xl font-bold text-orange-600">-{formatCurrency(reportData.filteredInterestOut, currency)}</div>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">Distributed profits ({periodFilter})</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total Contribution Pot</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(reportData.totalContributed, currency)}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Total member savings (Lifetime)</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Active Loan Portfolio</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(reportData.outstandingLoansBalance, currency)}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">{reportData.activeLoansCount} active loans</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
@@ -269,13 +320,13 @@ export default function ReportsPage() {
                       <div className="font-bold">{m.name}</div>
                       <div className="text-[10px] text-muted-foreground">{m.email}</div>
                     </TableCell>
-                    <TableCell className="text-right font-medium">{m.totalContributed.toLocaleString()} RWF</TableCell>
-                    <TableCell className="text-right text-primary font-bold">+{m.accruedInterest.toLocaleString()} RWF</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(m.totalContributed, currency)}</TableCell>
+                    <TableCell className="text-right text-primary font-bold">+{formatCurrency(m.accruedInterest, currency)}</TableCell>
                     <TableCell className="text-right text-orange-600 font-medium">
-                      {m.currentDebt > 0 ? `-${m.currentDebt.toLocaleString()} RWF` : '0 RWF'}
+                      {m.currentDebt > 0 ? `-${formatCurrency(m.currentDebt, currency)}` : formatCurrency(0, currency)}
                     </TableCell>
                     <TableCell className="text-right px-6 font-bold text-lg">
-                      {m.netBalance.toLocaleString()} RWF
+                      {formatCurrency(m.netBalance, currency)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -294,7 +345,7 @@ export default function ReportsPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="amount">Total Amount to Distribute (RWF)</Label>
+                <Label htmlFor="amount">Total Amount to Distribute</Label>
                 <Input name="amount" type="number" required placeholder="500000" />
               </div>
               <div className="grid gap-2">

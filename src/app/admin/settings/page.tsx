@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -6,11 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
-import { ShieldCheck, Loader2, Save, Percent, Wallet, Info } from 'lucide-react';
+import { ShieldCheck, Loader2, Save, Percent, Wallet, Info, Globe } from 'lucide-react';
 import { updateFinancialSettingsAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -26,6 +28,7 @@ export default function AdminSettingsPage() {
   const { data: settingsData, loading: settingsLoading } = useDoc(settingsRef);
 
   const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState<string>(settingsData?.currency || 'RWF');
 
   const isAdmin = userData?.role === 'admin';
 
@@ -44,6 +47,7 @@ export default function AdminSettingsPage() {
 
     try {
       await updateFinancialSettingsAction({ 
+        currency: selectedCurrency,
         loanInterestRate, 
         contributionInterestRate, 
         maxLoanPercentage, 
@@ -85,7 +89,30 @@ export default function AdminSettingsPage() {
           <Card className="border-none shadow-lg bg-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
-                <Wallet className="h-5 w-5 text-primary" /> Lending Constraints
+                <Globe className="h-5 w-5 text-primary" /> Regional Settings
+              </CardTitle>
+              <CardDescription>Configure currency and display preferences</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-w-sm">
+                <Label>System Currency</Label>
+                <Select value={selectedCurrency || settingsData?.currency || 'RWF'} onValueChange={setSelectedCurrency}>
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue placeholder="Select Currency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RWF">Rwandan Franc (RWF)</SelectItem>
+                    <SelectItem value="USD">US Dollar ($)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-lg bg-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl text-primary">
+                <Wallet className="h-5 w-5" /> Lending Constraints
               </CardTitle>
               <CardDescription>Define limits for member loans and risk management</CardDescription>
             </CardHeader>
@@ -106,7 +133,7 @@ export default function AdminSettingsPage() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Min Loan Amount (RWF)</Label>
+                  <Label>Min Loan Amount</Label>
                   <Input 
                     name="minLoanAmount" 
                     type="number" 
@@ -116,7 +143,7 @@ export default function AdminSettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Max Loan Amount (RWF)</Label>
+                  <Label>Max Loan Amount</Label>
                   <Input 
                     name="maxLoanAmount" 
                     type="number" 
@@ -151,7 +178,7 @@ export default function AdminSettingsPage() {
                   <p className="text-[10px] text-muted-foreground">Rate charged to borrowers.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Target Monthly Contribution (RWF)</Label>
+                  <Label>Target Monthly Contribution</Label>
                   <Input 
                     name="contributionInterestRate" 
                     type="number" 

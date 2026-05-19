@@ -74,6 +74,7 @@
     },
     "repayment": {
       "title": "Repayment",
+      "title": "Repayment",
       "type": "object",
       "properties": {
         "loanId": { "type": "string" },
@@ -101,6 +102,7 @@
       "title": "Financial Settings",
       "type": "object",
       "properties": {
+        "currency": { "type": "string", "enum": ["RWF", "USD"], "default": "RWF" },
         "loanInterestRate": { "type": "number" },
         "contributionInterestRate": { "type": "number" },
         "maxLoanPercentage": { "type": "number" },

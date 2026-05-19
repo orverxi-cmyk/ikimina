@@ -31,6 +31,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { rejectLoanAction, approveLoanAction } from '@/lib/finance-client';
+import { formatCurrency } from '@/lib/currency';
 
 export default function LoansPage() {
   const { toast } = useToast();
@@ -44,6 +45,7 @@ export default function LoansPage() {
 
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
   const { data: settingsData } = useDoc(settingsRef);
+  const currency = settingsData?.currency || 'RWF';
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestOpen, setIsRequestOpen] = useState(false);
@@ -129,7 +131,7 @@ export default function LoansPage() {
       toast({ 
         variant: "destructive", 
         title: "Below Minimum", 
-        description: `Minimum allowed loan is ${(settingsData?.minLoanAmount || 1).toLocaleString()} RWF.` 
+        description: `Minimum allowed loan is ${formatCurrency(settingsData?.minLoanAmount || 1, currency)}.` 
       });
       setIsSubmitting(false);
       return;
@@ -139,7 +141,7 @@ export default function LoansPage() {
       toast({ 
         variant: "destructive", 
         title: "Limit Exceeded", 
-        description: `Your borrowing limit is ${maxBorrowAmount.toLocaleString()} RWF.` 
+        description: `Your borrowing limit is ${formatCurrency(maxBorrowAmount, currency)}.` 
       });
       setIsSubmitting(false);
       return;
@@ -339,19 +341,19 @@ export default function LoansPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold text-green-700 uppercase tracking-widest">Active Balance</CardTitle>
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{stats.active.toLocaleString()} RWF</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">{formatCurrency(stats.active, currency)}</div></CardContent>
         </Card>
         <Card className="bg-card border-none shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold text-orange-700 uppercase tracking-widest">Overdue</CardTitle>
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold text-orange-600">{stats.overdue.toLocaleString()} RWF</div></CardContent>
+          <CardContent><div className="text-2xl font-bold text-orange-600">{formatCurrency(stats.overdue, currency)}</div></CardContent>
         </Card>
         <Card className="bg-card border-none shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">Pending Requests</CardTitle>
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{stats.requested.toLocaleString()} RWF</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">{formatCurrency(stats.requested, currency)}</div></CardContent>
         </Card>
       </div>
 
@@ -391,16 +393,16 @@ export default function LoansPage() {
                             "w-fit text-[9px] font-bold uppercase",
                             loan.status === 'approved' ? "text-green-600" : loan.status === 'requested' ? "text-blue-600" : "text-muted-foreground"
                           )}>{loan.status}</Badge>
-                          {penalty > 0 && <span className="text-[9px] text-orange-600 font-bold">Penalty: {penalty.toLocaleString()} RWF</span>}
+                          {penalty > 0 && <span className="text-[9px] text-orange-600 font-bold">Penalty: {formatCurrency(penalty, currency)}</span>}
                         </div>
                       </TableCell>
-                      <TableCell className="font-bold">{loan.amount?.toLocaleString()} RWF</TableCell>
+                      <TableCell className="font-bold">{formatCurrency(loan.amount, currency)}</TableCell>
                       <TableCell className="w-[180px]">
                         {loan.status === 'approved' ? (
                           <div className="space-y-1">
                             <div className="flex justify-between text-[10px] font-bold">
                               <span>{progress}% Paid</span>
-                              <span>{loan.balance?.toLocaleString()} Left</span>
+                              <span>{formatCurrency(loan.balance, currency)} Left</span>
                             </div>
                             <Progress value={progress} className="h-1.5" />
                           </div>
@@ -464,10 +466,10 @@ export default function LoansPage() {
             <div className="grid gap-6 py-6">
               <div className="bg-primary/5 p-4 rounded-xl border border-primary/10">
                 <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Max Borrowing power</p>
-                <p className="text-xl font-bold">{maxBorrowAmount.toLocaleString()} RWF</p>
+                <p className="text-xl font-bold">{formatCurrency(maxBorrowAmount, currency)}</p>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="amount">Amount (RWF)</Label>
+                <Label htmlFor="amount">Amount</Label>
                 <Input id="amount" name="amount" type="number" required className="rounded-xl" />
               </div>
               <div className="grid gap-2">
@@ -492,7 +494,7 @@ export default function LoansPage() {
             <div className="grid gap-4 py-6">
               <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-200">
                 <p className="text-[10px] uppercase font-bold text-blue-600 mb-1">Requested Capital</p>
-                <p className="text-xl font-bold">{selectedLoan?.amount?.toLocaleString()} RWF</p>
+                <p className="text-xl font-bold">{formatCurrency(selectedLoan?.amount || 0, currency)}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -517,7 +519,7 @@ export default function LoansPage() {
                   <Calculator className="h-4 w-4 text-green-600" />
                   <span className="text-sm font-bold text-green-700">Net Disbursed Amount</span>
                 </div>
-                <span className="text-lg font-bold text-green-700">{netDisbursedDisplay.toLocaleString()} RWF</span>
+                <span className="text-lg font-bold text-green-700">{formatCurrency(netDisbursedDisplay, currency)}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -576,7 +578,7 @@ export default function LoansPage() {
               <DialogDescription>Recording payment for installment #{selectedInstallment}.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <Label>Amount Paid (RWF)</Label>
+              <Label>Amount Paid</Label>
               <Input name="amount" type="number" required className="rounded-xl" />
               <Label>Proof (Image/PDF)</Label>
               <Input name="proofFile" type="file" required className="rounded-xl" />

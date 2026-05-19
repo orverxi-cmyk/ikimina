@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { recordContributionAction } from '@/lib/finance-client';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/currency';
 
 export default function ContributionsPage() {
   const { toast } = useToast();
@@ -27,6 +29,10 @@ export default function ContributionsPage() {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData } = useDoc(userRef);
   
+  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
+  const { data: settingsData } = useDoc(settingsRef);
+  const currency = settingsData?.currency || 'RWF';
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
 
@@ -99,7 +105,7 @@ export default function ContributionsPage() {
           <p className="text-xs text-primary font-bold uppercase tracking-wider">
             {isManagement ? "Total Tontine Funds" : "My Total Contributions"}
           </p>
-          <p className="text-2xl font-bold">{totalBalance.toLocaleString()} RWF</p>
+          <p className="text-2xl font-bold">{formatCurrency(totalBalance, currency)}</p>
         </div>
       </div>
 
@@ -141,7 +147,7 @@ export default function ContributionsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount (RWF)</Label>
+                    <Label htmlFor="amount">Amount</Label>
                     <Input name="amount" type="number" defaultValue="50000" required className="h-11 rounded-xl" />
                   </div>
                 </div>
@@ -188,7 +194,7 @@ export default function ContributionsPage() {
             </Card>
           )}
 
-          <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" /> {role === 'member' ? "My Payments" : "Recent Payments"}
@@ -225,7 +231,7 @@ export default function ContributionsPage() {
                         <TableCell className="text-sm text-muted-foreground">
                           {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Processing...'}
                         </TableCell>
-                        <TableCell className="text-right font-bold">{h.amount?.toLocaleString()} RWF</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(h.amount, currency)}</TableCell>
                       </TableRow>
                     ))
                   )}

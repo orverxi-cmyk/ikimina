@@ -11,6 +11,7 @@ import { useFirestore } from '@/firebase/provider';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
+import { formatCurrency } from '@/lib/currency';
 
 export default function DashboardPage() {
   const { user, loading: userAuthLoading } = useUser();
@@ -19,6 +20,10 @@ export default function DashboardPage() {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
   
+  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
+  const { data: settingsData } = useDoc(settingsRef);
+  const currency = settingsData?.currency || 'RWF';
+
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
   const isLoading = userAuthLoading || userDataLoading;
@@ -56,9 +61,27 @@ export default function DashboardPage() {
     const availablePot = totalConts - activeLoansBalance;
 
     const baseStats = [
-      { title: isManagement ? 'Available Pot' : 'My Contributions', value: (isManagement ? availablePot : (contributionsSnap?.docs.reduce((acc, d) => acc + (d.data().amount || 0), 0) || 0)).toLocaleString() + ' RWF', icon: Wallet, color: 'text-green-500', bg: 'bg-green-500/10' },
-      { title: isManagement ? 'Total Tontine Wealth' : 'Accrued Interest', value: (isManagement ? totalConts : (userData?.accruedInterest || 0)).toLocaleString() + ' RWF', icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
-      { title: isManagement ? 'Active Loan Book' : 'My Active Debt', value: activeLoansBalance.toLocaleString() + ' RWF', icon: HandCoins, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+      { 
+        title: isManagement ? 'Available Pot' : 'My Contributions', 
+        value: formatCurrency(isManagement ? availablePot : (contributionsSnap?.docs.reduce((acc, d) => acc + (d.data().amount || 0), 0) || 0), currency), 
+        icon: Wallet, 
+        color: 'text-green-500', 
+        bg: 'bg-green-500/10' 
+      },
+      { 
+        title: isManagement ? 'Total Tontine Wealth' : 'Accrued Interest', 
+        value: formatCurrency(isManagement ? totalConts : (userData?.accruedInterest || 0), currency), 
+        icon: Sparkles, 
+        color: 'text-primary', 
+        bg: 'bg-primary/10' 
+      },
+      { 
+        title: isManagement ? 'Active Loan Book' : 'My Active Debt', 
+        value: formatCurrency(activeLoansBalance, currency), 
+        icon: HandCoins, 
+        color: 'text-orange-500', 
+        bg: 'bg-orange-500/10' 
+      },
     ];
 
     if (isManagement) {
@@ -66,7 +89,7 @@ export default function DashboardPage() {
     }
 
     return baseStats;
-  }, [contributionsSnap, loansSnap, membersSnap, isManagement, isLoading, loadingConts, loadingLoans, userData]);
+  }, [contributionsSnap, loansSnap, membersSnap, isManagement, isLoading, loadingConts, loadingLoans, userData, currency]);
 
   const myParticipation = useMemo(() => {
     if (!user || !contributionsSnap || !loansSnap) return { contributions: 0, debt: 0, nextPayment: null };
@@ -137,11 +160,11 @@ export default function DashboardPage() {
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center p-5 bg-background/50 rounded-2xl border border-primary/5 hover:border-primary/20 transition-colors">
               <span className="text-muted-foreground font-medium">Accumulated Interest</span>
-              <span className="font-bold text-xl text-primary">+{(userData?.accruedInterest || 0).toLocaleString()} RWF</span>
+              <span className="font-bold text-xl text-primary">+{formatCurrency(userData?.accruedInterest || 0, currency)}</span>
             </div>
             <div className="flex justify-between items-center p-5 bg-background/50 rounded-2xl border border-orange-500/5 hover:border-orange-500/20 transition-colors">
               <span className="text-muted-foreground font-medium">Outstanding Debt</span>
-              <span className="font-bold text-xl text-orange-500">{myParticipation.debt.toLocaleString()} RWF</span>
+              <span className="font-bold text-xl text-orange-500">{formatCurrency(myParticipation.debt, currency)}</span>
             </div>
           </CardContent>
         </Card>
@@ -165,7 +188,7 @@ export default function DashboardPage() {
                       Due: {format(myParticipation.nextPayment.dueDate instanceof Timestamp ? myParticipation.nextPayment.dueDate.toDate() : new Date(myParticipation.nextPayment.dueDate), 'MMM d, yyyy')}
                     </p>
                   </div>
-                  <span className="text-lg font-bold">{myParticipation.nextPayment.amount.toLocaleString()} RWF</span>
+                  <span className="text-lg font-bold">{formatCurrency(myParticipation.nextPayment.amount, currency)}</span>
                 </div>
               </div>
             ) : (

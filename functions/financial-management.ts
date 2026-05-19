@@ -91,6 +91,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
     }
 
     const { 
+        currency,
         loanInterestRate, 
         contributionInterestRate, 
         maxLoanPercentage, 
@@ -104,6 +105,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
         const settingsRef = db.collection('settings').doc('financials');
         
         batch.set(settingsRef, {
+            currency: currency || 'RWF',
             loanInterestRate: Number(loanInterestRate),
             contributionInterestRate: Number(contributionInterestRate),
             maxLoanPercentage: Number(maxLoanPercentage),
@@ -118,7 +120,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             adminId: request.auth.uid,
             action: 'UPDATE_FINANCIAL_SETTINGS',
             justification,
-            details: { loanInterestRate, contributionInterestRate, maxLoanPercentage, minLoanAmount, maxLoanAmount },
+            details: { currency, loanInterestRate, contributionInterestRate, maxLoanPercentage, minLoanAmount, maxLoanAmount },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
