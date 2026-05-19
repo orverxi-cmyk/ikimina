@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -50,18 +51,17 @@ export default function ContributionsPage() {
 
   // Firestore Subscriptions
   const membersQuery = useMemoFirebase(() => {
-    // Regular members don't have permission to list all users
-    if (!isManagement) return null;
+    // SECURITY GUARD: Wait for userData and ensure user is management
+    if (!user || isLoading || !userData || !isManagement) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
-  }, [isManagement]);
+  }, [user, isManagement, isLoading, userData]);
   
   const contributionsQuery = useMemoFirebase(() => {
-    if (!user || isLoading) return null;
-    // Admins see everything ordered by date
+    // SECURITY GUARD: Wait for userData to avoid list permission errors
+    if (!user || isLoading || !userData) return null;
     if (isManagement) return query(collection(firestore, 'contributions'), orderBy('date', 'desc'));
-    // Members see their own ordered by date. This will trigger a missing index error with a link.
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid), orderBy('date', 'desc'));
-  }, [user, isManagement, isLoading]);
+  }, [user, isManagement, isLoading, userData]);
 
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
   const { data: contributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -28,21 +29,24 @@ export default function DashboardPage() {
   const isLoading = userAuthLoading || userDataLoading;
 
   const contributionsQuery = useMemoFirebase(() => {
-    if (!user || isLoading) return null;
+    // SECURITY GUARD: Wait for userData to resolve before querying sub-collections
+    if (!user || isLoading || !userData) return null;
     if (isManagement) return query(collection(firestore, 'contributions'));
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
-  }, [user, isManagement, isLoading]);
+  }, [user, isManagement, isLoading, userData]);
 
   const loansQuery = useMemoFirebase(() => {
-    if (!user || isLoading) return null;
+    // SECURITY GUARD: Wait for userData to resolve before querying sub-collections
+    if (!user || isLoading || !userData) return null;
     if (isManagement) return query(collection(firestore, 'loans'));
     return query(collection(firestore, 'loans'), where('memberId', '==', user.uid));
-  }, [user, isManagement, isLoading]);
+  }, [user, isManagement, isLoading, userData]);
 
   const membersQuery = useMemoFirebase(() => {
-    if (!user || isLoading || !isManagement) return null;
+    // SECURITY GUARD: Wait for userData to resolve before querying sub-collections
+    if (!user || isLoading || !userData || !isManagement) return null;
     return query(collection(firestore, 'users'));
-  }, [user, isManagement, isLoading]);
+  }, [user, isManagement, isLoading, userData]);
 
   const { data: contributionsSnap, loading: loadingConts } = useCollection(contributionsQuery);
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);

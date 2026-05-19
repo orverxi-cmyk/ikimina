@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -61,21 +62,23 @@ export default function LoansPage() {
   const isLoading = userDataLoading;
   
   const loansQuery = useMemoFirebase(() => {
-    if (!user || isLoading) return null;
+    // SECURITY GUARD: Wait for userData to avoid list permission errors
+    if (!user || isLoading || !userData) return null;
     if (isManagement) return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
-    // Restore orderBy to trigger composite index creation for members
     return query(collection(firestore, 'loans'), where('memberId', '==', user.uid), orderBy('requestDate', 'desc'));
-  }, [user, isManagement, isLoading]);
+  }, [user, isManagement, isLoading, userData]);
 
   const contributionsQuery = useMemoFirebase(() => {
-    if (!user || isLoading) return null;
+    // SECURITY GUARD: Wait for userData
+    if (!user || isLoading || !userData) return null;
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
-  }, [user, isLoading]);
+  }, [user, isLoading, userData]);
 
   const membersQuery = useMemoFirebase(() => {
-    if (!isManagement) return null;
+    // SECURITY GUARD: Wait for userData and ensure user is management
+    if (!user || isLoading || !userData || !isManagement) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
-  }, [isManagement]);
+  }, [user, isManagement, isLoading, userData]);
 
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: contributionsSnap } = useCollection(contributionsQuery);

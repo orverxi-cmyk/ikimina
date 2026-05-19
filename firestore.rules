@@ -3,9 +3,27 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function getUserData(uid) { return get(/databases/$(database)/documents/users/$(uid)).data; }
-    function isAdmin() { return signedIn() && getUserData(request.auth.uid).role == 'admin'; }
-    function isManagement() { return signedIn() && (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).role == 'management'); }
+    
+    function getUserData(uid) { 
+      return get(/databases/$(database)/documents/users/$(uid)).data; 
+    }
+    
+    function userDocExists(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+    
+    function isAdmin() { 
+      return signedIn() && 
+             userDocExists(request.auth.uid) && 
+             getUserData(request.auth.uid).role == 'admin'; 
+    }
+    
+    function isManagement() { 
+      return signedIn() && 
+             userDocExists(request.auth.uid) && 
+             (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).role == 'management'); 
+    }
+    
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
     
     // Allow users to update their own document if the email matches their auth token email.
@@ -42,15 +60,17 @@ service cloud.firestore {
     }
 
     match /contributions/{id} {
-      allow list: if isManagement() || (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]]));
-      allow get: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
+      // Prioritize owner filter check to avoid management role lookup if not needed
+      allow list: if (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]])) || isManagement();
+      allow get: if (signedIn() && resource.data.memberId == request.auth.uid) || isManagement();
       allow create: if signedIn();
       allow update, delete: if isAdmin();
     }
 
     match /loans/{id} {
-      allow list: if isManagement() || (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]]));
-      allow get: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
+      // Prioritize owner filter check to avoid management role lookup if not needed
+      allow list: if (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]])) || isManagement();
+      allow get: if (signedIn() && resource.data.memberId == request.auth.uid) || isManagement();
       allow create: if signedIn();
       allow update: if isManagement() || (signedIn() && isOwner(resource.data.memberId));
       allow delete: if isAdmin();
