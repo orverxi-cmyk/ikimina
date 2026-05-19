@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -28,7 +28,14 @@ export default function AdminSettingsPage() {
   const { data: settingsData, loading: settingsLoading } = useDoc(settingsRef);
 
   const [isUpdating, setIsUpdating] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState<string>(settingsData?.currency || 'RWF');
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('RWF');
+
+  // Sync state with Firestore data when it loads
+  useEffect(() => {
+    if (settingsData?.currency) {
+      setSelectedCurrency(settingsData.currency);
+    }
+  }, [settingsData]);
 
   const isAdmin = userData?.role === 'admin';
 
@@ -96,7 +103,7 @@ export default function AdminSettingsPage() {
             <CardContent>
               <div className="space-y-2 max-w-sm">
                 <Label>System Currency</Label>
-                <Select value={selectedCurrency || settingsData?.currency || 'RWF'} onValueChange={setSelectedCurrency}>
+                <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
                   <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue placeholder="Select Currency" />
                   </SelectTrigger>
