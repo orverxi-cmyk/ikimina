@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, HandCoins, Users, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { Wallet, HandCoins, Users, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where } from 'firebase/firestore';
@@ -52,31 +52,37 @@ export default function DashboardPage() {
   const stats = useMemo(() => {
     if (isLoading || loadingConts || loadingLoans) return [];
 
-    const totalConts = contributionsSnap?.docs.reduce((acc, d) => acc + (d.data().amount || 0), 0) || 0;
+    const allConts = contributionsSnap?.docs.map(d => d.data()) || [];
+    const verifiedContsTotal = allConts
+      .filter((c: any) => c.status === 'verified')
+      .reduce((acc, c: any) => acc + (c.amount || 0), 0);
+    
+    const pendingContsCount = allConts.filter((c: any) => c.status === 'pending').length;
+
     const activeLoansBalance = loansSnap?.docs.reduce((acc, d) => {
       const data = d.data();
       return acc + (data.status === 'approved' ? (data.balance || 0) : 0);
     }, 0) || 0;
     
-    const availablePot = totalConts - activeLoansBalance;
+    const availablePot = verifiedContsTotal - activeLoansBalance;
 
     const baseStats = [
       { 
-        title: isManagement ? 'Available Pot' : 'My Contributions', 
-        value: formatCurrency(isManagement ? availablePot : (contributionsSnap?.docs.reduce((acc, d) => acc + (d.data().amount || 0), 0) || 0), currency), 
+        title: isManagement ? 'Verified Pot Value' : 'My Verified Savings', 
+        value: formatCurrency(isManagement ? availablePot : verifiedContsTotal, currency), 
         icon: Wallet, 
-        color: 'text-green-500', 
-        bg: 'bg-green-500/10' 
+        color: 'text-green-600', 
+        bg: 'bg-green-600/10' 
       },
       { 
-        title: isManagement ? 'Total Tontine Wealth' : 'Accrued Interest', 
-        value: formatCurrency(isManagement ? totalConts : (userData?.accruedInterest || 0), currency), 
+        title: isManagement ? 'Total Tontine Assets' : 'Accrued Interest', 
+        value: formatCurrency(isManagement ? verifiedContsTotal : (userData?.accruedInterest || 0), currency), 
         icon: Sparkles, 
         color: 'text-primary', 
         bg: 'bg-primary/10' 
       },
       { 
-        title: isManagement ? 'Active Loan Book' : 'My Active Debt', 
+        title: isManagement ? 'Active Loan Book' : 'My Outstanding Debt', 
         value: formatCurrency(activeLoansBalance, currency), 
         icon: HandCoins, 
         color: 'text-orange-500', 
@@ -85,7 +91,9 @@ export default function DashboardPage() {
     ];
 
     if (isManagement) {
-      baseStats.push({ title: 'Member Count', value: membersSnap?.size.toString() || '0', icon: Users, color: 'text-purple-500', bg: 'bg-purple-500/10' });
+      baseStats.push({ title: 'Pending Audits', value: pendingContsCount.toString(), icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10' });
+    } else {
+      baseStats.push({ title: 'Pending Verification', value: pendingContsCount.toString(), icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' });
     }
 
     return baseStats;
@@ -94,8 +102,8 @@ export default function DashboardPage() {
   const myParticipation = useMemo(() => {
     if (!user || !contributionsSnap || !loansSnap) return { contributions: 0, debt: 0, nextPayment: null };
     
-    const myConts = contributionsSnap.docs
-      .filter(d => d.data().memberId === user.uid)
+    const myVerifiedConts = contributionsSnap.docs
+      .filter(d => d.data().memberId === user.uid && d.data().status === 'verified')
       .reduce((acc, d) => acc + (d.data().amount || 0), 0);
       
     const myActiveLoans = loansSnap.docs
@@ -114,7 +122,7 @@ export default function DashboardPage() {
         })[0];
     }
 
-    return { contributions: myConts, debt: totalDebt, nextPayment: nextInst };
+    return { contributions: myVerifiedConts, debt: totalDebt, nextPayment: nextInst };
   }, [user, contributionsSnap, loansSnap, userData]);
 
   if (isLoading) {
@@ -125,12 +133,12 @@ export default function DashboardPage() {
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-headline font-bold">Financial Overview</h1>
-          <p className="text-muted-foreground font-medium">Hello, {userData?.name || 'Member'}</p>
+          <h1 className="text-3xl font-headline font-bold">Financial Portfolio</h1>
+          <p className="text-muted-foreground font-medium">Welcome back, {userData?.name || 'Member'}</p>
         </div>
         <div className="text-right hidden md:block">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Current Date</p>
-          <p className="text-lg font-bold">{format(new Date(), 'MMMM do, yyyy')}</p>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Active System Policy</p>
+          <p className="text-lg font-bold">1 {currency} = {currency}</p>
         </div>
       </div>
 
@@ -154,17 +162,19 @@ export default function DashboardPage() {
         <Card className="bg-card border-none shadow-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <ArrowUpRight className="h-5 w-5 text-primary" /> My Participation
+              <ArrowUpRight className="h-5 w-5 text-primary" /> Active Position
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center p-5 bg-background/50 rounded-2xl border border-primary/5 hover:border-primary/20 transition-colors">
-              <span className="text-muted-foreground font-medium">Accumulated Interest</span>
-              <span className="font-bold text-xl text-primary">+{formatCurrency(userData?.accruedInterest || 0, currency)}</span>
+              <span className="text-muted-foreground font-medium">Verified Assets (Savings + Interest)</span>
+              <span className="font-bold text-xl text-primary">
+                {formatCurrency(myParticipation.contributions + (userData?.accruedInterest || 0), currency)}
+              </span>
             </div>
             <div className="flex justify-between items-center p-5 bg-background/50 rounded-2xl border border-orange-500/5 hover:border-orange-500/20 transition-colors">
-              <span className="text-muted-foreground font-medium">Outstanding Debt</span>
-              <span className="font-bold text-xl text-orange-500">{formatCurrency(myParticipation.debt, currency)}</span>
+              <span className="text-muted-foreground font-medium">Current Liabilities (Active Loans)</span>
+              <span className="font-bold text-xl text-orange-500">-{formatCurrency(myParticipation.debt, currency)}</span>
             </div>
           </CardContent>
         </Card>
@@ -172,7 +182,7 @@ export default function DashboardPage() {
         <Card className="bg-card border-none shadow-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Calendar className="h-5 w-5 text-primary" /> Upcoming Deadlines
+              <Calendar className="h-5 w-5 text-primary" /> Scheduled Payments
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -183,7 +193,7 @@ export default function DashboardPage() {
                     <HandCoins className="h-5 w-5" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold">Loan Installment #{myParticipation.nextPayment.installmentNumber}</p>
+                    <p className="text-sm font-bold">Repayment Installment #{myParticipation.nextPayment.installmentNumber}</p>
                     <p className="text-xs text-muted-foreground">
                       Due: {format(myParticipation.nextPayment.dueDate instanceof Timestamp ? myParticipation.nextPayment.dueDate.toDate() : new Date(myParticipation.nextPayment.dueDate), 'MMM d, yyyy')}
                     </p>
@@ -194,7 +204,7 @@ export default function DashboardPage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-2">
                 <CheckCircle2 className="h-10 w-10 text-green-500/50" />
-                <p className="text-sm font-medium">No upcoming loan payments</p>
+                <p className="text-sm font-medium">No upcoming debt obligations</p>
               </div>
             )}
           </CardContent>

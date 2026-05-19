@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.recordContribution = void 0;
+exports.verifyContribution = exports.recordContribution = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -62,6 +62,7 @@ exports.recordContribution = (0, https_1.onCall)({ cors: true }, async (request)
             period,
             date: admin.firestore.FieldValue.serverTimestamp(),
             recordedBy: request.auth.uid,
+            status: 'verified'
         });
         // Log the action
         const logRef = db.collection('audit_logs').doc();
@@ -74,6 +75,46 @@ exports.recordContribution = (0, https_1.onCall)({ cors: true }, async (request)
         });
         await batch.commit();
         return { success: true, id: contributionRef.id };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Verifies a pending contribution submitted by a member.
+ */
+exports.verifyContribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    const adminData = adminSnap.data();
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can verify contributions.');
+    }
+    const { contributionId, justification } = request.data;
+    if (!contributionId || !justification) {
+        throw new https_1.HttpsError('invalid-argument', 'Contribution ID and justification are required.');
+    }
+    try {
+        const batch = db.batch();
+        const contributionRef = db.collection('contributions').doc(contributionId);
+        batch.update(contributionRef, {
+            status: 'verified',
+            verifiedBy: request.auth.uid,
+            verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        // Log the action
+        const logRef = db.collection('audit_logs').doc();
+        batch.set(logRef, {
+            adminId: request.auth.uid,
+            action: 'VERIFY_CONTRIBUTION',
+            justification,
+            details: { contributionId },
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await batch.commit();
+        return { success: true };
     }
     catch (error) {
         throw new https_1.HttpsError('internal', error.message);
