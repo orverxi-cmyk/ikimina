@@ -1,13 +1,28 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Loader2, FileText, CreditCard, History, ShieldCheck, ArrowRight, Info, Clock, CheckCircle2, Eye, Ban } from 'lucide-react';
+import { 
+  Plus, 
+  Loader2, 
+  FileText, 
+  CreditCard, 
+  History as HistoryIcon, 
+  ShieldCheck, 
+  HandCoins, 
+  TrendingUp, 
+  TrendingDown, 
+  AlertTriangle, 
+  Clock, 
+  CheckCircle2, 
+  Eye, 
+  Ban,
+  Calendar,
+  Landmark
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { 
   Dialog, 
@@ -20,6 +35,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, addDoc, doc, serverTimestamp, orderBy, where, Timestamp } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
@@ -27,9 +43,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, isPast } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { approveLoanAction, recordRepaymentAction, verifyRepaymentAction } from '@/lib/finance-client';
+import { recordRepaymentAction, verifyRepaymentAction } from '@/lib/finance-client';
 import { formatCurrency } from '@/lib/currency';
 
 export default function LoansPage() {
@@ -45,18 +59,14 @@ export default function LoansPage() {
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
   const { data: settingsData } = useDoc(settingsRef);
   const currency = settingsData?.currency || 'RWF';
-  const globalInterestRate = settingsData?.loanInterestRate || 0;
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRequestOpen, setIsRequestOpen] = useState(false);
-  const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [isRepayOpen, setIsRepayOpen] = useState(false);
-  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isVerifyRepayOpen, setIsVerifyRepayOpen] = useState(false);
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
-  const [calcAmount, setCalcAmount] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState('schedule');
 
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
@@ -77,6 +87,33 @@ export default function LoansPage() {
 
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const pendingRepayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
+
+  // Derived data for tabs
+  const activeLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved'), [loans]);
+  const historyLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved' || l.status === 'rejected' || l.status === 'completed'), [loans]);
+  
+  const missedInstallments = useMemo(() => {
+    const missed: any[] = [];
+    loans.forEach((loan: any) => {
+      if (loan.status === 'approved' && loan.amortization) {
+        loan.amortization.forEach((inst: any) => {
+          const dueDate = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
+          if (inst.status === 'pending' && isPast(dueDate)) {
+            missed.push({ ...inst, loanId: loan.id, description: loan.description, memberId: loan.memberId });
+          }
+        });
+      }
+    });
+    return missed;
+  }, [loans]);
+
+  const interestSummary = useMemo(() => {
+    const gained = userData?.accruedInterest || 0;
+    const paid = loans
+      .filter((l: any) => l.status === 'approved' || l.status === 'completed')
+      .reduce((acc, l: any) => acc + (l.interestAmount || 0), 0);
+    return { gained, paid };
+  }, [userData, loans]);
 
   const handleRepay = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -132,64 +169,146 @@ export default function LoansPage() {
     }
   };
 
-  const getStatusLabel = (dueDate: any, status: string) => {
+  const getStatusBadge = (dueDate: any, status: string) => {
     const d = dueDate instanceof Timestamp ? dueDate.toDate() : new Date(dueDate);
-    if (status === 'paid') return <Badge variant="default" className="bg-green-600 border-none px-3">Paid</Badge>;
-    if (isPast(d)) return <Badge variant="destructive" className="animate-pulse px-3">Arrears</Badge>;
-    return <Badge variant="secondary" className="px-3">Pending</Badge>;
+    if (status === 'paid') return <Badge variant="default" className="bg-green-600 border-none px-3 font-bold uppercase text-[9px]">Paid</Badge>;
+    if (isPast(d)) return <Badge variant="destructive" className="animate-pulse px-3 font-bold uppercase text-[9px]">Arrears</Badge>;
+    return <Badge variant="secondary" className="px-3 font-bold uppercase text-[9px]">Pending</Badge>;
   };
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold">Loan Portfolio</h1>
-          <p className="text-muted-foreground font-medium">Manage and track Ikimina borrowing</p>
+          <h1 className="text-3xl font-headline font-bold">Lending & Capital</h1>
+          <p className="text-muted-foreground font-medium">Manage borrowing cycles and repayment schedules</p>
         </div>
-        <Button onClick={() => setIsRequestOpen(true)} className="rounded-xl shadow-lg shadow-primary/20 h-11 px-6 font-bold" disabled={userData?.status !== 'active'}>
-          <Plus className="mr-2 h-4 w-4" /> Request New Loan
-        </Button>
+        <div className="flex gap-2">
+           <div className="bg-primary/10 px-4 py-2 rounded-xl border border-primary/20 text-center">
+              <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Gained Interest</p>
+              <p className="text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>
+           </div>
+           <div className="bg-orange-500/10 px-4 py-2 rounded-xl border border-orange-500/20 text-center">
+              <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">Interest Paid</p>
+              <p className="text-sm font-bold text-orange-600">-{formatCurrency(interestSummary.paid, currency)}</p>
+           </div>
+        </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
-            <CardHeader className="bg-muted/10">
-              <CardTitle className="text-xl">Active & Requested Capital</CardTitle>
+      <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 h-14 rounded-2xl bg-muted/50 p-1.5 mb-8">
+          <TabsTrigger value="schedule" className="rounded-xl font-bold text-xs uppercase tracking-widest gap-2">
+            <Calendar className="h-4 w-4" /> Schedule
+          </TabsTrigger>
+          <TabsTrigger value="history" className="rounded-xl font-bold text-xs uppercase tracking-widest gap-2">
+            <HistoryIcon className="h-4 w-4" /> History
+          </TabsTrigger>
+          <TabsTrigger value="interest" className="rounded-xl font-bold text-xs uppercase tracking-widest gap-2">
+            <Landmark className="h-4 w-4" /> Interest
+          </TabsTrigger>
+          <TabsTrigger value="arrears" className="rounded-xl font-bold text-xs uppercase tracking-widest gap-2 relative">
+            <AlertTriangle className="h-4 w-4" /> Arrears
+            {missedInstallments.length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] text-white animate-bounce">
+                {missedInstallments.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="schedule" className="space-y-6">
+          <Card className="border-none shadow-xl bg-card rounded-3xl overflow-hidden">
+            <CardHeader className="bg-muted/10 border-b">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <HandCoins className="h-5 w-5 text-primary" /> Active Repayment Windows
+              </CardTitle>
+              <CardDescription>Upcoming installments for all your approved capital loans.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-muted/5">
                   <TableRow>
-                    <TableHead className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider">Purpose</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Balance</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Status</TableHead>
-                    <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-wider">Actions</TableHead>
+                    <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Installment</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Due Date</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Target Amount</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
+                    {!isManagement && <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingLoans ? (
-                    <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground h-8 w-8" /></TableCell></TableRow>
-                  ) : loans.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">No loan records found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                  ) : activeLoans.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No active schedules found.</TableCell></TableRow>
                   ) : (
-                    loans.map((loan: any) => (
+                    activeLoans.flatMap((loan: any) => (
+                      loan.amortization?.map((inst: any) => (
+                        <TableRow key={`${loan.id}-${inst.installmentNumber}`} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="px-6 py-4">
+                            <div className="font-bold">#{inst.installmentNumber}</div>
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[150px]">{loan.description || 'Personal Loan'}</div>
+                          </TableCell>
+                          <TableCell className="text-sm font-medium">
+                            {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell className="font-bold text-primary">{formatCurrency(inst.amount, currency)}</TableCell>
+                          <TableCell>{getStatusBadge(inst.dueDate, inst.status)}</TableCell>
+                          {!isManagement && (
+                            <TableCell className="text-right px-6">
+                              {inst.status === 'pending' && (
+                                <Button size="sm" className="h-8 rounded-lg font-bold" onClick={() => { setSelectedLoan(loan); setIsRepayOpen(true); }}>
+                                  <CreditCard className="mr-2 h-3.5 w-3.5" /> Pay Now
+                                </Button>
+                              )}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-6">
+          <Card className="border-none shadow-xl bg-card rounded-3xl overflow-hidden">
+             <CardHeader className="bg-muted/10 border-b">
+              <CardTitle className="text-xl">Loan Lifecycle Audit</CardTitle>
+              <CardDescription>Comprehensive record of all requested, approved, and rejected loans.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+               <Table>
+                <TableHeader className="bg-muted/5">
+                  <TableRow>
+                    <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Purpose</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Principal</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Interest</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
+                    <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Balance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loadingLoans ? (
+                    <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                  ) : historyLoans.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No historical records.</TableCell></TableRow>
+                  ) : (
+                    historyLoans.map((loan: any) => (
                       <TableRow key={loan.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="py-4 px-6 font-bold">{loan.description || "Personal Loan"}</TableCell>
-                        <TableCell className="font-bold text-primary">{formatCurrency(loan.balance, currency)}</TableCell>
-                        <TableCell><Badge className="uppercase font-bold text-[9px]">{loan.status}</Badge></TableCell>
-                        <TableCell className="text-right px-6">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => { setSelectedLoan(loan); setIsScheduleOpen(true); }} className="h-8 rounded-lg font-bold">
-                              <History className="mr-2 h-3.5 w-3.5" /> Schedule
-                            </Button>
-                            {loan.status === 'approved' && !isManagement && (
-                              <Button size="sm" onClick={() => { setSelectedLoan(loan); setIsRepayOpen(true); }} className="h-8 rounded-lg font-bold">
-                                <CreditCard className="mr-2 h-3.5 w-3.5" /> Pay
-                              </Button>
-                            )}
-                          </div>
+                        <TableCell className="px-6 py-4">
+                           <div className="font-bold">{loan.description || 'Capital Loan'}</div>
+                           <div className="text-[10px] text-muted-foreground">{format(loan.requestDate?.toDate() || new Date(), 'MMM d, yyyy')}</div>
                         </TableCell>
+                        <TableCell className="font-medium">{formatCurrency(loan.amount, currency)}</TableCell>
+                        <TableCell className="text-xs text-orange-600 font-bold">+{formatCurrency(loan.interestAmount || 0, currency)}</TableCell>
+                        <TableCell>
+                           <Badge variant={loan.status === 'rejected' ? 'destructive' : 'outline'} className="uppercase font-bold text-[9px]">
+                             {loan.status}
+                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-right px-6 font-bold text-primary">{formatCurrency(loan.balance || 0, currency)}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -197,82 +316,91 @@ export default function LoansPage() {
               </Table>
             </CardContent>
           </Card>
-        </div>
+        </TabsContent>
 
-        {isManagement && (
-          <div className="space-y-6">
-            <Card className="border-none shadow-lg h-fit sticky top-24">
+        <TabsContent value="interest" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="border-none shadow-lg bg-green-50/30">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-primary text-lg">
-                  <Clock className="h-5 w-5" /> Pending Payments
+                <CardTitle className="flex items-center gap-2 text-green-700">
+                  <TrendingUp className="h-5 w-5" /> Interest Gained
                 </CardTitle>
-                <CardDescription>Verify repayments submitted by members</CardDescription>
+                <CardDescription>Dividends accrued from the global pool pro-rata.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {pendingRepayments.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground italic text-sm">All repayments verified.</div>
-                ) : (
-                  <div className="space-y-3">
-                    {pendingRepayments.map((r: any) => (
-                      <div key={r.id} className="p-4 border rounded-xl bg-muted/20 flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-xs">Loan #{r.loanId.substring(0,6)}</span>
-                          <span className="text-[10px] text-muted-foreground">{format(r.date?.toDate() || new Date(), 'MMM d')}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-bold text-primary">{formatCurrency(r.amount, currency)}</span>
-                          <Button size="sm" variant="outline" onClick={() => { setSelectedRepayment(r); setIsVerifyRepayOpen(true); }} className="h-8 text-[11px] font-bold">
-                            <Eye className="mr-1.5 h-3.5 w-3.5" /> Audit
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <CardContent className="text-center py-8">
+                <div className="text-4xl font-bold text-green-600">{formatCurrency(interestSummary.gained, currency)}</div>
+                <p className="text-xs text-muted-foreground mt-2 font-medium">Verified Earnings</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-lg bg-orange-50/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-700">
+                  <TrendingDown className="h-5 w-5" /> Interest Paid
+                </CardTitle>
+                <CardDescription>Total interest overhead committed on loans.</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center py-8">
+                <div className="text-4xl font-bold text-orange-600">{formatCurrency(interestSummary.paid, currency)}</div>
+                <p className="text-xs text-muted-foreground mt-2 font-medium">Cumulative Liability</p>
               </CardContent>
             </Card>
           </div>
-        )}
-      </div>
+        </TabsContent>
 
-      {/* VERIFY REPAYMENT DIALOG */}
-      <Dialog open={isVerifyRepayOpen} onOpenChange={setIsVerifyRepayOpen}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <form onSubmit={handleVerifyRepayment}>
-            <DialogHeader>
-              <DialogTitle>Verify Loan Repayment</DialogTitle>
-              <DialogDescription>Review payment evidence for loan audit.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-6">
-              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Amount Submitted:</span>
-                  <span className="font-bold text-lg">{selectedRepayment ? formatCurrency(selectedRepayment.amount, currency) : '-'}</span>
-                </div>
-                {selectedRepayment?.proofUrl && (
-                  <Button variant="outline" size="sm" className="w-full text-[11px] h-9 rounded-lg" asChild>
-                    <a href={selectedRepayment.proofUrl} target="_blank" rel="noopener noreferrer">
-                      <FileText className="mr-2 h-4 w-4" /> View Payment Proof
-                    </a>
-                  </Button>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Audit Justification</Label>
-                <Textarea name="justification" placeholder="Enter reason for verification or rejection..." required className="rounded-xl" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" className="w-full h-11 rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                Confirm and Update Balance
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        <TabsContent value="arrears" className="space-y-6">
+          <Card className="border-destructive/20 shadow-xl bg-destructive/5 rounded-3xl overflow-hidden">
+            <CardHeader className="bg-destructive/10 border-b border-destructive/20">
+              <CardTitle className="text-xl flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" /> Arrears & Missed Windows
+              </CardTitle>
+              <CardDescription className="text-destructive/80 font-medium">Urgent: Installments that have exceeded their contractual due date.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+               <Table>
+                <TableHeader className="bg-destructive/5">
+                  <TableRow>
+                    <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-destructive">Source Loan</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest text-destructive">Missed Due Date</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest text-destructive">Arrears Amount</TableHead>
+                    {!isManagement && <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest text-destructive">Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {missedInstallments.length === 0 ? (
+                    <TableRow><TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic font-medium">Great news! You have no arrears.</TableCell></TableRow>
+                  ) : (
+                    missedInstallments.map((inst: any, idx: number) => (
+                      <TableRow key={idx} className="bg-destructive/10 hover:bg-destructive/20 transition-colors border-destructive/10">
+                        <TableCell className="px-6 py-4 font-bold text-destructive">
+                           {inst.description || 'Personal Loan'}
+                        </TableCell>
+                        <TableCell className="text-sm font-bold text-destructive">
+                           {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                        </TableCell>
+                        <TableCell className="font-bold text-destructive">{formatCurrency(inst.amount, currency)}</TableCell>
+                        {!isManagement && (
+                          <TableCell className="text-right px-6">
+                             <Button size="sm" variant="destructive" className="h-8 rounded-lg font-bold shadow-lg" onClick={() => { 
+                               const loan = loans.find(l => l.id === inst.loanId);
+                               setSelectedLoan(loan); 
+                               setIsRepayOpen(true); 
+                             }}>
+                                Clear Arrears
+                             </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-      {/* REPAYMENT DIALOG */}
+      {/* REPAYMENT DIALOG (Common for all tabs) */}
       <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
         <DialogContent className="max-w-md rounded-2xl">
           <form onSubmit={handleRepay}>
@@ -319,45 +447,6 @@ export default function LoansPage() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* SCHEDULE DIALOG */}
-      <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
-        <DialogContent className="max-w-2xl rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-              <History className="h-5 w-5 text-primary" /> Repayment Schedule
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="rounded-xl border overflow-hidden">
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead>Installment</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead className="text-right pr-6">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedLoan?.amortization?.map((inst: any) => (
-                    <TableRow key={inst.installmentNumber}>
-                      <TableCell className="font-bold">#{inst.installmentNumber}</TableCell>
-                      <TableCell className="text-sm">
-                        {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
-                      </TableCell>
-                      <TableCell className="font-bold text-primary">{formatCurrency(inst.amount, currency)}</TableCell>
-                      <TableCell className="text-right pr-6">
-                        {getStatusLabel(inst.dueDate, inst.status)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
     </div>
