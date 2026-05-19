@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Loader2, FileText, Wallet, Calculator, ShieldCheck, Lock } from 'lucide-react';
+import { Plus, Loader2, FileText, Wallet, Calculator, ShieldCheck, Lock, Landmark, History, CreditCard, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -25,12 +25,13 @@ import { collection, query, addDoc, doc, serverTimestamp, orderBy, where, Timest
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, isPast } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { approveLoanAction } from '@/lib/finance-client';
+import { approveLoanAction, recordRepaymentAction } from '@/lib/finance-client';
 import { formatCurrency } from '@/lib/currency';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function LoansPage() {
   const { toast } = useToast();
@@ -52,6 +53,8 @@ export default function LoansPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestOpen, setIsRequestOpen] = useState(false);
   const [isApproveOpen, setIsApproveOpen] = useState(false);
+  const [isRepayOpen, setIsRepayOpen] = useState(false);
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [calcAmount, setCalcAmount] = useState<number>(0);
@@ -62,33 +65,22 @@ export default function LoansPage() {
   const isLoading = userDataLoading;
   
   const loansQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Wait for userData to avoid list permission errors
     if (!user || isLoading || !userData) return null;
     if (isManagement) return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
     return query(collection(firestore, 'loans'), where('memberId', '==', user.uid), orderBy('requestDate', 'desc'));
   }, [user, isManagement, isLoading, userData]);
 
   const contributionsQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Wait for userData
     if (!user || isLoading || !userData) return null;
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
   }, [user, isLoading, userData]);
 
-  const membersQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Wait for userData and ensure user is management
-    if (!user || isLoading || !userData || !isManagement) return null;
-    return query(collection(firestore, 'users'), orderBy('name', 'asc'));
-  }, [user, isManagement, isLoading, userData]);
-
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: contributionsSnap } = useCollection(contributionsQuery);
-  const { data: membersSnap } = useCollection(membersQuery);
 
   const loans = useMemo(() => {
     return loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
   }, [loansSnap]);
-
-  const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
 
   const userTotalContributions = useMemo(() => {
     return contributionsSnap?.docs.reduce((acc, d) => acc + (Number(d.data().amount) || 0), 0) || 0;
@@ -116,7 +108,7 @@ export default function LoansPage() {
     } else {
       setInterestAmount(0);
     }
-  }, [calcAmount, selectedLoan, isApproveOpen, globalInterestRate, globalInterestModel]);
+  }, [calcAmount, selectedLoan, isApproveOpen, globalInterestRate]);
 
   const handleRequestLoan = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -139,7 +131,7 @@ export default function LoansPage() {
       return;
     }
 
-    const loanData = {
+    addDoc(collection(firestore, 'loans'), {
       memberId: user.uid,
       amount,
       balance: amount,
@@ -151,9 +143,7 @@ export default function LoansPage() {
       interestModel: globalInterestModel,
       interestType: globalInterestType,
       interestAmount: interestAmount,
-    };
-
-    addDoc(collection(firestore, 'loans'), loanData)
+    })
       .then(() => {
         toast({ title: "Request Sent", description: "Your loan request has been submitted." });
         setIsRequestOpen(false);
@@ -205,10 +195,51 @@ export default function LoansPage() {
     }
   };
 
-  const netDisbursedDisplay = useMemo(() => {
-    if (!selectedLoan) return 0;
-    return globalInterestType === 'immediate' ? (selectedLoan.amount - interestAmount) : selectedLoan.amount;
-  }, [selectedLoan, globalInterestType, interestAmount]);
+  const handleRepay = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedLoan || !user) return;
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const amount = Number(formData.get('repayAmount'));
+    const proofFile = formData.get('proofFile') as File;
+
+    if (amount > selectedLoan.balance) {
+      toast({ variant: "destructive", title: "Amount Exceeded", description: "You cannot pay more than the outstanding balance." });
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      let proofUrl = '';
+      if (proofFile && proofFile.size > 0) {
+        const fileRef = ref(storage, `repayment_proofs/${user.uid}/${selectedLoan.id}_${Date.now()}_${proofFile.name}`);
+        await uploadBytes(fileRef, proofFile);
+        proofUrl = await getDownloadURL(fileRef);
+      }
+
+      await recordRepaymentAction({
+        loanId: selectedLoan.id,
+        amount,
+        proofUrl,
+        justification: `Payment submitted by ${userData?.name}`
+      });
+
+      toast({ title: "Payment Recorded", description: "Your repayment has been logged and balance updated." });
+      setIsRepayOpen(false);
+      setSelectedLoan(null);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Payment Failed", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getStatusLabel = (dueDate: any, status: string) => {
+    const d = dueDate instanceof Timestamp ? dueDate.toDate() : new Date(dueDate);
+    if (status === 'paid') return <Badge variant="default" className="bg-green-600">Paid</Badge>;
+    if (isPast(d)) return <Badge variant="destructive" className="animate-pulse">Arrears</Badge>;
+    return <Badge variant="secondary">Pending</Badge>;
+  };
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
@@ -223,24 +254,18 @@ export default function LoansPage() {
       </div>
 
       <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
-        <CardHeader className="bg-muted/10 flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-xl">Directory</CardTitle>
-            <CardDescription>Track active and requested capital</CardDescription>
-          </div>
-          <div className="flex items-center gap-2 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-200">
-            <ShieldCheck className="h-4 w-4 text-blue-600" />
-            <span className="text-[10px] font-bold text-blue-700 uppercase">Policy: {globalInterestRate}% ({globalInterestModel})</span>
-          </div>
+        <CardHeader className="bg-muted/10">
+          <CardTitle className="text-xl">Active & Requested Capital</CardTitle>
+          <CardDescription>Directory of all credit movements</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/5">
               <TableRow>
-                <TableHead className="py-4 px-6">{isManagement ? "Member" : "Details"}</TableHead>
+                <TableHead className="py-4 px-6">Member / Purpose</TableHead>
                 <TableHead>Principal</TableHead>
-                <TableHead>Repayment Progress</TableHead>
-                <TableHead>Schedule</TableHead>
+                <TableHead>Balance</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right px-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -256,43 +281,46 @@ export default function LoansPage() {
                   return (
                     <TableRow key={loan.id} className="hover:bg-muted/30 transition-colors">
                       <TableCell className="py-4 px-6">
-                        <div className="flex flex-col gap-1">
-                          <span className="font-bold">{isManagement ? (members.find(m => m.id === loan.memberId)?.name || 'Member') : (loan.description || "Personal Loan")}</span>
-                          <Badge variant="outline" className={cn("w-fit text-[9px] font-bold uppercase", loan.status === 'approved' ? "text-green-600" : loan.status === 'requested' ? "text-blue-600" : "text-muted-foreground")}>{loan.status}</Badge>
+                        <div className="flex flex-col">
+                          <span className="font-bold">{loan.description || "Personal Loan"}</span>
+                          <span className="text-[10px] text-muted-foreground">ID: {loan.id.substring(0, 8)}...</span>
                         </div>
                       </TableCell>
                       <TableCell className="font-bold">{formatCurrency(loan.amount, currency)}</TableCell>
-                      <TableCell className="w-[180px]">
-                        {loan.status === 'approved' ? (
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-[10px] font-bold">
-                              <span>{progress}% Paid</span>
-                              <span>{formatCurrency(loan.balance, currency)} Left</span>
-                            </div>
-                            <Progress value={progress} className="h-1.5" />
-                          </div>
-                        ) : <span className="text-muted-foreground text-[10px] italic">No active schedule</span>}
+                      <TableCell>
+                        <div className="flex flex-col gap-1 w-32">
+                           <span className="font-bold text-primary">{formatCurrency(loan.balance, currency)}</span>
+                           {loan.status === 'approved' && <Progress value={progress} className="h-1" />}
+                        </div>
                       </TableCell>
                       <TableCell>
-                        {loan.amortization ? (
-                          <div className="grid gap-1">
-                            {loan.amortization.slice(0, 2).map((inst: any) => (
-                                <div key={inst.installmentNumber} className="text-[9px] text-muted-foreground">
-                                    #{inst.installmentNumber}: {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d')}
-                                </div>
-                            ))}
-                          </div>
-                        ) : <span className="text-muted-foreground text-[10px]">Review Pending</span>}
+                        <Badge className={cn(
+                          "uppercase font-bold text-[9px]",
+                          loan.status === 'approved' ? "bg-green-500/10 text-green-600" :
+                          loan.status === 'requested' ? "bg-blue-500/10 text-blue-600" :
+                          "bg-muted text-muted-foreground"
+                        )}>
+                          {loan.status}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right px-6">
-                        {isManagement && loan.status === 'requested' && (
-                          <Button size="sm" onClick={() => { setSelectedLoan(loan); setIsApproveOpen(true); }} className="h-8">Approve</Button>
-                        )}
-                        {loan.checkUrl && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                            <a href={loan.checkUrl} target="_blank" rel="noopener noreferrer"><FileText className="h-4 w-4" /></a>
-                          </Button>
-                        )}
+                        <div className="flex justify-end gap-2">
+                          {isManagement && loan.status === 'requested' && (
+                            <Button size="sm" onClick={() => { setSelectedLoan(loan); setIsApproveOpen(true); }}>Approve</Button>
+                          )}
+                          {loan.status === 'approved' && (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => { setSelectedLoan(loan); setIsScheduleOpen(true); }} className="h-8">
+                                <History className="mr-2 h-3.5 w-3.5" /> Schedule
+                              </Button>
+                              {!isManagement && (
+                                <Button size="sm" onClick={() => { setSelectedLoan(loan); setIsRepayOpen(true); }} className="h-8 bg-primary shadow-lg shadow-primary/20">
+                                  <CreditCard className="mr-2 h-3.5 w-3.5" /> Pay
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -303,55 +331,95 @@ export default function LoansPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <form onSubmit={handleRequestLoan}>
+      {/* REPAYMENT DIALOG */}
+      <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <form onSubmit={handleRepay}>
             <DialogHeader>
-              <DialogTitle>Request Capital</DialogTitle>
-              <DialogDescription>Your eligibility is based on total contributions.</DialogDescription>
+              <DialogTitle>Settle Debt</DialogTitle>
+              <DialogDescription>Submit your payment evidence for verification.</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-6">
-              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 flex justify-between items-center">
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Max Borrowing power</p>
-                  <p className="text-xl font-bold">{formatCurrency(maxBorrowAmount, currency)}</p>
-                </div>
+            <div className="grid gap-6 py-6">
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-1">
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase">Outstanding Balance</p>
+                 <p className="text-2xl font-bold text-primary">{formatCurrency(selectedLoan?.balance || 0, currency)}</p>
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="amount">Requested Amount</Label>
+              <div className="space-y-2">
+                <Label htmlFor="repayAmount">Payment Amount</Label>
                 <div className="relative">
-                  <Input id="amount" name="amount" type="number" required className="rounded-xl h-11 pr-14" onChange={(e) => setCalcAmount(Number(e.target.value))} />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">{currency}</div>
+                  <Input 
+                    id="repayAmount" 
+                    name="repayAmount" 
+                    type="number" 
+                    max={selectedLoan?.balance} 
+                    required 
+                    className="h-11 rounded-xl pr-14" 
+                    placeholder="Enter amount..."
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground uppercase">{currency}</div>
                 </div>
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Info className="h-3 w-3" /> Custom amount allowed up to total balance.</p>
               </div>
 
-              <div className="bg-muted/50 p-4 rounded-xl border border-border space-y-3">
-                <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase"><Lock className="h-3 w-3" /> System Policy</div>
-                <div className="grid grid-cols-2 gap-4 text-[11px]">
-                  <div><span className="text-muted-foreground">Interest Rate:</span><p className="font-bold">{globalInterestRate}% ({globalInterestModel})</p></div>
-                  <div><span className="text-muted-foreground">Interest:</span><p className="font-bold text-primary">{formatCurrency(interestAmount, currency)}</p></div>
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="description">Purpose of Loan</Label>
-                <Textarea id="description" name="description" required className="rounded-xl" placeholder="E.g. Business expansion..." />
+              <div className="space-y-2">
+                <Label>Proof of Transfer / Receipt</Label>
+                <Input name="proofFile" type="file" required className="h-11 rounded-xl py-2.5" />
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full rounded-xl h-11">Submit Request</Button>
+              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                Confirm Payment
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
+      {/* SCHEDULE DIALOG */}
+      <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
+        <DialogContent className="max-w-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary" /> Repayment Schedule</DialogTitle>
+            <DialogDescription>Audit trail and future installment deadlines.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Installment</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selectedLoan?.amortization?.map((inst: any) => (
+                  <TableRow key={inst.installmentNumber}>
+                    <TableCell className="font-bold">#{inst.installmentNumber}</TableCell>
+                    <TableCell className="text-sm">
+                      {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'PPP')}
+                    </TableCell>
+                    <TableCell className="font-bold">{formatCurrency(inst.amount, currency)}</TableCell>
+                    <TableCell className="text-right">
+                      {getStatusLabel(inst.dueDate, inst.status)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* LOAN APPROVAL DIALOG (Existing) */}
       <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
         <DialogContent className="rounded-2xl max-w-md">
           <form onSubmit={handleApproveLoan}>
             <DialogHeader>
               <DialogTitle>Approve & Disburse</DialogTitle>
-              <DialogDescription>Reviewing request for {selectedLoan ? (members.find(m => m.id === selectedLoan.memberId)?.name) : 'Member'}.</DialogDescription>
+              <DialogDescription>Finalize legal terms for this loan request.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-6">
               <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-200">
@@ -360,16 +428,11 @@ export default function LoansPage() {
               </div>
 
               <div className="bg-muted/50 p-4 rounded-xl border border-border space-y-3">
-                <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider"><Lock className="h-3 w-3" /> Policy Fixed</div>
+                <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider"><Lock className="h-3 w-3" /> System Locked Terms</div>
                 <div className="grid grid-cols-2 gap-4 text-[11px]">
                   <div className="space-y-1"><span className="text-muted-foreground font-medium">Interest Model</span><Badge variant="outline" className="w-full justify-center capitalize py-1.5">{globalInterestModel}</Badge></div>
                   <div className="space-y-1"><span className="text-muted-foreground font-medium">Deduction Type</span><Badge variant="outline" className="w-full justify-center capitalize py-1.5">{globalInterestType}</Badge></div>
                 </div>
-              </div>
-
-              <div className="bg-green-500/5 p-3 rounded-xl border border-green-200 flex justify-between items-center">
-                <div className="flex items-center gap-2"><Calculator className="h-4 w-4 text-green-600" /><span className="text-sm font-bold text-green-700">Net Disbursement</span></div>
-                <span className="text-lg font-bold text-green-700">{formatCurrency(netDisbursedDisplay, currency)}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -378,9 +441,43 @@ export default function LoansPage() {
               </div>
               
               <div className="grid gap-2"><Label>Audit Justification</Label><Textarea name="justification" placeholder="E.g. Approved by board..." required className="rounded-xl min-h-[60px]" /></div>
-              <div className="grid gap-2"><Label>Check/Proof</Label><Input name="checkFile" type="file" className="rounded-xl h-11 py-2.5" /></div>
+              <div className="grid gap-2"><Label>Bank Check / Transfer Proof</Label><Input name="checkFile" type="file" className="rounded-xl h-11 py-2.5" /></div>
             </div>
             <DialogFooter><Button type="submit" disabled={isSubmitting} className="w-full rounded-xl h-11 font-bold">Confirm Disbursement</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* LOAN REQUEST DIALOG (Existing) */}
+      <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <form onSubmit={handleRequestLoan}>
+            <DialogHeader>
+              <DialogTitle>Request Capital</DialogTitle>
+              <DialogDescription>Eligibility is based on verified savings.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-6">
+              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 flex justify-between items-center">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Max Borrowing power</p>
+                  <p className="text-xl font-bold">{formatCurrency(maxBorrowAmount, currency)}</p>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="amount">Requested Amount</Label>
+                <div className="relative">
+                  <Input id="amount" name="amount" type="number" required className="rounded-xl h-11 pr-14" onChange={(e) => setCalcAmount(Number(e.target.value))} />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground uppercase">{currency}</div>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="description">Purpose of Loan</Label>
+                <Textarea id="description" name="description" required className="rounded-xl" placeholder="E.g. Business expansion..." />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full rounded-xl h-11">Submit Request</Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

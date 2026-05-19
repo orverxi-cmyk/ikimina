@@ -2,7 +2,6 @@
 'use client';
 /**
  * @fileOverview Client-side bridge to call secure Cloud Functions.
- * These functions trigger server-side logic in the /functions directory.
  */
 
 import { initializeFirebase } from '@/firebase';
@@ -76,6 +75,17 @@ export async function rejectContributionAction(uid: string, data: { contribution
     return result.data;
   } catch (error: any) {
     throw new Error(error.message || 'Failed to reject contribution');
+  }
+}
+
+export async function recordRepaymentAction(data: { loanId: string, amount: number, proofUrl: string, justification?: string }) {
+  const functions = getFinanceFunctions();
+  const repayFn = httpsCallable(functions, 'recordRepayment');
+  try {
+    const result = await repayFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to record repayment');
   }
 }
 

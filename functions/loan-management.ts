@@ -5,7 +5,6 @@ import { calculateAmortizationSchedule } from './loan-schedules';
 
 /**
  * Processes a loan approval and generates the legal repayment schedule.
- * Supports deducted interest (one-off at source) and added-on interest.
  */
 export const approveLoan = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -29,7 +28,6 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         const loanData = loanSnap.data()!;
         const startDate = new Date(startDateStr);
         
-        // If interest is deducted immediately, it doesn't add to the balance to be repaid.
         const interestToAddToRepayment = interestType === 'afterward' ? interestAmount : 0;
         const totalBalance = loanData.amount + interestToAddToRepayment;
         const netDisbursed = interestType === 'immediate' ? (loanData.amount - interestAmount) : loanData.amount;
@@ -38,7 +36,6 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
 
         const batch = db.batch();
         
-        // 1. Update Loan Document
         batch.update(loanRef, {
             status: 'approved',
             startDate: admin.firestore.Timestamp.fromDate(startDate),
@@ -53,24 +50,15 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
             approvedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        // 2. Cache schedule on User document for faster mobile rendering
         batch.update(db.collection('users').doc(loanData.memberId), {
             amortizationSchedule: schedule
         });
 
-        // 3. Secure Audit Log
         batch.set(db.collection('audit_logs').doc(), {
             adminId: request.auth.uid,
             action: 'APPROVE_LOAN',
             justification,
-            details: { 
-                loanId, 
-                memberId: loanData.memberId, 
-                principal: loanData.amount, 
-                interest: interestAmount, 
-                interestType, 
-                netDisbursed 
-            },
+            details: { loanId, memberId: loanData.memberId, principal: loanData.amount, interest: interestAmount, interestType, netDisbursed },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
@@ -82,7 +70,70 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
 });
 
 /**
- * Rejects a loan request and logs the action for audit.
+ * Records a member repayment and updates the loan balance.
+ */
+export const recordRepayment = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    
+    const db = admin.firestore();
+    const { loanId, amount, proofUrl, justification } = request.data;
+
+    if (!loanId || !amount || amount <= 0) {
+        throw new HttpsError('invalid-argument', 'Valid Loan ID and positive amount are required.');
+    }
+
+    try {
+        const loanRef = db.collection('loans').doc(loanId);
+        const loanSnap = await loanRef.get();
+        if (!loanSnap.exists) throw new HttpsError('not-found', 'Loan record not found.');
+        
+        const loanData = loanSnap.data()!;
+        if (loanData.memberId !== request.auth.uid) {
+            const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+            if (adminSnap.data()?.role !== 'admin' && adminSnap.data()?.role !== 'management') {
+                throw new HttpsError('permission-denied', 'You can only pay for your own loans.');
+            }
+        }
+
+        const newBalance = Math.max(0, loanData.balance - amount);
+        const batch = db.batch();
+
+        // 1. Record Repayment
+        const repaymentRef = db.collection('repayments').doc();
+        batch.set(repaymentRef, {
+            loanId,
+            memberId: loanData.memberId,
+            amount: Number(amount),
+            date: admin.firestore.FieldValue.serverTimestamp(),
+            proofUrl,
+            status: 'pending' // Awaiting verification
+        });
+
+        // 2. Update Loan Balance (Optimistic but verified on server)
+        batch.update(loanRef, {
+            balance: newBalance,
+            lastPaymentAt: admin.firestore.FieldValue.serverTimestamp(),
+            status: newBalance <= 0 ? 'completed' : 'approved'
+        });
+
+        // 3. Audit Log
+        batch.set(db.collection('audit_logs').doc(), {
+            adminId: request.auth.uid,
+            action: 'RECORD_REPAYMENT',
+            justification: justification || 'Manual member repayment submission',
+            details: { loanId, amount, remainingBalance: newBalance },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await batch.commit();
+        return { success: true, remainingBalance: newBalance };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * Rejects a loan request.
  */
 export const rejectLoan = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
