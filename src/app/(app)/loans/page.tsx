@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -194,6 +194,38 @@ export default function LoansPage() {
            </div>
         </div>
       </div>
+
+      {isManagement && pendingRepayments.length > 0 && (
+        <Card className="border-primary/20 bg-primary/5 shadow-inner">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-primary flex items-center gap-2">
+                <Clock className="h-5 w-5" /> Awaiting Verification
+              </CardTitle>
+              <CardDescription>Members have submitted these repayments for audit</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {pendingRepayments.map((r: any) => (
+              <div key={r.id} className="bg-card p-4 rounded-xl border flex flex-col gap-3 shadow-sm">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-bold text-muted-foreground">Repayment Submission</span>
+                  <Badge variant="outline" className="text-[9px] font-bold uppercase">Pending</Badge>
+                </div>
+                <div className="flex justify-between items-end">
+                   <div>
+                     <p className="text-lg font-bold text-primary">{formatCurrency(r.amount, currency)}</p>
+                     <p className="text-[10px] text-muted-foreground">{r.justification}</p>
+                   </div>
+                   <Button size="sm" onClick={() => { setSelectedRepayment(r); setIsVerifyRepayOpen(true); }} className="h-8 text-[11px] font-bold">
+                     Verify Proof
+                   </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-14 rounded-2xl bg-muted/50 p-1.5 mb-8">
@@ -444,6 +476,43 @@ export default function LoansPage() {
               <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-xl font-bold shadow-lg">
                 {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CreditCard className="mr-2 h-4 w-4" />}
                 Submit for Verification
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* VERIFY REPAYMENT DIALOG (Management Only) */}
+      <Dialog open={isVerifyRepayOpen} onOpenChange={setIsVerifyRepayOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <form onSubmit={handleVerifyRepayment}>
+            <DialogHeader>
+              <DialogTitle>Verify Repayment Proof</DialogTitle>
+              <DialogDescription>Validate payment evidence before updating member balance.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-6">
+               <div className="p-4 bg-muted/30 rounded-xl space-y-2 border">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Amount Claimed:</span>
+                    <span className="font-bold">{selectedRepayment ? formatCurrency(selectedRepayment.amount, currency) : '-'}</span>
+                  </div>
+                  {selectedRepayment?.proofUrl && (
+                    <Button variant="outline" size="sm" className="w-full mt-2" asChild>
+                       <a href={selectedRepayment.proofUrl} target="_blank" rel="noopener noreferrer">
+                         <Eye className="mr-2 h-4 w-4" /> View Bank Receipt
+                       </a>
+                    </Button>
+                  )}
+               </div>
+               <div className="space-y-2">
+                 <Label>Audit Justification</Label>
+                 <Textarea name="justification" placeholder="E.g., Confirmed receipt in bank statement..." required className="rounded-xl" />
+               </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Approve & Update Balance
               </Button>
             </DialogFooter>
           </form>
