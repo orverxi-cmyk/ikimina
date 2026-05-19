@@ -78,6 +78,17 @@ export async function updateFinancialSettingsAction(data: { loanInterestRate: nu
   }
 }
 
+export async function approveLoanAction(data: { loanId: string, terms: any, justification: string }) {
+  const functions = getFinanceFunctions();
+  const approveFn = httpsCallable(functions, 'approveLoan');
+  try {
+    const result = await approveFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to approve loan');
+  }
+}
+
 export async function rejectLoanAction(data: { loanId: string, justification: string }) {
   const functions = getFinanceFunctions();
   const rejectFn = httpsCallable(functions, 'rejectLoan');

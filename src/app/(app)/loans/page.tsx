@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, Info } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, Info, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -28,10 +27,9 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, isAfter, differenceInDays } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { generateAmortizationSchedule } from '@/lib/loan-utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { rejectLoanAction } from '@/lib/finance-client';
+import { rejectLoanAction, approveLoanAction } from '@/lib/finance-client';
 
 export default function LoansPage() {
   const { toast } = useToast();
@@ -138,7 +136,7 @@ export default function LoansPage() {
     const formData = new FormData(e.currentTarget);
     const checkFile = formData.get('checkFile') as File;
     const interestAmount = Number(formData.get('interestAmount'));
-    const penaltyRate = Number(formData.get('penaltyRate')) / 100;
+    const penaltyRate = (Number(formData.get('penaltyRate')) || 0.15) / 100;
     const durationMonths = Number(formData.get('duration')) || 3;
     const startDateRaw = formData.get('startDate') as string;
     const justification = formData.get('justification') as string;
@@ -151,47 +149,22 @@ export default function LoansPage() {
         checkUrl = await getDownloadURL(fileRef);
       }
 
-      const batch = writeBatch(firestore);
-      const startDate = new Date(startDateRaw || new Date());
-      const dueDate = new Date(startDate);
-      dueDate.setMonth(dueDate.getMonth() + durationMonths);
-
-      const interestTotal = interestType === 'afterward' ? interestAmount : 0;
-      const totalBalance = selectedLoan.amount + interestTotal;
-
-      const schedule = generateAmortizationSchedule(selectedLoan.amount, interestTotal, durationMonths, startDate);
-
-      batch.update(doc(firestore, 'loans', selectedLoan.id), {
-        status: 'approved',
-        startDate: Timestamp.fromDate(startDate),
-        dueDate: Timestamp.fromDate(dueDate),
-        checkUrl,
+      const terms = {
         interestAmount,
         interestType,
         penaltyRate,
-        balance: totalBalance,
         durationMonths,
-        amortization: schedule,
-        approvedAt: serverTimestamp(),
+        startDate: startDateRaw || new Date().toISOString(),
+        checkUrl
+      };
+
+      await approveLoanAction({
+        loanId: selectedLoan.id,
+        terms,
+        justification
       });
 
-      batch.update(doc(firestore, 'users', selectedLoan.memberId), {
-        amortizationSchedule: schedule.map(s => ({
-          ...s,
-          dueDate: Timestamp.fromDate(s.dueDate)
-        }))
-      });
-
-      batch.set(doc(collection(firestore, 'audit_logs')), {
-        adminId: user?.uid,
-        action: 'APPROVE_LOAN',
-        justification,
-        details: { loanId: selectedLoan.id, memberId: selectedLoan.memberId, amount: selectedLoan.amount },
-        timestamp: serverTimestamp()
-      });
-
-      await batch.commit();
-      toast({ title: "Loan Approved", description: "Schedule generated and terms applied." });
+      toast({ title: "Loan Approved", description: "Schedule generated and terms applied via secure backend." });
       setIsApproveOpen(false);
       setSelectedLoan(null);
     } catch (error: any) {
@@ -255,6 +228,7 @@ export default function LoansPage() {
         amortization: updatedAmortization,
       });
 
+      // Update user cache
       batch.update(doc(firestore, 'users', selectedLoan.memberId), {
         amortizationSchedule: updatedAmortization.map((s: any) => ({
           ...s,
@@ -492,6 +466,144 @@ export default function LoansPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl">
+          <form onSubmit={handleRequestLoan}>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline">Loan Request</DialogTitle>
+              <DialogDescription>Submit your capital requirements for board approval.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-6 py-6">
+              <div className="grid gap-2">
+                <Label htmlFor="amount">Requested Principal (RWF)</Label>
+                <Input id="amount" name="amount" type="number" placeholder="500000" required className="h-11 rounded-xl" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="description">Purpose of Loan</Label>
+                <Textarea id="description" name="description" placeholder="Brief explanation for the board..." required className="rounded-xl" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold shadow-lg shadow-primary/20">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : "Submit Request"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-2xl">
+          <form onSubmit={handleApproveLoan}>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline">Legal Approval</DialogTitle>
+              <DialogDescription>Set terms and upload the disbursement check for {selectedLoan && getMemberName(selectedLoan.memberId)}.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-6 py-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Interest Type</Label>
+                  <Select value={interestType} onValueChange={(v: any) => setInterestType(v)}>
+                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="afterward">Monthly Interest</SelectItem>
+                      <SelectItem value="immediate">Upfront Interest</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Interest Total (RWF)</Label>
+                  <Input name="interestAmount" type="number" defaultValue="25000" required className="h-11 rounded-xl" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Duration (Months)</Label>
+                  <Input name="duration" type="number" defaultValue="3" required className="h-11 rounded-xl" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Penalty Rate (% Day)</Label>
+                  <Input name="penaltyRate" type="number" defaultValue="0.15" step="0.01" className="h-11 rounded-xl" />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Disbursement Start Date</Label>
+                <Input name="startDate" type="date" required className="h-11 rounded-xl" defaultValue={format(new Date(), 'yyyy-MM-dd')} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Upload Scan of Signed Check</Label>
+                <div className="relative">
+                  <Upload className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input name="checkFile" type="file" accept="image/*,application/pdf" className="pl-10 h-11 rounded-xl pt-2" />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Audit Justification</Label>
+                <Textarea name="justification" placeholder="Approval based on standing..." required className="rounded-xl min-h-[80px]" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold bg-green-600 hover:bg-green-700">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : "Finalize & Disburse"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl">
+          <form onSubmit={handleRejectLoan}>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline">Deny Request</DialogTitle>
+              <DialogDescription>Officially reject the loan application for {selectedLoan && getMemberName(selectedLoan.memberId)}.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-6">
+              <div className="grid gap-2">
+                <Label>Rejection Reason (Audit Justification)</Label>
+                <Textarea name="justification" placeholder="Reason for denial..." required className="rounded-xl min-h-[120px]" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} variant="destructive" className="w-full h-11 rounded-xl font-bold">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : "Confirm Rejection"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl">
+          <form onSubmit={handleRepayInstallment}>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline">Submit Proof of Payment</DialogTitle>
+              <DialogDescription>Upload your bank transfer slip or cash receipt for installment #{selectedInstallment}.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-6 py-6">
+              <div className="grid gap-2">
+                <Label>Repayment Amount (RWF)</Label>
+                <Input name="amount" type="number" readOnly className="bg-muted h-11 rounded-xl" 
+                  defaultValue={selectedLoan?.amortization?.find((a: any) => a.installmentNumber === selectedInstallment)?.amount || 0} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Payment Confirmation Document</Label>
+                <div className="relative">
+                  <Upload className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input name="proofFile" type="file" accept="image/*,application/pdf" required className="pl-10 h-11 rounded-xl pt-2" />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : "Upload Proof"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

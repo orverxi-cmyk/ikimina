@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.approveLoan = void 0;
+exports.rejectLoan = exports.approveLoan = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const loan_schedules_1 = require("./loan-schedules");
@@ -86,6 +86,45 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             action: 'APPROVE_LOAN',
             justification,
             details: { loanId, memberId: loanData.memberId, principal: loanData.amount },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        return { success: true };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Rejects a loan request and logs the action for audit.
+ */
+exports.rejectLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const userSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (((_a = userSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin' && ((_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.role) !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Management authority required.');
+    }
+    const { loanId, justification } = request.data;
+    try {
+        const loanRef = db.collection('loans').doc(loanId);
+        const loanSnap = await loanRef.get();
+        if (!loanSnap.exists)
+            throw new https_1.HttpsError('not-found', 'Loan record not found.');
+        const loanData = loanSnap.data();
+        const batch = db.batch();
+        batch.update(loanRef, {
+            status: 'rejected',
+            rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            rejectionJustification: justification
+        });
+        batch.set(db.collection('audit_logs').doc(), {
+            adminId: request.auth.uid,
+            action: 'REJECT_LOAN',
+            justification,
+            details: { loanId, memberId: loanData.memberId, amount: loanData.amount },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
