@@ -33,13 +33,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rejectLoan = exports.approveLoan = void 0;
+exports.rejectLoan = exports.recordRepayment = exports.approveLoan = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const loan_schedules_1 = require("./loan-schedules");
 /**
  * Processes a loan approval and generates the legal repayment schedule.
- * Supports deducted interest (one-off at source) and added-on interest.
  */
 exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     if (!request.auth)
@@ -59,13 +58,11 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             throw new https_1.HttpsError('not-found', 'Loan record not found.');
         const loanData = loanSnap.data();
         const startDate = new Date(startDateStr);
-        // If interest is deducted immediately, it doesn't add to the balance to be repaid.
         const interestToAddToRepayment = interestType === 'afterward' ? interestAmount : 0;
         const totalBalance = loanData.amount + interestToAddToRepayment;
         const netDisbursed = interestType === 'immediate' ? (loanData.amount - interestAmount) : loanData.amount;
         const schedule = (0, loan_schedules_1.calculateAmortizationSchedule)(loanData.amount, interestToAddToRepayment, durationMonths, startDate);
         const batch = db.batch();
-        // 1. Update Loan Document
         batch.update(loanRef, {
             status: 'approved',
             startDate: admin.firestore.Timestamp.fromDate(startDate),
@@ -79,23 +76,14 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             checkUrl,
             approvedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        // 2. Cache schedule on User document for faster mobile rendering
         batch.update(db.collection('users').doc(loanData.memberId), {
             amortizationSchedule: schedule
         });
-        // 3. Secure Audit Log
         batch.set(db.collection('audit_logs').doc(), {
             adminId: request.auth.uid,
             action: 'APPROVE_LOAN',
             justification,
-            details: {
-                loanId,
-                memberId: loanData.memberId,
-                principal: loanData.amount,
-                interest: interestAmount,
-                interestType,
-                netDisbursed
-            },
+            details: { loanId, memberId: loanData.memberId, principal: loanData.amount, interest: interestAmount, interestType, netDisbursed },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
@@ -106,7 +94,64 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     }
 });
 /**
- * Rejects a loan request and logs the action for audit.
+ * Records a member repayment and updates the loan balance.
+ */
+exports.recordRepayment = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const { loanId, amount, proofUrl, justification } = request.data;
+    if (!loanId || !amount || amount <= 0) {
+        throw new https_1.HttpsError('invalid-argument', 'Valid Loan ID and positive amount are required.');
+    }
+    try {
+        const loanRef = db.collection('loans').doc(loanId);
+        const loanSnap = await loanRef.get();
+        if (!loanSnap.exists)
+            throw new https_1.HttpsError('not-found', 'Loan record not found.');
+        const loanData = loanSnap.data();
+        if (loanData.memberId !== request.auth.uid) {
+            const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+            if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin' && ((_b = adminSnap.data()) === null || _b === void 0 ? void 0 : _b.role) !== 'management') {
+                throw new https_1.HttpsError('permission-denied', 'You can only pay for your own loans.');
+            }
+        }
+        const newBalance = Math.max(0, loanData.balance - amount);
+        const batch = db.batch();
+        // 1. Record Repayment
+        const repaymentRef = db.collection('repayments').doc();
+        batch.set(repaymentRef, {
+            loanId,
+            memberId: loanData.memberId,
+            amount: Number(amount),
+            date: admin.firestore.FieldValue.serverTimestamp(),
+            proofUrl,
+            status: 'pending' // Awaiting verification
+        });
+        // 2. Update Loan Balance (Optimistic but verified on server)
+        batch.update(loanRef, {
+            balance: newBalance,
+            lastPaymentAt: admin.firestore.FieldValue.serverTimestamp(),
+            status: newBalance <= 0 ? 'completed' : 'approved'
+        });
+        // 3. Audit Log
+        batch.set(db.collection('audit_logs').doc(), {
+            adminId: request.auth.uid,
+            action: 'RECORD_REPAYMENT',
+            justification: justification || 'Manual member repayment submission',
+            details: { loanId, amount, remainingBalance: newBalance },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        return { success: true, remainingBalance: newBalance };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Rejects a loan request.
  */
 exports.rejectLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     var _a, _b;

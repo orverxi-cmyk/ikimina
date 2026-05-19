@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Loader2, FileText, Wallet, Calculator, ShieldCheck, Lock, Landmark, History, CreditCard, AlertCircle } from 'lucide-react';
+import { Plus, Loader2, FileText, Wallet, Calculator, ShieldCheck, Lock, Landmark, History, CreditCard, AlertCircle, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -202,6 +202,7 @@ export default function LoansPage() {
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('repayAmount'));
     const proofFile = formData.get('proofFile') as File;
+    const justification = formData.get('justification') as string;
 
     if (amount > selectedLoan.balance) {
       toast({ variant: "destructive", title: "Amount Exceeded", description: "You cannot pay more than the outstanding balance." });
@@ -221,7 +222,7 @@ export default function LoansPage() {
         loanId: selectedLoan.id,
         amount,
         proofUrl,
-        justification: `Payment submitted by ${userData?.name}`
+        justification: justification || `Payment submitted by ${userData?.name}`
       });
 
       toast({ title: "Payment Recorded", description: "Your repayment has been logged and balance updated." });
@@ -340,6 +341,16 @@ export default function LoansPage() {
               <DialogDescription>Submit your payment evidence for verification.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
+              <div className="space-y-2">
+                <Label htmlFor="justification">Payment Reference / Note</Label>
+                <Input 
+                  id="justification" 
+                  name="justification" 
+                  placeholder="e.g. Bank Transfer #12345" 
+                  className="h-11 rounded-xl"
+                />
+              </div>
+
               <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-1">
                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Outstanding Balance</p>
                  <p className="text-2xl font-bold text-primary">{formatCurrency(selectedLoan?.balance || 0, currency)}</p>
@@ -413,7 +424,7 @@ export default function LoansPage() {
         </DialogContent>
       </Dialog>
 
-      {/* LOAN APPROVAL DIALOG (Existing) */}
+      {/* LOAN APPROVAL DIALOG */}
       <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
         <DialogContent className="rounded-2xl max-w-md">
           <form onSubmit={handleApproveLoan}>
@@ -448,7 +459,7 @@ export default function LoansPage() {
         </DialogContent>
       </Dialog>
 
-      {/* LOAN REQUEST DIALOG (Existing) */}
+      {/* LOAN REQUEST DIALOG */}
       <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
         <DialogContent className="rounded-2xl max-w-md">
           <form onSubmit={handleRequestLoan}>
