@@ -29,21 +29,18 @@ export default function DashboardPage() {
   const isLoading = userAuthLoading || userDataLoading;
 
   const contributionsQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Wait for userData to resolve before querying sub-collections
     if (!user || isLoading || !userData) return null;
     if (isManagement) return query(collection(firestore, 'contributions'));
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
   }, [user, isManagement, isLoading, userData]);
 
   const loansQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Wait for userData to resolve before querying sub-collections
     if (!user || isLoading || !userData) return null;
     if (isManagement) return query(collection(firestore, 'loans'));
     return query(collection(firestore, 'loans'), where('memberId', '==', user.uid));
   }, [user, isManagement, isLoading, userData]);
 
   const membersQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Wait for userData to resolve before querying sub-collections
     if (!user || isLoading || !userData || !isManagement) return null;
     return query(collection(firestore, 'users'));
   }, [user, isManagement, isLoading, userData]);
@@ -115,7 +112,8 @@ export default function DashboardPage() {
     const totalDebt = myActiveLoans.reduce((acc, d) => acc + (d.data().balance || 0), 0);
 
     let nextInst = null;
-    if (userData?.amortizationSchedule) {
+    // CRITICAL: Only show scheduled payments if there is actual outstanding debt on approved loans
+    if (totalDebt > 0 && userData?.amortizationSchedule) {
       nextInst = userData.amortizationSchedule
         .filter((s: any) => s.status !== 'paid')
         .sort((a: any, b: any) => {

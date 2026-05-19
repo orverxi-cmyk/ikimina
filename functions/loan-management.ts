@@ -158,6 +158,21 @@ export const verifyRepayment = onCall({ cors: true }, async (request) => {
             status: newBalance <= 0 ? 'completed' : 'approved'
         });
 
+        // Update the member's amortization schedule if the loan is fully repaid
+        if (newBalance <= 0) {
+            const userRef = db.collection('users').doc(loanData.memberId);
+            const userSnap = await userRef.get();
+            const userData = userSnap.data();
+            
+            if (userData?.amortizationSchedule) {
+                const updatedSchedule = userData.amortizationSchedule.map((inst: any) => ({
+                    ...inst,
+                    status: 'paid'
+                }));
+                batch.update(userRef, { amortizationSchedule: updatedSchedule });
+            }
+        }
+
         batch.set(db.collection('audit_logs').doc(), {
             adminId: request.auth.uid,
             action: 'VERIFY_REPAYMENT',
