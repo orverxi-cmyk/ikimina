@@ -44,7 +44,8 @@ service cloud.firestore {
     match /contributions/{id} {
       allow list: if isManagement() || (signedIn() && request.query.filters.hasAll([['memberId', '==', request.auth.uid]]));
       allow get: if isManagement() || (signedIn() && resource.data.memberId == request.auth.uid);
-      allow create, update, delete: if isAdmin();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
     }
 
     match /loans/{id} {

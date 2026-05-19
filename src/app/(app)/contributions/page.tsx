@@ -8,22 +8,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Wallet, History, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
+import { Wallet, History, AlertCircle, Loader2, ShieldCheck, Upload, CheckCircle2, FileText, Info } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, where, doc } from 'firebase/firestore';
-import { useFirestore } from '@/firebase/provider';
+import { collection, query, orderBy, where, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { recordContributionAction } from '@/lib/finance-client';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/currency';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export default function ContributionsPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const firebaseApp = useFirebaseApp();
+  const storage = getStorage(firebaseApp);
   const { user } = useUser();
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
@@ -32,6 +35,7 @@ export default function ContributionsPage() {
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
   const { data: settingsData } = useDoc(settingsRef);
   const currency = settingsData?.currency || 'RWF';
+  const defaultAmount = settingsData?.contributionInterestRate || 50000;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
@@ -54,7 +58,7 @@ export default function ContributionsPage() {
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
 
-  const totalBalance = useMemo(() => contributions.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0), [contributions]);
+  const totalBalance = useMemo(() => contributions.filter((c: any) => c.status !== 'pending').reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0), [contributions]);
   
   const unpaidMembers = useMemo(() => {
     if (!isManagement) return [];
@@ -90,10 +94,58 @@ export default function ContributionsPage() {
     }
   };
 
+  const handleSubmitContribution = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!user) return;
+    
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const amount = Number(formData.get('amount'));
+    const period = formData.get('period') as string;
+    const proofFile = formData.get('proofFile') as File;
+
+    if (!proofFile || proofFile.size === 0) {
+      toast({ variant: "destructive", title: "File Required", description: "Please upload a proof of payment." });
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      // 1. Upload Proof
+      const fileRef = ref(storage, `contribution_proofs/${user.uid}/${Date.now()}_${proofFile.name}`);
+      const uploadResult = await uploadBytes(fileRef, proofFile);
+      const proofUrl = await getDownloadURL(uploadResult.ref);
+
+      // 2. Save Contribution as Pending
+      await addDoc(collection(firestore, 'contributions'), {
+        memberId: user.uid,
+        amount,
+        period,
+        date: serverTimestamp(),
+        proofUrl,
+        status: 'pending',
+        justification: `Self-submitted for ${period}`
+      });
+
+      toast({ title: "Submitted", description: "Your contribution has been submitted for verification." });
+      (e.target as HTMLFormElement).reset();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getMemberName = (id: string) => members.find((m: any) => m.id === id)?.name || 'Unknown Member';
 
+  const periods = [
+    format(new Date(), 'MMMM yyyy'),
+    format(subMonths(new Date(), 1), 'MMMM yyyy'),
+    format(subMonths(new Date(), 2), 'MMMM yyyy')
+  ];
+
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Contribution Tracking</h1>
@@ -110,70 +162,110 @@ export default function ContributionsPage() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
-        {isManagement && (
-          <Card className="lg:col-span-1 border-primary/20 bg-primary/5 h-fit sticky top-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary">
-                <Wallet className="h-5 w-5" /> Record Payment
-              </CardTitle>
-              <CardDescription>Enter details of a manual payment received</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleRecordPayment} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="memberId">Select Member</Label>
-                  <Select name="memberId" required>
-                    <SelectTrigger className="h-11 rounded-xl">
-                      <SelectValue placeholder={loadingMembers ? "Loading members..." : "Choose a member"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {members.map((m: any) => (
-                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+        {/* Form Column */}
+        <div className="lg:col-span-1 space-y-6">
+          {isManagement ? (
+            <Card className="border-primary/20 bg-primary/5 h-fit sticky top-24">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <Wallet className="h-5 w-5" /> Record Payment
+                </CardTitle>
+                <CardDescription>Enter details of a manual payment received</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleRecordPayment} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="period">Period</Label>
-                    <Select name="period" defaultValue={selectedPeriod} onValueChange={setSelectedPeriod}>
-                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Period" /></SelectTrigger>
+                    <Label htmlFor="memberId">Select Member</Label>
+                    <Select name="memberId" required>
+                      <SelectTrigger className="h-11 rounded-xl">
+                        <SelectValue placeholder={loadingMembers ? "Loading members..." : "Choose a member"} />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={format(new Date(), 'MMMM yyyy')}>{format(new Date(), 'MMMM yyyy')}</SelectItem>
-                        <SelectItem value={format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'MMMM yyyy')}>
-                          {format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'MMMM yyyy')}
-                        </SelectItem>
+                        {members.map((m: any) => (
+                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="period">Period</Label>
+                      <Select name="period" defaultValue={selectedPeriod}>
+                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Period" /></SelectTrigger>
+                        <SelectContent>
+                          {periods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="amount">Amount</Label>
+                      <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="justification" className="flex items-center gap-1">
+                      Audit Justification <ShieldCheck className="h-3 w-3 text-primary" />
+                    </Label>
+                    <Textarea name="justification" placeholder="E.g., Cash received at meeting..." required className="rounded-xl min-h-[80px]" />
+                  </div>
+                  <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isSubmitting || loadingMembers}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Confirm & Record
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-primary/20 bg-primary/5 h-fit sticky top-24">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <Upload className="h-5 w-5" /> Submit Savings
+                </CardTitle>
+                <CardDescription>Upload proof of your monthly contribution</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmitContribution} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="period">Month</Label>
+                    <Select name="period" defaultValue={selectedPeriod}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select Month" /></SelectTrigger>
+                      <SelectContent>
+                        {periods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="amount">Amount</Label>
-                    <Input name="amount" type="number" defaultValue="50000" required className="h-11 rounded-xl" />
+                    <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl" />
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="justification" className="flex items-center gap-1">
-                    Audit Justification <ShieldCheck className="h-3 w-3 text-primary" />
-                  </Label>
-                  <Textarea name="justification" placeholder="E.g., Cash received at meeting..." required className="rounded-xl min-h-[80px]" />
-                </div>
-                <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isSubmitting || loadingMembers}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Confirm & Record
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
+                  <div className="space-y-2">
+                    <Label htmlFor="proofFile">Proof of Payment</Label>
+                    <div className="flex flex-col gap-2">
+                      <Input name="proofFile" type="file" required className="rounded-xl h-11 py-2" />
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Info className="h-3 w-3" /> Screenshots or bank slips only
+                      </p>
+                    </div>
+                  </div>
+                  <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Submit for Verification
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+        </div>
 
-        <div className={cn("space-y-6", isManagement ? "lg:col-span-2" : "lg:col-span-3")}>
+        {/* List Column */}
+        <div className={cn("space-y-6 lg:col-span-2")}>
           {isManagement && (
             <Card className="border-none shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <AlertCircle className="h-5 w-5 text-orange-500" /> Pending for {selectedPeriod}
                 </CardTitle>
-                <CardDescription>Members with no recorded payments this month</CardDescription>
+                <CardDescription>Members with no verified payments this month</CardDescription>
               </CardHeader>
               <CardContent>
                 {unpaidMembers.length === 0 ? (
@@ -207,19 +299,20 @@ export default function ContributionsPage() {
                     {isManagement && <TableHead>Member</TableHead>}
                     <TableHead>Period</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingContributions ? (
                     <TableRow>
-                      <TableCell colSpan={isManagement ? 4 : 3} className="h-24 text-center">
+                      <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                       </TableCell>
                     </TableRow>
                   ) : contributions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isManagement ? 4 : 3} className="h-24 text-center text-muted-foreground italic">
+                      <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center text-muted-foreground italic">
                         No payments recorded yet.
                       </TableCell>
                     </TableRow>
@@ -227,9 +320,27 @@ export default function ContributionsPage() {
                     contributions.map((h: any) => (
                       <TableRow key={h.id}>
                         {isManagement && <TableCell className="font-bold">{getMemberName(h.memberId)}</TableCell>}
-                        <TableCell>{h.period}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="font-medium">{h.period}</TableCell>
+                        <TableCell className="text-[10px] text-muted-foreground">
                           {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Processing...'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant={h.status === 'pending' ? 'secondary' : 'default'} 
+                              className={cn(
+                                "text-[9px] uppercase font-bold",
+                                h.status === 'pending' ? "bg-orange-500/10 text-orange-600" : "bg-green-500/10 text-green-600"
+                              )}
+                            >
+                              {h.status || 'verified'}
+                            </Badge>
+                            {h.proofUrl && (
+                              <a href={h.proofUrl} target="_blank" rel="noopener noreferrer">
+                                <FileText className="h-3 w-3 text-primary hover:scale-110 transition-transform" />
+                              </a>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right font-bold">{formatCurrency(h.amount, currency)}</TableCell>
                       </TableRow>

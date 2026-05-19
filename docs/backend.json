@@ -42,7 +42,10 @@
         "amount": { "type": "number" },
         "period": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
-        "recordedBy": { "type": "string" }
+        "recordedBy": { "type": "string" },
+        "proofUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "verified"] },
+        "justification": { "type": "string" }
       },
       "required": ["memberId", "amount", "period", "date"]
     },
