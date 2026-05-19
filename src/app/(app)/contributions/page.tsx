@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -198,7 +197,7 @@ export default function ContributionsPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="amount">Amount</Label>
+                      <Label htmlFor="amount">Amount ({currency})</Label>
                       <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl" />
                     </div>
                   </div>
@@ -235,7 +234,7 @@ export default function ContributionsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount</Label>
+                    <Label htmlFor="amount">Amount ({currency})</Label>
                     <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl" />
                   </div>
                   <div className="space-y-2">
