@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -12,8 +13,7 @@ import {
   TrendingUp,
   TrendingDown,
   Calendar,
-  AlertTriangle,
-  ArrowRight
+  AlertTriangle
 } from 'lucide-react';
 import { 
   Select, 
@@ -119,7 +119,6 @@ export default function ReportsPage() {
 
     const totalContributed = contributions.reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
     
-    // Interest In: Earnings generated from approved loans in the selected period
     const filteredInterestIn = loans.reduce((acc, loan: any) => {
       if (loan.status === 'approved' && loan.approvedAt) {
         const approvedDate = loan.approvedAt.toDate();
@@ -131,7 +130,6 @@ export default function ReportsPage() {
       return acc;
     }, 0);
 
-    // Interest Out: Profit shared with members in the selected period (tracked via audit logs)
     const filteredInterestOut = auditLogs.reduce((acc, log: any) => {
       if (log.action === 'ALLOCATE_INTEREST' && log.timestamp) {
         const logDate = log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp);
@@ -273,9 +271,8 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Yearly Cumulative Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-none shadow-md bg-green-500/5 border border-green-500/10">
+        <Card className="border-none shadow-md bg-card">
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
               <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-green-700">Interest In (Revenue)</CardTitle>
@@ -290,7 +287,7 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-md bg-primary/5 border border-primary/10">
+        <Card className="border-none shadow-md bg-card">
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
               <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-primary">Interest Out (Shared)</CardTitle>
@@ -305,7 +302,7 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-md bg-card/50">
+        <Card className="border-none shadow-md bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Outstanding Loans</CardTitle>
           </CardHeader>
@@ -315,7 +312,7 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-md bg-card/50">
+        <Card className="border-none shadow-md bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Tontine Value</CardTitle>
           </CardHeader>
@@ -326,78 +323,8 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="rounded-2xl">
-          <form onSubmit={handleUpdateSettings}>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">System Configuration</DialogTitle>
-              <DialogDescription>Set default global percentages for interest and yields.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-6 py-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Loan Rate (%)</Label>
-                  <div className="relative">
-                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input name="loanInterestRate" type="number" step="0.1" defaultValue={settingsData?.loanInterestRate || 5} required className="h-11 rounded-xl" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Contribution Yield (%)</Label>
-                  <div className="relative">
-                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input name="contributionInterestRate" type="number" step="0.1" defaultValue={settingsData?.contributionInterestRate || 2} required className="h-11 rounded-xl" />
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Audit Justification</Label>
-                <Textarea name="justification" placeholder="Why are rates being changed?" required className="rounded-xl min-h-[80px]" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isUpdatingSettings} className="w-full h-11 rounded-xl font-bold">
-                {isUpdatingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirm Changes
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="rounded-2xl">
-          <form onSubmit={handleAllocateInterest}>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">Allocate Interest</DialogTitle>
-              <DialogDescription>Distribute accrued profits pro-rata based on member contributions.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-6 py-6">
-              <div className="bg-orange-500/10 p-4 rounded-xl border border-orange-200 flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0 mt-1" />
-                <p className="text-xs text-orange-800 leading-relaxed font-medium">This is an irreversible audit action. Ensure the total distribution amount is verified.</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Distribution Amount (RWF)</Label>
-                <Input name="amount" type="number" placeholder="500000" required className="h-11 rounded-xl" />
-              </div>
-              <div className="space-y-2">
-                <Label>Justification</Label>
-                <Textarea name="justification" placeholder="E.g. Annual profit distribution..." required className="rounded-xl min-h-[80px]" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isAllocating} className="w-full h-11 rounded-xl font-bold">
-                {isAllocating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Execute Allocation
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm rounded-2xl overflow-hidden">
-        <CardHeader className="bg-muted/20 border-b">
+      <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
+        <CardHeader className="bg-muted/10 border-b">
           <CardTitle className="text-lg">Member Standings Audit</CardTitle>
           <CardDescription>Individual contribution history and current liability status</CardDescription>
         </CardHeader>

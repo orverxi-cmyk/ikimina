@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, XCircle, Info } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -323,19 +324,19 @@ export default function LoansPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="bg-green-500/5 border-green-500/10 shadow-none">
+        <Card className="bg-card border-none shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold text-green-700 uppercase tracking-widest">Active Books</CardTitle>
           </CardHeader>
           <CardContent><div className="text-2xl font-bold">{stats.active.toLocaleString()} RWF</div></CardContent>
         </Card>
-        <Card className="bg-orange-500/5 border-orange-500/10 shadow-none">
+        <Card className="bg-card border-none shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold text-orange-700 uppercase tracking-widest">Overdue</CardTitle>
           </CardHeader>
           <CardContent><div className="text-2xl font-bold text-orange-600">{stats.overdue.toLocaleString()} RWF</div></CardContent>
         </Card>
-        <Card className="bg-blue-500/5 border-blue-500/10 shadow-none">
+        <Card className="bg-card border-none shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">In Pipeline</CardTitle>
           </CardHeader>
@@ -343,176 +344,7 @@ export default function LoansPage() {
         </Card>
       </div>
 
-      <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
-        <DialogContent className="rounded-2xl">
-          <form onSubmit={handleRequestLoan}>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">Loan Request</DialogTitle>
-              <DialogDescription>Submit a formal request for capital from the Ikimina fund.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-6 py-6">
-              <div className="space-y-2">
-                <Label>Requested Amount (RWF)</Label>
-                <Input name="amount" type="number" placeholder="500000" required className="h-11 rounded-xl" />
-              </div>
-              <div className="space-y-2">
-                <Label>Purpose / Justification</Label>
-                <Textarea name="description" placeholder="Briefly explain the use of funds..." required className="rounded-xl min-h-[100px]" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Submit Request
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
-        <DialogContent className="rounded-2xl">
-          <form onSubmit={handleRepayInstallment}>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">Installment #{selectedInstallment}</DialogTitle>
-              <DialogDescription>Upload proof of transaction to verify your payment.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-6 py-6">
-              <div className="space-y-2">
-                <Label>Payment Amount (RWF)</Label>
-                <Input 
-                  name="amount" 
-                  type="number" 
-                  defaultValue={selectedLoan?.amortization?.find((i: any) => i.installmentNumber === selectedInstallment)?.amount || 0} 
-                  required 
-                  className="h-11 rounded-xl" 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Transaction Proof (Image/PDF)</Label>
-                <div className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:bg-accent cursor-pointer transition-colors relative">
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground font-medium">Select file or scan receipt</span>
-                  <Input name="proofFile" type="file" accept="image/*,.pdf" required className="absolute inset-0 opacity-0 cursor-pointer" />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirm Payment
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <form onSubmit={handleApproveLoan}>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-headline text-green-600">Approve Loan</DialogTitle>
-              <DialogDescription>Generate the binding amortization schedule for this applicant.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-6 py-6">
-              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 text-sm space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Applicant:</span>
-                  <span className="font-bold">{selectedLoan && getMemberName(selectedLoan.memberId)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Principal:</span>
-                  <span className="font-bold">{selectedLoan?.amount?.toLocaleString()} RWF</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <Input name="startDate" type="date" defaultValue={format(new Date(), 'yyyy-MM-dd')} required className="h-11 rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Months</Label>
-                  <Input name="duration" type="number" defaultValue="3" min="1" required className="h-11 rounded-xl" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Interest Timing</Label>
-                <Select value={interestType} onValueChange={(v: any) => setInterestType(v)}>
-                  <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="afterward">Added to Balance (Afterward)</SelectItem>
-                    <SelectItem value="immediate">Deducted from Payout (Immediate)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Total Interest (RWF)</Label>
-                  <Input name="interestAmount" type="number" defaultValue="25000" required className="h-11 rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Daily Penalty (%)</Label>
-                  <Input name="penaltyRate" type="number" step="0.01" defaultValue="0.15" required className="h-11 rounded-xl" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Audit Justification</Label>
-                <Textarea name="justification" placeholder="E.g. Approved based on contribution standing..." required className="rounded-xl min-h-[80px]" />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Upload Disbursed Check Scan</Label>
-                <Input name="checkFile" type="file" accept="image/*" required className="rounded-xl" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Approve & Execute
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
-        <DialogContent className="rounded-2xl">
-          <form onSubmit={handleRejectLoan}>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-headline text-destructive">Reject Loan Request</DialogTitle>
-              <DialogDescription>This action is irreversible. Please provide a clear reason.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-6 py-6">
-              <div className="bg-destructive/5 p-4 rounded-xl border border-destructive/10 text-sm space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Applicant:</span>
-                  <span className="font-bold">{selectedLoan && getMemberName(selectedLoan.memberId)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount:</span>
-                  <span className="font-bold">{selectedLoan?.amount?.toLocaleString()} RWF</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Rejection Reason (Audit Justification)</Label>
-                <Textarea name="justification" placeholder="e.g., Member has insufficient contribution weight..." required className="rounded-xl min-h-[100px]" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" variant="destructive" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirm Rejection
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm rounded-2xl overflow-hidden">
+      <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
         <CardHeader className="bg-muted/10">
           <CardTitle className="text-xl">Loan Directory</CardTitle>
           <CardDescription>Comprehensive tracking of active debt and pending reviews</CardDescription>
@@ -592,7 +424,7 @@ export default function LoansPage() {
                                 <div key={inst.installmentNumber} className={cn(
                                   "flex items-center justify-between text-[11px] p-2.5 rounded-xl border transition-all",
                                   inst.status === 'paid' ? "bg-green-500/5 border-green-200/50 opacity-60" : 
-                                  isOverdue ? "bg-orange-500/5 border-orange-200" : "bg-muted/40 border-transparent"
+                                  isOverdue ? "bg-orange-500/5 border-orange-200" : "bg-background/40 border-transparent"
                                 )}>
                                   <div className="flex flex-col">
                                     <span className="font-bold">Inst. #{inst.installmentNumber} • {format(d, 'MMM d, yyyy')}</span>

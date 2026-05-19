@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, HandCoins, Users, TrendingUp, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { Wallet, HandCoins, Users, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where } from 'firebase/firestore';
@@ -113,9 +113,9 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, i) => (
-          <Card key={i} className="border-none shadow-md bg-card/50 backdrop-blur hover:scale-[1.02] transition-transform cursor-default">
+          <Card key={i} className="border-none shadow-md bg-card hover:scale-[1.02] transition-transform cursor-default">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{stat.title}</CardTitle>
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{stat.title}</CardTitle>
               <div className={cn("p-2 rounded-xl", stat.bg)}>
                 <stat.icon className={cn("h-4 w-4", stat.color)} />
               </div>
@@ -128,7 +128,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="bg-card/40 border-primary/10 shadow-xl">
+        <Card className="bg-card border-none shadow-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <ArrowUpRight className="h-5 w-5 text-primary" /> My Participation
@@ -146,7 +146,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card/40 border-primary/10 shadow-xl">
+        <Card className="bg-card border-none shadow-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Calendar className="h-5 w-5 text-primary" /> Upcoming Deadlines
@@ -155,7 +155,7 @@ export default function DashboardPage() {
           <CardContent>
             {myParticipation.nextPayment ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-4 p-5 bg-primary/5 rounded-2xl border border-primary/20 hover:bg-primary/10 transition-colors cursor-pointer">
+                <div className="flex items-center gap-4 p-5 bg-background/50 rounded-2xl border border-primary/10 hover:bg-background/80 transition-colors cursor-pointer">
                   <div className="bg-primary p-3 rounded-xl text-primary-foreground shadow-lg shadow-primary/20">
                     <HandCoins className="h-5 w-5" />
                   </div>
