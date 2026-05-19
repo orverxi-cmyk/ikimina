@@ -68,6 +68,17 @@ export async function verifyContributionAction(uid: string, data: { contribution
   }
 }
 
+export async function rejectContributionAction(uid: string, data: { contributionId: string, rejectionReason: string }) {
+  const functions = getFinanceFunctions();
+  const rejectFn = httpsCallable(functions, 'rejectContribution');
+  try {
+    const result = await rejectFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to reject contribution');
+  }
+}
+
 export async function allocateInterestAction(uid: string, data: { totalInterestToDistribute: number, justification: string }) {
   const functions = getFinanceFunctions();
   const allocateFn = httpsCallable(functions, 'allocateInterest');

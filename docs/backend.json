@@ -44,8 +44,9 @@
         "date": { "type": "string", "format": "date-time" },
         "recordedBy": { "type": "string" },
         "proofUrl": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "verified"] },
-        "justification": { "type": "string" }
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "justification": { "type": "string" },
+        "rejectionReason": { "type": "string" }
       },
       "required": ["memberId", "amount", "period", "date"]
     },

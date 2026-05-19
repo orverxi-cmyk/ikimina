@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Wallet, History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, CheckCircle2, Eye, Clock } from 'lucide-react';
+import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, where, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
@@ -16,12 +16,13 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { verifyContributionAction } from '@/lib/finance-client';
+import { verifyContributionAction, rejectContributionAction } from '@/lib/finance-client';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/currency';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function ContributionsPage() {
   const { toast } = useToast();
@@ -42,6 +43,7 @@ export default function ContributionsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
   const [selectedContribution, setSelectedContribution] = useState<any>(null);
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('history');
 
   const role = userData?.role || 'member';
   const isManagement = role === 'management' || role === 'admin';
@@ -67,13 +69,9 @@ export default function ContributionsPage() {
       .reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0);
   }, [contributions]);
   
-  const pendingApprovals = useMemo(() => contributions.filter((c: any) => c.status === 'pending'), [contributions]);
-
-  const unpaidMembers = useMemo(() => {
-    if (!isManagement) return [];
-    const paidMemberIds = new Set(contributions.filter((c: any) => c.period === selectedPeriod && c.status === 'verified').map((c: any) => c.memberId));
-    return members.filter((m: any) => m.role === 'member' && !paidMemberIds.has(m.id));
-  }, [members, contributions, selectedPeriod, isManagement]);
+  const pendingContributions = useMemo(() => contributions.filter((c: any) => c.status === 'pending'), [contributions]);
+  const verifiedContributions = useMemo(() => contributions.filter((c: any) => c.status === 'verified'), [contributions]);
+  const rejectedContributions = useMemo(() => contributions.filter((c: any) => c.status === 'rejected'), [contributions]);
 
   const handleSubmitContribution = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -115,7 +113,7 @@ export default function ContributionsPage() {
     }
   };
 
-  const handleVerifyContribution = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleActionContribution = async (type: 'verify' | 'reject', e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user || !selectedContribution) return;
     
@@ -124,11 +122,19 @@ export default function ContributionsPage() {
     const justification = formData.get('justification') as string;
 
     try {
-      await verifyContributionAction(user.uid, {
-        contributionId: selectedContribution.id,
-        justification
-      });
-      toast({ title: "Verified", description: "Contribution has been officially verified." });
+      if (type === 'verify') {
+        await verifyContributionAction(user.uid, {
+          contributionId: selectedContribution.id,
+          justification
+        });
+        toast({ title: "Verified", description: "Contribution has been officially verified." });
+      } else {
+        await rejectContributionAction(user.uid, {
+          contributionId: selectedContribution.id,
+          rejectionReason: justification
+        });
+        toast({ title: "Rejected", description: "Contribution submission has been rejected." });
+      }
       setIsVerifyOpen(false);
       setSelectedContribution(null);
     } catch (error: any) {
@@ -146,12 +152,77 @@ export default function ContributionsPage() {
     format(subMonths(new Date(), 2), 'MMMM yyyy')
   ];
 
+  const renderTable = (data: any[]) => (
+    <Table>
+      <TableHeader className="bg-muted/10">
+        <TableRow>
+          {isManagement && <TableHead className="px-6">Member</TableHead>}
+          <TableHead className={cn(!isManagement && "px-6")}>Period</TableHead>
+          <TableHead>Date</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead className="text-right px-6">Amount</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {loadingContributions ? (
+          <TableRow>
+            <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+            </TableCell>
+          </TableRow>
+        ) : data.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center text-muted-foreground italic">
+              No transactions found in this view.
+            </TableCell>
+          </TableRow>
+        ) : (
+          data.map((h: any) => (
+            <TableRow key={h.id} className="hover:bg-muted/30 transition-colors">
+              {isManagement && <TableCell className="font-bold px-6">{getMemberName(h.memberId)}</TableCell>}
+              <TableCell className={cn("font-medium", !isManagement && "px-6")}>{h.period}</TableCell>
+              <TableCell className="text-[10px] text-muted-foreground">
+                {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Processing...'}
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Badge 
+                    variant={h.status === 'pending' ? 'secondary' : h.status === 'rejected' ? 'destructive' : 'default'} 
+                    className={cn(
+                      "text-[9px] uppercase font-bold border-none",
+                      h.status === 'pending' && "bg-orange-500/10 text-orange-600",
+                      h.status === 'verified' && "bg-green-500/10 text-green-600",
+                      h.status === 'rejected' && "bg-destructive/10 text-destructive"
+                    )}
+                  >
+                    {h.status}
+                  </Badge>
+                  {h.status === 'rejected' && !isManagement && (
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedContribution(h); setIsVerifyOpen(true); }}>
+                       <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  )}
+                  {h.proofUrl && (
+                    <a href={h.proofUrl} target="_blank" rel="noopener noreferrer" title="View Proof">
+                      <FileText className="h-4 w-4 text-primary hover:scale-110 transition-transform cursor-pointer" />
+                    </a>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="text-right px-6 font-bold">{formatCurrency(h.amount, currency)}</TableCell>
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  );
+
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Savings & Contributions</h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground font-medium">
             {isManagement ? "Audit and verify member savings" : "Track your verified wealth and pending submissions"}
           </p>
         </div>
@@ -218,14 +289,14 @@ export default function ContributionsPage() {
                 <CardDescription>Verify these member submissions</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {pendingApprovals.length === 0 ? (
+                {pendingContributions.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground italic text-sm">
                     All clear. No pending audits.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {pendingApprovals.map((c: any) => (
-                      <div key={c.id} className="p-4 border rounded-xl bg-muted/20 flex flex-col gap-2">
+                    {pendingContributions.map((c: any) => (
+                      <div key={c.id} className="p-4 border rounded-xl bg-muted/20 flex flex-col gap-2 hover:border-primary/30 transition-colors">
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-xs">{getMemberName(c.memberId)}</span>
                           <span className="text-[10px] text-muted-foreground font-medium">{c.period}</span>
@@ -250,148 +321,132 @@ export default function ContributionsPage() {
           )}
         </div>
 
-        <div className={cn("space-y-6 lg:col-span-2")}>
-          {isManagement && (
-            <Card className="border-none shadow-lg">
-              <CardHeader>
+        <div className="space-y-6 lg:col-span-2">
+          <Tabs defaultValue="history" onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 h-12 rounded-xl bg-muted/50 p-1 mb-6">
+              <TabsTrigger value="history" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">History</TabsTrigger>
+              <TabsTrigger value="pending" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Pending</TabsTrigger>
+              <TabsTrigger value="verified" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Verified</TabsTrigger>
+              <TabsTrigger value="rejected" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Rejected</TabsTrigger>
+            </TabsList>
+
+            <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/5">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <AlertCircle className="h-5 w-5 text-orange-500" /> Outstanding Members ({selectedPeriod})
+                   <History className="h-5 w-5" /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Record
                 </CardTitle>
-                <CardDescription>Members who haven't submitted verified payments for this period</CardDescription>
               </CardHeader>
-              <CardContent>
-                {unpaidMembers.length === 0 ? (
-                  <div className="flex items-center gap-2 text-green-600 bg-green-500/10 p-4 rounded-xl font-bold">
-                    <ShieldCheck className="h-5 w-5" /> All active members are up to date!
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {unpaidMembers.map((m: any) => (
-                      <div key={m.id} className="p-3 border rounded-xl bg-muted/30 flex justify-between items-center">
-                        <span className="font-bold text-sm">{m.name}</span>
-                        <Badge variant="secondary" className="text-[9px] uppercase bg-orange-500/10 text-orange-600 border-none">Awaiting</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <CardContent className="p-0">
+                <TabsContent value="history" className="m-0">{renderTable(contributions)}</TabsContent>
+                <TabsContent value="pending" className="m-0">{renderTable(pendingContributions)}</TabsContent>
+                <TabsContent value="verified" className="m-0">{renderTable(verifiedContributions)}</TabsContent>
+                <TabsContent value="rejected" className="m-0">{renderTable(rejectedContributions)}</TabsContent>
               </CardContent>
             </Card>
-          )}
-
-          <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/5">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <History className="h-5 w-5" /> {role === 'member' ? "My Savings History" : "System Payment Audit"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-muted/10">
-                  <TableRow>
-                    {isManagement && <TableHead className="px-6">Member</TableHead>}
-                    <TableHead className={cn(!isManagement && "px-6")}>Period</TableHead>
-                    <TableHead>Submission Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right px-6">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingContributions ? (
-                    <TableRow>
-                      <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                      </TableCell>
-                    </TableRow>
-                  ) : contributions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center text-muted-foreground italic">
-                        No transactions found in this record.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    contributions.map((h: any) => (
-                      <TableRow key={h.id} className="hover:bg-muted/30 transition-colors">
-                        {isManagement && <TableCell className="font-bold px-6">{getMemberName(h.memberId)}</TableCell>}
-                        <TableCell className={cn("font-medium", !isManagement && "px-6")}>{h.period}</TableCell>
-                        <TableCell className="text-[10px] text-muted-foreground">
-                          {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Processing...'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Badge 
-                              variant={h.status === 'pending' ? 'secondary' : 'default'} 
-                              className={cn(
-                                "text-[9px] uppercase font-bold border-none",
-                                h.status === 'pending' ? "bg-orange-500/10 text-orange-600" : "bg-green-500/10 text-green-600"
-                              )}
-                            >
-                              {h.status || 'verified'}
-                            </Badge>
-                            {h.proofUrl && (
-                              <a href={h.proofUrl} target="_blank" rel="noopener noreferrer" title="View Proof">
-                                <FileText className="h-4 w-4 text-primary hover:scale-110 transition-transform cursor-pointer" />
-                              </a>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right px-6 font-bold">{formatCurrency(h.amount, currency)}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          </Tabs>
         </div>
       </div>
 
       <Dialog open={isVerifyOpen} onOpenChange={setIsVerifyOpen}>
         <DialogContent className="rounded-2xl max-w-md">
-          <form onSubmit={handleVerifyContribution}>
-            <DialogHeader>
-              <DialogTitle>Audit Verification</DialogTitle>
-              <DialogDescription>Review submission for {selectedContribution ? getMemberName(selectedContribution.memberId) : 'the member'}.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-6">
-              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Stated Amount:</span>
-                  <span className="font-bold text-lg">{selectedContribution ? formatCurrency(selectedContribution.amount, currency) : '-'}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Applied Period:</span>
-                  <span className="font-bold">{selectedContribution?.period}</span>
-                </div>
-                {selectedContribution?.proofUrl && (
-                  <div className="pt-2">
-                    <Button variant="outline" size="sm" className="w-full text-[11px] h-9 rounded-lg font-bold" asChild>
-                      <a href={selectedContribution.proofUrl} target="_blank" rel="noopener noreferrer">
-                        <FileText className="mr-2 h-4 w-4" /> View Payment Evidence
-                      </a>
-                    </Button>
+          {isManagement ? (
+            <form onSubmit={(e) => {
+              const submitter = (e.nativeEvent as any).submitter.value;
+              handleActionContribution(submitter === 'verify' ? 'verify' : 'reject', e);
+            }}>
+              <DialogHeader>
+                <DialogTitle>Audit Verification</DialogTitle>
+                <DialogDescription>Review submission for {selectedContribution ? getMemberName(selectedContribution.memberId) : 'the member'}.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-6">
+                <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Stated Amount:</span>
+                    <span className="font-bold text-lg">{selectedContribution ? formatCurrency(selectedContribution.amount, currency) : '-'}</span>
                   </div>
-                )}
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Applied Period:</span>
+                    <span className="font-bold">{selectedContribution?.period}</span>
+                  </div>
+                  {selectedContribution?.proofUrl && (
+                    <div className="pt-2">
+                      <Button variant="outline" size="sm" className="w-full text-[11px] h-9 rounded-lg font-bold" asChild>
+                        <a href={selectedContribution.proofUrl} target="_blank" rel="noopener noreferrer">
+                          <FileText className="mr-2 h-4 w-4" /> View Payment Evidence
+                        </a>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="justification" className="flex items-center gap-1">
+                    Compliance Notes / Rejection Reason <ShieldCheck className="h-3 w-3 text-primary" />
+                  </Label>
+                  <Textarea 
+                    name="justification" 
+                    placeholder="Provide details for verification or reason for rejection..." 
+                    required 
+                    className="rounded-xl min-h-[90px]" 
+                  />
+                </div>
+              </div>
+              <DialogFooter className="flex gap-2">
+                <Button 
+                  className="flex-1 h-11 rounded-xl font-bold bg-destructive hover:bg-destructive/90 text-white" 
+                  type="submit" 
+                  name="action" 
+                  value="reject" 
+                  disabled={isSubmitting}
+                >
+                  <Ban className="mr-2 h-4 w-4" /> Reject
+                </Button>
+                <Button 
+                  className="flex-1 h-11 rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white" 
+                  type="submit" 
+                  name="action" 
+                  value="verify" 
+                  disabled={isSubmitting}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" /> Verify Funds
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <div className="space-y-6 py-4">
+              <DialogHeader>
+                <DialogTitle className="text-destructive flex items-center gap-2">
+                  <Ban className="h-5 w-5" /> Submission Rejected
+                </DialogTitle>
+                <DialogDescription>Your contribution for {selectedContribution?.period} was not verified.</DialogDescription>
+              </DialogHeader>
+              
+              <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-xl space-y-2">
+                 <p className="text-[10px] font-bold uppercase text-destructive tracking-widest">Reason for Rejection</p>
+                 <p className="text-sm font-medium italic">"{selectedContribution?.rejectionReason || 'No reason provided.'}"</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="justification" className="flex items-center gap-1">
-                  Compliance Justification <ShieldCheck className="h-3 w-3 text-primary" />
-                </Label>
-                <Textarea 
-                  name="justification" 
-                  placeholder="e.g. Transaction verified against bank record #12345..." 
-                  required 
-                  className="rounded-xl min-h-[90px]" 
-                />
+              <div className="bg-muted/30 p-4 rounded-xl space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Original Amount:</span>
+                  <span className="font-bold">{selectedContribution ? formatCurrency(selectedContribution.amount, currency) : '-'}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <Button className="w-full h-11 rounded-xl font-bold" onClick={() => {
+                  setSelectedContribution(null);
+                  setIsVerifyOpen(false);
+                  toast({ title: "Ready for Re-submission", description: "Please use the form to submit corrected details." });
+                }}>
+                  <RotateCcw className="mr-2 h-4 w-4" /> Prepare New Submission
+                </Button>
+                <Button variant="ghost" className="w-full h-11 rounded-xl font-medium" onClick={() => setIsVerifyOpen(false)}>
+                  Close
+                </Button>
               </div>
             </div>
-            <DialogFooter>
-              <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Approve & Secure Funds
-              </Button>
-            </DialogFooter>
-          </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>
