@@ -32,7 +32,10 @@ export default function MorePage() {
       title: 'Management Tools',
       items: [
         { href: '/reports', label: 'Financial Reports', icon: ChartBar, description: 'Audits and yearly standing' },
-        ...(isAdmin ? [{ href: '/members', label: 'Member Directory', icon: Users, description: 'Manage system access' }] : []),
+        ...(isAdmin ? [
+          { href: '/members', label: 'Member Directory', icon: Users, description: 'Manage system access' },
+          { href: '/admin/settings', label: 'System Settings', icon: Settings, description: 'Global financial policies' }
+        ] : []),
       ]
     });
   }

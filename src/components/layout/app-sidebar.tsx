@@ -10,7 +10,8 @@ import {
   HandCoins, 
   FileText, 
   LogOut, 
-  LogIn
+  LogIn,
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -62,6 +63,7 @@ export function AppSidebar() {
 
   if (role === 'admin') {
     menuItems.push({ href: '/members', label: 'Members', icon: Users });
+    menuItems.push({ href: '/admin/settings', label: 'Settings', icon: Settings });
   }
 
   if (role === 'admin' || role === 'management') {

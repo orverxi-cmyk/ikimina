@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -75,7 +74,7 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
+    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-24">
       <div>
         <h1 className="text-3xl font-headline font-bold">System Settings</h1>
         <p className="text-muted-foreground">Manage global financial rules and lending policies</p>
@@ -140,7 +139,7 @@ export default function AdminSettingsPage() {
             <CardContent className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Loan Interest (Interest In - % Annual)</Label>
+                  <Label>Loan Interest (Interest In - % Monthly)</Label>
                   <Input 
                     name="loanInterestRate" 
                     type="number" 
@@ -152,7 +151,7 @@ export default function AdminSettingsPage() {
                   <p className="text-[10px] text-muted-foreground">Rate charged to borrowers.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Monthly Target (Interest Out - RWF)</Label>
+                  <Label>Target Monthly Contribution (RWF)</Label>
                   <Input 
                     name="contributionInterestRate" 
                     type="number" 
@@ -177,7 +176,7 @@ export default function AdminSettingsPage() {
                 <Textarea 
                   id="justification"
                   name="justification" 
-                  placeholder="E.g., Adjusted borrowing limits based on Board resolution #42..." 
+                  placeholder="E.g., Adjusted borrowing limits based on Board resolution..." 
                   required 
                   className="rounded-xl min-h-[100px]"
                 />
