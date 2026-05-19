@@ -9,16 +9,13 @@ import {
   Wallet, 
   HandCoins, 
   FileText, 
-  LogOut, 
-  Settings,
-  UserCircle
+  Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
-import { getAuth, signOut } from 'firebase/auth';
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -33,11 +30,6 @@ export function AppSidebar() {
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  const handleLogout = async () => {
-    const auth = getAuth();
-    await signOut(auth);
-  };
 
   if (!mounted) {
     return (
@@ -58,7 +50,6 @@ export function AppSidebar() {
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/contributions', label: 'Contributions', icon: Wallet },
     { href: '/loans', label: 'Loans', icon: HandCoins },
-    { href: '/profile/me', label: 'My Profile', icon: UserCircle },
   ];
 
   if (role === 'admin' || role === 'management') {
@@ -102,23 +93,13 @@ export function AppSidebar() {
 
       <div className="pt-6 border-t border-border/50">
         {user && (
-          <div className="space-y-2">
-            <div className="px-4 py-3 bg-accent/30 rounded-xl mb-4">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Authenticated</p>
-              <p className="text-sm font-bold truncate text-foreground">{userData?.name || user.email}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>
-              </div>
+          <div className="px-4 py-3 bg-accent/30 rounded-xl">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Authenticated</p>
+            <p className="text-sm font-bold truncate text-foreground">{userData?.name || user.email}</p>
+            <div className="flex items-center gap-1 mt-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>
             </div>
-            
-            <button
-              onClick={handleLogout}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-destructive hover:bg-destructive/10 transition-all"
-            >
-              <LogOut className="h-5 w-5" />
-              <span>Sign Out</span>
-            </button>
           </div>
         )}
       </div>
