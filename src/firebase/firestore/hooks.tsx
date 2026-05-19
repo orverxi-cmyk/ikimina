@@ -6,7 +6,7 @@ import type {
   Query,
   QuerySnapshot,
 } from 'firebase/firestore';
-import { onSnapshot, DocumentReference } from 'firebase/firestore';
+import { onSnapshot, DocumentReference, CollectionReference } from 'firebase/firestore';
 
 import { useFirestore } from '../provider';
 import { errorEmitter }from '@/firebase/error-emitter';
@@ -69,8 +69,16 @@ export function useCollection<T>(query: Query<T> | null) {
         setLoading(false);
       },
       async (err) => {
+        // Attempt to extract the path for professional error reporting
+        let path = '(collection query)';
+        if ('path' in query) {
+          path = (query as any).path;
+        } else if ((query as any)._query?.path) {
+          path = (query as any)._query.path.toString();
+        }
+
         const permissionError = new FirestorePermissionError({
-          path: query instanceof DocumentReference ? query.path : '(unknown)',
+          path,
           operation: 'list',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);

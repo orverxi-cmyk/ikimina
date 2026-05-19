@@ -18,29 +18,44 @@ import { cn } from '@/lib/utils';
 
 export default function ProfilePage() {
   const params = useParams();
-  const { user } = useUser();
+  const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
   
   // Resolve target user (self or others for management)
   const targetId = params.username === 'me' ? user?.uid : params.username as string;
 
   const userRef = useMemoFirebase(() => targetId ? doc(firestore, 'users', targetId) : null, [targetId]);
-  const { data: userData, loading: userLoading } = useDoc(userRef);
+  const { data: userData, loading: userDocLoading } = useDoc(userRef);
+
+  // Current user's own data for permission check
+  const currentUserRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
+  const { data: currentUserData, loading: currentUserLoading } = useDoc(currentUserRef);
 
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
   const { data: settingsData } = useDoc(settingsRef);
   const currency = settingsData?.currency || 'RWF';
 
+  const userLoading = authLoading || userDocLoading || currentUserLoading;
+  const isManagement = currentUserData?.role === 'admin' || currentUserData?.role === 'management';
+
   // Fetch target user's financial records with server-side ordering to utilize indexes
   const contributionsQuery = useMemoFirebase(() => {
-    if (!targetId || userLoading) return null;
+    if (!targetId || userLoading || !user) return null;
+    
+    // SECURITY GUARD: Only allow listing if viewing self or if user is management
+    if (targetId !== user.uid && !isManagement) return null;
+
     return query(collection(firestore, 'contributions'), where('memberId', '==', targetId), orderBy('date', 'desc'));
-  }, [targetId, userLoading]);
+  }, [targetId, userLoading, user, isManagement]);
 
   const loansQuery = useMemoFirebase(() => {
-    if (!targetId || userLoading) return null;
+    if (!targetId || userLoading || !user) return null;
+    
+    // SECURITY GUARD: Only allow listing if viewing self or if user is management
+    if (targetId !== user.uid && !isManagement) return null;
+
     return query(collection(firestore, 'loans'), where('memberId', '==', targetId), orderBy('requestDate', 'desc'));
-  }, [targetId, userLoading]);
+  }, [targetId, userLoading, user, isManagement]);
 
   const { data: contributionsSnap, loading: loadingConts } = useCollection(contributionsQuery);
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
