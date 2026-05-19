@@ -10,11 +10,9 @@ import {
   HandCoins, 
   FileText, 
   LogOut, 
-  LogIn,
   Settings,
   UserCircle
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
@@ -64,7 +62,7 @@ export function AppSidebar() {
   ];
 
   if (role === 'admin' || role === 'management') {
-    menuItems.push({ href: '/reports', label: 'Reports', icon: FileText });
+    menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   }
 
   if (role === 'admin') {
@@ -103,7 +101,7 @@ export function AppSidebar() {
       </nav>
 
       <div className="pt-6 border-t border-border/50">
-        {user ? (
+        {user && (
           <div className="space-y-2">
             <div className="px-4 py-3 bg-accent/30 rounded-xl mb-4">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Authenticated</p>
@@ -122,13 +120,6 @@ export function AppSidebar() {
               <span>Sign Out</span>
             </button>
           </div>
-        ) : (
-          <Link href="/login">
-            <Button className="w-full rounded-xl font-bold h-11">
-              <LogIn className="mr-2 h-4 w-4" />
-              Sign In
-            </Button>
-          </Link>
         )}
       </div>
     </aside>
