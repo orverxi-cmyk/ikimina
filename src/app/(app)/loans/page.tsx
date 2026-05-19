@@ -72,7 +72,10 @@ export default function LoansPage() {
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
   }, [user, isLoading]);
 
-  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
+  const membersQuery = useMemoFirebase(() => {
+    if (!isManagement) return null;
+    return query(collection(firestore, 'users'), orderBy('name', 'asc'));
+  }, [isManagement]);
 
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: contributionsSnap } = useCollection(contributionsQuery);

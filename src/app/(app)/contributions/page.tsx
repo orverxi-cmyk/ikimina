@@ -49,7 +49,11 @@ export default function ContributionsPage() {
   const isLoading = userDataLoading;
 
   // Firestore Subscriptions
-  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
+  const membersQuery = useMemoFirebase(() => {
+    // Regular members don't have permission to list all users
+    if (!isManagement) return null;
+    return query(collection(firestore, 'users'), orderBy('name', 'asc'));
+  }, [isManagement]);
   
   const contributionsQuery = useMemoFirebase(() => {
     if (!user || isLoading) return null;
@@ -149,7 +153,10 @@ export default function ContributionsPage() {
     }
   };
 
-  const getMemberName = (id: string) => members.find((m: any) => m.id === id)?.name || 'Unknown Member';
+  const getMemberName = (id: string) => {
+    if (id === user?.uid) return userData?.name || 'Me';
+    return members.find((m: any) => m.id === id)?.name || 'Unknown Member';
+  };
 
   const periods = [
     format(new Date(), 'MMMM yyyy'),
