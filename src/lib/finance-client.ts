@@ -57,6 +57,17 @@ export async function recordContributionAction(uid: string, data: { memberId: st
   }
 }
 
+export async function verifyContributionAction(uid: string, data: { contributionId: string, justification: string }) {
+  const functions = getFinanceFunctions();
+  const verifyFn = httpsCallable(functions, 'verifyContribution');
+  try {
+    const result = await verifyFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to verify contribution');
+  }
+}
+
 export async function allocateInterestAction(uid: string, data: { totalInterestToDistribute: number, justification: string }) {
   const functions = getFinanceFunctions();
   const allocateFn = httpsCallable(functions, 'allocateInterest');

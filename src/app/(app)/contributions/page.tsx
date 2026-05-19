@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Wallet, History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info } from 'lucide-react';
+import { Wallet, History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, CheckCircle2, Eye } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, where, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
@@ -16,11 +16,12 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { recordContributionAction } from '@/lib/finance-client';
+import { verifyContributionAction } from '@/lib/finance-client';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/currency';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function ContributionsPage() {
   const { toast } = useToast();
@@ -39,6 +40,8 @@ export default function ContributionsPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
+  const [selectedContribution, setSelectedContribution] = useState<any>(null);
+  const [isVerifyOpen, setIsVerifyOpen] = useState(false);
 
   const role = userData?.role || 'member';
   const isManagement = role === 'management' || role === 'admin';
@@ -58,41 +61,15 @@ export default function ContributionsPage() {
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
 
-  const totalBalance = useMemo(() => contributions.filter((c: any) => c.status !== 'pending').reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0), [contributions]);
+  const totalBalance = useMemo(() => contributions.filter((c: any) => c.status === 'verified').reduce((acc, curr: any) => acc + (Number(curr.amount) || 0), 0), [contributions]);
   
+  const pendingApprovals = useMemo(() => contributions.filter((c: any) => c.status === 'pending'), [contributions]);
+
   const unpaidMembers = useMemo(() => {
     if (!isManagement) return [];
-    const paidMemberIds = new Set(contributions.filter((c: any) => c.period === selectedPeriod).map((c: any) => c.memberId));
+    const paidMemberIds = new Set(contributions.filter((c: any) => c.period === selectedPeriod && c.status === 'verified').map((c: any) => c.memberId));
     return members.filter((m: any) => m.role === 'member' && !paidMemberIds.has(m.id));
   }, [members, contributions, selectedPeriod, isManagement]);
-
-  const handleRecordPayment = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!isManagement || !user) return;
-    
-    setIsSubmitting(true);
-    const formData = new FormData(e.currentTarget);
-    const memberId = formData.get('memberId') as string;
-    const amount = Number(formData.get('amount'));
-    const period = formData.get('period') as string;
-    const justification = formData.get('justification') as string;
-
-    try {
-      await recordContributionAction(user.uid, {
-        memberId,
-        amount,
-        period,
-        justification
-      });
-      
-      toast({ title: "Success", description: "Contribution recorded via secure backend." });
-      (e.target as HTMLFormElement).reset();
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleSubmitContribution = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -134,6 +111,29 @@ export default function ContributionsPage() {
     }
   };
 
+  const handleVerifyContribution = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!user || !selectedContribution) return;
+    
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const justification = formData.get('justification') as string;
+
+    try {
+      await verifyContributionAction(user.uid, {
+        contributionId: selectedContribution.id,
+        justification
+      });
+      toast({ title: "Verified", description: "Contribution has been officially verified." });
+      setIsVerifyOpen(false);
+      setSelectedContribution(null);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getMemberName = (id: string) => members.find((m: any) => m.id === id)?.name || 'Unknown Member';
 
   const periods = [
@@ -148,12 +148,12 @@ export default function ContributionsPage() {
         <div>
           <h1 className="text-3xl font-headline font-bold">Contribution Tracking</h1>
           <p className="text-muted-foreground">
-            {isManagement ? "Overview of member payments" : "My contribution history"}
+            {isManagement ? "Verify and audit member contributions" : "My contribution history"}
           </p>
         </div>
         <div className="bg-primary/10 px-6 py-3 rounded-2xl border border-primary/20">
           <p className="text-xs text-primary font-bold uppercase tracking-wider">
-            {isManagement ? "Total Tontine Funds" : "My Total Contributions"}
+            {isManagement ? "Total Verified Funds" : "My Verified Contributions"}
           </p>
           <p className="text-2xl font-bold">{formatCurrency(totalBalance, currency)}</p>
         </div>
@@ -161,63 +161,7 @@ export default function ContributionsPage() {
 
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-1 space-y-6">
-          {isManagement ? (
-            <Card className="border-primary/20 bg-primary/5 h-fit sticky top-24">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-primary">
-                  <Wallet className="h-5 w-5" /> Record Payment
-                </CardTitle>
-                <CardDescription>Enter details of a manual payment received</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleRecordPayment} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="memberId">Select Member</Label>
-                    <Select name="memberId" required>
-                      <SelectTrigger className="h-11 rounded-xl">
-                        <SelectValue placeholder={loadingMembers ? "Loading members..." : "Choose a member"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {members.map((m: any) => (
-                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="period">Period</Label>
-                      <Select name="period" defaultValue={selectedPeriod}>
-                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Period" /></SelectTrigger>
-                        <SelectContent>
-                          {periods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="amount">Amount</Label>
-                      <div className="relative">
-                        <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14" />
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">
-                          {currency}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="justification" className="flex items-center gap-1">
-                      Audit Justification <ShieldCheck className="h-3 w-3 text-primary" />
-                    </Label>
-                    <Textarea name="justification" placeholder="E.g., Cash received at meeting..." required className="rounded-xl min-h-[80px]" />
-                  </div>
-                  <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isSubmitting || loadingMembers}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Confirm & Record
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          ) : (
+          {!isManagement ? (
             <Card className="border-primary/20 bg-primary/5 h-fit sticky top-24">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -261,6 +205,44 @@ export default function ContributionsPage() {
                 </form>
               </CardContent>
             </Card>
+          ) : (
+            <Card className="border-none shadow-lg h-fit sticky top-24">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <CheckCircle2 className="h-5 w-5" /> Pending Verification
+                </CardTitle>
+                <CardDescription>Review and approve member submissions</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {pendingApprovals.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground italic text-sm">
+                    No pending submissions to verify.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingApprovals.map((c: any) => (
+                      <div key={c.id} className="p-3 border rounded-xl bg-muted/20 flex flex-col gap-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-xs">{getMemberName(c.memberId)}</span>
+                          <span className="text-[10px] text-muted-foreground">{c.period}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-primary">{formatCurrency(c.amount, currency)}</span>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-7 text-[10px] font-bold"
+                            onClick={() => { setSelectedContribution(c); setIsVerifyOpen(true); }}
+                          >
+                            <Eye className="mr-1 h-3 w-3" /> Verify
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
         </div>
 
@@ -269,7 +251,7 @@ export default function ContributionsPage() {
             <Card className="border-none shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <AlertCircle className="h-5 w-5 text-orange-500" /> Pending for {selectedPeriod}
+                  <AlertCircle className="h-5 w-5 text-orange-500" /> Unpaid Members for {selectedPeriod}
                 </CardTitle>
                 <CardDescription>Members with no verified payments this month</CardDescription>
               </CardHeader>
@@ -283,7 +265,7 @@ export default function ContributionsPage() {
                     {unpaidMembers.map((m: any) => (
                       <div key={m.id} className="p-3 border rounded-xl bg-muted/30 flex justify-between items-center">
                         <span className="font-bold text-sm">{m.name}</span>
-                        <Badge variant="secondary" className="text-[9px] uppercase">Unpaid</Badge>
+                        <Badge variant="secondary" className="text-[9px] uppercase">Pending</Badge>
                       </div>
                     ))}
                   </div>
@@ -295,7 +277,7 @@ export default function ContributionsPage() {
           <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" /> {role === 'member' ? "My Payments" : "Recent Payments"}
+                <History className="h-5 w-5" /> {role === 'member' ? "My Payments" : "Audit History"}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -358,6 +340,56 @@ export default function ContributionsPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={isVerifyOpen} onOpenChange={setIsVerifyOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <form onSubmit={handleVerifyContribution}>
+            <DialogHeader>
+              <DialogTitle>Verify Contribution</DialogTitle>
+              <DialogDescription>Review the evidence provided by {selectedContribution ? getMemberName(selectedContribution.memberId) : 'the member'}.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-6">
+              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Amount:</span>
+                  <span className="font-bold">{selectedContribution ? formatCurrency(selectedContribution.amount, currency) : '-'}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Period:</span>
+                  <span className="font-bold">{selectedContribution?.period}</span>
+                </div>
+                {selectedContribution?.proofUrl && (
+                  <div className="pt-2">
+                    <Button variant="outline" size="sm" className="w-full text-[10px] h-8 rounded-lg" asChild>
+                      <a href={selectedContribution.proofUrl} target="_blank" rel="noopener noreferrer">
+                        <FileText className="mr-2 h-3 w-3" /> View Proof of Payment
+                      </a>
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="justification" className="flex items-center gap-1">
+                  Audit Justification <ShieldCheck className="h-3 w-3 text-primary" />
+                </Label>
+                <Textarea 
+                  name="justification" 
+                  placeholder="E.g., Proof verified against bank statement..." 
+                  required 
+                  className="rounded-xl min-h-[80px]" 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirm & Verify Funds
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
