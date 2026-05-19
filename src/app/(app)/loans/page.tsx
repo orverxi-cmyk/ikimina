@@ -40,7 +40,7 @@ export default function LoansPage() {
   const { user } = useUser();
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
-  const { data: userData } = useDoc(userRef);
+  const { data: userData, loading: userDataLoading } = useDoc(userRef);
 
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
   const { data: settingsData } = useDoc(settingsRef);
@@ -59,17 +59,20 @@ export default function LoansPage() {
 
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
+  const isLoading = userDataLoading;
   
   const loansQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || isLoading) return null;
     if (isManagement) return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
-    return query(collection(firestore, 'loans'), where('memberId', '==', user.uid), orderBy('requestDate', 'desc'));
-  }, [user, isManagement]);
+    // Filtered queries with where+orderBy require composite indexes. 
+    // We remove the Firestore ordering here and sort in-memory for the member view.
+    return query(collection(firestore, 'loans'), where('memberId', '==', user.uid));
+  }, [user, isManagement, isLoading]);
 
   const contributionsQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || isLoading) return null;
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
-  }, [user]);
+  }, [user, isLoading]);
 
   const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
 
@@ -77,7 +80,16 @@ export default function LoansPage() {
   const { data: contributionsSnap } = useCollection(contributionsQuery);
   const { data: membersSnap } = useCollection(membersQuery);
 
-  const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
+  const loans = useMemo(() => {
+    const list = loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
+    // Sorting in-memory to ensure immediate functionality for members
+    return list.sort((a: any, b: any) => {
+      const da = a.requestDate?.seconds || 0;
+      const db = b.requestDate?.seconds || 0;
+      return db - da;
+    });
+  }, [loansSnap]);
+
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
 
   const userTotalContributions = useMemo(() => {

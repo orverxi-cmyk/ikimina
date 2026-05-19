@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyContribution = exports.recordContribution = void 0;
+exports.rejectContribution = exports.verifyContribution = exports.recordContribution = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -103,6 +103,7 @@ exports.verifyContribution = (0, https_1.onCall)({ cors: true }, async (request)
             status: 'verified',
             verifiedBy: request.auth.uid,
             verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+            justification
         });
         // Log the action
         const logRef = db.collection('audit_logs').doc();
@@ -110,6 +111,47 @@ exports.verifyContribution = (0, https_1.onCall)({ cors: true }, async (request)
             adminId: request.auth.uid,
             action: 'VERIFY_CONTRIBUTION',
             justification,
+            details: { contributionId },
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await batch.commit();
+        return { success: true };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Rejects a pending contribution submitted by a member.
+ */
+exports.rejectContribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    const adminData = adminSnap.data();
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can reject contributions.');
+    }
+    const { contributionId, rejectionReason } = request.data;
+    if (!contributionId || !rejectionReason) {
+        throw new https_1.HttpsError('invalid-argument', 'Contribution ID and rejection reason are required.');
+    }
+    try {
+        const batch = db.batch();
+        const contributionRef = db.collection('contributions').doc(contributionId);
+        batch.update(contributionRef, {
+            status: 'rejected',
+            rejectedBy: request.auth.uid,
+            rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            rejectionReason
+        });
+        // Log the action
+        const logRef = db.collection('audit_logs').doc();
+        batch.set(logRef, {
+            adminId: request.auth.uid,
+            action: 'REJECT_CONTRIBUTION',
+            justification: rejectionReason,
             details: { contributionId },
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
         });

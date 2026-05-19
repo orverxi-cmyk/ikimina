@@ -32,7 +32,7 @@ export default function ContributionsPage() {
   const { user } = useUser();
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
-  const { data: userData } = useDoc(userRef);
+  const { data: userData, loading: userDataLoading } = useDoc(userRef);
   
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
   const { data: settingsData } = useDoc(settingsRef);
@@ -47,21 +47,33 @@ export default function ContributionsPage() {
 
   const role = userData?.role || 'member';
   const isManagement = role === 'management' || role === 'admin';
+  const isLoading = userDataLoading;
 
   // Firestore Subscriptions
   const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
   
   const contributionsQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || isLoading) return null;
+    // For admins, we can use orderBy on a collection directly. 
+    // For members, where + orderBy requires an index. We'll sort in memory instead.
     if (isManagement) return query(collection(firestore, 'contributions'), orderBy('date', 'desc'));
-    return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid), orderBy('date', 'desc'));
-  }, [user, isManagement]);
+    return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
+  }, [user, isManagement, isLoading]);
 
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
   const { data: contributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
-  const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
+  
+  const contributions = useMemo(() => {
+    const list = contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
+    // Sort in-memory to avoid mandatory composite indexes for simple prototypes
+    return list.sort((a: any, b: any) => {
+      const da = a.date?.seconds || 0;
+      const db = b.date?.seconds || 0;
+      return db - da;
+    });
+  }, [contributionsSnap]);
 
   const totalVerifiedBalance = useMemo(() => {
     return contributions
