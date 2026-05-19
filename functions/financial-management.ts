@@ -90,7 +90,14 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
         throw new HttpsError('permission-denied', 'Admin privileges required.');
     }
 
-    const { loanInterestRate, contributionInterestRate, maxLoanPercentage, justification } = request.data;
+    const { 
+        loanInterestRate, 
+        contributionInterestRate, 
+        maxLoanPercentage, 
+        minLoanAmount, 
+        maxLoanAmount,
+        justification 
+    } = request.data;
 
     try {
         const batch = db.batch();
@@ -100,6 +107,8 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             loanInterestRate: Number(loanInterestRate),
             contributionInterestRate: Number(contributionInterestRate),
             maxLoanPercentage: Number(maxLoanPercentage),
+            minLoanAmount: Number(minLoanAmount),
+            maxLoanAmount: Number(maxLoanAmount),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedBy: request.auth.uid
         }, { merge: true });
@@ -109,7 +118,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             adminId: request.auth.uid,
             action: 'UPDATE_FINANCIAL_SETTINGS',
             justification,
-            details: { loanInterestRate, contributionInterestRate, maxLoanPercentage },
+            details: { loanInterestRate, contributionInterestRate, maxLoanPercentage, minLoanAmount, maxLoanAmount },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 

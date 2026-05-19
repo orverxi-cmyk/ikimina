@@ -1,7 +1,8 @@
+
 'use client';
 
 import Link from 'next/link';
-import { Home, Users, Wallet, Flag } from 'lucide-react';
+import { Home, Users, Wallet, Flag, Settings } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -28,7 +29,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </div>
           <div className="flex-1 overflow-auto py-2">
             <nav className="grid items-start px-4 text-sm font-medium">
-              <Link href="/" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+              <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
                 <Home className="h-4 w-4" />
                 Main Dashboard
               </Link>
@@ -43,6 +44,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                <Link href="/reports" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
                 <Flag className="h-4 w-4" />
                 Reports
+              </Link>
+              <Link href="/admin/settings" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                <Settings className="h-4 w-4" />
+                Settings
               </Link>
             </nav>
           </div>
