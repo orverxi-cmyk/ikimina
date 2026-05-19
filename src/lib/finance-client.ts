@@ -89,6 +89,17 @@ export async function recordRepaymentAction(data: { loanId: string, amount: numb
   }
 }
 
+export async function verifyRepaymentAction(data: { repaymentId: string, justification: string }) {
+  const functions = getFinanceFunctions();
+  const verifyFn = httpsCallable(functions, 'verifyRepayment');
+  try {
+    const result = await verifyFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to verify repayment');
+  }
+}
+
 export async function allocateInterestAction(uid: string, data: { totalInterestToDistribute: number, justification: string }) {
   const functions = getFinanceFunctions();
   const allocateFn = httpsCallable(functions, 'allocateInterest');
@@ -140,5 +151,16 @@ export async function rejectLoanAction(data: { loanId: string, justification: st
     return result.data;
   } catch (error: any) {
     throw new Error(error.message || 'Failed to reject loan');
+  }
+}
+
+export async function updateUserRoleAction(targetUserId: string, role: string, justification: string) {
+  const functions = getFinanceFunctions();
+  const roleFn = httpsCallable(functions, 'updateUserRole');
+  try {
+    const result = await roleFn({ targetUserId, role, justification });
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to update role');
   }
 }
