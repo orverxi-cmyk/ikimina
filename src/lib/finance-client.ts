@@ -71,6 +71,8 @@ export async function allocateInterestAction(uid: string, data: { totalInterestT
 export async function updateFinancialSettingsAction(data: { 
   currency?: string,
   loanInterestRate: number, 
+  interestModel?: string,
+  interestType?: string,
   contributionInterestRate: number, 
   maxLoanPercentage: number, 
   minLoanAmount: number, 

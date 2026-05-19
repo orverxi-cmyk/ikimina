@@ -53,11 +53,14 @@
         "memberId": { "type": "string" },
         "amount": { "type": "number" },
         "interestAmount": { "type": "number" },
-        "interestRate": { "type": "number", "description": "Monthly interest rate as a decimal" },
+        "interestRate": { "type": "number" },
         "interestType": { 
           "type": "string", 
-          "enum": ["immediate", "afterward"],
-          "description": "immediate: deducted from disbursement; afterward: added to principal"
+          "enum": ["immediate", "afterward"]
+        },
+        "interestModel": {
+          "type": "string",
+          "enum": ["one-off", "monthly", "yearly"]
         },
         "status": { "type": "string", "enum": ["requested", "approved", "rejected", "completed"] },
         "requestDate": { "type": "string", "format": "date-time" },
@@ -73,7 +76,6 @@
       "required": ["memberId", "amount", "status"]
     },
     "repayment": {
-      "title": "Repayment",
       "title": "Repayment",
       "type": "object",
       "properties": {
@@ -104,6 +106,8 @@
       "properties": {
         "currency": { "type": "string", "enum": ["RWF", "USD"], "default": "RWF" },
         "loanInterestRate": { "type": "number" },
+        "interestModel": { "type": "string", "enum": ["one-off", "monthly", "yearly"], "default": "one-off" },
+        "interestType": { "type": "string", "enum": ["immediate", "afterward"], "default": "immediate" },
         "contributionInterestRate": { "type": "number" },
         "maxLoanPercentage": { "type": "number" },
         "minLoanAmount": { "type": "number" },

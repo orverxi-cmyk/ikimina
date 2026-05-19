@@ -12,7 +12,7 @@ import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
-import { ShieldCheck, Loader2, Save, Percent, Wallet, Info, Globe } from 'lucide-react';
+import { ShieldCheck, Loader2, Save, Percent, Wallet, Info, Globe, Scale } from 'lucide-react';
 import { updateFinancialSettingsAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -29,11 +29,14 @@ export default function AdminSettingsPage() {
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState<string>('RWF');
+  const [interestModel, setInterestModel] = useState<string>('one-off');
+  const [interestType, setInterestType] = useState<string>('immediate');
 
-  // Sync state with Firestore data when it loads
   useEffect(() => {
-    if (settingsData?.currency) {
-      setSelectedCurrency(settingsData.currency);
+    if (settingsData) {
+      if (settingsData.currency) setSelectedCurrency(settingsData.currency);
+      if (settingsData.interestModel) setInterestModel(settingsData.interestModel);
+      if (settingsData.interestType) setInterestType(settingsData.interestType);
     }
   }, [settingsData]);
 
@@ -56,6 +59,8 @@ export default function AdminSettingsPage() {
       await updateFinancialSettingsAction({ 
         currency: selectedCurrency,
         loanInterestRate, 
+        interestModel,
+        interestType,
         contributionInterestRate, 
         maxLoanPercentage, 
         minLoanAmount, 
@@ -166,14 +171,43 @@ export default function AdminSettingsPage() {
           <Card className="border-none shadow-lg bg-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl text-primary">
-                <Info className="h-5 w-5" /> Interest Policy
+                <Scale className="h-5 w-5" /> Interest Policy (LOCKED Fields)
               </CardTitle>
-              <CardDescription>Configure earnings and costs for the tontine pool</CardDescription>
+              <CardDescription>Configure global rates that will be locked during loan requests and approvals</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Loan Interest (Interest In - % Monthly)</Label>
+                  <Label>Interest Model</Label>
+                  <Select value={interestModel} onValueChange={setInterestModel}>
+                    <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue placeholder="Select Model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="one-off">One-Off (Flat)</SelectItem>
+                      <SelectItem value="monthly">Monthly Interest</SelectItem>
+                      <SelectItem value="yearly">Yearly (APR)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">Sets how interest is calculated globally.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Interest Type (Deduction)</Label>
+                  <Select value={interestType} onValueChange={setInterestType}>
+                    <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue placeholder="Select Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="immediate">Discounted (Deduct Now)</SelectItem>
+                      <SelectItem value="afterward">Added-on (Pay Later)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">Sets if interest is taken at source or added to principal.</p>
+                </div>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Global Interest Rate (%)</Label>
                   <Input 
                     name="loanInterestRate" 
                     type="number" 
@@ -182,7 +216,7 @@ export default function AdminSettingsPage() {
                     required 
                     className="h-11 rounded-xl"
                   />
-                  <p className="text-[10px] text-muted-foreground">Rate charged to borrowers.</p>
+                  <p className="text-[10px] text-muted-foreground">Rate charged to borrowers. This will be read-only in the application process.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Target Monthly Contribution</Label>
