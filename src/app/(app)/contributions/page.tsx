@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -7,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Wallet, History, AlertCircle, Loader2, ShieldCheck, Upload, CheckCircle2, FileText, Info } from 'lucide-react';
+import { Wallet, History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, where, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
@@ -110,12 +111,10 @@ export default function ContributionsPage() {
     }
 
     try {
-      // 1. Upload Proof
       const fileRef = ref(storage, `contribution_proofs/${user.uid}/${Date.now()}_${proofFile.name}`);
       const uploadResult = await uploadBytes(fileRef, proofFile);
       const proofUrl = await getDownloadURL(uploadResult.ref);
 
-      // 2. Save Contribution as Pending
       await addDoc(collection(firestore, 'contributions'), {
         memberId: user.uid,
         amount,
@@ -161,7 +160,6 @@ export default function ContributionsPage() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
-        {/* Form Column */}
         <div className="lg:col-span-1 space-y-6">
           {isManagement ? (
             <Card className="border-primary/20 bg-primary/5 h-fit sticky top-24">
@@ -197,8 +195,13 @@ export default function ContributionsPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="amount">Amount ({currency})</Label>
-                      <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl" />
+                      <Label htmlFor="amount">Amount</Label>
+                      <div className="relative">
+                        <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14" />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">
+                          {currency}
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -234,8 +237,13 @@ export default function ContributionsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount ({currency})</Label>
-                    <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl" />
+                    <Label htmlFor="amount">Amount</Label>
+                    <div className="relative">
+                      <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14" />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">
+                        {currency}
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="proofFile">Proof of Payment</Label>
@@ -256,7 +264,6 @@ export default function ContributionsPage() {
           )}
         </div>
 
-        {/* List Column */}
         <div className={cn("space-y-6 lg:col-span-2")}>
           {isManagement && (
             <Card className="border-none shadow-lg">
