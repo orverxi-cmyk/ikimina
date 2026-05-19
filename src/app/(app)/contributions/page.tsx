@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -54,10 +53,10 @@ export default function ContributionsPage() {
   
   const contributionsQuery = useMemoFirebase(() => {
     if (!user || isLoading) return null;
-    // For admins, we can use orderBy on a collection directly. 
-    // For members, where + orderBy requires an index. We'll sort in memory instead.
+    // Admins see everything ordered by date
     if (isManagement) return query(collection(firestore, 'contributions'), orderBy('date', 'desc'));
-    return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
+    // Members see their own ordered by date. This will trigger a missing index error with a link.
+    return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid), orderBy('date', 'desc'));
   }, [user, isManagement, isLoading]);
 
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
@@ -66,13 +65,7 @@ export default function ContributionsPage() {
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   
   const contributions = useMemo(() => {
-    const list = contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
-    // Sort in-memory to avoid mandatory composite indexes for simple prototypes
-    return list.sort((a: any, b: any) => {
-      const da = a.date?.seconds || 0;
-      const db = b.date?.seconds || 0;
-      return db - da;
-    });
+    return contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
   }, [contributionsSnap]);
 
   const totalVerifiedBalance = useMemo(() => {

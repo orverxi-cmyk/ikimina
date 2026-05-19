@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -32,37 +31,26 @@ export default function ProfilePage() {
   const { data: settingsData } = useDoc(settingsRef);
   const currency = settingsData?.currency || 'RWF';
 
-  // Fetch target user's financial records
+  // Fetch target user's financial records with server-side ordering to utilize indexes
   const contributionsQuery = useMemoFirebase(() => {
     if (!targetId || userLoading) return null;
-    // Removing orderBy to bypass composite index requirement forFiltered views
-    return query(collection(firestore, 'contributions'), where('memberId', '==', targetId));
+    return query(collection(firestore, 'contributions'), where('memberId', '==', targetId), orderBy('date', 'desc'));
   }, [targetId, userLoading]);
 
   const loansQuery = useMemoFirebase(() => {
     if (!targetId || userLoading) return null;
-    return query(collection(firestore, 'loans'), where('memberId', '==', targetId));
+    return query(collection(firestore, 'loans'), where('memberId', '==', targetId), orderBy('requestDate', 'desc'));
   }, [targetId, userLoading]);
 
   const { data: contributionsSnap, loading: loadingConts } = useCollection(contributionsQuery);
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
 
   const contributions = useMemo(() => {
-    const list = contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
-    return list.sort((a: any, b: any) => {
-      const da = a.date?.seconds || 0;
-      const db = b.date?.seconds || 0;
-      return db - da;
-    });
+    return contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
   }, [contributionsSnap]);
 
   const loans = useMemo(() => {
-    const list = loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
-    return list.sort((a: any, b: any) => {
-      const da = a.requestDate?.seconds || 0;
-      const db = b.requestDate?.seconds || 0;
-      return db - da;
-    });
+    return loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
   }, [loansSnap]);
 
   const totalContributions = useMemo(() => contributions.reduce((acc, c: any) => acc + (c.amount || 0), 0), [contributions]);

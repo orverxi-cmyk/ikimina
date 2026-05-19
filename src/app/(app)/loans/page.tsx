@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -64,9 +63,8 @@ export default function LoansPage() {
   const loansQuery = useMemoFirebase(() => {
     if (!user || isLoading) return null;
     if (isManagement) return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
-    // Filtered queries with where+orderBy require composite indexes. 
-    // We remove the Firestore ordering here and sort in-memory for the member view.
-    return query(collection(firestore, 'loans'), where('memberId', '==', user.uid));
+    // Restore orderBy to trigger composite index creation for members
+    return query(collection(firestore, 'loans'), where('memberId', '==', user.uid), orderBy('requestDate', 'desc'));
   }, [user, isManagement, isLoading]);
 
   const contributionsQuery = useMemoFirebase(() => {
@@ -81,13 +79,7 @@ export default function LoansPage() {
   const { data: membersSnap } = useCollection(membersQuery);
 
   const loans = useMemo(() => {
-    const list = loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
-    // Sorting in-memory to ensure immediate functionality for members
-    return list.sort((a: any, b: any) => {
-      const da = a.requestDate?.seconds || 0;
-      const db = b.requestDate?.seconds || 0;
-      return db - da;
-    });
+    return loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
   }, [loansSnap]);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
