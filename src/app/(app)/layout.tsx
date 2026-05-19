@@ -1,9 +1,9 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { useUser } from '@/firebase/auth/use-user';
 import { Loader2 } from 'lucide-react';
@@ -34,14 +34,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-screen w-full bg-background overflow-hidden">
       <AppSidebar />
-      <main className="flex-1">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <Header />
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
+      </div>
       <MobileNav />
       {/* Padding for mobile nav */}
-      <div className="h-16 md:hidden" />
+      <div className="h-16 md:hidden shrink-0" />
     </div>
   );
 }
