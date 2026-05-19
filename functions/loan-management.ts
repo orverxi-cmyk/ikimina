@@ -1,10 +1,11 @@
+
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { calculateAmortizationSchedule } from './loan-schedules';
 
 /**
  * Processes a loan approval and generates the legal repayment schedule.
- * Performed on server to prevent manipulation of interest or balances.
+ * Supports deducted interest (one-off at source) and added-on interest.
  */
 export const approveLoan = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -27,10 +28,13 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         
         const loanData = loanSnap.data()!;
         const startDate = new Date(startDateStr);
-        const schedule = calculateAmortizationSchedule(loanData.amount, interestAmount, durationMonths, startDate);
+        
+        // If interest is deducted immediately, it doesn't add to the balance to be repaid.
+        const interestToAddToRepayment = interestType === 'afterward' ? interestAmount : 0;
+        const totalBalance = loanData.amount + interestToAddToRepayment;
+        const netDisbursed = interestType === 'immediate' ? (loanData.amount - interestAmount) : loanData.amount;
 
-        const interestTotal = interestType === 'afterward' ? interestAmount : 0;
-        const totalBalance = loanData.amount + interestTotal;
+        const schedule = calculateAmortizationSchedule(loanData.amount, interestToAddToRepayment, durationMonths, startDate);
 
         const batch = db.batch();
         
@@ -42,6 +46,7 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
             interestType,
             penaltyRate,
             balance: totalBalance,
+            netDisbursed,
             durationMonths,
             amortization: schedule,
             checkUrl,
@@ -58,7 +63,14 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
             adminId: request.auth.uid,
             action: 'APPROVE_LOAN',
             justification,
-            details: { loanId, memberId: loanData.memberId, principal: loanData.amount },
+            details: { 
+                loanId, 
+                memberId: loanData.memberId, 
+                principal: loanData.amount, 
+                interest: interestAmount, 
+                interestType, 
+                netDisbursed 
+            },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 

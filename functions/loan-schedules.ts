@@ -1,9 +1,13 @@
+
 import * as admin from 'firebase-admin';
 import { addMonths } from 'date-fns';
 
 /**
  * Pure logic for generating amortization schedules.
- * Separated to ensure consistency across the application.
+ * @param principal The requested amount.
+ * @param interestTotal The total interest to be collected (0 if deducted at source).
+ * @param months The loan duration.
+ * @param startDate Calculation anchor.
  */
 export function calculateAmortizationSchedule(
   principal: number,
@@ -11,6 +15,8 @@ export function calculateAmortizationSchedule(
   months: number,
   startDate: Date
 ) {
+  // Total to pay is principal + interestTotal.
+  // If interest is deducted immediately, interestTotal passed here should be 0.
   const totalToPay = principal + interestTotal;
   const monthlyInstallment = Math.round(totalToPay / months);
   

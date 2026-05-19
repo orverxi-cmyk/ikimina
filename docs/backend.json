@@ -54,7 +54,11 @@
         "amount": { "type": "number" },
         "interestAmount": { "type": "number" },
         "interestRate": { "type": "number", "description": "Monthly interest rate as a decimal" },
-        "interestType": { "type": "string", "enum": ["immediate", "afterward"] },
+        "interestType": { 
+          "type": "string", 
+          "enum": ["immediate", "afterward"],
+          "description": "immediate: deducted from disbursement; afterward: added to principal"
+        },
         "status": { "type": "string", "enum": ["requested", "approved", "rejected", "completed"] },
         "requestDate": { "type": "string", "format": "date-time" },
         "startDate": { "type": "string", "format": "date-time" },

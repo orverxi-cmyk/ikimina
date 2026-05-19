@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, Info, Wallet } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, Info, Wallet, Calculator } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -50,9 +50,11 @@ export default function LoansPage() {
   const [isRepayOpen, setIsRepayOpen] = useState(false);
   const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
+  
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedInstallment, setSelectedInstallment] = useState<number | null>(null);
-  const [interestType, setInterestType] = useState<'immediate' | 'afterward'>('afterward');
+  const [interestType, setInterestType] = useState<'immediate' | 'afterward'>('immediate');
+  const [tempInterestAmount, setTempInterestAmount] = useState<number>(0);
 
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
@@ -123,7 +125,6 @@ export default function LoansPage() {
     const amount = Number(formData.get('amount'));
     const description = formData.get('description') as string;
 
-    // Boundary Checks
     if (amount < (settingsData?.minLoanAmount || 1)) {
       toast({ 
         variant: "destructive", 
@@ -138,7 +139,7 @@ export default function LoansPage() {
       toast({ 
         variant: "destructive", 
         title: "Limit Exceeded", 
-        description: `Your borrowing limit is ${maxBorrowAmount.toLocaleString()} RWF based on contribution and system caps.` 
+        description: `Your borrowing limit is ${maxBorrowAmount.toLocaleString()} RWF.` 
       });
       setIsSubmitting(false);
       return;
@@ -151,15 +152,14 @@ export default function LoansPage() {
       status: 'requested',
       requestDate: serverTimestamp(),
       description,
-      penaltyAmount: 0,
       penaltyRate: 0.0015,
       interestAmount: 0,
-      interestType: 'afterward',
+      interestType: 'immediate',
     };
 
     addDoc(collection(firestore, 'loans'), loanData)
       .then(() => {
-        toast({ title: "Request Sent", description: "Your loan request has been submitted for management review." });
+        toast({ title: "Request Sent", description: "Your loan request has been submitted." });
         setIsRequestOpen(false);
       })
       .catch((err) => {
@@ -206,7 +206,7 @@ export default function LoansPage() {
         justification
       });
 
-      toast({ title: "Loan Approved", description: "Schedule generated and terms applied via secure backend." });
+      toast({ title: "Loan Approved", description: "Loan terms applied and schedule generated." });
       setIsApproveOpen(false);
       setSelectedLoan(null);
     } catch (error: any) {
@@ -226,7 +226,7 @@ export default function LoansPage() {
 
     try {
       await rejectLoanAction({ loanId: selectedLoan.id, justification });
-      toast({ title: "Loan Rejected", description: "The request has been officially denied." });
+      toast({ title: "Loan Rejected", description: "The request has been denied." });
       setIsRejectOpen(false);
       setSelectedLoan(null);
     } catch (error: any) {
@@ -255,12 +255,7 @@ export default function LoansPage() {
       const batch = writeBatch(firestore);
       const updatedAmortization = selectedLoan.amortization.map((inst: any) => {
         if (inst.installmentNumber === selectedInstallment) {
-          return { 
-            ...inst, 
-            status: 'paid', 
-            proofUrl, 
-            paidAt: new Date() 
-          };
+          return { ...inst, status: 'paid', proofUrl, paidAt: new Date() };
         }
         return inst;
       });
@@ -270,7 +265,6 @@ export default function LoansPage() {
         amortization: updatedAmortization,
       });
 
-      // Update user cache
       batch.update(doc(firestore, 'users', selectedLoan.memberId), {
         amortizationSchedule: updatedAmortization.map((s: any) => ({
           ...s,
@@ -315,34 +309,35 @@ export default function LoansPage() {
     return 0;
   };
 
+  const netDisbursedDisplay = useMemo(() => {
+    if (!selectedLoan) return 0;
+    if (interestType === 'immediate') {
+      return selectedLoan.amount - tempInterestAmount;
+    }
+    return selectedLoan.amount;
+  }, [selectedLoan, interestType, tempInterestAmount]);
+
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Loan Portfolio</h1>
-          <p className="text-muted-foreground font-medium">Repayment schedules and debt management</p>
+          <p className="text-muted-foreground font-medium">Manage and track Ikimina borrowing</p>
         </div>
         
-        <div className="flex flex-col items-end gap-2">
-          <Button 
-            onClick={() => setIsRequestOpen(true)} 
-            className="rounded-xl shadow-lg shadow-primary/20 h-11 px-6 font-bold"
-            disabled={!canRequestLoan}
-          >
-            <Plus className="mr-2 h-4 w-4" /> Request New Loan
-          </Button>
-          {hasActiveOrPendingLoan && (
-            <p className="text-[10px] text-orange-600 font-bold uppercase tracking-tight flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" /> One active/pending loan allowed at a time
-            </p>
-          )}
-        </div>
+        <Button 
+          onClick={() => setIsRequestOpen(true)} 
+          className="rounded-xl shadow-lg shadow-primary/20 h-11 px-6 font-bold"
+          disabled={!canRequestLoan}
+        >
+          <Plus className="mr-2 h-4 w-4" /> Request New Loan
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="bg-card border-none shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-bold text-green-700 uppercase tracking-widest">Active Books</CardTitle>
+            <CardTitle className="text-[10px] font-bold text-green-700 uppercase tracking-widest">Active Balance</CardTitle>
           </CardHeader>
           <CardContent><div className="text-2xl font-bold">{stats.active.toLocaleString()} RWF</div></CardContent>
         </Card>
@@ -354,7 +349,7 @@ export default function LoansPage() {
         </Card>
         <Card className="bg-card border-none shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">In Pipeline</CardTitle>
+            <CardTitle className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">Pending Requests</CardTitle>
           </CardHeader>
           <CardContent><div className="text-2xl font-bold">{stats.requested.toLocaleString()} RWF</div></CardContent>
         </Card>
@@ -362,17 +357,17 @@ export default function LoansPage() {
 
       <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
         <CardHeader className="bg-muted/10">
-          <CardTitle className="text-xl">Loan Directory</CardTitle>
-          <CardDescription>Comprehensive tracking of active debt and pending reviews</CardDescription>
+          <CardTitle className="text-xl">Directory</CardTitle>
+          <CardDescription>Track active and requested capital</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/5">
               <TableRow>
-                <TableHead className="py-4 px-6">{isManagement ? "Member Standing" : "Purpose"}</TableHead>
+                <TableHead className="py-4 px-6">{isManagement ? "Member" : "Details"}</TableHead>
                 <TableHead>Principal</TableHead>
                 <TableHead>Repayment Progress</TableHead>
-                <TableHead>Amortization Schedule</TableHead>
+                <TableHead>Schedule</TableHead>
                 <TableHead className="text-right px-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -380,125 +375,74 @@ export default function LoansPage() {
               {loadingLoans ? (
                 <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground h-8 w-8" /></TableCell></TableRow>
               ) : loans.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">No loans recorded in this jurisdiction.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">No records found.</TableCell></TableRow>
               ) : (
                 loans.map((loan: any) => {
-                  const totalInitial = loan.interestType === 'afterward' ? (loan.amount + (loan.interestAmount || 0)) : loan.amount;
-                  const progress = loan.status === 'approved' ? Math.min(100, Math.round(((totalInitial - loan.balance) / totalInitial) * 100)) : 0;
+                  const totalRepay = loan.interestType === 'afterward' ? (loan.amount + (loan.interestAmount || 0)) : loan.amount;
+                  const progress = loan.status === 'approved' ? Math.min(100, Math.round(((totalRepay - loan.balance) / totalRepay) * 100)) : 0;
                   const penalty = calculatePenalty(loan);
 
                   return (
-                    <TableRow key={loan.id} className="group hover:bg-muted/30 transition-colors">
-                      <TableCell className="py-4 px-6 align-top">
-                        <div className="flex flex-col gap-1.5">
-                          <span className="font-bold text-lg">{isManagement ? getMemberName(loan.memberId) : (loan.description || "Personal Loan")}</span>
+                    <TableRow key={loan.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="py-4 px-6">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold">{isManagement ? getMemberName(loan.memberId) : (loan.description || "Personal Loan")}</span>
                           <Badge variant="outline" className={cn(
-                            "w-fit text-[10px] uppercase font-bold",
-                            loan.status === 'approved' ? "text-green-600 border-green-200" :
-                            loan.status === 'requested' ? "text-blue-600 border-blue-200" : 
-                            loan.status === 'rejected' ? "text-destructive border-destructive/20" : "text-muted-foreground"
-                          )}>
-                            {loan.status}
-                          </Badge>
-                          {loan.rejectionJustification && (
-                            <p className="text-[10px] italic text-muted-foreground mt-1 max-w-[200px]">"{loan.rejectionJustification}"</p>
-                          )}
-                          {penalty > 0 && (
-                            <div className="flex items-center gap-1.5 text-[10px] text-orange-600 font-bold mt-1 bg-orange-500/10 p-1.5 rounded-lg w-fit">
-                              <AlertTriangle className="h-3.5 w-3.5" /> Penalty Applied: {penalty.toLocaleString()} RWF
-                            </div>
-                          )}
+                            "w-fit text-[9px] font-bold uppercase",
+                            loan.status === 'approved' ? "text-green-600" : loan.status === 'requested' ? "text-blue-600" : "text-muted-foreground"
+                          )}>{loan.status}</Badge>
+                          {penalty > 0 && <span className="text-[9px] text-orange-600 font-bold">Penalty: {penalty.toLocaleString()} RWF</span>}
                         </div>
                       </TableCell>
-                      <TableCell className="align-top font-bold pt-6">{loan.amount?.toLocaleString()} RWF</TableCell>
-                      <TableCell className="w-[180px] align-top pt-6">
+                      <TableCell className="font-bold">{loan.amount?.toLocaleString()} RWF</TableCell>
+                      <TableCell className="w-[180px]">
                         {loan.status === 'approved' ? (
-                          <div className="space-y-1.5">
+                          <div className="space-y-1">
                             <div className="flex justify-between text-[10px] font-bold">
-                              <span>{progress}% Repaid</span>
-                              <span>{loan.balance?.toLocaleString()} left</span>
+                              <span>{progress}% Paid</span>
+                              <span>{loan.balance?.toLocaleString()} Left</span>
                             </div>
-                            <Progress value={progress} className="h-2 rounded-full" />
+                            <Progress value={progress} className="h-1.5" />
                           </div>
-                        ) : loan.status === 'completed' ? (
-                          <div className="flex items-center gap-2 text-green-600 font-bold text-sm">
-                             <CheckCircle2 className="h-4 w-4" /> Fully Repaid
-                          </div>
-                        ) : <span className="text-muted-foreground text-xs italic">
-                          {loan.status === 'requested' ? "Review pending" : "No active schedule"}
-                        </span>}
+                        ) : <span className="text-muted-foreground text-[10px] italic">No active schedule</span>}
                       </TableCell>
-                      <TableCell className="py-4">
+                      <TableCell>
                         {loan.amortization ? (
-                          <div className="grid gap-2 min-w-[240px]">
+                          <div className="grid gap-1">
                             {loan.amortization.map((inst: any) => {
                               const d = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
-                              const isOverdue = inst.status !== 'paid' && isAfter(new Date(), d);
                               const isLoanOwner = loan.memberId === user?.uid;
-                              
                               return (
                                 <div key={inst.installmentNumber} className={cn(
-                                  "flex items-center justify-between text-[11px] p-2.5 rounded-xl border transition-all",
-                                  inst.status === 'paid' ? "bg-green-500/5 border-green-200/50 opacity-60" : 
-                                  isOverdue ? "bg-orange-500/5 border-orange-200" : "bg-background/40 border-transparent"
+                                  "flex items-center justify-between text-[10px] p-2 border rounded-lg",
+                                  inst.status === 'paid' ? "bg-green-500/5 opacity-60" : "bg-background"
                                 )}>
-                                  <div className="flex flex-col">
-                                    <span className="font-bold">Inst. #{inst.installmentNumber} • {format(d, 'MMM d, yyyy')}</span>
-                                    <span className="text-muted-foreground font-medium">{inst.amount.toLocaleString()} RWF</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {inst.status === 'paid' ? (
-                                      <span className="text-green-600 font-bold uppercase text-[9px]">Verified</span>
-                                    ) : (
-                                      isLoanOwner && (
-                                        <Button 
-                                          size="sm" 
-                                          variant="ghost" 
-                                          className="h-7 px-3 text-[10px] font-bold text-primary hover:bg-primary/10 rounded-lg"
-                                          onClick={() => { setSelectedLoan(loan); setSelectedInstallment(inst.installmentNumber); setIsRepayOpen(true); }}
-                                        >
-                                          Repay Now
-                                        </Button>
-                                      )
-                                    )}
-                                  </div>
+                                  <span className="font-medium">#{inst.installmentNumber} • {format(d, 'MMM d')}</span>
+                                  {inst.status !== 'paid' && isLoanOwner && (
+                                    <Button 
+                                      size="sm" variant="ghost" className="h-6 px-2 text-[9px] font-bold"
+                                      onClick={() => { setSelectedLoan(loan); setSelectedInstallment(inst.installmentNumber); setIsRepayOpen(true); }}
+                                    >Pay</Button>
+                                  )}
+                                  {inst.status === 'paid' && <CheckCircle2 className="h-3 w-3 text-green-600" />}
                                 </div>
                               );
                             })}
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-muted-foreground/40 italic text-xs">
-                             <Info className="h-3 w-3" /> Waiting for terms
+                        ) : <span className="text-muted-foreground text-[10px]">Review Pending</span>}
+                      </TableCell>
+                      <TableCell className="text-right px-6">
+                        {isManagement && loan.status === 'requested' && (
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" onClick={() => { setSelectedLoan(loan); setIsApproveOpen(true); }} className="h-8">Approve</Button>
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedLoan(loan); setIsRejectOpen(true); }} className="h-8 text-destructive">Reject</Button>
                           </div>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right align-top px-6 pt-6">
-                        <div className="flex justify-end gap-2">
-                          {isManagement && loan.status === 'requested' && (
-                            <>
-                              <Button 
-                                size="sm" 
-                                onClick={() => { setSelectedLoan(loan); setIsApproveOpen(true); }} 
-                                className="rounded-xl font-bold px-4 h-9"
-                              >
-                                Approve
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => { setSelectedLoan(loan); setIsRejectOpen(true); }} 
-                                className="rounded-xl font-bold px-4 h-9 text-destructive border-destructive/20 hover:bg-destructive/10"
-                              >
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                          {loan.checkUrl && (
-                            <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" asChild title="View Disbursed Check">
-                              <a href={loan.checkUrl} target="_blank" rel="noopener noreferrer"><FileText className="h-4 w-4" /></a>
-                            </Button>
-                          )}
-                        </div>
+                        {loan.checkUrl && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                            <a href={loan.checkUrl} target="_blank" rel="noopener noreferrer"><FileText className="h-4 w-4" /></a>
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -511,40 +455,138 @@ export default function LoansPage() {
 
       {/* Dialogs */}
       <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
-        <DialogContent className="sm:max-w-[425px] rounded-2xl">
+        <DialogContent className="rounded-2xl">
           <form onSubmit={handleRequestLoan}>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">Loan Request</DialogTitle>
-              <DialogDescription>Submit your capital requirements for board approval.</DialogDescription>
+              <DialogTitle>Request Capital</DialogTitle>
+              <DialogDescription>Apply for capital based on your contributions.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
-              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 flex items-center gap-3">
-                <Wallet className="h-8 w-8 text-primary" />
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Your Borrowing Power</p>
-                  <p className="text-lg font-bold">{maxBorrowAmount.toLocaleString()} RWF</p>
-                  <p className="text-[9px] text-muted-foreground">Based on {settingsData?.maxLoanPercentage || 80}% of your {userTotalContributions.toLocaleString()} RWF contribution</p>
-                </div>
+              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Max Borrowing power</p>
+                <p className="text-xl font-bold">{maxBorrowAmount.toLocaleString()} RWF</p>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="amount">Requested Principal (RWF)</Label>
-                <Input id="amount" name="amount" type="number" placeholder="e.g. 500000" required className="h-11 rounded-xl" />
-                <p className="text-[10px] text-muted-foreground">Min: {(settingsData?.minLoanAmount || 0).toLocaleString()} • Max: {(settingsData?.maxLoanAmount || 0).toLocaleString()}</p>
+                <Label htmlFor="amount">Amount (RWF)</Label>
+                <Input id="amount" name="amount" type="number" required className="rounded-xl" />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="description">Purpose of Loan</Label>
-                <Textarea id="description" name="description" placeholder="Brief explanation for the board..." required className="rounded-xl" />
+                <Label htmlFor="description">Purpose</Label>
+                <Textarea id="description" name="description" required className="rounded-xl" />
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold shadow-lg shadow-primary/20">
-                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : "Submit Request"}
-              </Button>
+              <Button type="submit" disabled={isSubmitting} className="w-full rounded-xl">Submit Request</Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-      {/* ... (Existing dialogs for Approve, Reject, Repay) ... */}
+
+      <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <form onSubmit={handleApproveLoan}>
+            <DialogHeader>
+              <DialogTitle>Approve & Disburse</DialogTitle>
+              <DialogDescription>Define terms for {selectedLoan ? getMemberName(selectedLoan.memberId) : 'Member'}.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-6">
+              <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-200">
+                <p className="text-[10px] uppercase font-bold text-blue-600 mb-1">Requested Capital</p>
+                <p className="text-xl font-bold">{selectedLoan?.amount?.toLocaleString()} RWF</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Interest Model</Label>
+                  <Select value={interestType} onValueChange={(v: any) => setInterestType(v)}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="immediate">Discounted (Deduct Now)</SelectItem>
+                      <SelectItem value="afterward">Added-on (Pay Later)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>One-off Interest</Label>
+                  <Input name="interestAmount" type="number" onChange={(e) => setTempInterestAmount(Number(e.target.value))} required className="rounded-xl" />
+                </div>
+              </div>
+
+              <div className="bg-green-500/5 p-3 rounded-xl border border-green-200 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Calculator className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-bold text-green-700">Net Disbursed Amount</span>
+                </div>
+                <span className="text-lg font-bold text-green-700">{netDisbursedDisplay.toLocaleString()} RWF</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Duration (Months)</Label>
+                  <Input name="duration" type="number" defaultValue="3" required className="rounded-xl" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Penalty Rate (% Day)</Label>
+                  <Input name="penaltyRate" type="number" step="0.01" defaultValue="0.15" required className="rounded-xl" />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Start Date</Label>
+                <Input name="startDate" type="date" defaultValue={format(new Date(), 'yyyy-MM-dd')} required className="rounded-xl" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Audit Justification</Label>
+                <Textarea name="justification" placeholder="E.g. Approved by board meeting..." required className="rounded-xl" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Check Proof (Upload)</Label>
+                <Input name="checkFile" type="file" className="rounded-xl" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full rounded-xl">Execute Disbursement</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
+        <DialogContent className="rounded-2xl">
+          <form onSubmit={handleRejectLoan}>
+            <DialogHeader>
+              <DialogTitle>Deny Request</DialogTitle>
+              <DialogDescription>Provide a reason for the denial.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <Label>Justification</Label>
+              <Textarea name="justification" required placeholder="Reason for rejection..." className="rounded-xl" />
+            </div>
+            <DialogFooter>
+              <Button type="submit" variant="destructive" disabled={isSubmitting} className="w-full rounded-xl">Confirm Rejection</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
+        <DialogContent className="rounded-2xl">
+          <form onSubmit={handleRepayInstallment}>
+            <DialogHeader>
+              <DialogTitle>Upload Repayment Proof</DialogTitle>
+              <DialogDescription>Recording payment for installment #{selectedInstallment}.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <Label>Amount Paid (RWF)</Label>
+              <Input name="amount" type="number" required className="rounded-xl" />
+              <Label>Proof (Image/PDF)</Label>
+              <Input name="proofFile" type="file" required className="rounded-xl" />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full rounded-xl">Submit Proof</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
