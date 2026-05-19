@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type {
-  DocumentData,
   Query,
   QuerySnapshot,
 } from 'firebase/firestore';
-import { onSnapshot, DocumentReference, CollectionReference } from 'firebase/firestore';
+import { onSnapshot, DocumentReference } from 'firebase/firestore';
 
 import { useFirestore } from '../provider';
 import { errorEmitter }from '@/firebase/error-emitter';
@@ -18,11 +17,13 @@ import {
 export function useDoc<T>(ref: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!ref) {
       setData(null);
       setLoading(false);
+      setError(null);
       return;
     }
 
@@ -32,12 +33,14 @@ export function useDoc<T>(ref: DocumentReference<T> | null) {
       (snap) => {
         setData(snap.exists() ? snap.data() : null);
         setLoading(false);
+        setError(null);
       },
       async (err) => {
         const permissionError = new FirestorePermissionError({
           path: ref.path,
           operation: 'get',
         } satisfies SecurityRuleContext);
+        setError(permissionError);
         errorEmitter.emit('permission-error', permissionError);
         console.error(err);
         setLoading(false);
@@ -47,17 +50,19 @@ export function useDoc<T>(ref: DocumentReference<T> | null) {
     return () => unsubscribe();
   }, [ref]);
 
-  return { data, loading };
+  return { data, loading, error };
 }
 
 export function useCollection<T>(query: Query<T> | null) {
   const [data, setData] = useState<QuerySnapshot<T> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!query) {
       setData(null);
       setLoading(false);
+      setError(null);
       return;
     }
 
@@ -67,6 +72,7 @@ export function useCollection<T>(query: Query<T> | null) {
       (snap) => {
         setData(snap);
         setLoading(false);
+        setError(null);
       },
       async (err) => {
         // Attempt to extract the path for professional error reporting
@@ -81,6 +87,7 @@ export function useCollection<T>(query: Query<T> | null) {
           path,
           operation: 'list',
         } satisfies SecurityRuleContext);
+        setError(permissionError);
         errorEmitter.emit('permission-error', permissionError);
         console.error(err);
         setLoading(false);
@@ -90,7 +97,7 @@ export function useCollection<T>(query: Query<T> | null) {
     return () => unsubscribe();
   }, [query]);
 
-  return { data, loading };
+  return { data, loading, error };
 }
 
 /**

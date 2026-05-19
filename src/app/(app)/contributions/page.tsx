@@ -48,7 +48,7 @@ export default function ContributionsPage() {
   const isManagement = role === 'management' || role === 'admin';
   const isLoading = userDataLoading;
 
-  // Firestore Subscriptions with performance-optimized filtering
+  // Firestore Subscriptions
   const membersQuery = useMemoFirebase(() => {
     if (!user || isLoading || !userData || !isManagement) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
@@ -58,14 +58,12 @@ export default function ContributionsPage() {
     if (!user || isLoading || !userData) return null;
     
     if (isManagement) {
-      // Management: View all records, chronologically
       return query(
         collection(firestore, 'contributions'), 
         orderBy('date', 'desc')
       );
     }
     
-    // Member: Strict ownership filter before ordering
     return query(
       collection(firestore, 'contributions'), 
       where('memberId', '==', user.uid),
@@ -91,10 +89,12 @@ export default function ContributionsPage() {
     }
   }, [contributionsError, toast]);
 
-  const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
+  const members = useMemo(() => {
+    return (membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []) as any[];
+  }, [membersSnap]);
   
   const contributions = useMemo(() => {
-    return contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [];
+    return (contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []) as any[];
   }, [contributionsSnap]);
 
   const totalVerifiedBalance = useMemo(() => {
