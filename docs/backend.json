@@ -99,6 +99,7 @@
       "properties": {
         "loanInterestRate": { "type": "number" },
         "contributionInterestRate": { "type": "number" },
+        "maxLoanPercentage": { "type": "number", "description": "Max % of contributions a member can borrow (e.g. 0.8 for 80%)" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "updatedBy": { "type": "string" }
       }

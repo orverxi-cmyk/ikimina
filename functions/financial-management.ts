@@ -1,3 +1,4 @@
+
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 
@@ -78,7 +79,7 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
 });
 
 /**
- * Updates global financial settings like default interest rates.
+ * Updates global financial settings like default interest rates and borrowing limits.
  */
 export const updateFinancialSettings = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -89,7 +90,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
         throw new HttpsError('permission-denied', 'Admin privileges required.');
     }
 
-    const { loanInterestRate, contributionInterestRate, justification } = request.data;
+    const { loanInterestRate, contributionInterestRate, maxLoanPercentage, justification } = request.data;
 
     try {
         const batch = db.batch();
@@ -98,6 +99,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
         batch.set(settingsRef, {
             loanInterestRate: Number(loanInterestRate),
             contributionInterestRate: Number(contributionInterestRate),
+            maxLoanPercentage: Number(maxLoanPercentage),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedBy: request.auth.uid
         }, { merge: true });
@@ -107,7 +109,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             adminId: request.auth.uid,
             action: 'UPDATE_FINANCIAL_SETTINGS',
             justification,
-            details: { loanInterestRate, contributionInterestRate },
+            details: { loanInterestRate, contributionInterestRate, maxLoanPercentage },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 

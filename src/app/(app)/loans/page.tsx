@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, Info } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, FileText, Upload, AlertTriangle, Info, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,9 @@ export default function LoansPage() {
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData } = useDoc(userRef);
+
+  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
+  const { data: settingsData } = useDoc(settingsRef);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestOpen, setIsRequestOpen] = useState(false);
@@ -59,13 +63,28 @@ export default function LoansPage() {
     return query(collection(firestore, 'loans'), where('memberId', '==', user.uid), orderBy('requestDate', 'desc'));
   }, [user, isManagement]);
 
+  const contributionsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
+  }, [user]);
+
   const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), []);
 
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
+  const { data: contributionsSnap } = useCollection(contributionsQuery);
   const { data: membersSnap } = useCollection(membersQuery);
 
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
+
+  const userTotalContributions = useMemo(() => {
+    return contributionsSnap?.docs.reduce((acc, d) => acc + (Number(d.data().amount) || 0), 0) || 0;
+  }, [contributionsSnap]);
+
+  const maxBorrowAmount = useMemo(() => {
+    const percentage = (settingsData?.maxLoanPercentage || 80) / 100;
+    return Math.floor(userTotalContributions * percentage);
+  }, [userTotalContributions, settingsData]);
 
   const hasActiveOrPendingLoan = useMemo(() => {
     return loans.some((l: any) => l.memberId === user?.uid && (l.status === 'requested' || l.status === 'approved'));
@@ -101,6 +120,16 @@ export default function LoansPage() {
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('amount'));
     const description = formData.get('description') as string;
+
+    if (amount > maxBorrowAmount) {
+      toast({ 
+        variant: "destructive", 
+        title: "Limit Exceeded", 
+        description: `Your borrowing limit is ${maxBorrowAmount.toLocaleString()} RWF based on ${settingsData?.maxLoanPercentage || 80}% of your total contributions.` 
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
     const loanData = {
       memberId: user.uid,
@@ -476,9 +505,17 @@ export default function LoansPage() {
               <DialogDescription>Submit your capital requirements for board approval.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
+              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 flex items-center gap-3">
+                <Wallet className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Your Borrowing Power</p>
+                  <p className="text-lg font-bold">{maxBorrowAmount.toLocaleString()} RWF</p>
+                  <p className="text-[9px] text-muted-foreground">Based on {settingsData?.maxLoanPercentage || 80}% of your {userTotalContributions.toLocaleString()} RWF contribution</p>
+                </div>
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="amount">Requested Principal (RWF)</Label>
-                <Input id="amount" name="amount" type="number" placeholder="500000" required className="h-11 rounded-xl" />
+                <Input id="amount" name="amount" type="number" placeholder="e.g. 500000" required className="h-11 rounded-xl" />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="description">Purpose of Loan</Label>

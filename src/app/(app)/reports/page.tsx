@@ -176,7 +176,7 @@ export default function ReportsPage() {
       filteredInterestOut,
       outstandingLoansBalance: loanStats.outstandingBalance,
       activeLoansCount: loanStats.activeCount,
-      netPotValue: totalContributed - loanStats.outstandingBalance,
+      netPotValue: totalContributed + filteredInterestIn - filteredInterestOut,
       memberSummaries
     };
   }, [members, contributions, loans, auditLogs, periodFilter]);
@@ -209,11 +209,12 @@ export default function ReportsPage() {
     const formData = new FormData(e.currentTarget);
     const loanInterestRate = Number(formData.get('loanInterestRate'));
     const contributionInterestRate = Number(formData.get('contributionInterestRate'));
+    const maxLoanPercentage = Number(formData.get('maxLoanPercentage'));
     const justification = formData.get('justification') as string;
 
     try {
-      await updateFinancialSettingsAction({ loanInterestRate, contributionInterestRate, justification });
-      toast({ title: "Settings Updated", description: "Global interest rates updated." });
+      await updateFinancialSettingsAction({ loanInterestRate, contributionInterestRate, maxLoanPercentage, justification });
+      toast({ title: "Settings Updated", description: "Global financial policies updated." });
       setIsSettingsOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Update Failed", description: error.message });
@@ -261,7 +262,7 @@ export default function ReportsPage() {
           {isAdmin && (
             <>
               <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)} className="rounded-xl h-9">
-                <Settings2 className="mr-2 h-4 w-4" /> Global Rates
+                <Settings2 className="mr-2 h-4 w-4" /> Policy Config
               </Button>
               <Button size="sm" onClick={() => setIsDialogOpen(true)} className="rounded-xl h-9">
                 <TrendingUp className="mr-2 h-4 w-4" /> Distribute Profit
@@ -366,6 +367,69 @@ export default function ReportsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleAllocateInterest}>
+            <DialogHeader>
+              <DialogTitle>Distribute Profits</DialogTitle>
+              <DialogDescription>Share accumulated interest among members based on their contribution weight.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="amount">Total Amount to Distribute (RWF)</Label>
+                <Input name="amount" type="number" required placeholder="500000" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="justification">Audit Justification</Label>
+                <Textarea name="justification" required placeholder="Reason for distribution..." />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isAllocating} className="w-full">
+                {isAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TrendingUp className="mr-2 h-4 w-4" />}
+                Execute Distribution
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleUpdateSettings}>
+            <DialogHeader>
+              <DialogTitle>Global Policy Configuration</DialogTitle>
+              <DialogDescription>Set fund-wide interest rates and borrowing limits.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Loan Interest Rate (Annual %)</Label>
+                <Input name="loanInterestRate" type="number" step="0.01" defaultValue={settingsData?.loanInterestRate || 10} required />
+              </div>
+              <div className="grid gap-2">
+                <Label>Contribution Target (Monthly RWF)</Label>
+                <Input name="contributionInterestRate" type="number" defaultValue={settingsData?.contributionInterestRate || 50000} required />
+              </div>
+              <div className="grid gap-2">
+                <Label className="flex items-center gap-1">Max Loan % of Contributions <Percent className="h-3 w-3" /></Label>
+                <Input name="maxLoanPercentage" type="number" step="1" defaultValue={settingsData?.maxLoanPercentage || 80} required />
+                <p className="text-[10px] text-muted-foreground">Maximum percentage of their total contributions a member can borrow.</p>
+              </div>
+              <div className="grid gap-2">
+                <Label>Justification</Label>
+                <Textarea name="justification" required placeholder="Reason for policy change..." />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isUpdatingSettings} className="w-full">
+                {isUpdatingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Policies
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

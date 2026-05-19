@@ -1,3 +1,4 @@
+
 'use client';
 /**
  * @fileOverview Client-side bridge to call secure Cloud Functions.
@@ -67,7 +68,7 @@ export async function allocateInterestAction(uid: string, data: { totalInterestT
   }
 }
 
-export async function updateFinancialSettingsAction(data: { loanInterestRate: number, contributionInterestRate: number, justification: string }) {
+export async function updateFinancialSettingsAction(data: { loanInterestRate: number, contributionInterestRate: number, maxLoanPercentage: number, justification: string }) {
   const functions = getFinanceFunctions();
   const settingsFn = httpsCallable(functions, 'updateFinancialSettings');
   try {
