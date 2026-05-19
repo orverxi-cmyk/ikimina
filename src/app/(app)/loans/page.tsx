@@ -356,26 +356,35 @@ export default function LoansPage() {
                  <p className="text-2xl font-bold text-primary">{formatCurrency(selectedLoan?.balance || 0, currency)}</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="repayAmount">Payment Amount</Label>
-                <div className="relative">
-                  <Input 
-                    id="repayAmount" 
-                    name="repayAmount" 
-                    type="number" 
-                    max={selectedLoan?.balance} 
-                    required 
-                    className="h-11 rounded-xl pr-14" 
-                    placeholder="Enter amount..."
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground uppercase">{currency}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase text-muted-foreground">Regular Installment</Label>
+                  <div className="h-11 rounded-xl border bg-muted/20 px-3 flex items-center font-bold text-sm">
+                    {formatCurrency(selectedLoan?.amortization?.find((i: any) => i.status === 'pending')?.amount || 0, currency)}
+                  </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Info className="h-3 w-3" /> Custom amount allowed up to total balance.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="repayAmount" className="text-[10px] font-bold uppercase text-muted-foreground">Payment Amount</Label>
+                  <div className="relative">
+                    <Input 
+                      id="repayAmount" 
+                      name="repayAmount" 
+                      type="number" 
+                      max={selectedLoan?.balance} 
+                      defaultValue={selectedLoan?.amortization?.find((i: any) => i.status === 'pending')?.amount || ''}
+                      required 
+                      className="h-11 rounded-xl pr-14" 
+                      placeholder="0"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground uppercase">{currency}</div>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Proof of Transfer / Receipt</Label>
-                <Input name="proofFile" type="file" required className="h-11 rounded-xl py-2.5" />
+                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Proof of Transfer / Receipt</Label>
+                <Input name="proofFile" type="file" required className="h-11 rounded-xl py-2.5 text-xs" />
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Info className="h-3 w-3" /> Upload bank receipt or screenshot</p>
               </div>
             </div>
             <DialogFooter>
