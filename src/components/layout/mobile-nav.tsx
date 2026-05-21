@@ -18,7 +18,7 @@ export function MobileNav() {
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-black border-t border-white/10 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.4)]">
       <nav className="flex justify-around items-center h-16 px-2">
         {leftItems.map((item) => (
           <Link
@@ -26,11 +26,11 @@ export function MobileNav() {
             href={item.href}
             className={cn(
               'flex flex-col items-center justify-center w-full h-full transition-colors',
-              pathname === item.href ? 'text-primary' : 'text-muted-foreground'
+              pathname === item.href ? 'text-primary' : 'text-gray-400'
             )}
           >
             <item.icon className="h-5 w-5" />
-            <span className="text-[10px] mt-1 font-medium">{item.label}</span>
+            <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">{item.label}</span>
           </Link>
         ))}
         
@@ -38,7 +38,7 @@ export function MobileNav() {
         <div className="relative w-full h-full flex items-center justify-center">
           <Link 
             href="/loans?apply=true" 
-            className="absolute -top-6 bg-primary rounded-2xl w-14 h-14 shadow-lg shadow-primary/30 border-4 border-background flex flex-col items-center justify-center text-primary-foreground group active:scale-95 transition-transform"
+            className="absolute -top-6 bg-primary rounded-2xl w-14 h-14 shadow-lg shadow-primary/30 border-4 border-black flex flex-col items-center justify-center text-primary-foreground group active:scale-95 transition-transform"
           >
             <HandCoins className="h-6 w-6" />
             <span className="text-[8px] font-bold uppercase mt-0.5">Apply</span>
@@ -51,11 +51,11 @@ export function MobileNav() {
             href={item.href}
             className={cn(
               'flex flex-col items-center justify-center w-full h-full transition-colors',
-              pathname === item.href ? 'text-primary' : 'text-muted-foreground'
+              pathname === item.href ? 'text-primary' : 'text-gray-400'
             )}
           >
             <item.icon className="h-5 w-5" />
-            <span className="text-[10px] mt-1 font-medium">{item.label}</span>
+            <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">{item.label}</span>
           </Link>
         ))}
       </nav>

@@ -32,15 +32,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
-      {/* Global Full-Width Header */}
-      <header className="grid grid-cols-3 h-16 w-full items-center border-b border-border bg-background px-4 md:px-10 sticky top-0 z-40 shrink-0 shadow-sm backdrop-blur-sm">
+      {/* Global Full-Width Header - Standardized Blue */}
+      <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-primary px-4 md:px-10 sticky top-0 z-40 shrink-0 shadow-lg">
         <div className="flex items-center justify-start">
           {!isRootLevel ? (
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={() => router.back()} 
-              className="md:hidden rounded-full hover:bg-muted -ml-2"
+              className="md:hidden rounded-full hover:bg-white/10 text-white -ml-2"
             >
               <ChevronLeft className="h-6 w-6" />
             </Button>
@@ -49,10 +49,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className={!isRootLevel ? "hidden md:block" : "block"}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted">
-                  <Avatar className="h-9 w-9 border border-border">
+                <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10 text-white">
+                  <Avatar className="h-9 w-9 border border-white/20">
                     <AvatarImage src={`https://picsum.photos/seed/${user?.uid}/100/100`} />
-                    <AvatarFallback className="bg-primary/10 text-primary">A</AvatarFallback>
+                    <AvatarFallback className="bg-white/20 text-white">A</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
@@ -70,20 +70,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         <div className="flex items-center justify-center gap-2">
-          <div className="bg-primary p-1.5 rounded-lg shadow-lg shadow-primary/20">
-            <Wallet className="h-4 w-4 md:h-5 md:w-5 text-primary-foreground" />
+          <div className="bg-white p-1.5 rounded-lg shadow-lg">
+            <Wallet className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           </div>
-          <span className="font-headline text-sm md:text-lg font-bold tracking-tight text-foreground uppercase whitespace-nowrap">
+          <span className="font-headline text-sm md:text-lg font-bold tracking-tight text-white uppercase whitespace-nowrap">
             Ikimina App
           </span>
         </div>
 
         <div className="flex items-center justify-end">
-          <div className="hidden sm:flex items-center gap-2 text-[10px] font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20">
+          <div className="hidden sm:flex items-center gap-2 text-[10px] font-bold text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/20">
             <ShieldCheck className="h-3 w-3" />
             ADMIN ACCESS
           </div>
-          <Button variant="ghost" size="icon" onClick={handleLogout} className="sm:hidden text-destructive">
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="sm:hidden text-white hover:bg-white/10">
              <LogOut className="h-5 w-5" />
           </Button>
         </div>
