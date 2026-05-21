@@ -33,12 +33,12 @@ export function AppSidebar() {
 
   if (!mounted) {
     return (
-      <aside className="hidden md:flex flex-col w-64 border-r bg-card p-6 space-y-6">
+      <aside className="hidden md:flex flex-col w-64 border-r border-white/10 bg-black p-6 space-y-6">
         <div className="flex items-center gap-3 px-2">
           <div className="bg-primary p-2 rounded-lg">
             <Wallet className="h-6 w-6 text-primary-foreground" />
           </div>
-          <span className="font-headline text-xl font-bold tracking-tight text-foreground">Ikimina App</span>
+          <span className="font-headline text-xl font-bold tracking-tight text-white">Ikimina App</span>
         </div>
       </aside>
     );
@@ -62,12 +62,12 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-64 border-r bg-card p-6 space-y-6">
+    <aside className="hidden md:flex flex-col w-64 border-r border-white/10 bg-black p-6 space-y-6">
       <div className="flex items-center gap-3 px-2">
         <div className="bg-primary p-2 rounded-lg shadow-lg shadow-primary/20">
           <Wallet className="h-6 w-6 text-primary-foreground" />
         </div>
-        <span className="font-headline text-xl font-bold tracking-tight text-foreground">Ikimina App</span>
+        <span className="font-headline text-xl font-bold tracking-tight text-white">Ikimina App</span>
       </div>
 
       <nav className="flex-1 space-y-1">
@@ -81,7 +81,7 @@ export function AppSidebar() {
                 'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition-all',
                 isActive 
                   ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'
               )}
             >
               <item.icon className="h-5 w-5" />
@@ -91,11 +91,11 @@ export function AppSidebar() {
         })}
       </nav>
 
-      <div className="pt-6 border-t border-border/50">
+      <div className="pt-6 border-t border-white/10">
         {user && (
-          <div className="px-4 py-3 bg-accent/30 rounded-xl">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Authenticated</p>
-            <p className="text-sm font-bold truncate text-foreground">{userData?.name || user.email}</p>
+          <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/5">
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Authenticated</p>
+            <p className="text-sm font-bold truncate text-white">{userData?.name || user.email}</p>
             <div className="flex items-center gap-1 mt-1">
               <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
               <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>
