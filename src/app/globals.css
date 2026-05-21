@@ -4,10 +4,10 @@
 
 @layer base {
   :root {
-    --background: 0 0% 0%; /* Pure Black Background for pages */
-    --foreground: 0 0% 100%; /* White text for global elements */
+    --background: 0 0% 100%; /* Pure White Background for pages */
+    --foreground: 222.2 84% 4.9%; /* Dark text for global elements */
     
-    --card: 0 0% 100%; /* White Card Background for differentiation */
+    --card: 0 0% 100%; /* White Card Background */
     --card-foreground: 222.2 84% 4.9%; /* Dark text inside cards */
     
     --popover: 0 0% 100%;
@@ -48,11 +48,11 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 0, 0, 0.1);
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(0, 0, 0, 0.2);
   }
 }

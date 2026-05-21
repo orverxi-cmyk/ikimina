@@ -82,7 +82,7 @@ export default function AdminSettingsPage() {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <ShieldCheck className="h-12 w-12 text-destructive" />
-        <h2 className="text-2xl font-bold font-headline text-white">Access Restricted</h2>
+        <h2 className="text-2xl font-bold font-headline">Access Restricted</h2>
         <p className="text-muted-foreground">Only administrators can access system settings.</p>
       </div>
     );
@@ -91,14 +91,14 @@ export default function AdminSettingsPage() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-24">
       <div>
-        <h1 className="text-3xl font-headline font-bold text-white">System Settings</h1>
+        <h1 className="text-3xl font-headline font-bold">System Settings</h1>
         <p className="text-muted-foreground">Manage global financial rules and lending policies</p>
       </div>
 
       <form onSubmit={handleUpdateSettings}>
         <div className="grid gap-6">
           {/* Regional Settings Card */}
-          <Card className="border-none shadow-lg bg-card rounded-[10px]">
+          <Card className="border border-border shadow-sm bg-card rounded-[10px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Globe className="h-5 w-5 text-primary" /> Regional Settings
@@ -122,7 +122,7 @@ export default function AdminSettingsPage() {
           </Card>
 
           {/* Lending Constraints Card */}
-          <Card className="border-none shadow-lg bg-card rounded-[10px]">
+          <Card className="border border-border shadow-sm bg-card rounded-[10px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl text-primary">
                 <Wallet className="h-5 w-5" /> Lending Constraints
@@ -170,7 +170,7 @@ export default function AdminSettingsPage() {
           </Card>
 
           {/* Interest Policy Card */}
-          <Card className="border-none shadow-lg bg-card rounded-[10px]">
+          <Card className="border border-border shadow-sm bg-card rounded-[10px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl text-primary">
                 <Scale className="h-5 w-5" /> Interest Policy (LOCKED Fields)
@@ -236,7 +236,7 @@ export default function AdminSettingsPage() {
           </Card>
 
           {/* Authorization Card */}
-          <Card className="border-none shadow-lg bg-card rounded-[10px] border-primary/10">
+          <Card className="border border-border shadow-sm bg-card rounded-[10px] border-primary/10">
             <CardHeader>
               <CardTitle className="text-xl">Authorization</CardTitle>
               <CardDescription>Confirm changes with a permanent audit justification</CardDescription>

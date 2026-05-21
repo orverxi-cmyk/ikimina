@@ -220,19 +220,19 @@ function LoansPageContent() {
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold text-white">Lending & Capital</h1>
-          <p className="text-white/60 font-medium">Manage borrowing cycles and repayment schedules</p>
+          <h1 className="text-3xl font-headline font-bold">Lending & Capital</h1>
+          <p className="text-muted-foreground font-medium">Manage borrowing cycles and repayment schedules</p>
         </div>
         <div className="flex items-center gap-2">
            <Button onClick={() => setIsApplyOpen(true)} className="rounded-[10px] font-bold h-11 px-6 shadow-lg shadow-primary/20">
              <Plus className="mr-2 h-4 w-4" /> Apply for Loan
            </Button>
            <div className="hidden lg:flex gap-2">
-              <div className="bg-muted px-4 py-2 rounded-[10px] border border-white/5 text-center min-w-[120px]">
+              <div className="bg-muted px-4 py-2 rounded-[10px] border border-border text-center min-w-[120px]">
                   <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Gained Interest</p>
                   <p className="text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>
               </div>
-              <div className="bg-muted px-4 py-2 rounded-[10px] border border-white/5 text-center min-w-[120px]">
+              <div className="bg-muted px-4 py-2 rounded-[10px] border border-border text-center min-w-[120px]">
                   <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">Interest Paid</p>
                   <p className="text-sm font-bold text-orange-600">-{formatCurrency(interestSummary.paid, currency)}</p>
               </div>
@@ -252,7 +252,7 @@ function LoansPageContent() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {pendingRepayments.map((r: any) => (
-              <div key={r.id} className="bg-card p-4 rounded-[10px] border flex flex-col gap-3 shadow-sm">
+              <div key={r.id} className="bg-card p-4 rounded-[10px] border border-border flex flex-col gap-3 shadow-sm">
                 <div className="flex justify-between items-start">
                   <span className="text-xs font-bold text-muted-foreground">Repayment Submission</span>
                   <Badge variant="outline" className="text-[9px] font-bold uppercase">Pending</Badge>
@@ -273,17 +273,17 @@ function LoansPageContent() {
       )}
 
       <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-14 rounded-[10px] bg-white/5 border border-white/10 p-1.5 mb-8">
-          <TabsTrigger value="schedule" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-white data-[state=active]:text-black text-white/60">
+        <TabsList className="grid w-full grid-cols-4 h-14 rounded-[10px] bg-muted border border-border p-1.5 mb-8">
+          <TabsTrigger value="schedule" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground">
             <Calendar className="h-4 w-4" /> Schedule
           </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-white data-[state=active]:text-black text-white/60">
+          <TabsTrigger value="history" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground">
             <HistoryIcon className="h-4 w-4" /> History
           </TabsTrigger>
-          <TabsTrigger value="interest" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-white data-[state=active]:text-black text-white/60">
+          <TabsTrigger value="interest" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground">
             <Landmark className="h-4 w-4" /> Interest
           </TabsTrigger>
-          <TabsTrigger value="arrears" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-white data-[state=active]:text-black text-white/60 relative">
+          <TabsTrigger value="arrears" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground relative">
             <AlertTriangle className="h-4 w-4" /> Arrears
             {missedInstallments.length > 0 && (
               <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] text-white animate-bounce">
@@ -294,7 +294,7 @@ function LoansPageContent() {
         </TabsList>
 
         <TabsContent value="schedule" className="space-y-6">
-          <Card className="border-none shadow-xl bg-card rounded-[10px] overflow-hidden">
+          <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
                 <HandCoins className="h-5 w-5 text-primary" /> Active Repayment Windows
@@ -350,7 +350,7 @@ function LoansPageContent() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">
-          <Card className="border-none shadow-xl bg-card rounded-[10px] overflow-hidden">
+          <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
              <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl">Loan Lifecycle Audit</CardTitle>
               <CardDescription>Comprehensive record of all requested, approved, and rejected loans.</CardDescription>
@@ -397,7 +397,7 @@ function LoansPageContent() {
 
         <TabsContent value="interest" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
-            <Card className="border-none shadow-lg bg-white rounded-[10px]">
+            <Card className="border border-border shadow-sm bg-card rounded-[10px]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-green-700">
                   <TrendingUp className="h-5 w-5" /> Interest Gained
@@ -410,7 +410,7 @@ function LoansPageContent() {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-lg bg-white rounded-[10px]">
+            <Card className="border border-border shadow-sm bg-card rounded-[10px]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-orange-700">
                   <TrendingDown className="h-5 w-5" /> Interest Paid
@@ -426,7 +426,7 @@ function LoansPageContent() {
         </TabsContent>
 
         <TabsContent value="arrears" className="space-y-6">
-          <Card className="border-destructive/20 shadow-xl bg-card rounded-[10px] overflow-hidden">
+          <Card className="border-destructive/20 border shadow-sm bg-card rounded-[10px] overflow-hidden">
             <CardHeader className="bg-destructive/5 border-b border-destructive/10">
               <CardTitle className="text-xl flex items-center gap-2 text-destructive">
                 <AlertTriangle className="h-5 w-5" /> Arrears & Missed Windows
@@ -486,7 +486,7 @@ function LoansPageContent() {
               <DialogDescription className="font-medium">Apply for a loan based on your verified contribution weight.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
-              <div className="p-4 bg-muted rounded-[10px] border border-white/5 space-y-1">
+              <div className="p-4 bg-muted rounded-[10px] border border-border space-y-1">
                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
                    <ShieldCheck className="h-3 w-3 text-primary" /> Max Borrowing Power
                  </p>
@@ -551,7 +551,7 @@ function LoansPageContent() {
                 <Input name="justification" placeholder="e.g. Bank Transfer #12345" className="h-11 rounded-[10px] bg-muted border-none" required />
               </div>
 
-              <div className="p-4 bg-muted rounded-[10px] border border-white/5">
+              <div className="p-4 bg-muted rounded-[10px] border border-border">
                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1 tracking-widest">Outstanding Balance</p>
                  <p className="text-2xl font-bold text-primary">{formatCurrency(selectedLoan?.balance || 0, currency)}</p>
               </div>
@@ -559,7 +559,7 @@ function LoansPageContent() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Regular Installment</Label>
-                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-black/80">
+                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/80">
                     {formatCurrency(selectedLoan?.amortization?.find((i: any) => i.status === 'pending')?.amount || 0, currency)}
                   </div>
                 </div>
@@ -596,7 +596,7 @@ function LoansPageContent() {
               <DialogDescription className="font-medium">Validate payment evidence before updating member balance.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-6">
-               <div className="p-4 bg-muted rounded-[10px] space-y-2 border border-white/5">
+               <div className="p-4 bg-muted rounded-[10px] space-y-2 border border-border">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground font-bold">Amount Claimed:</span>
                     <span className="font-bold text-sm">{selectedRepayment ? formatCurrency(selectedRepayment.amount, currency) : '-'}</span>

@@ -28,21 +28,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { href: '/admin/settings', label: 'Settings', icon: Settings },
   ];
 
-  // In admin, we might want back buttons on mobile for any sub-page
   const isRootLevel = pathname === '/admin';
 
   return (
-    <div className="flex flex-col h-screen w-full bg-black overflow-hidden">
-      {/* Global Full-Width Header - Standardized with main app */}
-      <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-[#050505] px-4 md:px-10 sticky top-0 z-40 text-white shrink-0 shadow-xl backdrop-blur-sm">
-        {/* Left: Back Button (Mobile) or Profile Avatar */}
+    <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
+      {/* Global Full-Width Header */}
+      <header className="grid grid-cols-3 h-16 w-full items-center border-b border-border bg-background px-4 md:px-10 sticky top-0 z-40 shrink-0 shadow-sm backdrop-blur-sm">
         <div className="flex items-center justify-start">
           {!isRootLevel ? (
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={() => router.back()} 
-              className="md:hidden rounded-full hover:bg-white/10 -ml-2"
+              className="md:hidden rounded-full hover:bg-muted -ml-2"
             >
               <ChevronLeft className="h-6 w-6" />
             </Button>
@@ -51,10 +49,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className={!isRootLevel ? "hidden md:block" : "block"}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10">
-                  <Avatar className="h-9 w-9 border border-white/10">
+                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted">
+                  <Avatar className="h-9 w-9 border border-border">
                     <AvatarImage src={`https://picsum.photos/seed/${user?.uid}/100/100`} />
-                    <AvatarFallback className="bg-primary/20 text-primary">A</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary">A</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
@@ -71,17 +69,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        {/* Center: Branding - Standardized Centering */}
         <div className="flex items-center justify-center gap-2">
           <div className="bg-primary p-1.5 rounded-lg shadow-lg shadow-primary/20">
             <Wallet className="h-4 w-4 md:h-5 md:w-5 text-primary-foreground" />
           </div>
-          <span className="font-headline text-sm md:text-lg font-bold tracking-tight text-white uppercase whitespace-nowrap">
+          <span className="font-headline text-sm md:text-lg font-bold tracking-tight text-foreground uppercase whitespace-nowrap">
             Ikimina App
           </span>
         </div>
 
-        {/* Right: Role Status */}
         <div className="flex items-center justify-end">
           <div className="hidden sm:flex items-center gap-2 text-[10px] font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20">
             <ShieldCheck className="h-3 w-3" />
@@ -94,18 +90,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </header>
 
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Workspace Container with spacing */}
         <div className="flex flex-1 w-full p-4 gap-4 overflow-hidden">
-          {/* Floating Sidebar */}
-          <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[10px] border border-white/10 shrink-0 shadow-2xl">
-            <div className="flex flex-col gap-1 px-4 py-3 border-b border-white/10">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">Internal System</h2>
+          <aside className="hidden md:flex flex-col w-64 bg-background p-6 space-y-8 rounded-[10px] border border-border shrink-0 shadow-sm">
+            <div className="flex flex-col gap-1 px-4 py-3 border-b border-border">
+              <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Internal System</h2>
               <span className="text-xs font-bold text-primary flex items-center gap-2">
                 <ShieldCheck className="h-3 w-3" /> Administrator Console
               </span>
             </div>
 
-            <nav className="flex-1 space-y-2">
+            <nav className="flex-1 space-y-1">
               {menuItems.map((item) => {
                 const isActive = pathname === item.href;
                 return (
@@ -116,7 +110,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                       'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all',
                       isActive 
                         ? 'bg-primary text-primary-foreground shadow-lg' 
-                        : 'text-white/60 hover:bg-white/5 hover:text-white'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     )}
                   >
                     <item.icon className="h-4 w-4" />
@@ -127,7 +121,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </nav>
           </aside>
           
-          {/* Main Application Window */}
           <main className="flex-1 overflow-auto rounded-[10px] relative">
             <div className="min-h-full">
               {children}

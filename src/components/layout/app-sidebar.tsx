@@ -34,10 +34,10 @@ export function AppSidebar() {
 
   if (!mounted) {
     return (
-      <aside className="hidden md:flex flex-col w-64 rounded-[10px] bg-black p-6">
+      <aside className="hidden md:flex flex-col w-64 rounded-[10px] bg-background p-6">
         <div className="animate-pulse flex flex-col gap-2">
-          <div className="h-2 w-24 bg-white/10 rounded" />
-          <div className="h-4 w-32 bg-white/10 rounded" />
+          <div className="h-2 w-24 bg-muted rounded" />
+          <div className="h-4 w-32 bg-muted rounded" />
         </div>
       </aside>
     );
@@ -62,10 +62,10 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[10px] shadow-2xl border border-white/5 shrink-0">
-      {/* Internal System Status relocated from Header */}
-      <div className="flex flex-col gap-1 px-4 py-3 border-b border-white/10">
-        <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">
+    <aside className="hidden md:flex flex-col w-64 bg-background p-6 space-y-8 rounded-[10px] shadow-sm border border-border shrink-0">
+      {/* Internal System Status */}
+      <div className="flex flex-col gap-1 px-4 py-3 border-b border-border">
+        <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
           Internal System
         </h2>
         <span className="text-xs font-bold text-primary">
@@ -73,33 +73,32 @@ export function AppSidebar() {
         </span>
       </div>
 
-      <nav className="flex-1 space-y-2">
+      <nav className="flex-1 space-y-1">
         {menuItems.map((item) => {
-          // Match active state based on base path to handle query params
           const isActive = pathname === item.href.split('?')[0];
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-[10px] px-4 py-3.5 text-sm font-bold transition-all duration-200',
+                'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all duration-200',
                 isActive 
                   ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
-                  : 'text-white/60 hover:bg-white/5 hover:text-white'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-4 w-4" />
               <span>{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="pt-6 border-t border-white/10">
+      <div className="pt-6 border-t border-border">
         {user && (
-          <div className="px-4 py-3 bg-white/5 rounded-[10px] border border-white/5">
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Session</p>
-            <p className="text-sm font-bold truncate text-white">{userData?.name || user.email}</p>
+          <div className="px-4 py-3 bg-muted rounded-[10px] border border-border">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Session</p>
+            <p className="text-sm font-bold truncate text-foreground">{userData?.name || user.email}</p>
             <div className="flex items-center gap-1.5 mt-1.5">
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>

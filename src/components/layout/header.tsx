@@ -27,7 +27,7 @@ export function Header() {
   const isRootLevel = ['/', '/messages', '/profile/me', '/more'].includes(pathname);
 
   return (
-    <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-[#050505] px-4 md:px-10 sticky top-0 z-40 text-white shrink-0 shadow-xl backdrop-blur-sm">
+    <header className="grid grid-cols-3 h-16 w-full items-center border-b border-border bg-background px-4 md:px-10 sticky top-0 z-40 shrink-0 shadow-sm backdrop-blur-sm">
       {/* Left Column: Back Button (Mobile) or Profile Avatar */}
       <div className="flex items-center justify-start">
         {!isRootLevel ? (
@@ -35,7 +35,7 @@ export function Header() {
             variant="ghost" 
             size="icon" 
             onClick={() => router.back()} 
-            className="md:hidden rounded-full hover:bg-white/10 -ml-2"
+            className="md:hidden rounded-full hover:bg-muted -ml-2"
           >
             <ChevronLeft className="h-6 w-6" />
           </Button>
@@ -45,15 +45,15 @@ export function Header() {
         <div className={!isRootLevel ? "hidden md:block" : "block"}>
           {user ? (
             <Link href="/profile/me">
-              <Avatar className="h-9 w-9 border border-white/10 hover:scale-105 transition-transform">
+              <Avatar className="h-9 w-9 border border-border hover:scale-105 transition-transform">
                 <AvatarImage src={`https://picsum.photos/seed/${user.uid}/100/100`} />
-                <AvatarFallback className="bg-primary/20 text-primary font-bold">
+                <AvatarFallback className="bg-primary/10 text-primary font-bold">
                   {userData?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
             </Link>
           ) : (
-            <div className="w-9 h-9 rounded-full bg-white/5 border border-dashed border-white/20" />
+            <div className="w-9 h-9 rounded-full bg-muted border border-dashed border-border" />
           )}
         </div>
       </div>
@@ -63,7 +63,7 @@ export function Header() {
         <div className="bg-primary p-1.5 rounded-lg shadow-lg shadow-primary/20">
           <Wallet className="h-4 w-4 md:h-5 md:w-5 text-primary-foreground" />
         </div>
-        <span className="font-headline text-sm md:text-lg font-bold tracking-tight text-white uppercase whitespace-nowrap">
+        <span className="font-headline text-sm md:text-lg font-bold tracking-tight text-foreground uppercase whitespace-nowrap">
           Ikimina App
         </span>
       </div>
