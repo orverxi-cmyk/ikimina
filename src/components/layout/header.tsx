@@ -27,7 +27,7 @@ export function Header() {
   const isRootLevel = ['/', '/messages', '/profile/me', '/more'].includes(pathname);
 
   return (
-    <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-primary px-4 md:px-10 sticky top-0 z-40 shrink-0 shadow-lg">
+    <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-primary px-4 md:px-10 sticky top-0 z-[60] shrink-0 shadow-lg">
       {/* Left Column: Back Button (Mobile) or Profile Avatar */}
       <div className="flex items-center justify-start">
         {!isRootLevel ? (
