@@ -22,9 +22,9 @@ export function Header() {
   };
 
   return (
-    <header className="hidden md:flex h-16 items-center justify-between border-b bg-card px-8 sticky top-0 z-40">
+    <header className="hidden md:flex h-16 items-center justify-between border-b border-white/10 bg-black px-8 sticky top-0 z-40 text-white">
       <div className="flex items-center gap-4">
-        <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+        <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
           {role === 'admin' ? 'Administrator Console' : 'Member Portal'}
         </h2>
       </div>
@@ -32,7 +32,11 @@ export function Header() {
       <div className="flex items-center gap-3">
         {user ? (
           <>
-            <Button variant="ghost" asChild className="rounded-xl font-bold">
+            <Button 
+              variant="ghost" 
+              asChild 
+              className="rounded-xl font-bold text-white hover:bg-white/10 hover:text-white"
+            >
               <Link href="/profile/me">
                 <User className="mr-2 h-4 w-4" /> My Profile
               </Link>
@@ -47,7 +51,7 @@ export function Header() {
           </>
         ) : (
           <Link href="/login">
-            <Button size="sm" className="rounded-xl font-bold">
+            <Button size="sm" className="rounded-xl font-bold text-white border-white/20 hover:bg-white/10">
               <LogIn className="mr-2 h-4 w-4" /> Sign In
             </Button>
           </Link>
