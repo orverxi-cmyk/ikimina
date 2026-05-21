@@ -180,15 +180,15 @@ export default function LoansPage() {
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold">Lending & Capital</h1>
-          <p className="text-muted-foreground font-medium">Manage borrowing cycles and repayment schedules</p>
+          <h1 className="text-3xl font-headline font-bold text-white">Lending & Capital</h1>
+          <p className="text-white/60 font-medium">Manage borrowing cycles and repayment schedules</p>
         </div>
         <div className="flex gap-2">
-           <div className="bg-primary/10 px-4 py-2 rounded-xl border border-primary/20 text-center">
+           <div className="bg-muted px-4 py-2 rounded-[10px] border border-white/5 text-center min-w-[120px]">
               <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Gained Interest</p>
               <p className="text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>
            </div>
-           <div className="bg-orange-500/10 px-4 py-2 rounded-xl border border-orange-500/20 text-center">
+           <div className="bg-muted px-4 py-2 rounded-[10px] border border-white/5 text-center min-w-[120px]">
               <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">Interest Paid</p>
               <p className="text-sm font-bold text-orange-600">-{formatCurrency(interestSummary.paid, currency)}</p>
            </div>
@@ -207,7 +207,7 @@ export default function LoansPage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {pendingRepayments.map((r: any) => (
-              <div key={r.id} className="bg-card p-4 rounded-xl border flex flex-col gap-3 shadow-sm">
+              <div key={r.id} className="bg-card p-4 rounded-[10px] border flex flex-col gap-3 shadow-sm">
                 <div className="flex justify-between items-start">
                   <span className="text-xs font-bold text-muted-foreground">Repayment Submission</span>
                   <Badge variant="outline" className="text-[9px] font-bold uppercase">Pending</Badge>
@@ -217,7 +217,7 @@ export default function LoansPage() {
                      <p className="text-lg font-bold text-primary">{formatCurrency(r.amount, currency)}</p>
                      <p className="text-[10px] text-muted-foreground">{r.justification}</p>
                    </div>
-                   <Button size="sm" onClick={() => { setSelectedRepayment(r); setIsVerifyRepayOpen(true); }} className="h-8 text-[11px] font-bold">
+                   <Button size="sm" onClick={() => { setSelectedRepayment(r); setIsVerifyRepayOpen(true); }} className="h-8 text-[11px] font-bold rounded-[10px]">
                      Verify Proof
                    </Button>
                 </div>
@@ -228,17 +228,17 @@ export default function LoansPage() {
       )}
 
       <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-14 rounded-2xl bg-muted/50 p-1.5 mb-8">
-          <TabsTrigger value="schedule" className="rounded-xl font-bold text-xs uppercase tracking-widest gap-2">
+        <TabsList className="grid w-full grid-cols-4 h-14 rounded-[10px] bg-white/5 border border-white/10 p-1.5 mb-8">
+          <TabsTrigger value="schedule" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-white data-[state=active]:text-black text-white/60">
             <Calendar className="h-4 w-4" /> Schedule
           </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-xl font-bold text-xs uppercase tracking-widest gap-2">
+          <TabsTrigger value="history" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-white data-[state=active]:text-black text-white/60">
             <HistoryIcon className="h-4 w-4" /> History
           </TabsTrigger>
-          <TabsTrigger value="interest" className="rounded-xl font-bold text-xs uppercase tracking-widest gap-2">
+          <TabsTrigger value="interest" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-white data-[state=active]:text-black text-white/60">
             <Landmark className="h-4 w-4" /> Interest
           </TabsTrigger>
-          <TabsTrigger value="arrears" className="rounded-xl font-bold text-xs uppercase tracking-widest gap-2 relative">
+          <TabsTrigger value="arrears" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-white data-[state=active]:text-black text-white/60 relative">
             <AlertTriangle className="h-4 w-4" /> Arrears
             {missedInstallments.length > 0 && (
               <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] text-white animate-bounce">
@@ -249,8 +249,8 @@ export default function LoansPage() {
         </TabsList>
 
         <TabsContent value="schedule" className="space-y-6">
-          <Card className="border-none shadow-xl bg-card rounded-3xl overflow-hidden">
-            <CardHeader className="bg-muted/10 border-b">
+          <Card className="border-none shadow-xl bg-card rounded-[10px] overflow-hidden">
+            <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
                 <HandCoins className="h-5 w-5 text-primary" /> Active Repayment Windows
               </CardTitle>
@@ -258,7 +258,7 @@ export default function LoansPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/5">
+                <TableHeader className="bg-muted/10">
                   <TableRow>
                     <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Installment</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-widest">Due Date</TableHead>
@@ -271,14 +271,14 @@ export default function LoansPage() {
                   {loadingLoans ? (
                     <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                   ) : activeLoans.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No active schedules found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic font-medium">No active repayment schedules found.</TableCell></TableRow>
                   ) : (
                     activeLoans.flatMap((loan: any) => (
                       loan.amortization?.map((inst: any) => (
                         <TableRow key={`${loan.id}-${inst.installmentNumber}`} className="hover:bg-muted/30 transition-colors">
                           <TableCell className="px-6 py-4">
-                            <div className="font-bold">#{inst.installmentNumber}</div>
-                            <div className="text-[10px] text-muted-foreground truncate max-w-[150px]">{loan.description || 'Personal Loan'}</div>
+                            <div className="font-bold text-sm">#{inst.installmentNumber}</div>
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[150px] font-medium">{loan.description || 'Personal Loan'}</div>
                           </TableCell>
                           <TableCell className="text-sm font-medium">
                             {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
@@ -288,7 +288,7 @@ export default function LoansPage() {
                           {!isManagement && (
                             <TableCell className="text-right px-6">
                               {inst.status === 'pending' && (
-                                <Button size="sm" className="h-8 rounded-lg font-bold" onClick={() => { setSelectedLoan(loan); setIsRepayOpen(true); }}>
+                                <Button size="sm" className="h-8 rounded-[10px] font-bold" onClick={() => { setSelectedLoan(loan); setIsRepayOpen(true); }}>
                                   <CreditCard className="mr-2 h-3.5 w-3.5" /> Pay Now
                                 </Button>
                               )}
@@ -305,14 +305,14 @@ export default function LoansPage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">
-          <Card className="border-none shadow-xl bg-card rounded-3xl overflow-hidden">
-             <CardHeader className="bg-muted/10 border-b">
+          <Card className="border-none shadow-xl bg-card rounded-[10px] overflow-hidden">
+             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl">Loan Lifecycle Audit</CardTitle>
               <CardDescription>Comprehensive record of all requested, approved, and rejected loans.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
                <Table>
-                <TableHeader className="bg-muted/5">
+                <TableHeader className="bg-muted/10">
                   <TableRow>
                     <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Purpose</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-widest">Principal</TableHead>
@@ -325,18 +325,18 @@ export default function LoansPage() {
                   {loadingLoans ? (
                     <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                   ) : historyLoans.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No historical records.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic font-medium">No historical records found.</TableCell></TableRow>
                   ) : (
                     historyLoans.map((loan: any) => (
                       <TableRow key={loan.id} className="hover:bg-muted/30 transition-colors">
                         <TableCell className="px-6 py-4">
-                           <div className="font-bold">{loan.description || 'Capital Loan'}</div>
-                           <div className="text-[10px] text-muted-foreground">{format(loan.requestDate?.toDate() || new Date(), 'MMM d, yyyy')}</div>
+                           <div className="font-bold text-sm">{loan.description || 'Capital Loan'}</div>
+                           <div className="text-[10px] text-muted-foreground font-medium">{format(loan.requestDate?.toDate() || new Date(), 'MMM d, yyyy')}</div>
                         </TableCell>
-                        <TableCell className="font-medium">{formatCurrency(loan.amount, currency)}</TableCell>
+                        <TableCell className="font-medium text-sm">{formatCurrency(loan.amount, currency)}</TableCell>
                         <TableCell className="text-xs text-orange-600 font-bold">+{formatCurrency(loan.interestAmount || 0, currency)}</TableCell>
                         <TableCell>
-                           <Badge variant={loan.status === 'rejected' ? 'destructive' : 'outline'} className="uppercase font-bold text-[9px]">
+                           <Badge variant={loan.status === 'rejected' ? 'destructive' : 'outline'} className="uppercase font-bold text-[9px] border-none bg-muted/50">
                              {loan.status}
                            </Badge>
                         </TableCell>
@@ -352,7 +352,7 @@ export default function LoansPage() {
 
         <TabsContent value="interest" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
-            <Card className="border-none shadow-lg bg-green-50/30">
+            <Card className="border-none shadow-lg bg-white rounded-[10px]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-green-700">
                   <TrendingUp className="h-5 w-5" /> Interest Gained
@@ -365,7 +365,7 @@ export default function LoansPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-lg bg-orange-50/30">
+            <Card className="border-none shadow-lg bg-white rounded-[10px]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-orange-700">
                   <TrendingDown className="h-5 w-5" /> Interest Paid
@@ -381,8 +381,8 @@ export default function LoansPage() {
         </TabsContent>
 
         <TabsContent value="arrears" className="space-y-6">
-          <Card className="border-destructive/20 shadow-xl bg-destructive/5 rounded-3xl overflow-hidden">
-            <CardHeader className="bg-destructive/10 border-b border-destructive/20">
+          <Card className="border-destructive/20 shadow-xl bg-card rounded-[10px] overflow-hidden">
+            <CardHeader className="bg-destructive/5 border-b border-destructive/10">
               <CardTitle className="text-xl flex items-center gap-2 text-destructive">
                 <AlertTriangle className="h-5 w-5" /> Arrears & Missed Windows
               </CardTitle>
@@ -390,7 +390,7 @@ export default function LoansPage() {
             </CardHeader>
             <CardContent className="p-0">
                <Table>
-                <TableHeader className="bg-destructive/5">
+                <TableHeader className="bg-destructive/10">
                   <TableRow>
                     <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-destructive">Source Loan</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-widest text-destructive">Missed Due Date</TableHead>
@@ -400,11 +400,11 @@ export default function LoansPage() {
                 </TableHeader>
                 <TableBody>
                   {missedInstallments.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic font-medium">Great news! You have no arrears.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic font-medium">Great news! You have no arrears.</TableCell></TableRow>
                   ) : (
                     missedInstallments.map((inst: any, idx: number) => (
-                      <TableRow key={idx} className="bg-destructive/10 hover:bg-destructive/20 transition-colors border-destructive/10">
-                        <TableCell className="px-6 py-4 font-bold text-destructive">
+                      <TableRow key={idx} className="bg-destructive/5 hover:bg-destructive/10 transition-colors border-destructive/5">
+                        <TableCell className="px-6 py-4 font-bold text-destructive text-sm">
                            {inst.description || 'Personal Loan'}
                         </TableCell>
                         <TableCell className="text-sm font-bold text-destructive">
@@ -413,7 +413,7 @@ export default function LoansPage() {
                         <TableCell className="font-bold text-destructive">{formatCurrency(inst.amount, currency)}</TableCell>
                         {!isManagement && (
                           <TableCell className="text-right px-6">
-                             <Button size="sm" variant="destructive" className="h-8 rounded-lg font-bold shadow-lg" onClick={() => { 
+                             <Button size="sm" variant="destructive" className="h-8 rounded-[10px] font-bold shadow-lg" onClick={() => { 
                                const loan = loans.find(l => l.id === inst.loanId);
                                setSelectedLoan(loan); 
                                setIsRepayOpen(true); 
@@ -432,48 +432,48 @@ export default function LoansPage() {
         </TabsContent>
       </Tabs>
 
-      {/* REPAYMENT DIALOG (Common for all tabs) */}
+      {/* REPAYMENT DIALOG */}
       <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
+        <DialogContent className="max-w-md rounded-[10px] bg-card">
           <form onSubmit={handleRepay}>
             <DialogHeader>
-              <DialogTitle className="text-xl">Submit Repayment</DialogTitle>
-              <DialogDescription>Submit your payment evidence for management verification.</DialogDescription>
+              <DialogTitle className="text-xl font-bold">Submit Repayment</DialogTitle>
+              <DialogDescription className="font-medium">Submit your payment evidence for management verification.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">
               <div className="space-y-2">
-                <Label>Payment Reference / Note</Label>
-                <Input name="justification" placeholder="e.g. Bank Transfer #12345" className="h-11 rounded-xl" required />
+                <Label className="text-xs font-bold uppercase tracking-wider">Payment Reference / Note</Label>
+                <Input name="justification" placeholder="e.g. Bank Transfer #12345" className="h-11 rounded-[10px] bg-muted border-none" required />
               </div>
 
-              <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
-                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Outstanding Balance</p>
+              <div className="p-4 bg-muted rounded-[10px] border border-white/5">
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1 tracking-widest">Outstanding Balance</p>
                  <p className="text-2xl font-bold text-primary">{formatCurrency(selectedLoan?.balance || 0, currency)}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase text-muted-foreground">Regular Installment</Label>
-                  <div className="h-11 rounded-xl border bg-muted/20 px-3 flex items-center font-bold text-sm">
+                  <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Regular Installment</Label>
+                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-black/80">
                     {formatCurrency(selectedLoan?.amortization?.find((i: any) => i.status === 'pending')?.amount || 0, currency)}
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase text-muted-foreground">Payment Amount</Label>
+                  <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Payment Amount</Label>
                   <div className="relative">
-                    <Input name="repayAmount" type="number" max={selectedLoan?.balance} required className="h-11 rounded-xl pr-12" />
+                    <Input name="repayAmount" type="number" max={selectedLoan?.balance} required className="h-11 rounded-[10px] pr-12 bg-muted border-none" />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">{currency}</div>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase">Proof of Transfer</Label>
-                <Input name="proofFile" type="file" required className="h-11 rounded-xl py-2.5 text-xs" />
+                <Label className="text-[10px] font-bold uppercase tracking-widest">Proof of Transfer</Label>
+                <Input name="proofFile" type="file" required className="h-11 rounded-[10px] py-2.5 text-xs bg-muted border-none" />
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-xl font-bold shadow-lg">
+              <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-[10px] font-bold shadow-lg">
                 {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CreditCard className="mr-2 h-4 w-4" />}
                 Submit for Verification
               </Button>
@@ -484,20 +484,20 @@ export default function LoansPage() {
 
       {/* VERIFY REPAYMENT DIALOG (Management Only) */}
       <Dialog open={isVerifyRepayOpen} onOpenChange={setIsVerifyRepayOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
+        <DialogContent className="max-w-md rounded-[10px] bg-card">
           <form onSubmit={handleVerifyRepayment}>
             <DialogHeader>
-              <DialogTitle>Verify Repayment Proof</DialogTitle>
-              <DialogDescription>Validate payment evidence before updating member balance.</DialogDescription>
+              <DialogTitle className="font-bold">Verify Repayment Proof</DialogTitle>
+              <DialogDescription className="font-medium">Validate payment evidence before updating member balance.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-6">
-               <div className="p-4 bg-muted/30 rounded-xl space-y-2 border">
+               <div className="p-4 bg-muted rounded-[10px] space-y-2 border border-white/5">
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Amount Claimed:</span>
-                    <span className="font-bold">{selectedRepayment ? formatCurrency(selectedRepayment.amount, currency) : '-'}</span>
+                    <span className="text-muted-foreground font-bold">Amount Claimed:</span>
+                    <span className="font-bold text-sm">{selectedRepayment ? formatCurrency(selectedRepayment.amount, currency) : '-'}</span>
                   </div>
                   {selectedRepayment?.proofUrl && (
-                    <Button variant="outline" size="sm" className="w-full mt-2" asChild>
+                    <Button variant="outline" size="sm" className="w-full mt-2 rounded-[10px] font-bold h-9" asChild>
                        <a href={selectedRepayment.proofUrl} target="_blank" rel="noopener noreferrer">
                          <Eye className="mr-2 h-4 w-4" /> View Bank Receipt
                        </a>
@@ -505,12 +505,12 @@ export default function LoansPage() {
                   )}
                </div>
                <div className="space-y-2">
-                 <Label>Audit Justification</Label>
-                 <Textarea name="justification" placeholder="E.g., Confirmed receipt in bank statement..." required className="rounded-xl" />
+                 <Label className="text-xs font-bold uppercase tracking-wider">Audit Justification</Label>
+                 <Textarea name="justification" placeholder="E.g., Confirmed receipt in bank statement..." required className="rounded-[10px] bg-muted border-none min-h-[100px]" />
                </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white">
+              <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-[10px] font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg">
                 {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                 Approve & Update Balance
               </Button>
