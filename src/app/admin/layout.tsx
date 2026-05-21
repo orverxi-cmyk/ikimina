@@ -93,8 +93,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="flex flex-1 w-full p-4 gap-4 overflow-hidden">
           <aside className="hidden md:flex flex-col w-64 bg-background p-6 space-y-8 rounded-[10px] border border-border shrink-0 shadow-sm">
             <div className="flex flex-col gap-1 px-4 py-3 border-b border-border">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Internal System</h2>
-              <span className="text-xs font-bold text-primary flex items-center gap-2">
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Internal System</h2>
+              <span className="text-sm font-bold text-primary flex items-center gap-2">
                 <ShieldCheck className="h-3 w-3" /> Administrator Console
               </span>
             </div>

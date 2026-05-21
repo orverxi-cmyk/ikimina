@@ -65,10 +65,10 @@ export function AppSidebar() {
     <aside className="hidden md:flex flex-col w-64 bg-background p-6 space-y-8 rounded-[10px] shadow-sm border border-border shrink-0">
       {/* Internal System Status */}
       <div className="flex flex-col gap-1 px-4 py-3 border-b border-border">
-        <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
           Internal System
         </h2>
-        <span className="text-xs font-bold text-primary">
+        <span className="text-sm font-bold text-primary">
           {role === 'admin' ? 'Administrator Console' : role === 'management' ? 'Management Console' : 'Member Portal'}
         </span>
       </div>
