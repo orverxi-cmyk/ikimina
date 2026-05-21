@@ -30,12 +30,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col h-screen w-full bg-black overflow-hidden">
       {/* Global Full-Width Header */}
-      <header className="h-16 w-full flex items-center justify-between border-b border-white/10 bg-black px-10 shrink-0 shadow-lg text-white">
+      <header className="h-16 w-full flex items-center justify-between border-b border-white/10 bg-black px-4 md:px-10 shrink-0 shadow-lg text-white">
         <div className="flex items-center gap-3">
           <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20">
-            <Wallet className="h-6 w-6 text-primary-foreground" />
+            <Wallet className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />
           </div>
-          <span className="font-headline text-xl font-bold tracking-tight">
+          <span className="font-headline text-lg md:text-xl font-bold tracking-tight">
             Ikimina App
           </span>
         </div>
