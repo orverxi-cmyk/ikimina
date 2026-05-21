@@ -34,11 +34,9 @@ export function AppSidebar() {
   if (!mounted) {
     return (
       <aside className="hidden md:flex flex-col w-64 rounded-3xl bg-black p-6">
-        <div className="flex items-center gap-3 px-2">
-          <div className="bg-primary p-2 rounded-lg">
-            <Wallet className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="font-headline text-xl font-bold tracking-tight text-white">Ikimina App</span>
+        <div className="animate-pulse flex flex-col gap-2">
+          <div className="h-2 w-24 bg-white/10 rounded" />
+          <div className="h-4 w-32 bg-white/10 rounded" />
         </div>
       </aside>
     );
@@ -63,11 +61,14 @@ export function AppSidebar() {
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[2rem] shadow-2xl border border-white/5 shrink-0">
-      <div className="flex items-center gap-3 px-2">
-        <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20">
-          <Wallet className="h-6 w-6 text-primary-foreground" />
-        </div>
-        <span className="font-headline text-xl font-bold tracking-tight text-white">Ikimina App</span>
+      {/* Internal System Status relocated from Header */}
+      <div className="flex flex-col gap-1 px-4 py-3 border-b border-white/10">
+        <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">
+          Internal System
+        </h2>
+        <span className="text-xs font-bold text-primary">
+          {role === 'admin' ? 'Administrator Console' : role === 'management' ? 'Management Console' : 'Member Portal'}
+        </span>
       </div>
 
       <nav className="flex-1 space-y-2">
