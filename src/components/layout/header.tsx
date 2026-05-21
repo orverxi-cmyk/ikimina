@@ -21,7 +21,7 @@ export function Header() {
   };
 
   return (
-    <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-black px-4 md:px-10 sticky top-0 z-40 text-white shrink-0 shadow-lg">
+    <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-black/95 px-4 md:px-10 sticky top-0 z-40 text-white shrink-0 shadow-xl backdrop-blur-sm">
       {/* Left Column: Profile Avatar */}
       <div className="flex items-center justify-start">
         {user ? (
@@ -38,7 +38,7 @@ export function Header() {
         )}
       </div>
 
-      {/* Center Column: App Branding */}
+      {/* Center Column: App Branding - Perfectly Centered */}
       <div className="flex items-center justify-center gap-2">
         <div className="bg-primary p-1.5 rounded-lg shadow-lg shadow-primary/20">
           <Wallet className="h-4 w-4 md:h-5 md:w-5 text-primary-foreground" />

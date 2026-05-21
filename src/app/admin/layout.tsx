@@ -29,8 +29,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex flex-col h-screen w-full bg-black overflow-hidden">
-      {/* Global Full-Width Header */}
-      <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-black px-4 md:px-10 sticky top-0 z-40 text-white shrink-0 shadow-lg">
+      {/* Global Full-Width Header - Standardized with main app */}
+      <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-black/95 px-4 md:px-10 sticky top-0 z-40 text-white shrink-0 shadow-xl backdrop-blur-sm">
         {/* Left: Avatar */}
         <div className="flex items-center justify-start">
           <DropdownMenu>
@@ -54,7 +54,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </DropdownMenu>
         </div>
 
-        {/* Center: Branding */}
+        {/* Center: Branding - Standardized Centering */}
         <div className="flex items-center justify-center gap-2">
           <div className="bg-primary p-1.5 rounded-lg shadow-lg shadow-primary/20">
             <Wallet className="h-4 w-4 md:h-5 md:w-5 text-primary-foreground" />
@@ -64,53 +64,59 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </span>
         </div>
 
-        {/* Right: Empty for Balance */}
+        {/* Right: Role Status */}
         <div className="flex items-center justify-end">
           <div className="hidden sm:flex items-center gap-2 text-[10px] font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20">
             <ShieldCheck className="h-3 w-3" />
             ADMIN ACCESS
           </div>
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="sm:hidden text-destructive">
+             <LogOut className="h-5 w-5" />
+          </Button>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden relative p-4 gap-4">
-        {/* Floating Sidebar */}
-        <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[10px] border border-white/10 shrink-0">
-          <div className="flex flex-col gap-1 px-4 py-3 border-b border-white/10">
-            <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">Internal System</h2>
-            <span className="text-xs font-bold text-primary flex items-center gap-2">
-              <ShieldCheck className="h-3 w-3" /> Administrator Console
-            </span>
-          </div>
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Workspace Container with spacing */}
+        <div className="flex flex-1 w-full p-4 gap-4 overflow-hidden">
+          {/* Floating Sidebar */}
+          <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[10px] border border-white/10 shrink-0 shadow-2xl">
+            <div className="flex flex-col gap-1 px-4 py-3 border-b border-white/10">
+              <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">Internal System</h2>
+              <span className="text-xs font-bold text-primary flex items-center gap-2">
+                <ShieldCheck className="h-3 w-3" /> Administrator Console
+              </span>
+            </div>
 
-          <nav className="flex-1 space-y-2">
-            {menuItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all',
-                    isActive 
-                      ? 'bg-primary text-primary-foreground shadow-lg' 
-                      : 'text-white/60 hover:bg-white/5 hover:text-white'
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
-        
-        {/* Main Content Card - Floating on Black Background */}
-        <main className="flex-1 overflow-auto rounded-[10px] bg-black">
-          <div className="min-h-full">
-            {children}
-          </div>
-        </main>
+            <nav className="flex-1 space-y-2">
+              {menuItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all',
+                      isActive 
+                        ? 'bg-primary text-primary-foreground shadow-lg' 
+                        : 'text-white/60 hover:bg-white/5 hover:text-white'
+                    )}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </aside>
+          
+          {/* Main Application Window */}
+          <main className="flex-1 overflow-auto rounded-[10px] relative">
+            <div className="min-h-full">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
