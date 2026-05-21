@@ -33,7 +33,7 @@ export function AppSidebar() {
 
   if (!mounted) {
     return (
-      <aside className="hidden md:flex flex-col w-64 rounded-3xl bg-black p-6">
+      <aside className="hidden md:flex flex-col w-64 rounded-[10px] bg-black p-6">
         <div className="animate-pulse flex flex-col gap-2">
           <div className="h-2 w-24 bg-white/10 rounded" />
           <div className="h-4 w-32 bg-white/10 rounded" />
@@ -60,7 +60,7 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[2rem] shadow-2xl border border-white/5 shrink-0">
+    <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[10px] shadow-2xl border border-white/5 shrink-0">
       {/* Internal System Status relocated from Header */}
       <div className="flex flex-col gap-1 px-4 py-3 border-b border-white/10">
         <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">
@@ -79,7 +79,7 @@ export function AppSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-bold transition-all duration-200',
+                'flex items-center gap-3 rounded-[10px] px-4 py-3.5 text-sm font-bold transition-all duration-200',
                 isActive 
                   ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
                   : 'text-white/60 hover:bg-white/5 hover:text-white'
@@ -94,7 +94,7 @@ export function AppSidebar() {
 
       <div className="pt-6 border-t border-white/10">
         {user && (
-          <div className="px-4 py-3 bg-white/5 rounded-2xl border border-white/5">
+          <div className="px-4 py-3 bg-white/5 rounded-[10px] border border-white/5">
             <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Session</p>
             <p className="text-sm font-bold truncate text-white">{userData?.name || user.email}</p>
             <div className="flex items-center gap-1.5 mt-1.5">

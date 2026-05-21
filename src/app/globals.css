@@ -4,48 +4,26 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%; /* Soft blue-gray light background */
-    --foreground: 222 47% 11%;
-    --card: 0 0% 90.6%; /* Hex #e7e7e7: Muted Grey Background */
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 221 83% 53%; /* Professional Corporate Blue */
+    --background: 0 0% 0%; /* Pure Black Background */
+    --foreground: 210 40% 98%;
+    --card: 0 0% 7%; /* Dark Grey Content Area */
+    --card-foreground: 210 40% 98%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 92%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222 47% 11%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 215.4 16.3% 66.9%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 88%;
-    --input: 214.3 31.8% 88%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
     --ring: 221 83% 53%;
-    --radius: 0.75rem;
-  }
-
-  .dark {
-    --background: 222 47% 10%;
-    --foreground: 210 40% 98%;
-    --card: 222 30% 14%; /* Deep Muted Grey */
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 12%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --radius: 10px; /* Standardized 10px Corners */
   }
 }
 
@@ -56,17 +34,17 @@
 
   /* Custom Scrollbar Styles */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-    background-color: hsl(var(--muted) / 0.5);
+    width: 6px;
+    height: 6px;
+    background-color: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: black;
+    background-color: rgba(255, 255, 255, 0.1);
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: #1a1a1a;
+    background-color: rgba(255, 255, 255, 0.2);
   }
 }

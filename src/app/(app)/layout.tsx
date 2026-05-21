@@ -45,7 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <AppSidebar />
           
           {/* Main Application Window */}
-          <main className="flex-1 overflow-auto bg-card rounded-[2rem] border border-white/5 relative shadow-inner">
+          <main className="flex-1 overflow-auto bg-card rounded-[10px] border border-white/5 relative shadow-inner">
             <div className="min-h-full">
               {children}
             </div>
