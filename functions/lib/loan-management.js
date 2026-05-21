@@ -173,6 +173,16 @@ exports.verifyRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
             lastPaymentAt: admin.firestore.FieldValue.serverTimestamp(),
             status: newBalance <= 0 ? 'completed' : 'approved'
         });
+        // Update the member's amortization schedule if the loan is fully repaid
+        if (newBalance <= 0) {
+            const userRef = db.collection('users').doc(loanData.memberId);
+            const userSnap = await userRef.get();
+            const userData = userSnap.data();
+            if (userData === null || userData === void 0 ? void 0 : userData.amortizationSchedule) {
+                const updatedSchedule = userData.amortizationSchedule.map((inst) => (Object.assign(Object.assign({}, inst), { status: 'paid' })));
+                batch.update(userRef, { amortizationSchedule: updatedSchedule });
+            }
+        }
         batch.set(db.collection('audit_logs').doc(), {
             adminId: request.auth.uid,
             action: 'VERIFY_REPAYMENT',
