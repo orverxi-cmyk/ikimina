@@ -2,15 +2,16 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, HandCoins, Users, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock } from 'lucide-react';
+import { Wallet, HandCoins, Users, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock, AlertTriangle, Bell } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, isPast, addDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import { formatCurrency } from '@/lib/currency';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function DashboardPage() {
   const { user, loading: userAuthLoading } = useUser();
@@ -39,14 +40,48 @@ export default function DashboardPage() {
     return query(collection(firestore, 'loans'), where('memberId', '==', user.uid));
   }, [user, isManagement, isLoading, userData]);
 
-  const membersQuery = useMemoFirebase(() => {
-    if (!user || isLoading || !userData || !isManagement) return null;
-    return query(collection(firestore, 'users'));
-  }, [user, isManagement, isLoading, userData]);
-
   const { data: contributionsSnap, loading: loadingConts } = useCollection(contributionsQuery);
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
-  const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
+
+  const notifications = useMemo(() => {
+    if (!userData?.amortizationSchedule) return [];
+    const now = new Date();
+    const alerts: any[] = [];
+
+    userData.amortizationSchedule.forEach((inst: any) => {
+      if (inst.status === 'paid') return;
+
+      const dueDate = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
+      const isOverdue = isPast(dueDate);
+      const isUpcoming = isWithinInterval(dueDate, {
+        start: startOfDay(now),
+        end: endOfDay(addDays(now, 2))
+      });
+
+      if (isOverdue) {
+        alerts.push({
+          id: `overdue-${inst.installmentNumber}`,
+          type: 'overdue',
+          title: 'Repayment Overdue',
+          message: `You have passed the due date for installment repayment. Please pay as soon as possible to avoid bad credit record.`,
+          variant: 'destructive',
+          icon: AlertTriangle
+        });
+      } else if (isUpcoming) {
+        alerts.push({
+          id: `upcoming-${inst.installmentNumber}`,
+          type: 'upcoming',
+          title: 'Upcoming Due Date',
+          message: `Your loan is due on ${format(dueDate, 'MMM d, yyyy')}, pay before ${format(dueDate, 'MMM d, yyyy')} to avoid bad credit record.`,
+          variant: 'default',
+          className: 'border-orange-500 bg-orange-50/50',
+          icon: Bell
+        });
+      }
+    });
+
+    return alerts;
+  }, [userData]);
 
   const stats = useMemo(() => {
     if (isLoading || loadingConts || loadingLoans) return [];
@@ -96,7 +131,7 @@ export default function DashboardPage() {
     }
 
     return baseStats;
-  }, [contributionsSnap, loansSnap, membersSnap, isManagement, isLoading, loadingConts, loadingLoans, userData, currency]);
+  }, [contributionsSnap, loansSnap, isManagement, isLoading, loadingConts, loadingLoans, userData, currency]);
 
   const myParticipation = useMemo(() => {
     if (!user || !contributionsSnap || !loansSnap) return { contributions: 0, debt: 0, nextPayment: null };
@@ -111,7 +146,6 @@ export default function DashboardPage() {
     const totalDebt = myActiveLoans.reduce((acc, d) => acc + (d.data().balance || 0), 0);
 
     let nextInst = null;
-    // CRITICAL: Only show scheduled payments if there is actual outstanding debt on approved loans
     if (totalDebt > 0 && userData?.amortizationSchedule) {
       nextInst = userData.amortizationSchedule
         .filter((s: any) => s.status !== 'paid')
@@ -130,7 +164,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-headline font-bold">Financial Portfolio</h1>
@@ -141,6 +175,23 @@ export default function DashboardPage() {
           <p className="text-lg font-bold">1 {currency} = {currency}</p>
         </div>
       </div>
+
+      {/* Dynamic Personalized Notifications */}
+      {notifications.length > 0 && (
+        <div className="space-y-3">
+          {notifications.map((notif) => (
+            <Alert key={notif.id} variant={notif.variant} className={cn("rounded-2xl border-2 shadow-sm animate-in fade-in slide-in-from-top-2 duration-500", notif.className)}>
+              <notif.icon className="h-5 w-5" />
+              <AlertTitle className="font-bold flex items-center gap-2">
+                {notif.title}
+              </AlertTitle>
+              <AlertDescription className="font-medium text-sm leading-relaxed">
+                {notif.message}
+              </AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, i) => (
