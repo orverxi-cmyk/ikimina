@@ -33,7 +33,7 @@ export function AppSidebar() {
 
   if (!mounted) {
     return (
-      <aside className="hidden md:flex flex-col w-64 border-r border-white/10 bg-black p-6 space-y-6">
+      <aside className="hidden md:flex flex-col w-64 rounded-3xl bg-black p-6">
         <div className="flex items-center gap-3 px-2">
           <div className="bg-primary p-2 rounded-lg">
             <Wallet className="h-6 w-6 text-primary-foreground" />
@@ -62,15 +62,15 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-64 border-r border-white/10 bg-black p-6 space-y-6">
+    <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[2rem] shadow-2xl border border-white/5 shrink-0">
       <div className="flex items-center gap-3 px-2">
-        <div className="bg-primary p-2 rounded-lg shadow-lg shadow-primary/20">
+        <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20">
           <Wallet className="h-6 w-6 text-primary-foreground" />
         </div>
         <span className="font-headline text-xl font-bold tracking-tight text-white">Ikimina App</span>
       </div>
 
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-2">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -78,10 +78,10 @@ export function AppSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition-all',
+                'flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-bold transition-all duration-200',
                 isActive 
-                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
-                  : 'text-white/60 hover:bg-white/10 hover:text-white'
+                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
+                  : 'text-white/60 hover:bg-white/5 hover:text-white'
               )}
             >
               <item.icon className="h-5 w-5" />
@@ -93,11 +93,11 @@ export function AppSidebar() {
 
       <div className="pt-6 border-t border-white/10">
         {user && (
-          <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/5">
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Authenticated</p>
+          <div className="px-4 py-3 bg-white/5 rounded-2xl border border-white/5">
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Session</p>
             <p className="text-sm font-bold truncate text-white">{userData?.name || user.email}</p>
-            <div className="flex items-center gap-1 mt-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>
             </div>
           </div>

@@ -22,25 +22,31 @@ export function Header() {
   };
 
   return (
-    <header className="hidden md:flex h-16 items-center justify-between border-b border-white/10 bg-black px-8 sticky top-0 z-40 text-white">
-      <div className="flex items-center gap-4">
-        <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
-          {role === 'admin' ? 'Administrator Console' : 'Member Portal'}
-        </h2>
+    <header className="hidden md:flex h-16 w-full items-center justify-between border-b border-white/10 bg-black px-10 sticky top-0 z-40 text-white shrink-0 shadow-lg">
+      <div className="flex items-center gap-6">
+        <div className="flex flex-col">
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/40">
+            Internal System
+          </h2>
+          <span className="text-xs font-bold text-primary">
+            {role === 'admin' ? 'Administrator Console' : 'Member Portal'}
+          </span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         {user ? (
           <>
             <Button 
               variant="ghost" 
               asChild 
-              className="rounded-xl font-bold text-white hover:bg-white/10 hover:text-white"
+              className="rounded-xl font-bold text-white hover:bg-white/10"
             >
               <Link href="/profile/me">
                 <User className="mr-2 h-4 w-4" /> My Profile
               </Link>
             </Button>
+            <div className="h-4 w-px bg-white/10 mx-1" />
             <Button 
               variant="ghost" 
               onClick={handleLogout} 
@@ -51,7 +57,7 @@ export function Header() {
           </>
         ) : (
           <Link href="/login">
-            <Button size="sm" className="rounded-xl font-bold text-white border-white/20 hover:bg-white/10">
+            <Button size="sm" className="rounded-xl font-bold text-white bg-primary hover:bg-primary/90">
               <LogIn className="mr-2 h-4 w-4" /> Sign In
             </Button>
           </Link>
