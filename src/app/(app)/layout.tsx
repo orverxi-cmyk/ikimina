@@ -44,8 +44,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Floating Sidebar */}
           <AppSidebar />
           
-          {/* Main Application Window */}
-          <main className="flex-1 overflow-auto bg-card rounded-[10px] border border-white/5 relative shadow-inner">
+          {/* Main Application Window - Now background transparent to let individual cards shine */}
+          <main className="flex-1 overflow-auto rounded-[10px] relative">
             <div className="min-h-full">
               {children}
             </div>

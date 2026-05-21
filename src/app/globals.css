@@ -4,24 +4,32 @@
 
 @layer base {
   :root {
-    --background: 0 0% 0%; /* Pure Black Background */
-    --foreground: 210 40% 98%;
-    --card: 0 0% 7%; /* Dark Grey Content Area */
-    --card-foreground: 210 40% 98%;
-    --popover: 0 0% 5%;
-    --popover-foreground: 210 40% 98%;
+    --background: 0 0% 0%; /* Pure Black Background for pages */
+    --foreground: 0 0% 100%; /* White text for global elements */
+    
+    --card: 0 0% 100%; /* White Card Background for differentiation */
+    --card-foreground: 222.2 84% 4.9%; /* Dark text inside cards */
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
     --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 0 0% 15%;
-    --muted-foreground: 215.4 16.3% 66.9%;
-    --accent: 0 0% 15%;
-    --accent-foreground: 210 40% 98%;
+    
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
+    
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
     --ring: 221 83% 53%;
     --radius: 10px; /* Standardized 10px Corners */
   }
