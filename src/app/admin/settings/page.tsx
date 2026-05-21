@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -83,7 +82,7 @@ export default function AdminSettingsPage() {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <ShieldCheck className="h-12 w-12 text-destructive" />
-        <h2 className="text-2xl font-bold font-headline">Access Restricted</h2>
+        <h2 className="text-2xl font-bold font-headline text-white">Access Restricted</h2>
         <p className="text-muted-foreground">Only administrators can access system settings.</p>
       </div>
     );
@@ -92,13 +91,14 @@ export default function AdminSettingsPage() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-24">
       <div>
-        <h1 className="text-3xl font-headline font-bold">System Settings</h1>
+        <h1 className="text-3xl font-headline font-bold text-white">System Settings</h1>
         <p className="text-muted-foreground">Manage global financial rules and lending policies</p>
       </div>
 
       <form onSubmit={handleUpdateSettings}>
         <div className="grid gap-6">
-          <Card className="border-none shadow-lg bg-card">
+          {/* Regional Settings Card */}
+          <Card className="border-none shadow-lg bg-card rounded-[10px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Globe className="h-5 w-5 text-primary" /> Regional Settings
@@ -109,7 +109,7 @@ export default function AdminSettingsPage() {
               <div className="space-y-2 max-w-sm">
                 <Label>System Currency</Label>
                 <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
-                  <SelectTrigger className="h-11 rounded-xl">
+                  <SelectTrigger className="h-11 rounded-[10px] bg-muted border-none">
                     <SelectValue placeholder="Select Currency" />
                   </SelectTrigger>
                   <SelectContent>
@@ -121,7 +121,8 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-lg bg-card">
+          {/* Lending Constraints Card */}
+          <Card className="border-none shadow-lg bg-card rounded-[10px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl text-primary">
                 <Wallet className="h-5 w-5" /> Lending Constraints
@@ -138,7 +139,7 @@ export default function AdminSettingsPage() {
                     step="1" 
                     defaultValue={settingsData?.maxLoanPercentage || 80} 
                     required 
-                    className="h-11 rounded-xl"
+                    className="h-11 rounded-[10px] bg-muted border-none"
                   />
                   <p className="text-[10px] text-muted-foreground leading-tight">
                     Max % of total contributions a member can borrow.
@@ -151,7 +152,7 @@ export default function AdminSettingsPage() {
                     type="number" 
                     defaultValue={settingsData?.minLoanAmount || 5000} 
                     required 
-                    className="h-11 rounded-xl"
+                    className="h-11 rounded-[10px] bg-muted border-none"
                   />
                 </div>
                 <div className="space-y-2">
@@ -161,14 +162,15 @@ export default function AdminSettingsPage() {
                     type="number" 
                     defaultValue={settingsData?.maxLoanAmount || 1000000} 
                     required 
-                    className="h-11 rounded-xl"
+                    className="h-11 rounded-[10px] bg-muted border-none"
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-lg bg-card">
+          {/* Interest Policy Card */}
+          <Card className="border-none shadow-lg bg-card rounded-[10px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl text-primary">
                 <Scale className="h-5 w-5" /> Interest Policy (LOCKED Fields)
@@ -180,7 +182,7 @@ export default function AdminSettingsPage() {
                 <div className="space-y-2">
                   <Label>Interest Model</Label>
                   <Select value={interestModel} onValueChange={setInterestModel}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-11 rounded-[10px] bg-muted border-none">
                       <SelectValue placeholder="Select Model" />
                     </SelectTrigger>
                     <SelectContent>
@@ -194,7 +196,7 @@ export default function AdminSettingsPage() {
                 <div className="space-y-2">
                   <Label>Interest Type (Deduction)</Label>
                   <Select value={interestType} onValueChange={setInterestType}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-11 rounded-[10px] bg-muted border-none">
                       <SelectValue placeholder="Select Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -214,7 +216,7 @@ export default function AdminSettingsPage() {
                     step="0.01" 
                     defaultValue={settingsData?.loanInterestRate || 10} 
                     required 
-                    className="h-11 rounded-xl"
+                    className="h-11 rounded-[10px] bg-muted border-none"
                   />
                   <p className="text-[10px] text-muted-foreground">Rate charged to borrowers. This will be read-only in the application process.</p>
                 </div>
@@ -225,7 +227,7 @@ export default function AdminSettingsPage() {
                     type="number" 
                     defaultValue={settingsData?.contributionInterestRate || 50000} 
                     required 
-                    className="h-11 rounded-xl"
+                    className="h-11 rounded-[10px] bg-muted border-none"
                   />
                   <p className="text-[10px] text-muted-foreground">Standard monthly contribution target.</p>
                 </div>
@@ -233,7 +235,8 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-lg bg-card border-primary/10">
+          {/* Authorization Card */}
+          <Card className="border-none shadow-lg bg-card rounded-[10px] border-primary/10">
             <CardHeader>
               <CardTitle className="text-xl">Authorization</CardTitle>
               <CardDescription>Confirm changes with a permanent audit justification</CardDescription>
@@ -246,10 +249,10 @@ export default function AdminSettingsPage() {
                   name="justification" 
                   placeholder="E.g., Adjusted borrowing limits based on Board resolution..." 
                   required 
-                  className="rounded-xl min-h-[100px]"
+                  className="rounded-[10px] min-h-[100px] bg-muted border-none"
                 />
               </div>
-              <Button type="submit" disabled={isUpdating} className="w-full h-12 rounded-xl font-bold shadow-lg shadow-primary/20">
+              <Button type="submit" disabled={isUpdating} className="w-full h-12 rounded-[10px] font-bold shadow-lg shadow-primary/20">
                 {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
                 Save Financial Policies
               </Button>

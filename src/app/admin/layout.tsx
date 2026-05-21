@@ -1,88 +1,103 @@
 'use client';
 
 import Link from 'next/link';
-import { Home, Users, Wallet, Flag, Settings, LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Home, Users, Wallet, Flag, Settings, LogOut, ShieldCheck } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/firebase/auth/use-user';
 import { getAuth, signOut } from 'firebase/auth';
+import { cn } from '@/lib/utils';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user } = useUser();
+  const pathname = usePathname();
 
   const handleLogout = async () => {
     await signOut(getAuth());
   };
 
-  return (
-    <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr] bg-black">
-      {/* Sidebar - Black Background */}
-      <aside className="hidden border-r border-white/10 bg-black lg:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-16 items-center border-b border-white/10 px-6">
-            <Link href="/" className="flex items-center gap-2 font-semibold text-white">
-              <Wallet className="h-6 w-6 text-primary shadow-lg shadow-primary/20" />
-              <span className="font-headline text-xl">Ikimina Admin</span>
-            </Link>
-          </div>
-          <div className="flex-1 overflow-auto py-4">
-            <nav className="grid items-start px-4 text-sm font-bold gap-1">
-              <Link href="/admin" className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-white/60 transition-all hover:bg-white/5 hover:text-white">
-                <Home className="h-4 w-4" />
-                Main Dashboard
-              </Link>
-              <Link href="/members" className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-white/60 transition-all hover:bg-white/5 hover:text-white">
-                <Users className="h-4 w-4" />
-                Members
-              </Link>
-              <Link href="/contributions" className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-white/60 transition-all hover:bg-white/5 hover:text-white">
-                <Wallet className="h-4 w-4" />
-                Contributions
-              </Link>
-               <Link href="/reports" className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-white/60 transition-all hover:bg-white/5 hover:text-white">
-                <Flag className="h-4 w-4" />
-                Reports
-              </Link>
-              <Link href="/admin/settings" className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-white/60 transition-all hover:bg-white/5 hover:text-white">
-                <Settings className="h-4 w-4" />
-                Settings
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </aside>
+  const menuItems = [
+    { href: '/admin', label: 'Main Dashboard', icon: Home },
+    { href: '/members', label: 'Members', icon: Users },
+    { href: '/contributions', label: 'Contributions', icon: Wallet },
+    { href: '/reports', label: 'Reports', icon: Flag },
+    { href: '/admin/settings', label: 'Settings', icon: Settings },
+  ];
 
-      <div className="flex flex-col overflow-hidden">
-        {/* Header - Black Background */}
-        <header className="flex h-16 items-center gap-4 border-b border-white/10 bg-black px-6 shrink-0">
-          <div className="w-full flex-1" />
+  return (
+    <div className="flex flex-col h-screen w-full bg-black overflow-hidden">
+      {/* Global Full-Width Header */}
+      <header className="h-16 w-full flex items-center justify-between border-b border-white/10 bg-black px-10 shrink-0 shadow-lg text-white">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20">
+            <Wallet className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <span className="font-headline text-xl font-bold tracking-tight">
+            Ikimina App
+          </span>
+        </div>
+
+        <div className="flex items-center gap-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10">
                 <Avatar className="h-8 w-8">
-                    <AvatarImage src={`https://picsum.photos/seed/${user?.uid}/100/100`} />
-                    <AvatarFallback className="bg-primary/20 text-primary">A</AvatarFallback>
+                  <AvatarImage src={`https://picsum.photos/seed/${user?.uid}/100/100`} />
+                  <AvatarFallback className="bg-primary/20 text-primary">A</AvatarFallback>
                 </Avatar>
-                <span className="sr-only">Toggle user menu</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 rounded-[10px]">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuLabel>Administrative Access</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => window.location.href = '/'}>View Site</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.href = '/'}>Exit Console</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive font-bold">
                 <LogOut className="mr-2 h-4 w-4" /> Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </header>
+        </div>
+      </header>
 
-        {/* Workspace - Black Background with white content spacing */}
-        <main className="flex-1 overflow-auto bg-black p-4 md:p-6">
-          <div className="rounded-[10px] min-h-full">
+      <div className="flex-1 flex overflow-hidden relative p-4 gap-4">
+        {/* Floating Sidebar */}
+        <aside className="hidden md:flex flex-col w-64 bg-black p-6 space-y-8 rounded-[10px] border border-white/10 shrink-0">
+          <div className="flex flex-col gap-1 px-4 py-3 border-b border-white/10">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">Internal System</h2>
+            <span className="text-xs font-bold text-primary flex items-center gap-2">
+              <ShieldCheck className="h-3 w-3" /> Administrator Console
+            </span>
+          </div>
+
+          <nav className="flex-1 space-y-2">
+            {menuItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all',
+                    isActive 
+                      ? 'bg-primary text-primary-foreground shadow-lg' 
+                      : 'text-white/60 hover:bg-white/5 hover:text-white'
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+        
+        {/* Main Content Card - Floating on Black Background */}
+        <main className="flex-1 overflow-auto rounded-[10px] bg-black">
+          <div className="min-h-full">
             {children}
           </div>
         </main>
