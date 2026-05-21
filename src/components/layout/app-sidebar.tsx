@@ -9,7 +9,8 @@ import {
   Wallet, 
   HandCoins, 
   FileText, 
-  Settings
+  Settings,
+  Landmark
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -47,7 +48,8 @@ export function AppSidebar() {
   const menuItems = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/contributions', label: 'Contributions', icon: Wallet },
-    { href: '/loans', label: 'Loans', icon: HandCoins },
+    { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
+    { href: '/loans?apply=true', label: 'Apply for Loan', icon: HandCoins },
   ];
 
   if (role === 'admin' || role === 'management') {
@@ -73,7 +75,8 @@ export function AppSidebar() {
 
       <nav className="flex-1 space-y-2">
         {menuItems.map((item) => {
-          const isActive = pathname === item.href;
+          // Match active state based on base path to handle query params
+          const isActive = pathname === item.href.split('?')[0];
           return (
             <Link
               key={item.href}

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,7 +21,8 @@ import {
   Eye, 
   Ban,
   Calendar,
-  Landmark
+  Landmark,
+  Info
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -46,12 +48,13 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { recordRepaymentAction, verifyRepaymentAction } from '@/lib/finance-client';
 import { formatCurrency } from '@/lib/currency';
 
-export default function LoansPage() {
+function LoansPageContent() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const firebaseApp = useFirebaseApp();
   const storage = getStorage(firebaseApp);
   const { user } = useUser();
+  const searchParams = useSearchParams();
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
@@ -63,6 +66,7 @@ export default function LoansPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRepayOpen, setIsRepayOpen] = useState(false);
   const [isVerifyRepayOpen, setIsVerifyRepayOpen] = useState(false);
+  const [isApplyOpen, setIsApplyOpen] = useState(false);
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
@@ -71,6 +75,13 @@ export default function LoansPage() {
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
   
+  // Trigger Apply Dialog from URL
+  useEffect(() => {
+    if (searchParams.get('apply') === 'true') {
+      setIsApplyOpen(true);
+    }
+  }, [searchParams]);
+
   const loansQuery = useMemoFirebase(() => {
     if (!user || userDataLoading || !userData) return null;
     if (isManagement) return query(collection(firestore, 'loans'), orderBy('requestDate', 'desc'));
@@ -88,9 +99,8 @@ export default function LoansPage() {
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const pendingRepayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
 
-  // Derived data for tabs
   const activeLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved'), [loans]);
-  const historyLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved' || l.status === 'rejected' || l.status === 'completed'), [loans]);
+  const historyLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved' || l.status === 'rejected' || l.status === 'completed' || l.status === 'requested'), [loans]);
   
   const missedInstallments = useMemo(() => {
     const missed: any[] = [];
@@ -114,6 +124,36 @@ export default function LoansPage() {
       .reduce((acc, l: any) => acc + (l.interestAmount || 0), 0);
     return { gained, paid };
   }, [userData, loans]);
+
+  const handleApply = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!user) return;
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const amount = Number(formData.get('amount'));
+    const description = formData.get('description') as string;
+
+    try {
+      await addDoc(collection(firestore, 'loans'), {
+        memberId: user.uid,
+        amount,
+        description,
+        status: 'requested',
+        requestDate: serverTimestamp(),
+        balance: 0,
+        interestAmount: 0,
+        penaltyRate: 0,
+        durationMonths: 12
+      });
+
+      toast({ title: "Application Sent", description: "Your loan request has been submitted for management review." });
+      setIsApplyOpen(false);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleRepay = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -183,14 +223,19 @@ export default function LoansPage() {
           <h1 className="text-3xl font-headline font-bold text-white">Lending & Capital</h1>
           <p className="text-white/60 font-medium">Manage borrowing cycles and repayment schedules</p>
         </div>
-        <div className="flex gap-2">
-           <div className="bg-muted px-4 py-2 rounded-[10px] border border-white/5 text-center min-w-[120px]">
-              <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Gained Interest</p>
-              <p className="text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>
-           </div>
-           <div className="bg-muted px-4 py-2 rounded-[10px] border border-white/5 text-center min-w-[120px]">
-              <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">Interest Paid</p>
-              <p className="text-sm font-bold text-orange-600">-{formatCurrency(interestSummary.paid, currency)}</p>
+        <div className="flex items-center gap-2">
+           <Button onClick={() => setIsApplyOpen(true)} className="rounded-[10px] font-bold h-11 px-6 shadow-lg shadow-primary/20">
+             <Plus className="mr-2 h-4 w-4" /> Apply for Loan
+           </Button>
+           <div className="hidden lg:flex gap-2">
+              <div className="bg-muted px-4 py-2 rounded-[10px] border border-white/5 text-center min-w-[120px]">
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Gained Interest</p>
+                  <p className="text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>
+              </div>
+              <div className="bg-muted px-4 py-2 rounded-[10px] border border-white/5 text-center min-w-[120px]">
+                  <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">Interest Paid</p>
+                  <p className="text-sm font-bold text-orange-600">-{formatCurrency(interestSummary.paid, currency)}</p>
+              </div>
            </div>
         </div>
       </div>
@@ -336,7 +381,7 @@ export default function LoansPage() {
                         <TableCell className="font-medium text-sm">{formatCurrency(loan.amount, currency)}</TableCell>
                         <TableCell className="text-xs text-orange-600 font-bold">+{formatCurrency(loan.interestAmount || 0, currency)}</TableCell>
                         <TableCell>
-                           <Badge variant={loan.status === 'rejected' ? 'destructive' : 'outline'} className="uppercase font-bold text-[9px] border-none bg-muted/50">
+                           <Badge variant={loan.status === 'rejected' ? 'destructive' : loan.status === 'requested' ? 'secondary' : 'outline'} className="uppercase font-bold text-[9px] border-none bg-muted/50">
                              {loan.status}
                            </Badge>
                         </TableCell>
@@ -432,6 +477,66 @@ export default function LoansPage() {
         </TabsContent>
       </Tabs>
 
+      {/* APPLY FOR LOAN DIALOG */}
+      <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
+        <DialogContent className="max-w-md rounded-[10px] bg-card">
+          <form onSubmit={handleApply}>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold">Request Capital Loan</DialogTitle>
+              <DialogDescription className="font-medium">Apply for a loan based on your verified contribution weight.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-6 py-6">
+              <div className="p-4 bg-muted rounded-[10px] border border-white/5 space-y-1">
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                   <ShieldCheck className="h-3 w-3 text-primary" /> Max Borrowing Power
+                 </p>
+                 <p className="text-2xl font-bold text-primary">
+                    {formatCurrency((interestSummary.gained + (loans.filter(l => l.status === 'completed').length * 10000)) * 2, currency)}
+                 </p>
+                 <p className="text-[9px] text-muted-foreground italic">Calculated based on your verified savings & internal audit score.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider">Requested Amount</Label>
+                <div className="relative">
+                  <Input 
+                    name="amount" 
+                    type="number" 
+                    placeholder="e.g. 500000" 
+                    required 
+                    className="h-11 rounded-[10px] pr-12 bg-muted border-none" 
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">{currency}</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider">Purpose of Loan</Label>
+                <Textarea 
+                  name="description" 
+                  placeholder="E.g., Small business expansion, school fees, etc." 
+                  required 
+                  className="rounded-[10px] bg-muted border-none min-h-[100px]" 
+                />
+              </div>
+
+              <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 flex gap-3">
+                 <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                 <p className="text-[10px] text-primary/80 leading-relaxed font-medium">
+                   Your request will be audited by Management. Once approved, the amortization schedule will be generated and interest applied per system policy.
+                 </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-[10px] font-bold shadow-lg">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <HandCoins className="mr-2 h-4 w-4" />}
+                Submit Loan Request
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* REPAYMENT DIALOG */}
       <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
         <DialogContent className="max-w-md rounded-[10px] bg-card">
@@ -519,5 +624,13 @@ export default function LoansPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function LoansPage() {
+  return (
+    <Suspense fallback={<div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <LoansPageContent />
+    </Suspense>
   );
 }
