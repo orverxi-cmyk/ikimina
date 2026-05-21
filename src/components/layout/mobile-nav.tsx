@@ -37,7 +37,7 @@ export function MobileNav() {
         {/* Streamlined "Apply" Action in the Center */}
         <div className="relative w-full h-full flex items-center justify-center">
           <Link 
-            href="/loans?apply=true" 
+            href="/loans/apply" 
             className="absolute -top-6 bg-primary rounded-2xl w-14 h-14 shadow-lg shadow-primary/30 border-4 border-black flex flex-col items-center justify-center text-primary-foreground group active:scale-95 transition-transform"
           >
             <HandCoins className="h-6 w-6" />

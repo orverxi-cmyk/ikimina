@@ -49,7 +49,7 @@ export function AppSidebar() {
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/contributions', label: 'Contributions', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
-    { href: '/loans?apply=true', label: 'Apply for Loan', icon: HandCoins },
+    { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
   ];
 
   if (role === 'admin' || role === 'management') {
@@ -75,7 +75,7 @@ export function AppSidebar() {
 
       <nav className="flex-1 space-y-1">
         {menuItems.map((item) => {
-          const isActive = pathname === item.href.split('?')[0];
+          const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
