@@ -90,7 +90,7 @@ export default function ProfilePage() {
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8 pb-24">
       {/* Profile Header */}
-      <div className="flex flex-col md:flex-row gap-6 items-center md:items-start bg-card/50 p-6 rounded-3xl border border-primary/5">
+      <div className="flex flex-col md:flex-row gap-6 items-center md:items-start bg-card p-6 rounded-3xl border border-primary/5">
         <Avatar className="w-24 h-24 border-4 border-background shadow-xl">
           <AvatarImage src={`https://picsum.photos/seed/${targetId}/200/200`} />
           <AvatarFallback><UserIcon className="h-10 w-10" /></AvatarFallback>
@@ -120,7 +120,7 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="bg-card/80 border w-full md:w-fit grid grid-cols-3 rounded-2xl p-1 h-12">
+        <TabsList className="bg-card border w-full md:w-fit grid grid-cols-3 rounded-2xl p-1 h-12">
           <TabsTrigger value="overview" className="rounded-xl font-bold text-xs"><Landmark className="mr-2 h-4 w-4" /> Summary</TabsTrigger>
           <TabsTrigger value="contributions" className="rounded-xl font-bold text-xs"><Wallet className="mr-2 h-4 w-4" /> Contributions</TabsTrigger>
           <TabsTrigger value="loans" className="rounded-xl font-bold text-xs"><HandCoins className="mr-2 h-4 w-4" /> Loans</TabsTrigger>
@@ -133,17 +133,17 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground">Capital Standing</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-sm text-muted-foreground">Total Contributions</span>
+                <div className="flex justify-between items-center p-4 bg-muted rounded-xl border border-primary/5">
+                  <span className="text-sm text-muted-foreground font-medium">Total Contributions</span>
                   <span className="font-bold">{formatCurrency(totalContributions, currency)}</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-sm text-muted-foreground">Accumulated Interest</span>
+                <div className="flex justify-between items-center p-4 bg-muted rounded-xl border border-green-500/5">
+                  <span className="text-sm text-muted-foreground font-medium">Accumulated Interest</span>
                   <span className="font-bold text-green-600">+{formatCurrency(userData.accruedInterest || 0, currency)}</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-sm text-muted-foreground font-bold">Total Assets</span>
-                  <span className="font-bold text-lg">{formatCurrency(totalContributions + (userData.accruedInterest || 0), currency)}</span>
+                <div className="flex justify-between items-center p-4 bg-primary/5 rounded-xl border border-primary/10">
+                  <span className="text-sm text-primary font-bold">Total Assets</span>
+                  <span className="font-bold text-lg text-primary">{formatCurrency(totalContributions + (userData.accruedInterest || 0), currency)}</span>
                 </div>
               </CardContent>
             </Card>
@@ -153,15 +153,15 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground">Liability Overview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-sm text-muted-foreground">Active Loan Balance</span>
+                <div className="flex justify-between items-center p-4 bg-muted rounded-xl border border-orange-500/5">
+                  <span className="text-sm text-muted-foreground font-medium">Active Loan Balance</span>
                   <span className="font-bold text-orange-600">{formatCurrency(activeDebt, currency)}</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-sm text-muted-foreground">Total Repayments Made</span>
+                <div className="flex justify-between items-center p-4 bg-muted rounded-xl">
+                  <span className="text-sm text-muted-foreground font-medium">Total Repayments Made</span>
                   <span className="font-bold">0 {currency}</span>
                 </div>
-                <div className="flex justify-between items-center py-2">
+                <div className="flex justify-between items-center p-4 bg-muted rounded-xl">
                   <span className="text-sm text-muted-foreground font-bold">Net Position</span>
                   <span className={cn(
                     "font-bold text-lg",
@@ -196,7 +196,7 @@ export default function ProfilePage() {
                     contributions.map((c: any) => (
                       <TableRow key={c.id}>
                         <TableCell className="font-bold">{c.period}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="text-[10px] text-muted-foreground">
                           {c.date ? format(c.date.toDate(), 'MMM d, yyyy') : '...'}
                         </TableCell>
                         <TableCell className="text-right font-bold">{formatCurrency(c.amount, currency)}</TableCell>
@@ -231,14 +231,14 @@ export default function ProfilePage() {
                   ) : (
                     loans.map((l: any) => (
                       <TableRow key={l.id}>
-                        <TableCell className="text-xs">
+                        <TableCell className="text-[10px]">
                           {l.requestDate ? format(l.requestDate.toDate(), 'MMM d, yyyy') : '...'}
                         </TableCell>
                         <TableCell className="font-medium">{formatCurrency(l.amount, currency)}</TableCell>
-                        <TableCell className="text-xs capitalize">{l.interestType || 'n/a'}</TableCell>
+                        <TableCell className="text-[10px] uppercase font-bold text-muted-foreground">{l.interestType || 'n/a'}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={cn(
-                            "text-[9px] uppercase font-bold",
+                            "text-[9px] uppercase font-bold border-none",
                             l.status === 'approved' && "bg-green-500/10 text-green-600",
                             l.status === 'rejected' && "bg-destructive/10 text-destructive",
                             l.status === 'requested' && "bg-blue-500/10 text-blue-600"
@@ -246,7 +246,7 @@ export default function ProfilePage() {
                             {l.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(l.balance || 0, currency)}</TableCell>
+                        <TableCell className="text-right font-bold text-primary">{formatCurrency(l.balance || 0, currency)}</TableCell>
                       </TableRow>
                     ))
                   )}

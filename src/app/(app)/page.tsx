@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -167,13 +166,13 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-between items-center p-5 bg-background/50 rounded-2xl border border-primary/5 hover:border-primary/20 transition-colors">
+            <div className="flex justify-between items-center p-5 bg-muted rounded-2xl border border-primary/5 hover:border-primary/20 transition-colors">
               <span className="text-muted-foreground font-medium">Verified Assets (Savings + Interest)</span>
               <span className="font-bold text-xl text-primary">
                 {formatCurrency(myParticipation.contributions + (userData?.accruedInterest || 0), currency)}
               </span>
             </div>
-            <div className="flex justify-between items-center p-5 bg-background/50 rounded-2xl border border-orange-500/5 hover:border-orange-500/20 transition-colors">
+            <div className="flex justify-between items-center p-5 bg-muted rounded-2xl border border-orange-500/5 hover:border-orange-500/20 transition-colors">
               <span className="text-muted-foreground font-medium">Current Liabilities (Active Loans)</span>
               <span className="font-bold text-xl text-orange-500">-{formatCurrency(myParticipation.debt, currency)}</span>
             </div>
@@ -189,7 +188,7 @@ export default function DashboardPage() {
           <CardContent>
             {myParticipation.nextPayment ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-4 p-5 bg-background/50 rounded-2xl border border-primary/10 hover:bg-background/80 transition-colors cursor-pointer">
+                <div className="flex items-center gap-4 p-5 bg-muted rounded-2xl border border-primary/10 hover:bg-muted/80 transition-colors cursor-pointer">
                   <div className="bg-primary p-3 rounded-xl text-primary-foreground shadow-lg shadow-primary/20">
                     <HandCoins className="h-5 w-5" />
                   </div>
