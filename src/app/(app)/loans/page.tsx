@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, Suspense } from 'react';
@@ -61,6 +62,7 @@ function LoansPageContent() {
   const { data: settingsData } = useDoc(settingsRef);
   const currency = settingsData?.currency || 'RWF';
   const globalRate = settingsData?.loanInterestRate || 10;
+  const globalPenaltyRate = settingsData?.penaltyRate || 2;
   const globalInterestType = settingsData?.interestType || 'afterward';
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -186,7 +188,7 @@ function LoansPageContent() {
       durationMonths: Number(new FormData(e.currentTarget).get('durationMonths')),
       startDate: new FormData(e.currentTarget).get('startDate') as string,
       interestType: globalInterestType,
-      penaltyRate: Number(new FormData(e.currentTarget).get('penaltyRate')),
+      penaltyRate: globalPenaltyRate,
       checkUrl: ''
     };
     const justification = new FormData(e.currentTarget).get('justification') as string;
@@ -561,8 +563,13 @@ function LoansPageContent() {
                   <Input name="startDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="h-11 rounded-[10px] bg-muted border-none" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider">Penalty Rate (%)</Label>
-                  <Input name="penaltyRate" type="number" step="0.1" defaultValue="2" required className="h-11 rounded-[10px] bg-muted border-none" />
+                  <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                    Penalty Rate (%) <Lock className="h-3 w-3 text-muted-foreground" />
+                  </Label>
+                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 border border-border/50">
+                    {globalPenaltyRate}%
+                  </div>
+                  <p className="text-[9px] text-muted-foreground">Locked by board policy</p>
                 </div>
               </div>
 

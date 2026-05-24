@@ -120,6 +120,7 @@ export async function updateFinancialSettingsAction(data: {
   maxLoanPercentage: number, 
   minLoanAmount: number, 
   maxLoanAmount: number,
+  penaltyRate?: number,
   justification: string 
 }) {
   const functions = getFinanceFunctions();

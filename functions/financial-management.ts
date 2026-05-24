@@ -99,6 +99,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
         maxLoanPercentage, 
         minLoanAmount, 
         maxLoanAmount,
+        penaltyRate,
         justification 
     } = request.data;
 
@@ -115,6 +116,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             maxLoanPercentage: Number(maxLoanPercentage),
             minLoanAmount: Number(minLoanAmount),
             maxLoanAmount: Number(maxLoanAmount),
+            penaltyRate: Number(penaltyRate || 2),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedBy: request.auth.uid
         }, { merge: true });
@@ -132,7 +134,8 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
                 contributionInterestRate, 
                 maxLoanPercentage, 
                 minLoanAmount, 
-                maxLoanAmount 
+                maxLoanAmount,
+                penaltyRate
             },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });

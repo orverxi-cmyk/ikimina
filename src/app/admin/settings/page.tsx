@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,7 +12,7 @@ import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
-import { ShieldCheck, Loader2, Save, Percent, Wallet, Info, Globe, Scale } from 'lucide-react';
+import { ShieldCheck, Loader2, Save, Percent, Wallet, Info, Globe, Scale, AlertTriangle } from 'lucide-react';
 import { updateFinancialSettingsAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -29,7 +30,7 @@ export default function AdminSettingsPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState<string>('RWF');
   const [interestModel, setInterestModel] = useState<string>('one-off');
-  const [interestType, setInterestType] = useState<string>('immediate');
+  const [interestType, setInterestType] = useState<string>('afterward');
 
   useEffect(() => {
     if (settingsData) {
@@ -52,6 +53,7 @@ export default function AdminSettingsPage() {
     const maxLoanPercentage = Number(formData.get('maxLoanPercentage'));
     const minLoanAmount = Number(formData.get('minLoanAmount'));
     const maxLoanAmount = Number(formData.get('maxLoanAmount'));
+    const penaltyRate = Number(formData.get('penaltyRate'));
     const justification = formData.get('justification') as string;
 
     try {
@@ -64,6 +66,7 @@ export default function AdminSettingsPage() {
         maxLoanPercentage, 
         minLoanAmount, 
         maxLoanAmount,
+        penaltyRate,
         justification 
       });
       toast({ title: "Settings Updated", description: "Global financial policies updated successfully." });
@@ -164,6 +167,21 @@ export default function AdminSettingsPage() {
                     required 
                     className="h-11 rounded-[10px] bg-muted border-none"
                   />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border">
+                <div className="space-y-2 max-w-sm">
+                   <Label className="flex items-center gap-1">Late Payment Penalty (%) <AlertTriangle className="h-3 w-3 text-orange-600" /></Label>
+                   <Input 
+                     name="penaltyRate" 
+                     type="number" 
+                     step="0.1" 
+                     defaultValue={settingsData?.penaltyRate || 2} 
+                     required 
+                     className="h-11 rounded-[10px] bg-muted border-none"
+                   />
+                   <p className="text-[10px] text-muted-foreground">Rate applied to installments past their due date.</p>
                 </div>
               </div>
             </CardContent>
