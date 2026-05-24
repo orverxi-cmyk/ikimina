@@ -21,7 +21,9 @@ import {
   Landmark,
   ShieldCheck,
   Ban,
-  Lock
+  Lock,
+  ChevronRight,
+  User as UserIcon
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -70,6 +72,7 @@ function LoansPageContent() {
   const [isVerifyRepayOpen, setIsVerifyRepayOpen] = useState(false);
   const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [isViewScheduleOpen, setIsViewScheduleOpen] = useState(false);
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
@@ -89,11 +92,18 @@ function LoansPageContent() {
     return query(collection(firestore, 'repayments'), where('status', '==', 'pending'), orderBy('date', 'desc'));
   }, [user, isManagement, userDataLoading]);
 
+  const membersQuery = useMemoFirebase(() => {
+    if (!user || !isManagement) return null;
+    return query(collection(firestore, 'users'), orderBy('name', 'asc'));
+  }, [user, isManagement]);
+
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: repaymentsSnap } = useCollection(repaymentsQuery);
+  const { data: membersSnap } = useCollection(membersQuery);
 
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const pendingRepayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
+  const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
 
   const pendingRequests = useMemo(() => loans.filter((l: any) => l.status === 'requested'), [loans]);
   const activeLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved'), [loans]);
@@ -121,6 +131,11 @@ function LoansPageContent() {
       .reduce((acc, l: any) => acc + (l.interestAmount || 0), 0);
     return { gained, paid };
   }, [userData, loans]);
+
+  const getMemberName = (id: string) => {
+    if (id === user?.uid) return userData?.name || 'Me';
+    return members.find((m: any) => m.id === id)?.name || 'Unknown Member';
+  };
 
   const handleRepay = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -214,7 +229,7 @@ function LoansPageContent() {
     try {
       await rejectLoanAction({ loanId: selectedLoan.id, justification });
       toast({ title: "Loan Rejected", description: "Request has been archived." });
-      setIsRejectOpen(false);
+      setIsRejectOpen(true);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Rejection Failed", description: error.message });
     } finally {
@@ -271,7 +286,10 @@ function LoansPageContent() {
                   {pendingRequests.map((r: any) => (
                     <div key={r.id} className="bg-card p-4 rounded-[10px] border border-border flex flex-col gap-3 shadow-sm">
                       <div className="flex justify-between items-start">
-                        <span className="text-xs font-bold text-muted-foreground truncate max-w-[140px]">{r.description || 'Capital Request'}</span>
+                        <div className="space-y-0.5">
+                           <span className="text-[10px] font-bold text-muted-foreground uppercase">{getMemberName(r.memberId)}</span>
+                           <p className="text-xs font-bold truncate max-w-[140px]">{r.description || 'Capital Request'}</p>
+                        </div>
                         <Badge variant="outline" className="text-[9px] font-bold uppercase bg-blue-50 text-blue-600 border-blue-100">Requested</Badge>
                       </div>
                       <div className="flex justify-between items-end">
@@ -301,7 +319,7 @@ function LoansPageContent() {
                   {pendingRepayments.map((r: any) => (
                     <div key={r.id} className="bg-card p-4 rounded-[10px] border border-border flex flex-col gap-3 shadow-sm">
                       <div className="flex justify-between items-start">
-                        <span className="text-xs font-bold text-muted-foreground">Repayment Submission</span>
+                        <span className="text-xs font-bold text-muted-foreground">{getMemberName(r.memberId)}</span>
                         <Badge variant="outline" className="text-[9px] font-bold uppercase">Pending</Badge>
                       </div>
                       <div className="flex justify-between items-end">
@@ -325,7 +343,7 @@ function LoansPageContent() {
       <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-14 rounded-[10px] bg-muted border border-border p-1.5 mb-8">
           <TabsTrigger value="schedule" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground">
-            <Calendar className="h-4 w-4" /> Schedule
+            <Calendar className="h-4 w-4" /> {isManagement ? 'Active Loans' : 'My Schedule'}
           </TabsTrigger>
           <TabsTrigger value="history" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground">
             <HistoryIcon className="h-4 w-4" /> History
@@ -347,40 +365,90 @@ function LoansPageContent() {
           <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
-                <HandCoins className="h-5 w-5 text-primary" /> Active Repayment Windows
+                <HandCoins className="h-5 w-5 text-primary" /> {isManagement ? 'Active Capital Book' : 'Active Repayment Windows'}
               </CardTitle>
-              <CardDescription>Upcoming installments for all approved capital loans.</CardDescription>
+              <CardDescription>
+                {isManagement 
+                  ? 'Audit and manage the repayment cycles for all approved member loans.' 
+                  : 'Upcoming installments for all your approved capital loans.'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-muted/10">
-                  <TableRow>
-                    <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Installment</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Due Date</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Target Amount</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
-                    {!isManagement && <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingLoans ? (
-                    <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
-                  ) : activeLoans.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic font-medium">No active repayment schedules found.</TableCell></TableRow>
-                  ) : (
-                    activeLoans.flatMap((loan: any) => (
-                      loan.amortization?.map((inst: any) => (
-                        <TableRow key={`${loan.id}-${inst.installmentNumber}`} className="hover:bg-muted/30 transition-colors">
+              {isManagement ? (
+                <Table>
+                  <TableHeader className="bg-muted/10">
+                    <TableRow>
+                      <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Borrower</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Description</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Contract Amount</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Current Balance</TableHead>
+                      <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingLoans ? (
+                      <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                    ) : activeLoans.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic font-medium">No active repayment cycles in the system.</TableCell></TableRow>
+                    ) : (
+                      activeLoans.map((loan: any) => (
+                        <TableRow key={loan.id} className="hover:bg-muted/30 transition-colors">
                           <TableCell className="px-6 py-4">
-                            <div className="font-bold text-sm">#{inst.installmentNumber}</div>
-                            <div className="text-[10px] text-muted-foreground truncate max-w-[150px] font-medium">{loan.description || 'Personal Loan'}</div>
+                            <div className="flex items-center gap-3">
+                               <div className="p-2 bg-primary/10 rounded-full">
+                                  <UserIcon className="h-4 w-4 text-primary" />
+                               </div>
+                               <div className="font-bold text-sm">{getMemberName(loan.memberId)}</div>
+                            </div>
                           </TableCell>
-                          <TableCell className="text-sm font-medium">
-                            {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                          <TableCell className="text-sm font-medium text-muted-foreground truncate max-w-[150px]">
+                            {loan.description || 'Business Capital'}
                           </TableCell>
-                          <TableCell className="font-bold text-primary">{formatCurrency(inst.amount, currency)}</TableCell>
-                          <TableCell>{getStatusBadge(inst.dueDate, inst.status)}</TableCell>
-                          {!isManagement && (
+                          <TableCell className="font-medium text-sm">
+                            {formatCurrency(loan.amount, currency)}
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-bold text-primary">{formatCurrency(loan.balance || 0, currency)}</span>
+                          </TableCell>
+                          <TableCell className="text-right px-6">
+                             <Button size="sm" variant="outline" className="h-8 rounded-[10px] font-bold text-[11px]" onClick={() => { setSelectedLoan(loan); setIsViewScheduleOpen(true); }}>
+                               View Schedule <ChevronRight className="ml-1.5 h-3 w-3" />
+                             </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Table>
+                  <TableHeader className="bg-muted/10">
+                    <TableRow>
+                      <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Installment</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Due Date</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Target Amount</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
+                      <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingLoans ? (
+                      <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                    ) : activeLoans.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic font-medium">No active repayment schedules found.</TableCell></TableRow>
+                    ) : (
+                      activeLoans.flatMap((loan: any) => (
+                        loan.amortization?.map((inst: any) => (
+                          <TableRow key={`${loan.id}-${inst.installmentNumber}`} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="px-6 py-4">
+                              <div className="font-bold text-sm">#{inst.installmentNumber}</div>
+                              <div className="text-[10px] text-muted-foreground truncate max-w-[150px] font-medium">{loan.description || 'Personal Loan'}</div>
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                            </TableCell>
+                            <TableCell className="font-bold text-primary">{formatCurrency(inst.amount, currency)}</TableCell>
+                            <TableCell>{getStatusBadge(inst.dueDate, inst.status)}</TableCell>
                             <TableCell className="text-right px-6">
                               {inst.status === 'pending' && (
                                 <Button size="sm" className="h-8 rounded-[10px] font-bold" onClick={() => { setSelectedLoan(loan); setIsRepayOpen(true); }}>
@@ -388,13 +456,13 @@ function LoansPageContent() {
                                 </Button>
                               )}
                             </TableCell>
-                          )}
-                        </TableRow>
+                          </TableRow>
+                        ))
                       ))
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -526,6 +594,66 @@ function LoansPageContent() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* VIEW LOAN SCHEDULE DIALOG (Management Only) */}
+      <Dialog open={isViewScheduleOpen} onOpenChange={setIsViewScheduleOpen}>
+        <DialogContent className="max-w-3xl rounded-[10px] bg-card p-0 overflow-hidden">
+          <DialogHeader className="p-6 bg-muted/30 border-b">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" /> Loan Repayment Schedule
+            </DialogTitle>
+            <DialogDescription>
+              Detailed breakdown for {selectedLoan ? getMemberName(selectedLoan.memberId) : 'member'}'s capital loan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-6">
+             <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="bg-muted p-3 rounded-xl border border-border">
+                   <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Contract Principal</p>
+                   <p className="text-lg font-bold">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
+                </div>
+                <div className="bg-muted p-3 rounded-xl border border-border">
+                   <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Interest Committed</p>
+                   <p className="text-lg font-bold text-orange-600">+{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
+                </div>
+                <div className="bg-primary/5 p-3 rounded-xl border border-primary/10">
+                   <p className="text-[10px] font-bold uppercase text-primary tracking-widest mb-1">Outstanding Balance</p>
+                   <p className="text-lg font-bold text-primary">{selectedLoan ? formatCurrency(selectedLoan.balance || 0, currency) : '-'}</p>
+                </div>
+             </div>
+
+             <div className="max-h-[400px] overflow-auto border rounded-xl">
+               <Table>
+                 <TableHeader className="bg-muted/50 sticky top-0">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-bold uppercase">Installment</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase">Due Date</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase">Amount</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-right">Status</TableHead>
+                    </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {selectedLoan?.amortization?.map((inst: any) => (
+                     <TableRow key={inst.installmentNumber}>
+                       <TableCell className="font-bold text-sm">#{inst.installmentNumber}</TableCell>
+                       <TableCell className="text-sm font-medium">
+                         {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                       </TableCell>
+                       <TableCell className="font-bold text-sm">{formatCurrency(inst.amount, currency)}</TableCell>
+                       <TableCell className="text-right">
+                          {getStatusBadge(inst.dueDate, inst.status)}
+                       </TableCell>
+                     </TableRow>
+                   ))}
+                 </TableBody>
+               </Table>
+             </div>
+          </div>
+          <DialogFooter className="p-4 bg-muted/10 border-t">
+             <Button variant="ghost" onClick={() => setIsViewScheduleOpen(false)} className="rounded-[10px] font-bold">Close View</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* APPROVE LOAN DIALOG (Management Only) */}
       <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
