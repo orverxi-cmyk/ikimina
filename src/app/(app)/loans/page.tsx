@@ -19,7 +19,8 @@ import {
   Calendar,
   Landmark,
   ShieldCheck,
-  Ban
+  Ban,
+  Lock
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -40,7 +41,7 @@ import { collection, query, doc, orderBy, where, Timestamp } from 'firebase/fire
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
-import { format, isPast, addMonths } from 'date-fns';
+import { format, isPast } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { recordRepaymentAction, verifyRepaymentAction, approveLoanAction, rejectLoanAction } from '@/lib/finance-client';
 import { formatCurrency } from '@/lib/currency';
@@ -60,6 +61,7 @@ function LoansPageContent() {
   const { data: settingsData } = useDoc(settingsRef);
   const currency = settingsData?.currency || 'RWF';
   const globalRate = settingsData?.loanInterestRate || 10;
+  const globalInterestType = settingsData?.interestType || 'afterward';
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRepayOpen, setIsRepayOpen] = useState(false);
@@ -176,16 +178,18 @@ function LoansPageContent() {
     e.preventDefault();
     if (!selectedLoan || !isManagement) return;
     setIsSubmitting(true);
-    const formData = new FormData(e.currentTarget);
+    
+    const calculatedInterest = Math.round(selectedLoan.amount * (globalRate / 100));
+
     const terms = {
-      interestAmount: Number(formData.get('interestAmount')),
-      durationMonths: Number(formData.get('durationMonths')),
-      startDate: formData.get('startDate') as string,
-      interestType: formData.get('interestType') as string,
-      penaltyRate: Number(formData.get('penaltyRate')),
+      interestAmount: calculatedInterest,
+      durationMonths: Number(new FormData(e.currentTarget).get('durationMonths')),
+      startDate: new FormData(e.currentTarget).get('startDate') as string,
+      interestType: globalInterestType,
+      penaltyRate: Number(new FormData(e.currentTarget).get('penaltyRate')),
       checkUrl: ''
     };
-    const justification = formData.get('justification') as string;
+    const justification = new FormData(e.currentTarget).get('justification') as string;
 
     try {
       await approveLoanAction({ loanId: selectedLoan.id, terms, justification });
@@ -227,7 +231,7 @@ function LoansPageContent() {
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold">Lending & Capital</h1>
+          <h1 className="text-3xl font-headline font-bold text-foreground">Lending & Capital</h1>
           <p className="text-muted-foreground font-medium">Manage borrowing cycles and repayment schedules</p>
         </div>
         <div className="flex items-center gap-2">
@@ -318,16 +322,16 @@ function LoansPageContent() {
 
       <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-14 rounded-[10px] bg-muted border border-border p-1.5 mb-8">
-          <TabsTrigger value="schedule" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground">
+          <TabsTrigger value="schedule" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground">
             <Calendar className="h-4 w-4" /> Schedule
           </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground">
+          <TabsTrigger value="history" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground">
             <HistoryIcon className="h-4 w-4" /> History
           </TabsTrigger>
-          <TabsTrigger value="interest" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground">
+          <TabsTrigger value="interest" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground">
             <Landmark className="h-4 w-4" /> Interest
           </TabsTrigger>
-          <TabsTrigger value="arrears" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground relative">
+          <TabsTrigger value="arrears" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground relative">
             <AlertTriangle className="h-4 w-4" /> Arrears
             {missedInstallments.length > 0 && (
               <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] text-white animate-bounce">
@@ -537,14 +541,13 @@ function LoansPageContent() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider">Interest Amount</Label>
-                  <Input 
-                    name="interestAmount" 
-                    type="number" 
-                    defaultValue={selectedLoan ? Math.round(selectedLoan.amount * (globalRate / 100)) : 0} 
-                    required 
-                    className="h-11 rounded-[10px] bg-muted border-none" 
-                  />
+                  <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                    Interest Amount <Lock className="h-3 w-3 text-muted-foreground" />
+                  </Label>
+                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 border border-border/50">
+                    {selectedLoan ? formatCurrency(Math.round(selectedLoan.amount * (globalRate / 100)), currency) : '-'}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground">Locked by system rate: {globalRate}%</p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider">Months</Label>
@@ -555,7 +558,7 @@ function LoansPageContent() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider">Start Date</Label>
-                  <Input name="startDate" type="date" defaultValue={format(new Date(), 'yyyy-MM-dd')} required className="h-11 rounded-[10px] bg-muted border-none" />
+                  <Input name="startDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="h-11 rounded-[10px] bg-muted border-none" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider">Penalty Rate (%)</Label>
@@ -564,11 +567,12 @@ function LoansPageContent() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider">Interest Type</Label>
-                <select name="interestType" className="w-full h-11 rounded-[10px] bg-muted border-none px-3 text-sm font-medium focus:ring-2 focus:ring-primary outline-none">
-                   <option value="afterward">Add to Principal (Pay Later)</option>
-                   <option value="immediate">Deduct Now (Upfront)</option>
-                </select>
+                <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                  Interest Deduction Policy <Lock className="h-3 w-3 text-muted-foreground" />
+                </Label>
+                <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 capitalize border border-border/50">
+                  {globalInterestType === 'immediate' ? 'Upfront Deduction' : 'Pay Later (Added to Principal)'}
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -637,7 +641,7 @@ function LoansPageContent() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Regular Installment</Label>
-                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/80">
+                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/80 border border-border/50">
                     {formatCurrency(selectedLoan?.amortization?.find((i: any) => i.status === 'pending')?.amount || 0, currency)}
                   </div>
                 </div>

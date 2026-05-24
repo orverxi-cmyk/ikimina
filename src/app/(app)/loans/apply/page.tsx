@@ -12,7 +12,8 @@ import {
   HandCoins, 
   ShieldCheck, 
   Info, 
-  ArrowLeft 
+  ArrowLeft,
+  Lock
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, addDoc, doc, serverTimestamp, where } from 'firebase/firestore';
@@ -35,6 +36,8 @@ export default function LoanApplyPage() {
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
   const { data: settingsData } = useDoc(settingsRef);
   const currency = settingsData?.currency || 'RWF';
+  const maxLoanAmount = settingsData?.maxLoanAmount || 1000000;
+  const minLoanAmount = settingsData?.minLoanAmount || 5000;
 
   const loansQuery = useMemoFirebase(() => {
     if (!user) return null;
@@ -48,9 +51,13 @@ export default function LoanApplyPage() {
     if (!userData) return 0;
     const gained = userData.accruedInterest || 0;
     const completedCount = loans.filter((l: any) => l.status === 'completed').length;
-    // Calculation logic from dashboard: (Interest Gained + Bonus per completed loan) * 2
+    // Calculation logic: (Interest Gained + Bonus per completed loan) * 2
     return (gained + (completedCount * 10000)) * 2;
   }, [userData, loans]);
+
+  const effectiveMaxLimit = useMemo(() => {
+    return Math.min(borrowingPower, maxLoanAmount);
+  }, [borrowingPower, maxLoanAmount]);
 
   const handleApply = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -59,6 +66,18 @@ export default function LoanApplyPage() {
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('amount'));
     const description = formData.get('description') as string;
+
+    if (amount < minLoanAmount) {
+      toast({ variant: "destructive", title: "Amount Too Low", description: `Minimum loan amount is ${formatCurrency(minLoanAmount, currency)}.` });
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (amount > effectiveMaxLimit) {
+      toast({ variant: "destructive", title: "Limit Exceeded", description: `You cannot request more than your borrowing limit.` });
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       await addDoc(collection(firestore, 'loans'), {
@@ -112,27 +131,38 @@ export default function LoanApplyPage() {
         </CardHeader>
         <CardContent className="p-6">
           <form onSubmit={handleApply} className="space-y-8">
-            <div className="p-4 bg-muted rounded-[10px] border border-border space-y-1">
-               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-                 <ShieldCheck className="h-3 w-3 text-primary" /> Max Borrowing Power
-               </p>
-               <p className="text-2xl font-bold text-primary">
-                  {formatCurrency(borrowingPower, currency)}
-               </p>
-               <p className="text-[9px] text-muted-foreground italic leading-relaxed">
-                 Calculated based on your verified savings and internal audit score. 
-                 Final approval is subject to system policy.
-               </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-muted rounded-[10px] border border-border space-y-1">
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                   <ShieldCheck className="h-3 w-3 text-primary" /> Max Borrowing Power
+                 </p>
+                 <p className="text-xl font-bold text-primary">
+                    {formatCurrency(borrowingPower, currency)}
+                 </p>
+              </div>
+              <div className="p-4 bg-muted rounded-[10px] border border-border space-y-1">
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                   <Lock className="h-3 w-3 text-orange-600" /> System Cap
+                 </p>
+                 <p className="text-xl font-bold text-orange-600">
+                    {formatCurrency(maxLoanAmount, currency)}
+                 </p>
+              </div>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider">Requested Amount</Label>
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs font-bold uppercase tracking-wider">Requested Amount</Label>
+                  <span className="text-[10px] font-bold text-primary">LIMIT: {formatCurrency(effectiveMaxLimit, currency)}</span>
+                </div>
                 <div className="relative">
                   <Input 
                     name="amount" 
                     type="number" 
                     placeholder="e.g. 500000" 
+                    max={effectiveMaxLimit}
+                    min={minLoanAmount}
                     required 
                     className="h-12 rounded-[10px] pr-12 bg-muted border-none text-lg font-bold" 
                   />
