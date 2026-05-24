@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, HandCoins, Users, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock } from 'lucide-react';
+import { Wallet, HandCoins, Users, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock, Plus } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where } from 'firebase/firestore';
@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import { formatCurrency } from '@/lib/currency';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function DashboardPage() {
   const { user, loading: userAuthLoading } = useUser();
@@ -124,14 +126,23 @@ export default function DashboardPage() {
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
-      <div className="flex justify-between items-end">
-        <div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Financial Portfolio</h1>
           <p className="text-muted-foreground font-medium">Welcome back, {userData?.name || 'Member'}</p>
         </div>
-        <div className="text-right hidden md:block">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Active System Policy</p>
-          <p className="text-lg font-bold">1 {currency} = {currency}</p>
+        <div className="flex flex-wrap gap-2">
+           {!isManagement && (
+             <Button asChild className="rounded-[10px] font-bold h-11 px-6 shadow-lg shadow-green-200 bg-green-600 hover:bg-green-700">
+               <Link href="/contributions">
+                 <Wallet className="mr-2 h-4 w-4" /> Submit Savings
+               </Link>
+             </Button>
+           )}
+           <div className="text-right hidden md:block ml-4">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Active System Policy</p>
+              <p className="text-lg font-bold">1 {currency} = {currency}</p>
+            </div>
         </div>
       </div>
 

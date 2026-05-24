@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, User, MessageSquare, MoreHorizontal, HandCoins } from 'lucide-react';
+import { Home, MessageSquare, MoreHorizontal, HandCoins, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function MobileNav() {
@@ -9,11 +9,11 @@ export function MobileNav() {
 
   const leftItems = [
     { href: '/', label: 'Home', icon: Home },
-    { href: '/messages', label: 'Inbox', icon: MessageSquare },
+    { href: '/contributions', label: 'Savings', icon: Wallet },
   ];
 
   const rightItems = [
-    { href: '/profile/me', label: 'Profile', icon: User },
+    { href: '/messages', label: 'Inbox', icon: MessageSquare },
     { href: '/more', label: 'More', icon: MoreHorizontal },
   ];
 

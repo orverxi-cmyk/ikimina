@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw } from 'lucide-react';
+import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw, Plus } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, where, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
@@ -15,7 +15,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { verifyContributionAction, rejectContributionAction } from '@/lib/finance-client';
+import { verifyContributionAction, rejectContributionAction, recordContributionAction } from '@/lib/finance-client';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/currency';
@@ -42,6 +42,7 @@ export default function ContributionsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
   const [selectedContribution, setSelectedContribution] = useState<any>(null);
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('history');
 
   const role = userData?.role || 'member';
@@ -73,21 +74,6 @@ export default function ContributionsPage() {
 
   const { data: membersSnap } = useCollection(membersQuery);
   const { data: contributionsSnap, loading: loadingContributions, error: contributionsError } = useCollection(contributionsQuery);
-
-  // Monitor for Missing Indexes to provide creation links
-  useEffect(() => {
-    if (contributionsError) {
-      console.error('Firestore Query Error:', contributionsError);
-      if (contributionsError.message.includes('index')) {
-        toast({
-          variant: "destructive",
-          title: "Database Index Required",
-          description: "Check the console for the Firestore index creation link.",
-          duration: 10000,
-        });
-      }
-    }
-  }, [contributionsError, toast]);
 
   const members = useMemo(() => {
     return (membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []) as any[];
@@ -142,6 +128,30 @@ export default function ContributionsPage() {
       (e.target as HTMLFormElement).reset();
     } catch (error: any) {
       toast({ variant: "destructive", title: "Submission Failed", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleManualRecord = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!user || !isManagement) return;
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    
+    const data = {
+      memberId: formData.get('memberId') as string,
+      amount: Number(formData.get('amount')),
+      period: formData.get('period') as string,
+      justification: formData.get('justification') as string
+    };
+
+    try {
+      await recordContributionAction(user.uid, data);
+      toast({ title: "Recorded", description: "Manual contribution has been officially added to the ledger." });
+      setIsManualEntryOpen(false);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Failed", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -263,11 +273,18 @@ export default function ContributionsPage() {
             {isManagement ? "Audit and verify member savings" : "Track your verified wealth and pending submissions"}
           </p>
         </div>
-        <div className="bg-primary/10 px-6 py-3 rounded-2xl border border-primary/20">
-          <p className="text-xs text-primary font-bold uppercase tracking-wider">
-            {isManagement ? "Total Verified Fund Value" : "My Verified Balance"}
-          </p>
-          <p className="text-2xl font-bold">{formatCurrency(totalVerifiedBalance, currency)}</p>
+        <div className="flex items-center gap-4">
+          <div className="bg-primary/10 px-6 py-3 rounded-2xl border border-primary/20">
+            <p className="text-xs text-primary font-bold uppercase tracking-wider">
+              {isManagement ? "Total Verified Fund Value" : "My Verified Balance"}
+            </p>
+            <p className="text-2xl font-bold">{formatCurrency(totalVerifiedBalance, currency)}</p>
+          </div>
+          {isManagement && (
+            <Button onClick={() => setIsManualEntryOpen(true)} className="rounded-xl h-12 px-6 font-bold shadow-lg">
+              <Plus className="mr-2 h-5 w-5" /> Manual Entry
+            </Button>
+          )}
         </div>
       </div>
 
@@ -286,7 +303,7 @@ export default function ContributionsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="period">Target Month</Label>
                     <Select name="period" defaultValue={selectedPeriod}>
-                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select Month" /></SelectTrigger>
+                      <SelectTrigger className="h-11 rounded-xl bg-background border-primary/10"><SelectValue placeholder="Select Month" /></SelectTrigger>
                       <SelectContent>
                         {periods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                       </SelectContent>
@@ -295,7 +312,7 @@ export default function ContributionsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="amount">Contribution Amount</Label>
                     <div className="relative">
-                      <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14" />
+                      <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14 bg-background border-primary/10" />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">
                         {currency}
                       </div>
@@ -304,13 +321,13 @@ export default function ContributionsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="proofFile">Proof of Payment</Label>
                     <div className="flex flex-col gap-2">
-                      <Input name="proofFile" type="file" required className="rounded-xl h-11 py-2" />
+                      <Input name="proofFile" type="file" required className="rounded-xl h-11 py-2 bg-background border-primary/10" />
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                         <Info className="h-3 w-3" /> Upload screenshot or bank receipt
                       </p>
                     </div>
                   </div>
-                  <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isSubmitting}>
+                  <Button className="w-full h-11 rounded-xl font-bold shadow-lg" type="submit" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Submit for Verification
                   </Button>
@@ -360,14 +377,14 @@ export default function ContributionsPage() {
 
         <div className="space-y-6 lg:col-span-2">
           <Tabs defaultValue="history" onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 h-12 rounded-xl bg-muted/50 p-1 mb-6">
+            <TabsList className="grid w-full grid-cols-4 h-12 rounded-xl bg-muted/50 p-1 mb-6 border border-border">
               <TabsTrigger value="history" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">History</TabsTrigger>
               <TabsTrigger value="pending" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Pending</TabsTrigger>
               <TabsTrigger value="verified" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Verified</TabsTrigger>
               <TabsTrigger value="rejected" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Rejected</TabsTrigger>
             </TabsList>
 
-            <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
+            <Card className="border border-border shadow-xl bg-card rounded-2xl overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/5">
                 <CardTitle className="flex items-center gap-2 text-lg">
                    <History className="h-5 w-5" /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Record
@@ -383,6 +400,58 @@ export default function ContributionsPage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Manual Entry Dialog (Management) */}
+      <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <form onSubmit={handleManualRecord}>
+            <DialogHeader>
+              <DialogTitle>Manual Contribution Entry</DialogTitle>
+              <DialogDescription>Officially record a payment from a member ledger.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-6">
+              <div className="space-y-2">
+                <Label>Select Member</Label>
+                <Select name="memberId" required>
+                  <SelectTrigger className="h-11 rounded-xl bg-muted border-none">
+                    <SelectValue placeholder="Search member..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map(m => <SelectItem key={m.id} value={m.id}>{m.name} ({m.email})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Amount</Label>
+                  <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl bg-muted border-none" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Period</Label>
+                  <Select name="period" defaultValue={selectedPeriod}>
+                    <SelectTrigger className="h-11 rounded-xl bg-muted border-none">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {periods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Audit Justification</Label>
+                <Textarea name="justification" placeholder="E.g., Cash received at meeting..." required className="rounded-xl min-h-[90px] bg-muted border-none" />
+              </div>
+            </div>
+            <DialogFooter>
+               <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-xl font-bold shadow-lg">
+                 {isSubmitting ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : <ShieldCheck className="h-5 w-5 mr-2" />}
+                 Post to Ledger
+               </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isVerifyOpen} onOpenChange={setIsVerifyOpen}>
         <DialogContent className="rounded-2xl max-w-md">
@@ -407,7 +476,7 @@ export default function ContributionsPage() {
                   </div>
                   {selectedContribution?.proofUrl && (
                     <div className="pt-2">
-                      <Button variant="outline" size="sm" className="w-full text-[11px] h-9 rounded-lg font-bold" asChild>
+                      <Button variant="outline" size="sm" className="w-full text-[11px] h-9 rounded-lg font-bold bg-white" asChild>
                         <a href={selectedContribution.proofUrl} target="_blank" rel="noopener noreferrer">
                           <FileText className="mr-2 h-4 w-4" /> View Payment Evidence
                         </a>
@@ -424,13 +493,13 @@ export default function ContributionsPage() {
                     name="justification" 
                     placeholder="Provide details for verification or reason for rejection..." 
                     required 
-                    className="rounded-xl min-h-[90px]" 
+                    className="rounded-xl min-h-[90px] bg-muted border-none" 
                   />
                 </div>
               </div>
               <DialogFooter className="flex gap-2">
                 <Button 
-                  className="flex-1 h-11 rounded-xl font-bold bg-destructive hover:bg-destructive/90 text-white" 
+                  className="flex-1 h-11 rounded-xl font-bold bg-destructive hover:bg-destructive/90 text-white shadow-lg shadow-destructive/20" 
                   type="submit" 
                   name="action" 
                   value="reject" 
@@ -439,7 +508,7 @@ export default function ContributionsPage() {
                   <Ban className="mr-2 h-4 w-4" /> Reject
                 </Button>
                 <Button 
-                  className="flex-1 h-11 rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white" 
+                  className="flex-1 h-11 rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200" 
                   type="submit" 
                   name="action" 
                   value="verify" 
@@ -471,7 +540,7 @@ export default function ContributionsPage() {
               </div>
 
               <div className="flex flex-col gap-2 pt-2">
-                <Button className="w-full h-11 rounded-xl font-bold" onClick={() => {
+                <Button className="w-full h-11 rounded-xl font-bold shadow-lg" onClick={() => {
                   setSelectedContribution(null);
                   setIsVerifyOpen(false);
                   toast({ title: "Ready for Re-submission", description: "Please use the form to submit corrected details." });
