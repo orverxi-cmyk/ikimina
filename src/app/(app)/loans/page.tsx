@@ -278,7 +278,7 @@ function LoansPageContent() {
                                Reject
                             </Button>
                             <Button size="sm" onClick={() => { setSelectedLoan(r); setIsApproveOpen(true); }} className="h-8 text-[11px] font-bold rounded-[10px]">
-                               Decide
+                               Approve
                             </Button>
                          </div>
                       </div>
