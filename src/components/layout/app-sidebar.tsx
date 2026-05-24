@@ -10,7 +10,8 @@ import {
   HandCoins, 
   FileText, 
   Settings,
-  Landmark
+  Landmark,
+  Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -50,6 +51,7 @@ export function AppSidebar() {
     { href: '/contributions', label: 'Contributions', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
+    { href: '/services', label: 'Our Mission', icon: Info },
   ];
 
   if (role === 'admin' || role === 'management') {

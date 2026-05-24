@@ -17,7 +17,9 @@ import {
   CheckCircle2, 
   Eye, 
   Calendar,
-  Landmark
+  Landmark,
+  ShieldCheck,
+  Ban
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -38,9 +40,9 @@ import { collection, query, doc, orderBy, where, Timestamp } from 'firebase/fire
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
-import { format, isPast } from 'date-fns';
+import { format, isPast, addMonths } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { recordRepaymentAction, verifyRepaymentAction } from '@/lib/finance-client';
+import { recordRepaymentAction, verifyRepaymentAction, approveLoanAction, rejectLoanAction } from '@/lib/finance-client';
 import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
 
@@ -57,10 +59,13 @@ function LoansPageContent() {
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
   const { data: settingsData } = useDoc(settingsRef);
   const currency = settingsData?.currency || 'RWF';
+  const globalRate = settingsData?.loanInterestRate || 10;
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRepayOpen, setIsRepayOpen] = useState(false);
   const [isVerifyRepayOpen, setIsVerifyRepayOpen] = useState(false);
+  const [isApproveOpen, setIsApproveOpen] = useState(false);
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
@@ -86,6 +91,7 @@ function LoansPageContent() {
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const pendingRepayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
 
+  const pendingRequests = useMemo(() => loans.filter((l: any) => l.status === 'requested'), [loans]);
   const activeLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved'), [loans]);
   const historyLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved' || l.status === 'rejected' || l.status === 'completed' || l.status === 'requested'), [loans]);
   
@@ -166,6 +172,50 @@ function LoansPageContent() {
     }
   };
 
+  const handleApproveLoan = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedLoan || !isManagement) return;
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const terms = {
+      interestAmount: Number(formData.get('interestAmount')),
+      durationMonths: Number(formData.get('durationMonths')),
+      startDate: formData.get('startDate') as string,
+      interestType: formData.get('interestType') as string,
+      penaltyRate: Number(formData.get('penaltyRate')),
+      checkUrl: ''
+    };
+    const justification = formData.get('justification') as string;
+
+    try {
+      await approveLoanAction({ loanId: selectedLoan.id, terms, justification });
+      toast({ title: "Loan Approved", description: "Borrower has been notified and funds released." });
+      setIsApproveOpen(false);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Approval Failed", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRejectLoan = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedLoan || !isManagement) return;
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const justification = formData.get('justification') as string;
+
+    try {
+      await rejectLoanAction({ loanId: selectedLoan.id, justification });
+      toast({ title: "Loan Rejected", description: "Request has been archived." });
+      setIsRejectOpen(false);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Rejection Failed", description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getStatusBadge = (dueDate: any, status: string) => {
     const d = dueDate instanceof Timestamp ? dueDate.toDate() : new Date(dueDate);
     if (status === 'paid') return <Badge variant="default" className="bg-green-600 border-none px-3 font-bold uppercase text-[9px]">Paid</Badge>;
@@ -199,34 +249,69 @@ function LoansPageContent() {
         </div>
       </div>
 
-      {isManagement && pendingRepayments.length > 0 && (
+      {isManagement && (pendingRepayments.length > 0 || pendingRequests.length > 0) && (
         <Card className="border-primary/20 bg-primary/5 shadow-inner">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-primary flex items-center gap-2">
-                <Clock className="h-5 w-5" /> Awaiting Verification
-              </CardTitle>
-              <CardDescription>Members have submitted these repayments for audit</CardDescription>
-            </div>
+          <CardHeader>
+            <CardTitle className="text-primary flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" /> Management Action Required
+            </CardTitle>
+            <CardDescription>Review pending loan requests and repayment submissions</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {pendingRepayments.map((r: any) => (
-              <div key={r.id} className="bg-card p-4 rounded-[10px] border border-border flex flex-col gap-3 shadow-sm">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-muted-foreground">Repayment Submission</span>
-                  <Badge variant="outline" className="text-[9px] font-bold uppercase">Pending</Badge>
-                </div>
-                <div className="flex justify-between items-end">
-                   <div>
-                     <p className="text-lg font-bold text-primary">{formatCurrency(r.amount, currency)}</p>
-                     <p className="text-[10px] text-muted-foreground">{r.justification}</p>
-                   </div>
-                   <Button size="sm" onClick={() => { setSelectedRepayment(r); setIsVerifyRepayOpen(true); }} className="h-8 text-[11px] font-bold rounded-[10px]">
-                     Verify Proof
-                   </Button>
+          <CardContent className="space-y-6">
+            {pendingRequests.length > 0 && (
+              <div className="space-y-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-primary/60">Loan Requests</p>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {pendingRequests.map((r: any) => (
+                    <div key={r.id} className="bg-card p-4 rounded-[10px] border border-border flex flex-col gap-3 shadow-sm">
+                      <div className="flex justify-between items-start">
+                        <span className="text-xs font-bold text-muted-foreground truncate max-w-[140px]">{r.description || 'Capital Request'}</span>
+                        <Badge variant="outline" className="text-[9px] font-bold uppercase bg-blue-50 text-blue-600 border-blue-100">Requested</Badge>
+                      </div>
+                      <div className="flex justify-between items-end">
+                         <div>
+                           <p className="text-lg font-bold text-primary">{formatCurrency(r.amount, currency)}</p>
+                           <p className="text-[10px] text-muted-foreground">{format(r.requestDate?.toDate() || new Date(), 'MMM d, yyyy')}</p>
+                         </div>
+                         <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedLoan(r); setIsRejectOpen(true); }} className="h-8 text-[11px] font-bold rounded-[10px] border-destructive/20 text-destructive">
+                               Reject
+                            </Button>
+                            <Button size="sm" onClick={() => { setSelectedLoan(r); setIsApproveOpen(true); }} className="h-8 text-[11px] font-bold rounded-[10px]">
+                               Decide
+                            </Button>
+                         </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
+
+            {pendingRepayments.length > 0 && (
+              <div className="space-y-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-primary/60">Repayment Evidence</p>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {pendingRepayments.map((r: any) => (
+                    <div key={r.id} className="bg-card p-4 rounded-[10px] border border-border flex flex-col gap-3 shadow-sm">
+                      <div className="flex justify-between items-start">
+                        <span className="text-xs font-bold text-muted-foreground">Repayment Submission</span>
+                        <Badge variant="outline" className="text-[9px] font-bold uppercase">Pending</Badge>
+                      </div>
+                      <div className="flex justify-between items-end">
+                         <div>
+                           <p className="text-lg font-bold text-primary">{formatCurrency(r.amount, currency)}</p>
+                           <p className="text-[10px] text-muted-foreground truncate max-w-[120px]">{r.justification}</p>
+                         </div>
+                         <Button size="sm" onClick={() => { setSelectedRepayment(r); setIsVerifyRepayOpen(true); }} className="h-8 text-[11px] font-bold rounded-[10px]">
+                           Verify Proof
+                         </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -258,7 +343,7 @@ function LoansPageContent() {
               <CardTitle className="text-xl flex items-center gap-2">
                 <HandCoins className="h-5 w-5 text-primary" /> Active Repayment Windows
               </CardTitle>
-              <CardDescription>Upcoming installments for all your approved capital loans.</CardDescription>
+              <CardDescription>Upcoming installments for all approved capital loans.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -435,6 +520,100 @@ function LoansPageContent() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* APPROVE LOAN DIALOG (Management Only) */}
+      <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
+        <DialogContent className="max-w-md rounded-[10px] bg-card">
+          <form onSubmit={handleApproveLoan}>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold">Approve Loan Request</DialogTitle>
+              <DialogDescription>Define the legal repayment terms for this request.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-6">
+              <div className="p-4 bg-muted rounded-[10px] border border-border">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Requested Amount</p>
+                <p className="text-2xl font-bold text-primary">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider">Interest Amount</Label>
+                  <Input 
+                    name="interestAmount" 
+                    type="number" 
+                    defaultValue={selectedLoan ? Math.round(selectedLoan.amount * (globalRate / 100)) : 0} 
+                    required 
+                    className="h-11 rounded-[10px] bg-muted border-none" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider">Months</Label>
+                  <Input name="durationMonths" type="number" defaultValue="12" required className="h-11 rounded-[10px] bg-muted border-none" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider">Start Date</Label>
+                  <Input name="startDate" type="date" defaultValue={format(new Date(), 'yyyy-MM-dd')} required className="h-11 rounded-[10px] bg-muted border-none" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider">Penalty Rate (%)</Label>
+                  <Input name="penaltyRate" type="number" step="0.1" defaultValue="2" required className="h-11 rounded-[10px] bg-muted border-none" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider">Interest Type</Label>
+                <select name="interestType" className="w-full h-11 rounded-[10px] bg-muted border-none px-3 text-sm font-medium focus:ring-2 focus:ring-primary outline-none">
+                   <option value="afterward">Add to Principal (Pay Later)</option>
+                   <option value="immediate">Deduct Now (Upfront)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider">Audit Justification</Label>
+                <Textarea name="justification" placeholder="E.g., Approved per credit policy..." required className="rounded-[10px] bg-muted border-none min-h-[80px]" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-[10px] font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Release Funds & Approve
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* REJECT LOAN DIALOG (Management Only) */}
+      <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
+        <DialogContent className="max-w-md rounded-[10px] bg-card">
+          <form onSubmit={handleRejectLoan}>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-destructive">Reject Loan Request</DialogTitle>
+              <DialogDescription>This action will archive the request and notify the borrower.</DialogDescription>
+            </DialogHeader>
+            <div className="py-6 space-y-4">
+               <div className="p-4 bg-destructive/5 border border-destructive/10 rounded-[10px]">
+                  <p className="text-[10px] font-bold uppercase text-destructive tracking-widest mb-1">Target Request</p>
+                  <p className="text-lg font-bold">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{selectedLoan?.description}</p>
+               </div>
+               <div className="space-y-2">
+                 <Label className="text-xs font-bold uppercase tracking-wider">Rejection Reason</Label>
+                 <Textarea name="justification" placeholder="E.g., Insufficient contribution weight..." required className="rounded-[10px] bg-muted border-none min-h-[100px]" />
+               </div>
+            </div>
+            <DialogFooter>
+               <Button type="submit" disabled={isSubmitting} variant="destructive" className="w-full h-12 rounded-[10px] font-bold shadow-lg shadow-destructive/20">
+                 {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Ban className="mr-2 h-4 w-4" />}
+                 Confirm Rejection
+               </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* REPAYMENT DIALOG */}
       <Dialog open={isRepayOpen} onOpenChange={setIsRepayOpen}>
