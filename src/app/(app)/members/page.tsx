@@ -343,7 +343,9 @@ export default function MembersPage() {
                                 const justification = window.prompt("Reason for removal:");
                                 if (!justification) return;
                                 await deleteDoc(doc(firestore, 'users', member.id));
-                                await logAdminAction({ adminId: user.uid, action: 'DELETE_MEMBER', justification, details: { memberId: member.id } });
+                                if (user) {
+                                  await logAdminAction({ adminId: user.uid, action: 'DELETE_MEMBER', justification, details: { memberId: member.id } });
+                                }
                                 toast({ title: "Removed", description: "Access has been revoked." });
                               }
                             }}>Revoke Access</DropdownMenuItem>

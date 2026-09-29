@@ -134,7 +134,7 @@ function LoansPageContent() {
 
   const getMemberName = (id: string) => {
     if (id === user?.uid) return userData?.name || 'Me';
-    return members.find((m: any) => m.id === id)?.name || 'Unknown Member';
+    return (members as any[]).find((m: any) => m.id === id)?.name || 'Unknown Member';
   };
 
   const handleRepay = async (e: React.FormEvent<HTMLFormElement>) => {

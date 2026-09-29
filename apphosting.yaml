@@ -11,3 +11,11 @@ backend:
   serviceId: my-cloud-run-service
   # The region of the Cloud Run service.
   region: us-central1
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_CONFIG
+    value: '{"apiKey":"AIzaSyB1__WmAzyu6jhzmaLDBodmOC_bG9XDNl8","authDomain":"studio-1670844393-18cbb.firebaseapp.com","projectId":"studio-1670844393-18cbb","storageBucket":"studio-1670844393-18cbb.firebasestorage.app","messagingSenderId":"1049365258999","appId":"1:1049365258999:web:79833dc1b3c2f7b86329f2"}'
+    availability:
+      - BUILD
+      - RUNTIME
+

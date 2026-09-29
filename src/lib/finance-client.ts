@@ -56,7 +56,7 @@ export async function allocateInterestAction(uid: string, data: {
  * Executes full financial ledger reset in Cloud Functions.
  * Restricted strictly to Super Administrators.
  */
-export async function resetFinancialDataAction(data: { justification: string, confirmationText?: string }) {
+export async function resetFinancialDataAction(data: { justification: string, confirmationText?: string, adminEmail?: string }) {
   const functions = getFinanceFunctions();
   const resetFn = httpsCallable(functions, 'resetFinancialData');
   try {

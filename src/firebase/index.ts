@@ -23,9 +23,9 @@ export {
   useDoc,
 } from '@/firebase/firestore/hooks';
 export { useUser } from '@/firebase/auth/use-user';
+export { FirebaseClientProvider } from '@/firebase/client-provider';
 export {
   FirebaseProvider,
-  FirebaseClientProvider,
   useFirebaseApp,
   useFirestore,
   useAuth,

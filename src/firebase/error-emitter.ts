@@ -8,4 +8,5 @@ type Events = {
 
 // This is a global event emitter to allow us to bubble up errors to the
 // UI without having to pass down a bunch of props.
-export const errorEmitter = new EventEmitter<Events>();
+export const errorEmitter = new EventEmitter();
+
