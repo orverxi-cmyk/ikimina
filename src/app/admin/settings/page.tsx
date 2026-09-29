@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,8 +11,32 @@ import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
-import { ShieldCheck, Loader2, Save, Percent, Wallet, Info, Globe, Scale, AlertTriangle } from 'lucide-react';
-import { updateFinancialSettingsAction } from '@/lib/finance-client';
+import { 
+  ShieldCheck, 
+  Loader2, 
+  Save, 
+  Percent, 
+  Wallet, 
+  Info, 
+  Globe, 
+  Scale, 
+  AlertTriangle,
+  Trash2,
+  AlertOctagon,
+  RotateCcw,
+  CheckCircle2,
+  ShieldAlert
+} from 'lucide-react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from "@/components/ui/dialog";
+import { Badge } from '@/components/ui/badge';
+import { updateFinancialSettingsAction, resetFinancialDataAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminSettingsPage() {
@@ -32,6 +55,12 @@ export default function AdminSettingsPage() {
   const [interestModel, setInterestModel] = useState<string>('one-off');
   const [interestType, setInterestType] = useState<string>('afterward');
 
+  // Super Admin Reset State
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetConfirmationText, setResetConfirmationText] = useState('');
+  const [resetJustification, setResetJustification] = useState('');
+
   useEffect(() => {
     if (settingsData) {
       if (settingsData.currency) setSelectedCurrency(settingsData.currency);
@@ -41,6 +70,7 @@ export default function AdminSettingsPage() {
   }, [settingsData]);
 
   const isAdmin = userData?.role === 'admin';
+  const isSuperAdmin = userData?.isSuperAdmin === true || user?.email === 'tharushyamagara@gmail.com';
 
   const handleUpdateSettings = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -77,8 +107,64 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handleResetFinancialData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isSuperAdmin) {
+      toast({ variant: "destructive", title: "Unauthorized", description: "Only Super Administrators can perform this action." });
+      return;
+    }
+
+    if (resetConfirmationText.trim() !== 'RESET FINANCIAL DATA') {
+      toast({ 
+        variant: "destructive", 
+        title: "Confirmation Required", 
+        description: 'Please type "RESET FINANCIAL DATA" exactly to confirm.' 
+      });
+      return;
+    }
+
+    if (!resetJustification.trim()) {
+      toast({ 
+        variant: "destructive", 
+        title: "Justification Required", 
+        description: "An audit justification is required." 
+      });
+      return;
+    }
+
+    setIsResetting(true);
+
+    try {
+      const result: any = await resetFinancialDataAction({ 
+        justification: resetJustification,
+        adminEmail: user?.email || 'tharushyamagara@gmail.com'
+      });
+
+      toast({ 
+        title: "Financial Ledger Reset to 0", 
+        description: `Successfully wiped ${result?.summary?.contributionsDeleted || 0} contributions, ${result?.summary?.loansDeleted || 0} loans, and reset all member savings and interest balances to 0.` 
+      });
+
+      setIsResetDialogOpen(false);
+      setResetConfirmationText('');
+      setResetJustification('');
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Reset Operation Failed", 
+        description: error.message || 'An error occurred while resetting financial records.' 
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   if (userLoading || settingsLoading) {
-    return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (!isAdmin) {
@@ -93,9 +179,16 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-24">
-      <div>
-        <h1 className="text-3xl font-headline font-bold">System Settings</h1>
-        <p className="text-muted-foreground">Manage global financial rules and lending policies</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-headline font-bold">System Settings</h1>
+          <p className="text-muted-foreground">Manage global financial rules, interest models, and lending policies</p>
+        </div>
+        {isSuperAdmin && (
+          <Badge variant="outline" className="self-start sm:self-auto bg-amber-500/10 text-amber-600 border-amber-500/20 px-3 py-1 font-semibold">
+            Super Administrator Active
+          </Badge>
+        )}
       </div>
 
       <form onSubmit={handleUpdateSettings}>
@@ -278,6 +371,144 @@ export default function AdminSettingsPage() {
           </Card>
         </div>
       </form>
+
+      {/* Super Admin: Danger Zone Section */}
+      {isSuperAdmin && (
+        <div className="pt-6">
+          <Card className="border-2 border-destructive/30 shadow-lg bg-destructive/5 rounded-2xl overflow-hidden">
+            <CardHeader className="bg-destructive/10 border-b border-destructive/20">
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertOctagon className="h-6 w-6" />
+                <CardTitle className="text-xl font-bold">Super Admin: Danger Zone</CardTitle>
+              </div>
+              <CardDescription className="text-destructive/80 font-medium">
+                Irreversible administrative actions reserved strictly for the Super Administrator.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <div className="space-y-2">
+                <h4 className="font-bold text-foreground text-sm flex items-center gap-2">
+                  <RotateCcw className="h-4 w-4 text-destructive" />
+                  Reset All Financial Ledger Data to Zero (0)
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  This action performs a complete financial wipe across the entire tontine platform. It will:
+                </p>
+                <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1 pl-1">
+                  <li>Purge all member <strong>savings contributions</strong> (total pot becomes 0 {selectedCurrency}).</li>
+                  <li>Purge all <strong>loans, repayment schedules, and debt records</strong>.</li>
+                  <li>Reset all member <strong>accumulated interest and profit balances to 0 {selectedCurrency}</strong>.</li>
+                  <li>Clear all <strong>interest distribution records</strong> and undistributed profit pools.</li>
+                  <li><strong className="text-foreground">Preserve</strong> all user member accounts, credentials, phone numbers, and system policies.</li>
+                </ul>
+              </div>
+
+              <div className="pt-2">
+                <Button 
+                  type="button" 
+                  variant="destructive" 
+                  onClick={() => {
+                    setResetConfirmationText('');
+                    setResetJustification('');
+                    setIsResetDialogOpen(true);
+                  }}
+                  className="font-bold h-11 rounded-xl shadow-md flex items-center gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Reset All Financial Data to 0
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Super Admin Reset Confirmation Dialog */}
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <form onSubmit={handleResetFinancialData}>
+            <DialogHeader>
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-6 w-6" />
+                <DialogTitle className="text-xl font-bold">Confirm Full Financial Reset to 0</DialogTitle>
+              </div>
+              <DialogDescription className="pt-2">
+                This action is <strong className="text-destructive">permanent and irreversible</strong>. All contributions, active loans, debt balances, and accumulated member interest will be set to 0.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-destructive">
+                  <ShieldAlert className="h-4 w-4" />
+                  Security Verification Required
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  User accounts and login credentials will remain intact. Only the financial ledgers will be reset to a clean zero state.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="resetJustification" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                  Audit Justification (Required)
+                </Label>
+                <Textarea 
+                  id="resetJustification"
+                  required
+                  placeholder="e.g. Official annual tontine close-out / System initialization for new cycle."
+                  value={resetJustification}
+                  onChange={(e) => setResetJustification(e.target.value)}
+                  className="rounded-xl min-h-[70px] bg-muted border-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmationText" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                  To confirm, type <span className="font-mono text-destructive select-all font-bold">RESET FINANCIAL DATA</span> below:
+                </Label>
+                <Input 
+                  id="confirmationText"
+                  required
+                  placeholder="RESET FINANCIAL DATA"
+                  value={resetConfirmationText}
+                  onChange={(e) => setResetConfirmationText(e.target.value)}
+                  className="h-11 rounded-xl font-mono text-sm bg-muted border-none"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsResetDialogOpen(false)}
+                disabled={isResetting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                variant="destructive"
+                disabled={isResetting || resetConfirmationText.trim() !== 'RESET FINANCIAL DATA' || !resetJustification.trim()}
+                className="font-bold shadow-lg"
+              >
+                {isResetting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Resetting All Financial Data...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Wipe & Set All Financial Data to 0
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

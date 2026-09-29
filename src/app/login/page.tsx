@@ -27,13 +27,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, Loader2, LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Wallet, Loader2, LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const [step, setStep] = useState<'email' | 'password' | 'pending-activation' | 'set-password'>('email');
   const [isLoading, setIsLoading] = useState(false);
@@ -101,10 +103,11 @@ export default function LoginPage() {
     if (!email) return;
     
     setIsLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
     try {
       const q = query(
         collection(firestore, 'users'), 
-        where('email', '==', email.trim().toLowerCase()), 
+        where('email', '==', normalizedEmail), 
         limit(1)
       );
       const querySnapshot = await getDocs(q);
@@ -115,7 +118,7 @@ export default function LoginPage() {
 
       const memberData = querySnapshot.docs[0].data();
       setMemberDocId(querySnapshot.docs[0].id);
-      setEmail(email.trim().toLowerCase());
+      setEmail(normalizedEmail);
 
       if (memberData.status === 'active') {
         setStep('password');
@@ -198,11 +201,12 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
     try {
-      await signInWithEmailAndPassword(auth, email.toLowerCase(), password);
+      await signInWithEmailAndPassword(auth, normalizedEmail, password);
       router.push('/');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Login Failed', description: 'Invalid credentials provided.' });
+      toast({ variant: 'destructive', title: 'Login Failed', description: error.message || 'Invalid credentials provided.' });
     } finally {
       setIsLoading(false);
     }
@@ -263,13 +267,21 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
-                    type="password"
-                    className="pl-10 h-11 rounded-xl"
+                    type={showPassword ? "text" : "password"}
+                    className="pl-10 pr-10 h-11 rounded-xl"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     autoFocus
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
               <Button className="w-full h-11 rounded-xl font-bold" type="submit" disabled={isLoading}>
@@ -305,26 +317,46 @@ export default function LoginPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="new-password">New Password</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  className="h-11 rounded-xl"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoFocus
-                />
+                <div className="relative">
+                  <Input
+                    id="new-password"
+                    type={showPassword ? "text" : "password"}
+                    className="pr-10 h-11 rounded-xl"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">Confirm Password</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  className="h-11 rounded-xl"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="confirm-password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    className="pr-10 h-11 rounded-xl"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <Button className="w-full h-11 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold" type="submit" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Lock className="mr-2 h-5 w-5" />}

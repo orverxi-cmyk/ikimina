@@ -7,7 +7,6 @@ import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { useUser } from '@/firebase/auth/use-user';
 import { Loader2 } from 'lucide-react';
-
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();
   const router = useRouter();

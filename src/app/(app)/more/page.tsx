@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { Wallet, FileText, Users, ShieldCheck, ChevronRight, Settings, ChartBar, Info } from 'lucide-react';
+import { Wallet, FileText, Users, ShieldCheck, ChevronRight, Settings, ChartBar } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
@@ -23,12 +23,6 @@ export default function MorePage() {
       title: 'Financials',
       items: [
         { href: '/contributions', label: 'My Contributions', icon: Wallet, description: 'View your payment history' },
-      ]
-    },
-    {
-      title: 'Company',
-      items: [
-        { href: '/services', label: 'Why Choose Us', icon: Info, description: 'Our mission and core values' },
       ]
     }
   ];

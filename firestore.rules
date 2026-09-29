@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -27,14 +26,13 @@ service cloud.firestore {
       );
     }
 
-    match /settings/bootstrap {
-      allow read, write: if !exists(/databases/$(database)/documents/settings/bootstrap);
-    }
-
+    // Member documents: accruedInterest can NEVER be modified by any client (even admin clients).
+    // Financial interest calculations are strictly authoritative server-side.
     match /users/{userId} {
       allow read: if isSignedIn() || userId == request.auth.uid;
       allow list: if (request.query.limit <= 1) || isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'accruedInterest']));
+      allow write: if (isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['accruedInterest'])) ||
+                      (isSignedIn() && request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'accruedInterest']));
     }
 
     match /contributions/{contributionId} {
@@ -61,11 +59,18 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read: if isManagement();
       allow create: if isSignedIn(); 
+      allow update, delete: if false; // Audit logs are immutable from client
     }
 
     match /settings/financials {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if false; // System financial settings must be updated via server API
+    }
+
+    // Ledger entries are strictly immutable and server-controlled
+    match /interest_distributions/{distId} {
+      allow read: if isManagement();
+      allow write: if false; // Zero client writes permitted
     }
   }
 }

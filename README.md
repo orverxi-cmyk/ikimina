@@ -9,7 +9,7 @@ This is a professional financial management platform for Ikimina App contributio
 
 ## Getting Started
 
-1. **Bootstrap Admin**: Run the registration at `/setup-admin` or use the terminal script `npm run set-admin` (requires service account credentials).
+1. **Bootstrap Admin**: Provision an administrator using the terminal script `npm run set-admin` (requires service account credentials).
 2. **Development**: Run `npm run dev` to start the local server.
 3. **AI Development**: Run `npm run genkit:dev` to explore and test Genkit flows.
 
