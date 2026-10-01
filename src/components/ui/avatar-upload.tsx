@@ -35,12 +35,13 @@ export function AvatarUpload({
     : '?';
 
   const photoSrc = preview ?? currentPhotoURL ?? null;
+  const isBusy = status === 'uploading' || status === 'saving';
+  const badgeSize = Math.max(16, Math.round(size * 0.38));
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate type and size (max 5 MB)
     if (!file.type.startsWith('image/')) {
       setErrorMsg('Please select an image file.');
       setStatus('error');
@@ -52,7 +53,6 @@ export function AvatarUpload({
       return;
     }
 
-    // Local preview
     const objectUrl = URL.createObjectURL(file);
     setPreview(objectUrl);
     setErrorMsg(null);
@@ -83,7 +83,6 @@ export function AvatarUpload({
               await updateMemberProfileAction(uid, { photoURL: downloadURL });
               setStatus('done');
               onUploadSuccess?.(downloadURL);
-              // Reset to idle after a moment
               setTimeout(() => setStatus('idle'), 2500);
             } catch (err: any) {
               setErrorMsg(err.message || 'Failed to save avatar.');
@@ -98,11 +97,11 @@ export function AvatarUpload({
   const ringColor =
     status === 'done' ? 'ring-green-500' :
     status === 'error' ? 'ring-red-500' :
-    status === 'uploading' || status === 'saving' ? 'ring-primary' :
-    'ring-border';
+    isBusy ? 'ring-primary' :
+    'ring-border hover:ring-primary/60';
 
   return (
-    <div className="relative inline-block group" style={{ width: size, height: size }}>
+    <div className="relative inline-block shrink-0" style={{ width: size, height: size }}>
       {/* Hidden file input */}
       <input
         ref={inputRef}
@@ -110,17 +109,21 @@ export function AvatarUpload({
         accept="image/*"
         className="hidden"
         onChange={handleFileChange}
-        disabled={status === 'uploading' || status === 'saving'}
+        disabled={isBusy}
       />
 
       {/* Avatar circle */}
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={status === 'uploading' || status === 'saving'}
-        className={`relative w-full h-full rounded-full overflow-hidden ring-2 ${ringColor} transition-all duration-300 focus:outline-none focus:ring-primary focus:ring-offset-2 focus:ring-offset-background`}
+        onClick={() => {
+          setErrorMsg(null);
+          if (status === 'error') setStatus('idle');
+          inputRef.current?.click();
+        }}
+        disabled={isBusy}
+        className={`relative w-full h-full rounded-full overflow-hidden ring-2 ${ringColor} transition-all duration-200 focus:outline-none focus:ring-primary focus:ring-offset-1 focus:ring-offset-background cursor-pointer`}
         aria-label="Change profile photo"
-        title="Click to change profile photo"
+        title="Click to change your profile photo"
         style={{ width: size, height: size }}
       >
         {photoSrc ? (
@@ -128,24 +131,43 @@ export function AvatarUpload({
             src={photoSrc}
             alt={displayName ?? 'Avatar'}
             className="w-full h-full object-cover"
-            style={{ width: size, height: size }}
           />
         ) : (
           <span
             className="flex items-center justify-center w-full h-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-bold select-none"
-            style={{ fontSize: Math.max(14, size * 0.35) }}
+            style={{ fontSize: Math.max(12, size * 0.35) }}
           >
             {initials}
           </span>
         )}
 
-        {/* Hover overlay */}
-        <span className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none rounded-full">
-          <Camera className="text-white" style={{ width: size * 0.3, height: size * 0.3 }} />
-        </span>
+        {/* Dark overlay on hover (only when idle) */}
+        {!isBusy && (
+          <span className="absolute inset-0 bg-black/0 hover:bg-black/40 flex items-center justify-center transition-colors duration-200 rounded-full">
+            <Camera className="text-white opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: size * 0.3, height: size * 0.3 }} />
+          </span>
+        )}
       </button>
 
-      {/* Progress ring overlay */}
+      {/* Always-visible edit badge (camera icon at bottom-right) */}
+      {!isBusy && status !== 'done' && status !== 'error' && (
+        <button
+          type="button"
+          onClick={() => {
+            setErrorMsg(null);
+            inputRef.current?.click();
+          }}
+          className="absolute -bottom-1 -right-1 rounded-full bg-primary text-primary-foreground border-2 border-background flex items-center justify-center shadow-md hover:bg-primary/80 transition-colors duration-150 focus:outline-none"
+          style={{ width: badgeSize, height: badgeSize }}
+          aria-label="Change profile photo"
+          title="Change profile photo"
+          tabIndex={-1}
+        >
+          <Camera style={{ width: badgeSize * 0.55, height: badgeSize * 0.55 }} />
+        </button>
+      )}
+
+      {/* Progress ring overlay during upload */}
       {status === 'uploading' && progress !== null && (
         <svg
           className="absolute inset-0 pointer-events-none -rotate-90"
@@ -168,20 +190,33 @@ export function AvatarUpload({
         </svg>
       )}
 
-      {/* Status badge */}
-      {(status === 'saving' || status === 'done' || status === 'error') && (
-        <span className="absolute -bottom-1 -right-1 rounded-full bg-background border border-border p-0.5 flex items-center justify-center shadow-sm">
-          {status === 'saving' && <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />}
-          {status === 'done' && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
-          {status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-destructive" />}
+      {/* Status badges */}
+      {status === 'saving' && (
+        <span className="absolute -bottom-1 -right-1 rounded-full bg-background border border-border p-0.5 flex items-center justify-center shadow-sm" style={{ width: badgeSize, height: badgeSize }}>
+          <Loader2 className="text-primary animate-spin" style={{ width: badgeSize * 0.65, height: badgeSize * 0.65 }} />
+        </span>
+      )}
+      {status === 'done' && (
+        <span className="absolute -bottom-1 -right-1 rounded-full bg-background border border-green-500 p-0.5 flex items-center justify-center shadow-sm" style={{ width: badgeSize, height: badgeSize }}>
+          <CheckCircle className="text-green-500" style={{ width: badgeSize * 0.65, height: badgeSize * 0.65 }} />
+        </span>
+      )}
+      {status === 'error' && (
+        <span
+          className="absolute -bottom-1 -right-1 rounded-full bg-destructive border border-background p-0.5 flex items-center justify-center shadow-sm cursor-pointer"
+          style={{ width: badgeSize, height: badgeSize }}
+          title={errorMsg ?? 'Upload failed'}
+          onClick={() => { setStatus('idle'); setErrorMsg(null); }}
+        >
+          <AlertCircle className="text-destructive-foreground" style={{ width: badgeSize * 0.65, height: badgeSize * 0.65 }} />
         </span>
       )}
 
       {/* Error tooltip */}
       {status === 'error' && errorMsg && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 mt-1 w-max max-w-[200px] rounded-md bg-destructive text-destructive-foreground text-[11px] font-medium px-2 py-1 shadow-lg z-10 text-center"
-          style={{ top: size + 8 }}
+          className="absolute left-1/2 -translate-x-1/2 w-max max-w-[180px] rounded-md bg-destructive text-destructive-foreground text-[10px] font-medium px-2 py-1 shadow-lg z-20 text-center pointer-events-none"
+          style={{ top: size + 10 }}
         >
           {errorMsg}
         </div>
