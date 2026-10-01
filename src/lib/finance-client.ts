@@ -32,6 +32,50 @@ const getFinanceFunctions = () => {
 };
 
 /**
+ * Canonical type for all system-wide financial policy settings.
+ * All pages must consume this type via `useSettings()` — never read Firestore directly.
+ */
+export type SystemSettings = {
+  currency: string;
+  loanInterestRate: number;
+  interestModel: string;
+  interestType: string;
+  contributionInterestRate: number;
+  maxLoanPercentage: number;
+  minLoanAmount: number;
+  maxLoanAmount: number;
+  penaltyRate: number;
+};
+
+export const DEFAULT_SETTINGS: SystemSettings = {
+  currency: 'RWF',
+  loanInterestRate: 10,
+  interestModel: 'one-off',
+  interestType: 'afterward',
+  contributionInterestRate: 50000,
+  maxLoanPercentage: 80,
+  minLoanAmount: 5000,
+  maxLoanAmount: 1000000,
+  penaltyRate: 2,
+};
+
+/**
+ * Fetches all financial policy settings from the authoritative Cloud Function.
+ * This is the ONLY permitted way to read settings on the client.
+ */
+export async function getSystemSettingsAction(): Promise<SystemSettings> {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable<void, SystemSettings>(functions, 'getSystemSettings');
+  try {
+    const result = await fn();
+    return result.data;
+  } catch (error: any) {
+    console.warn('Failed to fetch system settings from Cloud Function, using defaults.', error.message);
+    return DEFAULT_SETTINGS;
+  }
+}
+
+/**
  * Executes authoritative profit distribution in Cloud Functions.
  * Calculates realized loan revenue, unallocated pool, and member weights server-side.
  */
@@ -247,3 +291,74 @@ export async function logAdminAction(data: { adminId: string, action: string, ju
     throw new Error(error.message || 'Failed to log action');
   }
 }
+
+/**
+ * Submits a loan application via Cloud Functions with authoritative server validation.
+ */
+export async function requestLoanAction(data: { amount: number, description?: string, durationMonths?: number }) {
+  const functions = getFinanceFunctions();
+  const reqFn = httpsCallable(functions, 'requestLoan');
+  try {
+    const result = await reqFn(data);
+    return result.data as { success: boolean, loanId: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to submit loan application');
+  }
+}
+
+/**
+ * Submits a member savings contribution via Cloud Functions for management review.
+ */
+export async function submitContributionAction(data: { amount: number, period: string, proofUrl: string }) {
+  const functions = getFinanceFunctions();
+  const submitFn = httpsCallable(functions, 'submitContribution');
+  try {
+    const result = await submitFn(data);
+    return result.data as { success: boolean, id: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to submit contribution');
+  }
+}
+
+/**
+ * Deletes or revokes member access via Cloud Functions with loan debt verification.
+ */
+export async function deleteMemberAction(targetUserId: string, justification: string) {
+  const functions = getFinanceFunctions();
+  const delFn = httpsCallable(functions, 'deleteMember');
+  try {
+    const result = await delFn({ targetUserId, justification });
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to remove member');
+  }
+}
+
+/**
+ * Updates member contact profile via Cloud Functions.
+ */
+export async function updateMemberProfileAction(targetUserId: string, data: { name?: string, phone?: string }) {
+  const functions = getFinanceFunctions();
+  const updateFn = httpsCallable(functions, 'updateMemberProfile');
+  try {
+    const result = await updateFn({ targetUserId, ...data });
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to update member profile');
+  }
+}
+
+/**
+ * Activates an invited member's account via Cloud Functions.
+ */
+export async function activateMemberAccountAction(memberDocId: string) {
+  const functions = getFinanceFunctions();
+  const actFn = httpsCallable(functions, 'activateMemberAccount');
+  try {
+    const result = await actFn({ memberDocId });
+    return result.data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to activate member account');
+  }
+}
+

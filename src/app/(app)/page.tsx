@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, HandCoins, Users, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock, Plus } from 'lucide-react';
+import { Wallet, HandCoins, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where } from 'firebase/firestore';
@@ -13,6 +13,7 @@ import { Timestamp } from 'firebase/firestore';
 import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { useSettings } from '@/context/settings-context';
 
 export default function DashboardPage() {
   const { user, loading: userAuthLoading } = useUser();
@@ -20,14 +21,13 @@ export default function DashboardPage() {
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
-  
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
-  const { data: settingsData } = useDoc(settingsRef);
-  const currency = settingsData?.currency || 'RWF';
+
+  const { settings, loading: settingsLoading } = useSettings();
+  const currency = settings.currency;
 
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management';
-  const isLoading = userAuthLoading || userDataLoading;
+  const isLoading = userAuthLoading || userDataLoading || settingsLoading;
 
   const contributionsQuery = useMemoFirebase(() => {
     if (!user || isLoading || !userData) return null;
@@ -44,8 +44,8 @@ export default function DashboardPage() {
   const { data: contributionsSnap, loading: loadingConts } = useCollection(contributionsQuery);
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
 
-  const stats = useMemo(() => {
-    if (isLoading || loadingConts || loadingLoans) return [];
+  const rawStats = useMemo(() => {
+    if (isLoading || loadingConts || loadingLoans) return null;
 
     const allConts = contributionsSnap?.docs.map(d => d.data()) || [];
     const verifiedContsTotal = allConts
@@ -61,6 +61,14 @@ export default function DashboardPage() {
     
     const availablePot = verifiedContsTotal - activeLoansBalance;
 
+    return { verifiedContsTotal, pendingContsCount, activeLoansBalance, availablePot, accruedInterest: userData?.accruedInterest || 0 };
+  }, [contributionsSnap, loansSnap, isManagement, isLoading, loadingConts, loadingLoans, userData]);
+
+  // Format stats at render time so currency changes always apply immediately
+  const stats = useMemo(() => {
+    if (!rawStats) return [];
+    const { verifiedContsTotal, pendingContsCount, activeLoansBalance, availablePot, accruedInterest } = rawStats;
+
     const baseStats = [
       { 
         title: isManagement ? 'Verified Pot Value' : 'My Verified Savings', 
@@ -71,7 +79,7 @@ export default function DashboardPage() {
       },
       { 
         title: isManagement ? 'Total Tontine Assets' : 'Accrued Interest', 
-        value: formatCurrency(isManagement ? verifiedContsTotal : (userData?.accruedInterest || 0), currency), 
+        value: formatCurrency(isManagement ? verifiedContsTotal : accruedInterest, currency), 
         icon: Sparkles, 
         color: 'text-primary', 
         bg: 'bg-primary/10' 
@@ -92,7 +100,7 @@ export default function DashboardPage() {
     }
 
     return baseStats;
-  }, [contributionsSnap, loansSnap, isManagement, isLoading, loadingConts, loadingLoans, userData, currency]);
+  }, [rawStats, currency, isManagement]);
 
   const myParticipation = useMemo(() => {
     if (!user || !contributionsSnap || !loansSnap) return { contributions: 0, debt: 0, nextPayment: null };

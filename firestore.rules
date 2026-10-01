@@ -26,51 +26,50 @@ service cloud.firestore {
       );
     }
 
-    // Member documents: accruedInterest can NEVER be modified by any client (even admin clients).
-    // Financial interest calculations are strictly authoritative server-side.
+    // Member profiles: Zero client-side writes. All mutations managed by Cloud Functions.
     match /users/{userId} {
       allow read: if isSignedIn() || userId == request.auth.uid;
       allow list: if (request.query.limit <= 1) || isSignedIn();
-      allow write: if (isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['accruedInterest'])) ||
-                      (isSignedIn() && request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'accruedInterest']));
+      allow write: if false; // Managed exclusively via Cloud Functions
     }
 
+    // Contributions: Zero client-side writes.
     match /contributions/{contributionId} {
       allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
       allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
-      allow create: if isSignedIn();
-      allow update, delete: if isManagement();
+      allow write: if false; // Managed via submitContribution / recordContribution / verifyContribution
     }
 
+    // Loans: Zero client-side writes.
     match /loans/{loanId} {
       allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
       allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
-      allow create: if isSignedIn();
-      allow update, delete: if isManagement();
+      allow write: if false; // Managed via requestLoan / approveLoan / rejectLoan / verifyRepayment
     }
     
+    // Repayments: Zero client-side writes.
     match /repayments/{repaymentId} {
       allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
       allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
-      allow create: if isSignedIn();
-      allow update, delete: if isManagement();
+      allow write: if false; // Managed via recordRepayment / verifyRepayment
     }
 
+    // Audit logs: Strictly immutable and created exclusively by Cloud Functions
     match /audit_logs/{logId} {
       allow read: if isManagement();
-      allow create: if isSignedIn(); 
-      allow update, delete: if false; // Audit logs are immutable from client
+      allow write: if false;
     }
 
+    // System financial policy settings: Read via getSystemSettings Cloud Function
     match /settings/financials {
       allow read: if isSignedIn();
-      allow write: if false; // System financial settings must be updated via server API
+      allow write: if false;
     }
 
-    // Ledger entries are strictly immutable and server-controlled
+    // Ledger entries: Strictly immutable and server-controlled
     match /interest_distributions/{distId} {
       allow read: if isManagement();
-      allow write: if false; // Zero client writes permitted
+      allow write: if false;
     }
   }
 }

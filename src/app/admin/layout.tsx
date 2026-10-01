@@ -41,6 +41,7 @@ import { doc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { SettingsProvider } from '@/context/settings-context';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user, loading: userLoading } = useUser();
@@ -318,7 +319,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           
           <main className="flex-1 overflow-auto rounded-[10px] relative">
             <div className="min-h-full">
-              {children}
+              <SettingsProvider>
+                {children}
+              </SettingsProvider>
             </div>
           </main>
         </div>

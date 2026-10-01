@@ -16,11 +16,13 @@ import {
   Lock
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, addDoc, doc, serverTimestamp, where } from 'firebase/firestore';
+import { collection, query, doc, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/currency';
+import { useSettings } from '@/context/settings-context';
+import { requestLoanAction } from '@/lib/finance-client';
 
 export default function LoanApplyPage() {
   const { toast } = useToast();
@@ -33,11 +35,10 @@ export default function LoanApplyPage() {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
 
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
-  const { data: settingsData } = useDoc(settingsRef);
-  const currency = settingsData?.currency || 'RWF';
-  const maxLoanAmount = settingsData?.maxLoanAmount || 1000000;
-  const minLoanAmount = settingsData?.minLoanAmount || 5000;
+  const { settings } = useSettings();
+  const currency = settings.currency;
+  const maxLoanAmount = settings.maxLoanAmount;
+  const minLoanAmount = settings.minLoanAmount;
 
   const loansQuery = useMemoFirebase(() => {
     if (!user) return null;
@@ -80,15 +81,9 @@ export default function LoanApplyPage() {
     }
 
     try {
-      await addDoc(collection(firestore, 'loans'), {
-        memberId: user.uid,
+      await requestLoanAction({
         amount,
         description,
-        status: 'requested',
-        requestDate: serverTimestamp(),
-        balance: 0,
-        interestAmount: 0,
-        penaltyRate: 0,
         durationMonths: 12
       });
 

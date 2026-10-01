@@ -4,7 +4,109 @@ import * as admin from 'firebase-admin';
 import { calculateAmortizationSchedule } from './loan-schedules';
 
 /**
+ * Submits a member loan application.
+ * Server authoritatively validates:
+ * 1. Member authentication
+ * 2. Positive amount
+ * 3. Settings constraints: minLoanAmount and maxLoanAmount
+ * 4. Member verified savings & maxLoanPercentage borrowing limit
+ * 5. No existing active or pending loans
+ */
+export const requestLoan = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const memberId = request.auth.uid;
+    const { amount, description, durationMonths = 12 } = request.data || {};
+    const loanAmount = Number(amount);
+
+    if (!loanAmount || loanAmount <= 0) {
+        throw new HttpsError('invalid-argument', 'A valid loan amount greater than 0 is required.');
+    }
+
+    // 1. Fetch system settings
+    const settingsSnap = await db.collection('settings').doc('financials').get();
+    const settings = settingsSnap.data() || {};
+    const minLoanAmount = Number(settings.minLoanAmount) || 5000;
+    const maxLoanAmount = Number(settings.maxLoanAmount) || 1000000;
+    const maxLoanPercentage = Number(settings.maxLoanPercentage) || 80;
+
+    if (loanAmount < minLoanAmount) {
+        throw new HttpsError('failed-precondition', `Loan amount must be at least ${minLoanAmount}.`);
+    }
+
+    if (loanAmount > maxLoanAmount) {
+        throw new HttpsError('failed-precondition', `Loan amount cannot exceed the maximum of ${maxLoanAmount}.`);
+    }
+
+    // 2. Check for active or pending loans
+    const existingLoansSnap = await db.collection('loans')
+        .where('memberId', '==', memberId)
+        .get();
+
+    for (const doc of existingLoansSnap.docs) {
+        const l = doc.data();
+        if (l.status === 'requested') {
+            throw new HttpsError('already-exists', 'You already have a pending loan request under review.');
+        }
+        if (l.status === 'approved' && (Number(l.balance) || 0) > 0) {
+            throw new HttpsError('failed-precondition', 'You must fully repay your active loan before requesting a new one.');
+        }
+    }
+
+    // 3. Compute member's borrowing power based on verified savings and equity
+    const contribsSnap = await db.collection('contributions')
+        .where('memberId', '==', memberId)
+        .where('status', '==', 'verified')
+        .get();
+
+    let totalVerifiedSavings = 0;
+    contribsSnap.forEach(d => {
+        totalVerifiedSavings += Number(d.data().amount) || 0;
+    });
+
+    const userSnap = await db.collection('users').doc(memberId).get();
+    const accruedInterest = Number(userSnap.data()?.accruedInterest) || 0;
+    const totalEquity = totalVerifiedSavings + accruedInterest;
+
+    // Borrowing limit based on policy % of equity (e.g. 80%) with trust bonus fallback
+    const percentageLimit = Math.round((totalEquity * maxLoanPercentage) / 100);
+    const completedLoansCount = existingLoansSnap.docs.filter(d => d.data().status === 'completed').length;
+    const trustBonusLimit = (accruedInterest + (completedLoansCount * 10000)) * 2;
+    
+    const effectiveLimit = Math.min(
+        Math.max(percentageLimit, trustBonusLimit),
+        maxLoanAmount
+    );
+
+    if (totalEquity <= 0 && completedLoansCount === 0) {
+        throw new HttpsError('failed-precondition', 'You must have verified savings contributions before requesting a loan.');
+    }
+
+    if (loanAmount > effectiveLimit && effectiveLimit > 0) {
+        throw new HttpsError('failed-precondition', `Requested amount exceeds your borrowing power limit of ${effectiveLimit}.`);
+    }
+
+    // 4. Create loan application
+    const loanRef = db.collection('loans').doc();
+    await loanRef.set({
+        memberId,
+        amount: loanAmount,
+        description: description || 'Member capital loan application',
+        status: 'requested',
+        requestDate: admin.firestore.FieldValue.serverTimestamp(),
+        balance: 0,
+        interestAmount: 0,
+        penaltyRate: 0,
+        durationMonths: Number(durationMonths) || 12,
+    });
+
+    return { success: true, loanId: loanRef.id };
+});
+
+/**
  * Processes a loan approval and generates the legal repayment schedule.
+ * Loads authoritative interest rate and terms from settings/financials.
  */
 export const approveLoan = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -17,8 +119,8 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         throw new HttpsError('permission-denied', 'Management authority required.');
     }
 
-    const { loanId, terms, justification } = request.data;
-    const { interestAmount, durationMonths, startDate: startDateStr, interestType, checkUrl, penaltyRate } = terms;
+    const { loanId, terms = {}, justification } = request.data;
+    const { durationMonths = 12, startDate: startDateStr, checkUrl = '' } = terms;
 
     try {
         const loanRef = db.collection('loans').doc(loanId);
@@ -26,13 +128,26 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         if (!loanSnap.exists) throw new HttpsError('not-found', 'Loan record not found.');
         
         const loanData = loanSnap.data()!;
-        const startDate = new Date(startDateStr);
+        if (loanData.status !== 'requested') {
+            throw new HttpsError('failed-precondition', `Loan is currently in '${loanData.status}' status, cannot be approved.`);
+        }
+
+        // Authoritatively fetch policy settings from Firestore
+        const settingsSnap = await db.collection('settings').doc('financials').get();
+        const settings = settingsSnap.data() || {};
+        const globalRate = Number(settings.loanInterestRate) || 10;
+        const penaltyRate = Number(settings.penaltyRate) || 2;
+        const interestType = settings.interestType || 'afterward';
+
+        // Authoritative interest calculation on the server
+        const interestAmount = Math.round(loanData.amount * (globalRate / 100));
+        const startDate = startDateStr ? new Date(startDateStr) : new Date();
         
         const interestToAddToRepayment = interestType === 'afterward' ? interestAmount : 0;
         const totalBalance = loanData.amount + interestToAddToRepayment;
         const netDisbursed = interestType === 'immediate' ? (loanData.amount - interestAmount) : loanData.amount;
 
-        const schedule = calculateAmortizationSchedule(loanData.amount, interestToAddToRepayment, durationMonths, startDate);
+        const schedule = calculateAmortizationSchedule(loanData.amount, interestToAddToRepayment, Number(durationMonths) || 12, startDate);
 
         const batch = db.batch();
         
@@ -44,10 +159,11 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
             penaltyRate,
             balance: totalBalance,
             netDisbursed,
-            durationMonths,
+            durationMonths: Number(durationMonths) || 12,
             amortization: schedule,
             checkUrl,
             approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            approvedBy: request.auth.uid
         });
 
         batch.update(db.collection('users').doc(loanData.memberId), {
@@ -58,7 +174,15 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
             adminId: request.auth.uid,
             action: 'APPROVE_LOAN',
             justification,
-            details: { loanId, memberId: loanData.memberId, principal: loanData.amount, interest: interestAmount, interestType, netDisbursed },
+            details: { 
+                loanId, 
+                memberId: loanData.memberId, 
+                principal: loanData.amount, 
+                interest: interestAmount, 
+                rate: globalRate,
+                interestType, 
+                netDisbursed 
+            },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 

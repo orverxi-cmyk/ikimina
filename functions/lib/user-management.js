@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateUserRole = exports.bulkRegisterMembers = exports.registerMember = void 0;
+exports.activateMemberAccount = exports.updateMemberProfile = exports.deleteMember = exports.updateUserRole = exports.bulkRegisterMembers = exports.registerMember = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -147,6 +147,130 @@ exports.updateUserRole = (0, https_1.onCall)({ cors: true }, async (request) => 
             details: { targetUserId, role },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
+        return { success: true };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Deletes or revokes access for a member securely.
+ * Checks for admin privileges and verifies there are no outstanding loan debts.
+ */
+exports.deleteMember = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
+    }
+    const { targetUserId, justification } = request.data || {};
+    if (!targetUserId || !justification) {
+        throw new https_1.HttpsError('invalid-argument', 'Target user ID and justification are required.');
+    }
+    // Guard: Check for active loans
+    const loansSnap = await db.collection('loans')
+        .where('memberId', '==', targetUserId)
+        .where('status', '==', 'approved')
+        .get();
+    for (const doc of loansSnap.docs) {
+        if ((Number(doc.data().balance) || 0) > 0) {
+            throw new https_1.HttpsError('failed-precondition', 'Cannot remove a member with an active outstanding loan balance.');
+        }
+    }
+    try {
+        const batch = db.batch();
+        batch.delete(db.collection('users').doc(targetUserId));
+        const logRef = db.collection('audit_logs').doc();
+        batch.set(logRef, {
+            adminId: request.auth.uid,
+            action: 'DELETE_MEMBER',
+            justification,
+            details: { memberId: targetUserId },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        // Also clean up Auth record if exists
+        try {
+            await admin.auth().deleteUser(targetUserId);
+        }
+        catch (e) {
+            // Ignore if auth user doesn't exist
+        }
+        return { success: true };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Updates a member's contact profile (name, phone) securely.
+ * Can be performed by admins or the member themselves.
+ */
+exports.updateMemberProfile = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const { targetUserId, name, phone } = request.data || {};
+    if (!targetUserId)
+        throw new https_1.HttpsError('invalid-argument', 'Target user ID is required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = (_a = callerSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+    if (callerRole !== 'admin' && request.auth.uid !== targetUserId) {
+        throw new https_1.HttpsError('permission-denied', 'You can only update your own profile.');
+    }
+    const updates = {};
+    if (typeof name === 'string' && name.trim().length > 0)
+        updates.name = name.trim();
+    if (typeof phone === 'string')
+        updates.phone = phone.trim();
+    try {
+        await db.collection('users').doc(targetUserId).update(updates);
+        return { success: true };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Activates an invited member's account.
+ * Atomically links pre-created member profile with new Firebase Auth UID.
+ */
+exports.activateMemberAccount = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const { memberDocId } = request.data || {};
+    if (!memberDocId)
+        throw new https_1.HttpsError('invalid-argument', 'Member document ID is required.');
+    const db = admin.firestore();
+    const currentUid = request.auth.uid;
+    try {
+        if (memberDocId !== currentUid) {
+            const oldDocRef = db.collection('users').doc(memberDocId);
+            const oldDocSnap = await oldDocRef.get();
+            if (!oldDocSnap.exists) {
+                throw new https_1.HttpsError('not-found', 'Pre-registered member invitation not found.');
+            }
+            const oldData = oldDocSnap.data();
+            const batch = db.batch();
+            batch.set(db.collection('users').doc(currentUid), Object.assign(Object.assign({}, oldData), { email: (request.auth.token.email || oldData.email || '').toLowerCase(), status: 'active', activatedAt: admin.firestore.FieldValue.serverTimestamp() }), { merge: true });
+            batch.delete(oldDocRef);
+            // Re-point any contributions or loans that used the old temp doc ID
+            const contribs = await db.collection('contributions').where('memberId', '==', memberDocId).get();
+            contribs.forEach(c => batch.update(c.ref, { memberId: currentUid }));
+            const loans = await db.collection('loans').where('memberId', '==', memberDocId).get();
+            loans.forEach(l => batch.update(l.ref, { memberId: currentUid }));
+            await batch.commit();
+        }
+        else {
+            await db.collection('users').doc(currentUid).update({
+                status: 'active',
+                activatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
         return { success: true };
     }
     catch (error) {

@@ -33,9 +33,45 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rejectContribution = exports.verifyContribution = exports.recordContribution = void 0;
+exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
+/**
+ * Submits a regular member contribution for management verification.
+ * Server authoritatively binds memberId to auth.uid and forces status to 'pending'.
+ */
+exports.submitContribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const { amount, period, proofUrl } = request.data || {};
+    const parsedAmount = Number(amount);
+    if (!parsedAmount || parsedAmount <= 0) {
+        throw new https_1.HttpsError('invalid-argument', 'A valid contribution amount greater than 0 is required.');
+    }
+    if (!period || typeof period !== 'string' || period.trim().length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'Contribution period is required.');
+    }
+    if (!proofUrl || typeof proofUrl !== 'string' || proofUrl.trim().length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'Proof of payment URL is required.');
+    }
+    try {
+        const db = admin.firestore();
+        const contributionRef = db.collection('contributions').doc();
+        await contributionRef.set({
+            memberId: request.auth.uid,
+            amount: parsedAmount,
+            period: period.trim(),
+            date: admin.firestore.FieldValue.serverTimestamp(),
+            proofUrl: proofUrl.trim(),
+            status: 'pending',
+            justification: `Self-submitted contribution for ${period.trim()}`
+        });
+        return { success: true, id: contributionRef.id };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
 /**
  * Securely records a member contribution.
  * Performed on server to ensure audit integrity.

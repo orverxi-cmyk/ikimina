@@ -16,11 +16,15 @@ import { formatCurrency } from '@/lib/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
+import { useSettings } from '@/context/settings-context';
+
 export default function ProfilePage() {
   const params = useParams();
   const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
-  
+  const { settings } = useSettings();
+  const currency = settings.currency || 'RWF';
+
   // Resolve target user (self or others for management)
   const targetId = params.username === 'me' ? user?.uid : params.username as string;
 
@@ -30,10 +34,6 @@ export default function ProfilePage() {
   // Current user's own data for permission check
   const currentUserRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: currentUserData, loading: currentUserLoading } = useDoc(currentUserRef);
-
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
-  const { data: settingsData } = useDoc(settingsRef);
-  const currency = settingsData?.currency || 'RWF';
 
   const userLoading = authLoading || userDocLoading || currentUserLoading;
   const isManagement = currentUserData?.role === 'admin' || currentUserData?.role === 'management';

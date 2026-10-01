@@ -48,6 +48,7 @@ import { allocateInterestAction, resetFinancialDataAction } from '@/lib/finance-
 import { useToast } from '@/hooks/use-toast';
 import { isWithinInterval, getYear, startOfYear, endOfYear, format } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
+import { useSettings } from '@/context/settings-context';
 
 export default function ReportsPage() {
   const { toast } = useToast();
@@ -57,9 +58,8 @@ export default function ReportsPage() {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
 
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
-  const { data: settingsData } = useDoc(settingsRef);
-  const currency = settingsData?.currency || 'RWF';
+  const { settings } = useSettings();
+  const currency = settings.currency;
 
   const [isAllocating, setIsAllocating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);

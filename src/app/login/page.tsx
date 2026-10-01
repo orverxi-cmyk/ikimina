@@ -14,15 +14,12 @@ import {
   query, 
   where, 
   getDocs, 
-  updateDoc, 
-  doc, 
-  serverTimestamp,
-  limit,
   getDoc,
-  setDoc,
-  deleteDoc
+  doc,
+  limit
 } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase/provider';
+import { activateMemberAccountAction } from '@/lib/finance-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -166,28 +163,7 @@ export default function LoginPage() {
     try {
       await updatePassword(auth.currentUser, password);
       
-      const isMigrationNeeded = memberDocId !== auth.currentUser.uid;
-      let memberData: any = {
-        status: 'active',
-        activatedAt: serverTimestamp(),
-      };
-
-      if (isMigrationNeeded) {
-        const oldDocRef = doc(firestore, 'users', memberDocId);
-        const oldDocSnap = await getDoc(oldDocRef);
-        if (oldDocSnap.exists()) {
-          memberData = {
-            ...oldDocSnap.data(),
-            ...memberData,
-            email: oldDocSnap.data().email.toLowerCase()
-          };
-        }
-        
-        await setDoc(doc(firestore, 'users', auth.currentUser.uid), memberData);
-        await deleteDoc(oldDocRef);
-      } else {
-        await updateDoc(doc(firestore, 'users', memberDocId), memberData);
-      }
+      await activateMemberAccountAction(memberDocId);
       
       toast({ title: 'Success', description: 'Account activated successfully.' });
       router.push('/');

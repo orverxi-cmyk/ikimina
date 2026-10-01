@@ -334,3 +334,44 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
         throw new HttpsError('internal', error.message);
     }
 });
+
+/**
+ * Returns the current system-wide financial policy settings.
+ * Any authenticated user can call this — it is a read-only operation.
+ * This is the ONLY authorised way for the client to read settings;
+ * pages must not directly query settings/financials via Firestore.
+ */
+export const getSystemSettings = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const snap = await db.collection('settings').doc('financials').get();
+
+    if (!snap.exists) {
+        // Return safe defaults if the document hasn't been created yet
+        return {
+            currency: 'RWF',
+            loanInterestRate: 10,
+            interestModel: 'one-off',
+            interestType: 'afterward',
+            contributionInterestRate: 50000,
+            maxLoanPercentage: 80,
+            minLoanAmount: 5000,
+            maxLoanAmount: 1000000,
+            penaltyRate: 2,
+        };
+    }
+
+    const data = snap.data()!;
+    return {
+        currency: data.currency || 'RWF',
+        loanInterestRate: Number(data.loanInterestRate) || 10,
+        interestModel: data.interestModel || 'one-off',
+        interestType: data.interestType || 'afterward',
+        contributionInterestRate: Number(data.contributionInterestRate) || 50000,
+        maxLoanPercentage: Number(data.maxLoanPercentage) || 80,
+        minLoanAmount: Number(data.minLoanAmount) || 5000,
+        maxLoanAmount: Number(data.maxLoanAmount) || 1000000,
+        penaltyRate: Number(data.penaltyRate) || 2,
+    };
+});

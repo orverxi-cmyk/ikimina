@@ -9,19 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw, Plus } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, where, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, where, doc } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { verifyContributionAction, rejectContributionAction, recordContributionAction } from '@/lib/finance-client';
+import { verifyContributionAction, rejectContributionAction, recordContributionAction, submitContributionAction } from '@/lib/finance-client';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/currency';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSettings } from '@/context/settings-context';
 
 export default function ContributionsPage() {
   const { toast } = useToast();
@@ -33,10 +34,9 @@ export default function ContributionsPage() {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
   
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
-  const { data: settingsData } = useDoc(settingsRef);
-  const currency = settingsData?.currency || 'RWF';
-  const defaultAmount = settingsData?.contributionInterestRate || 50000;
+  const { settings } = useSettings();
+  const currency = settings.currency;
+  const defaultAmount = settings.contributionInterestRate;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
@@ -114,14 +114,10 @@ export default function ContributionsPage() {
       const uploadResult = await uploadBytes(fileRef, proofFile);
       const proofUrl = await getDownloadURL(uploadResult.ref);
 
-      await addDoc(collection(firestore, 'contributions'), {
-        memberId: user.uid,
+      await submitContributionAction({
         amount,
         period,
-        date: serverTimestamp(),
-        proofUrl,
-        status: 'pending',
-        justification: `Self-submitted for ${period}`
+        proofUrl
       });
 
       toast({ title: "Submitted", description: "Your contribution has been submitted for verification." });

@@ -132,3 +132,145 @@ export const updateUserRole = onCall({ cors: true }, async (request) => {
         throw new HttpsError('internal', error.message);
     }
 });
+
+/**
+ * Deletes or revokes access for a member securely.
+ * Checks for admin privileges and verifies there are no outstanding loan debts.
+ */
+export const deleteMember = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (adminSnap.data()?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Admin privileges required.');
+    }
+
+    const { targetUserId, justification } = request.data || {};
+    if (!targetUserId || !justification) {
+        throw new HttpsError('invalid-argument', 'Target user ID and justification are required.');
+    }
+
+    // Guard: Check for active loans
+    const loansSnap = await db.collection('loans')
+        .where('memberId', '==', targetUserId)
+        .where('status', '==', 'approved')
+        .get();
+
+    for (const doc of loansSnap.docs) {
+        if ((Number(doc.data().balance) || 0) > 0) {
+            throw new HttpsError('failed-precondition', 'Cannot remove a member with an active outstanding loan balance.');
+        }
+    }
+
+    try {
+        const batch = db.batch();
+        batch.delete(db.collection('users').doc(targetUserId));
+
+        const logRef = db.collection('audit_logs').doc();
+        batch.set(logRef, {
+            adminId: request.auth.uid,
+            action: 'DELETE_MEMBER',
+            justification,
+            details: { memberId: targetUserId },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await batch.commit();
+
+        // Also clean up Auth record if exists
+        try {
+            await admin.auth().deleteUser(targetUserId);
+        } catch (e: any) {
+            // Ignore if auth user doesn't exist
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * Updates a member's contact profile (name, phone) securely.
+ * Can be performed by admins or the member themselves.
+ */
+export const updateMemberProfile = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const { targetUserId, name, phone } = request.data || {};
+    if (!targetUserId) throw new HttpsError('invalid-argument', 'Target user ID is required.');
+
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerSnap.data()?.role;
+
+    if (callerRole !== 'admin' && request.auth.uid !== targetUserId) {
+        throw new HttpsError('permission-denied', 'You can only update your own profile.');
+    }
+
+    const updates: Record<string, any> = {};
+    if (typeof name === 'string' && name.trim().length > 0) updates.name = name.trim();
+    if (typeof phone === 'string') updates.phone = phone.trim();
+
+    try {
+        await db.collection('users').doc(targetUserId).update(updates);
+        return { success: true };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * Activates an invited member's account.
+ * Atomically links pre-created member profile with new Firebase Auth UID.
+ */
+export const activateMemberAccount = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const { memberDocId } = request.data || {};
+    if (!memberDocId) throw new HttpsError('invalid-argument', 'Member document ID is required.');
+
+    const db = admin.firestore();
+    const currentUid = request.auth.uid;
+
+    try {
+        if (memberDocId !== currentUid) {
+            const oldDocRef = db.collection('users').doc(memberDocId);
+            const oldDocSnap = await oldDocRef.get();
+            if (!oldDocSnap.exists) {
+                throw new HttpsError('not-found', 'Pre-registered member invitation not found.');
+            }
+
+            const oldData = oldDocSnap.data()!;
+            const batch = db.batch();
+
+            batch.set(db.collection('users').doc(currentUid), {
+                ...oldData,
+                email: (request.auth.token.email || oldData.email || '').toLowerCase(),
+                status: 'active',
+                activatedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            batch.delete(oldDocRef);
+
+            // Re-point any contributions or loans that used the old temp doc ID
+            const contribs = await db.collection('contributions').where('memberId', '==', memberDocId).get();
+            contribs.forEach(c => batch.update(c.ref, { memberId: currentUid }));
+
+            const loans = await db.collection('loans').where('memberId', '==', memberDocId).get();
+            loans.forEach(l => batch.update(l.ref, { memberId: currentUid }));
+
+            await batch.commit();
+        } else {
+            await db.collection('users').doc(currentUid).update({
+                status: 'active',
+                activatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});

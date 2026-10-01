@@ -31,13 +31,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { registerMemberAction, bulkRegisterMembersAction, logAdminAction, updateUserRoleAction } from '@/lib/finance-client';
+import { 
+  registerMemberAction, 
+  bulkRegisterMembersAction, 
+  updateUserRoleAction,
+  updateMemberProfileAction,
+  deleteMemberAction
+} from '@/lib/finance-client';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -94,7 +100,7 @@ export default function MembersPage() {
           await updateUserRoleAction(selectedMember.id, memberData.role, memberData.justification);
         }
 
-        await updateDoc(doc(firestore, 'users', selectedMember.id), {
+        await updateMemberProfileAction(selectedMember.id, {
           name: `${memberData.firstName} ${memberData.surname}`.trim(),
           phone: memberData.phone,
         });
@@ -342,11 +348,12 @@ export default function MembersPage() {
                               if(confirm(`Remove access for ${member.name}?`)) {
                                 const justification = window.prompt("Reason for removal:");
                                 if (!justification) return;
-                                await deleteDoc(doc(firestore, 'users', member.id));
-                                if (user) {
-                                  await logAdminAction({ adminId: user.uid, action: 'DELETE_MEMBER', justification, details: { memberId: member.id } });
+                                try {
+                                  await deleteMemberAction(member.id, justification);
+                                  toast({ title: "Removed", description: "Access has been revoked." });
+                                } catch (err: any) {
+                                  toast({ variant: "destructive", title: "Removal Failed", description: err.message });
                                 }
-                                toast({ title: "Removed", description: "Access has been revoked." });
                               }
                             }}>Revoke Access</DropdownMenuItem>
                         </DropdownMenuContent>

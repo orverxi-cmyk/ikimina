@@ -38,17 +38,16 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { updateFinancialSettingsAction, resetFinancialDataAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
+import { useSettings } from '@/context/settings-context';
 
 export default function AdminSettingsPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+  const { settings, loading: settingsLoading, refreshSettings } = useSettings();
   
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userLoading } = useDoc(userRef);
-
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
-  const { data: settingsData, loading: settingsLoading } = useDoc(settingsRef);
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState<string>('RWF');
@@ -62,12 +61,12 @@ export default function AdminSettingsPage() {
   const [resetJustification, setResetJustification] = useState('');
 
   useEffect(() => {
-    if (settingsData) {
-      if (settingsData.currency) setSelectedCurrency(settingsData.currency);
-      if (settingsData.interestModel) setInterestModel(settingsData.interestModel);
-      if (settingsData.interestType) setInterestType(settingsData.interestType);
+    if (settings) {
+      if (settings.currency) setSelectedCurrency(settings.currency);
+      if (settings.interestModel) setInterestModel(settings.interestModel);
+      if (settings.interestType) setInterestType(settings.interestType);
     }
-  }, [settingsData]);
+  }, [settings]);
 
   const isAdmin = userData?.role === 'admin';
   const isSuperAdmin = userData?.isSuperAdmin === true || user?.email === 'tharushyamagara@gmail.com';
@@ -99,6 +98,7 @@ export default function AdminSettingsPage() {
         penaltyRate,
         justification 
       });
+      await refreshSettings();
       toast({ title: "Settings Updated", description: "Global financial policies updated successfully." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Update Failed", description: error.message });
@@ -233,7 +233,7 @@ export default function AdminSettingsPage() {
                     name="maxLoanPercentage" 
                     type="number" 
                     step="1" 
-                    defaultValue={settingsData?.maxLoanPercentage || 80} 
+                    defaultValue={settings.maxLoanPercentage || 80} 
                     required 
                     className="h-11 rounded-[10px] bg-muted border-none"
                   />
@@ -246,7 +246,7 @@ export default function AdminSettingsPage() {
                   <Input 
                     name="minLoanAmount" 
                     type="number" 
-                    defaultValue={settingsData?.minLoanAmount || 5000} 
+                    defaultValue={settings.minLoanAmount || 5000} 
                     required 
                     className="h-11 rounded-[10px] bg-muted border-none"
                   />
@@ -256,7 +256,7 @@ export default function AdminSettingsPage() {
                   <Input 
                     name="maxLoanAmount" 
                     type="number" 
-                    defaultValue={settingsData?.maxLoanAmount || 1000000} 
+                    defaultValue={settings.maxLoanAmount || 1000000} 
                     required 
                     className="h-11 rounded-[10px] bg-muted border-none"
                   />
@@ -270,7 +270,7 @@ export default function AdminSettingsPage() {
                      name="penaltyRate" 
                      type="number" 
                      step="0.1" 
-                     defaultValue={settingsData?.penaltyRate || 2} 
+                     defaultValue={settings.penaltyRate || 2} 
                      required 
                      className="h-11 rounded-[10px] bg-muted border-none"
                    />
@@ -325,7 +325,7 @@ export default function AdminSettingsPage() {
                     name="loanInterestRate" 
                     type="number" 
                     step="0.01" 
-                    defaultValue={settingsData?.loanInterestRate || 10} 
+                    defaultValue={settings.loanInterestRate || 10} 
                     required 
                     className="h-11 rounded-[10px] bg-muted border-none"
                   />
@@ -336,7 +336,7 @@ export default function AdminSettingsPage() {
                   <Input 
                     name="contributionInterestRate" 
                     type="number" 
-                    defaultValue={settingsData?.contributionInterestRate || 50000} 
+                    defaultValue={settings.contributionInterestRate || 50000} 
                     required 
                     className="h-11 rounded-[10px] bg-muted border-none"
                   />

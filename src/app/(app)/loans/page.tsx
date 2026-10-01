@@ -49,6 +49,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { recordRepaymentAction, verifyRepaymentAction, approveLoanAction, rejectLoanAction } from '@/lib/finance-client';
 import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
+import { useSettings } from '@/context/settings-context';
 
 function LoansPageContent() {
   const { toast } = useToast();
@@ -60,12 +61,11 @@ function LoansPageContent() {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
 
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), []);
-  const { data: settingsData } = useDoc(settingsRef);
-  const currency = settingsData?.currency || 'RWF';
-  const globalRate = settingsData?.loanInterestRate || 10;
-  const globalPenaltyRate = settingsData?.penaltyRate || 2;
-  const globalInterestType = settingsData?.interestType || 'afterward';
+  const { settings } = useSettings();
+  const currency = settings.currency;
+  const globalRate = settings.loanInterestRate;
+  const globalPenaltyRate = settings.penaltyRate;
+  const globalInterestType = settings.interestType;
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRepayOpen, setIsRepayOpen] = useState(false);

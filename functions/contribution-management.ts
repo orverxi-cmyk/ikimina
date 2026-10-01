@@ -3,6 +3,48 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 
 /**
+ * Submits a regular member contribution for management verification.
+ * Server authoritatively binds memberId to auth.uid and forces status to 'pending'.
+ */
+export const submitContribution = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const { amount, period, proofUrl } = request.data || {};
+    const parsedAmount = Number(amount);
+
+    if (!parsedAmount || parsedAmount <= 0) {
+        throw new HttpsError('invalid-argument', 'A valid contribution amount greater than 0 is required.');
+    }
+
+    if (!period || typeof period !== 'string' || period.trim().length === 0) {
+        throw new HttpsError('invalid-argument', 'Contribution period is required.');
+    }
+
+    if (!proofUrl || typeof proofUrl !== 'string' || proofUrl.trim().length === 0) {
+        throw new HttpsError('invalid-argument', 'Proof of payment URL is required.');
+    }
+
+    try {
+        const db = admin.firestore();
+        const contributionRef = db.collection('contributions').doc();
+
+        await contributionRef.set({
+            memberId: request.auth.uid,
+            amount: parsedAmount,
+            period: period.trim(),
+            date: admin.firestore.FieldValue.serverTimestamp(),
+            proofUrl: proofUrl.trim(),
+            status: 'pending',
+            justification: `Self-submitted contribution for ${period.trim()}`
+        });
+
+        return { success: true, id: contributionRef.id };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
  * Securely records a member contribution.
  * Performed on server to ensure audit integrity.
  */
