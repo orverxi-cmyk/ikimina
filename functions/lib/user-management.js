@@ -206,14 +206,15 @@ exports.deleteMember = (0, https_1.onCall)({ cors: true }, async (request) => {
     }
 });
 /**
- * Updates a member's contact profile (name, phone) securely.
+ * Updates a member's contact profile (name, phone, photoURL) securely.
  * Can be performed by admins or the member themselves.
+ * photoURL must point to the caller's own Firebase Storage avatars path.
  */
 exports.updateMemberProfile = (0, https_1.onCall)({ cors: true }, async (request) => {
     var _a;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
-    const { targetUserId, name, phone } = request.data || {};
+    const { targetUserId, name, phone, photoURL } = request.data || {};
     if (!targetUserId)
         throw new https_1.HttpsError('invalid-argument', 'Target user ID is required.');
     const db = admin.firestore();
@@ -227,6 +228,27 @@ exports.updateMemberProfile = (0, https_1.onCall)({ cors: true }, async (request
         updates.name = name.trim();
     if (typeof phone === 'string')
         updates.phone = phone.trim();
+    // Validate and accept photoURL — must be a Firebase Storage URL for the
+    // caller's own avatars/{uid}/ path (or admin updating any user).
+    if (typeof photoURL === 'string' && photoURL.trim().length > 0) {
+        const url = photoURL.trim();
+        const isFirebaseStorageUrl = url.startsWith('https://firebasestorage.googleapis.com') ||
+            url.startsWith('https://storage.googleapis.com');
+        if (!isFirebaseStorageUrl) {
+            throw new https_1.HttpsError('invalid-argument', 'photoURL must be a Firebase Storage URL.');
+        }
+        // Non-admins may only upload to their own avatars/ path
+        if (callerRole !== 'admin') {
+            const expectedPath = `/avatars/${request.auth.uid}/`;
+            if (!url.includes(expectedPath)) {
+                throw new https_1.HttpsError('permission-denied', 'You may only set a photo from your own avatars storage path.');
+            }
+        }
+        updates.photoURL = url;
+    }
+    if (Object.keys(updates).length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'No valid fields provided to update.');
+    }
     try {
         await db.collection('users').doc(targetUserId).update(updates);
         return { success: true };

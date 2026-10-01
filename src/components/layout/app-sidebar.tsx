@@ -17,6 +17,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
+import { AvatarUpload } from '@/components/ui/avatar-upload';
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -97,11 +98,21 @@ export function AppSidebar() {
       <div className="pt-6 border-t border-border">
         {user && (
           <div className="px-4 py-3 bg-muted rounded-[10px] border border-border">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Session</p>
-            <p className="text-sm font-bold truncate text-foreground">{userData?.name || user.email}</p>
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Session</p>
+            <div className="flex items-center gap-3">
+              <AvatarUpload
+                uid={user.uid}
+                currentPhotoURL={userData?.photoURL ?? user.photoURL}
+                displayName={userData?.name ?? user.displayName}
+                size={44}
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-bold truncate text-foreground">{userData?.name || user.email}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                  <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>
+                </div>
+              </div>
             </div>
           </div>
         )}

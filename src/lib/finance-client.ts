@@ -336,8 +336,9 @@ export async function deleteMemberAction(targetUserId: string, justification: st
 
 /**
  * Updates member contact profile via Cloud Functions.
+ * Accepts optional photoURL, which must be a Firebase Storage URL for the caller's own avatars path.
  */
-export async function updateMemberProfileAction(targetUserId: string, data: { name?: string, phone?: string }) {
+export async function updateMemberProfileAction(targetUserId: string, data: { name?: string, phone?: string, photoURL?: string }) {
   const functions = getFinanceFunctions();
   const updateFn = httpsCallable(functions, 'updateMemberProfile');
   try {
