@@ -242,7 +242,8 @@ export default function MembersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Administrator (Full Control)</SelectItem>
-                    <SelectItem value="accountant">Accountant (Payroll & Finance)</SelectItem>
+                    <SelectItem value="reviewer">Reviewer (Audit &amp; Compliance)</SelectItem>
+                    <SelectItem value="accountant">Accountant (Payroll &amp; Uploads)</SelectItem>
                     <SelectItem value="management">Management (Approvals Only)</SelectItem>
                     <SelectItem value="member">General Member</SelectItem>
                   </SelectContent>
@@ -334,6 +335,7 @@ export default function MembersPage() {
                         className={cn(
                           "capitalize font-bold text-[10px] px-3 border-none",
                           member.role === 'admin' && "bg-primary/10 text-primary",
+                          member.role === 'reviewer' && "bg-purple-500/10 text-purple-600",
                           member.role === 'accountant' && "bg-blue-500/10 text-blue-600",
                           member.role === 'management' && "bg-amber-500/10 text-amber-600",
                           (!member.role || member.role === 'member') && "bg-muted text-muted-foreground"

@@ -206,6 +206,71 @@ export async function bulkUploadContributionsAction(data: {
   }
 }
 
+/**
+ * Step 1: Accountant initiates a contribution upload batch.
+ */
+export async function initiateContributionBatchAction(data: {
+  items: Array<{
+    memberId: string;
+    amount: number;
+    period?: string;
+    deductionDate?: string;
+    notes?: string;
+    staffName?: string;
+    staffEmail?: string;
+  }>;
+  title?: string;
+  defaultPeriod?: string;
+  type?: 'historical_migration' | 'payroll_deduction';
+  justification?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const initFn = httpsCallable(functions, 'initiateContributionBatch');
+  try {
+    const result = await initFn(data);
+    return result.data as { success: boolean; batchId: string; totalCount: number; totalAmount: number; status: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to initiate contribution batch.');
+  }
+}
+
+/**
+ * Step 2: Reviewer reviews and endorses/requests revisions for the batch.
+ */
+export async function reviewContributionBatchAction(data: {
+  batchId: string;
+  decision: 'endorse' | 'request_changes' | 'reject';
+  reviewNotes: string;
+}) {
+  const functions = getFinanceFunctions();
+  const revFn = httpsCallable(functions, 'reviewContributionBatch');
+  try {
+    const result = await revFn(data);
+    return result.data as { success: boolean; batchId: string; status: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to submit review for batch.');
+  }
+}
+
+/**
+ * Step 3: Super Administrator gives final approval to commit batch into official ledger.
+ */
+export async function approveContributionBatchAction(data: {
+  batchId: string;
+  decision: 'approve' | 'reject';
+  approvalNotes: string;
+}) {
+  const functions = getFinanceFunctions();
+  const appFn = httpsCallable(functions, 'approveContributionBatch');
+  try {
+    const result = await appFn(data);
+    return result.data as { success: boolean; batchId: string; count?: number; totalAmount?: number; status: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to execute final approval for batch.');
+  }
+}
+
+
 
 /**
  * Records a loan repayment in Cloud Functions.

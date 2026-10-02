@@ -178,8 +178,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // 2. Authenticated but NOT an Admin or Accountant: Access Denied Screen
-  const hasAccess = userData?.role === 'admin' || userData?.role === 'accountant';
+  // 2. Authenticated but NOT an Admin, Reviewer, or Accountant: Access Denied Screen
+  const hasAccess = userData?.role === 'admin' || userData?.role === 'accountant' || userData?.role === 'reviewer' || userData?.role === 'management';
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -194,12 +194,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               Access Restricted
             </CardTitle>
             <CardDescription>
-              The account <strong>{user.email}</strong> does not have administrator or accountant privileges.
+              The account <strong>{user.email}</strong> does not have administrator, reviewer, or accountant privileges.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Please sign in with an authorized administrator or accountant account or return to the main dashboard.
+              Please sign in with an authorized account or return to the main dashboard.
             </p>
             <Button variant="outline" onClick={() => router.push('/')} className="w-full h-11 rounded-xl">
               Return to Member Portal
@@ -213,12 +213,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // 3. Authenticated as Admin or Accountant: Console Layout
-  const isAccountant = userData?.role === 'accountant';
+  // 3. Authenticated: Console Layout
+  const isSuperAdmin = userData?.role === 'admin';
   const menuItems = [
     { href: '/admin', label: 'Main Dashboard', icon: Home },
-    { href: '/admin/contributions', label: 'Bulk Contributions', icon: Wallet },
-    ...(!isAccountant ? [
+    { href: '/admin/contributions', label: 'Contributions Batches', icon: Wallet },
+    ...(isSuperAdmin ? [
       { href: '/members', label: 'Members', icon: Users },
       { href: '/reports', label: 'Reports', icon: Flag },
       { href: '/admin/settings', label: 'Settings', icon: Settings },

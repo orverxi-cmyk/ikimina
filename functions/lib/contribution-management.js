@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
+exports.approveContributionBatch = exports.reviewContributionBatch = exports.initiateContributionBatch = exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -313,5 +313,316 @@ exports.bulkUploadContributions = (0, https_1.onCall)({ cors: true }, async (req
     catch (error) {
         throw new https_1.HttpsError('internal', error.message || 'Failed to process bulk contributions upload.');
     }
+});
+/**
+ * Step 1: Accountant initiates a contribution batch (e.g. populating existing or payroll contributions).
+ * Stages the records in 'pending_review' state awaiting checker review.
+ */
+exports.initiateContributionBatch = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b, _c, _d;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData === null || callerData === void 0 ? void 0 : callerData.role;
+    if (callerRole !== 'accountant' && callerRole !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only accountants or administrators can initiate contribution upload batches.');
+    }
+    const { items, title, defaultPeriod, type, justification } = request.data || {};
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'At least one contribution item is required.');
+    }
+    if (items.length > 500) {
+        throw new https_1.HttpsError('invalid-argument', 'Maximum 500 items per contribution batch.');
+    }
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    let totalAmount = 0;
+    const validatedItems = [];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const memberId = (_a = item.memberId) === null || _a === void 0 ? void 0 : _a.trim();
+        const amount = Number(item.amount);
+        const period = (item.period || defaultPeriod || '').trim();
+        if (!memberId) {
+            throw new https_1.HttpsError('invalid-argument', `Item at row ${i + 1} is missing a memberId.`);
+        }
+        if (!amount || isNaN(amount) || amount <= 0) {
+            throw new https_1.HttpsError('invalid-argument', `Item at row ${i + 1} has an invalid amount (${item.amount}).`);
+        }
+        if (!period) {
+            throw new https_1.HttpsError('invalid-argument', `Item at row ${i + 1} is missing a contribution period.`);
+        }
+        totalAmount += amount;
+        validatedItems.push({
+            memberId,
+            staffName: ((_b = item.staffName) === null || _b === void 0 ? void 0 : _b.trim()) || 'Staff Member',
+            staffEmail: ((_c = item.staffEmail) === null || _c === void 0 ? void 0 : _c.trim()) || '',
+            amount,
+            period,
+            deductionDate: item.deductionDate || null,
+            notes: ((_d = item.notes) === null || _d === void 0 ? void 0 : _d.trim()) || `Contribution for ${period}`
+        });
+    }
+    const batchDocRef = db.collection('contribution_batches').doc(batchId);
+    await batchDocRef.set({
+        batchId,
+        title: (title === null || title === void 0 ? void 0 : title.trim()) || `Staff Contributions - ${defaultPeriod || 'Historical Migration'}`,
+        type: type || 'historical_migration',
+        status: 'pending_review',
+        items: validatedItems,
+        totalCount: validatedItems.length,
+        totalAmount,
+        defaultPeriod: defaultPeriod || '',
+        justification: (justification === null || justification === void 0 ? void 0 : justification.trim()) || 'Population of existing member contributions',
+        initiatedBy: request.auth.uid,
+        initiatorName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Accountant',
+        initiatorRole: callerRole,
+        initiatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        auditTrail: [
+            {
+                action: 'INITIATED',
+                performedBy: request.auth.uid,
+                performerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Accountant',
+                performerRole: callerRole,
+                timestamp: new Date().toISOString(),
+                notes: (justification === null || justification === void 0 ? void 0 : justification.trim()) || 'Batch initiated and submitted for review.'
+            }
+        ]
+    });
+    const auditRef = db.collection('audit_logs').doc();
+    await auditRef.set({
+        adminId: request.auth.uid,
+        action: 'INITIATE_CONTRIBUTION_BATCH',
+        justification: justification || `Initiated contribution batch ${batchId}`,
+        details: {
+            batchId,
+            itemCount: validatedItems.length,
+            totalAmount,
+            status: 'pending_review'
+        },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return {
+        success: true,
+        batchId,
+        totalCount: validatedItems.length,
+        totalAmount,
+        status: 'pending_review'
+    };
+});
+/**
+ * Step 2: Reviewer reviews the staged batch.
+ * Can endorse (moves to 'pending_approval'), request changes, or reject.
+ */
+exports.reviewContributionBatch = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData === null || callerData === void 0 ? void 0 : callerData.role;
+    if (callerRole !== 'reviewer' && callerRole !== 'management' && callerRole !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only designated reviewers, management, or administrators can review contribution batches.');
+    }
+    const { batchId, decision, reviewNotes } = request.data || {};
+    if (!batchId) {
+        throw new https_1.HttpsError('invalid-argument', 'Batch ID is required.');
+    }
+    if (!decision || !['endorse', 'request_changes', 'reject'].includes(decision)) {
+        throw new https_1.HttpsError('invalid-argument', 'Valid decision (endorse, request_changes, reject) is required.');
+    }
+    if (!reviewNotes || !reviewNotes.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'Review notes are required.');
+    }
+    const batchRef = db.collection('contribution_batches').doc(batchId);
+    const batchSnap = await batchRef.get();
+    if (!batchSnap.exists) {
+        throw new https_1.HttpsError('not-found', `Contribution batch ${batchId} was not found.`);
+    }
+    const batchData = batchSnap.data();
+    if (batchData.status !== 'pending_review' && batchData.status !== 'revision_requested') {
+        throw new https_1.HttpsError('failed-precondition', `Cannot review batch with status '${batchData.status}'. Must be 'pending_review'.`);
+    }
+    let nextStatus;
+    let actionName;
+    if (decision === 'endorse') {
+        nextStatus = 'pending_approval';
+        actionName = 'REVIEW_ENDORSED';
+    }
+    else if (decision === 'request_changes') {
+        nextStatus = 'revision_requested';
+        actionName = 'REVIEW_REVISION_REQUESTED';
+    }
+    else {
+        nextStatus = 'rejected';
+        actionName = 'REVIEW_REJECTED';
+    }
+    const newAuditEvent = {
+        action: actionName,
+        performedBy: request.auth.uid,
+        performerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Reviewer',
+        performerRole: callerRole,
+        timestamp: new Date().toISOString(),
+        notes: reviewNotes.trim()
+    };
+    await batchRef.update({
+        status: nextStatus,
+        reviewedBy: request.auth.uid,
+        reviewerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Reviewer',
+        reviewerRole: callerRole,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewNotes: reviewNotes.trim(),
+        auditTrail: admin.firestore.FieldValue.arrayUnion(newAuditEvent)
+    });
+    const auditRef = db.collection('audit_logs').doc();
+    await auditRef.set({
+        adminId: request.auth.uid,
+        action: actionName,
+        justification: reviewNotes.trim(),
+        details: {
+            batchId,
+            decision,
+            nextStatus
+        },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return {
+        success: true,
+        batchId,
+        status: nextStatus
+    };
+});
+/**
+ * Step 3: Super Administrator gives final approval.
+ * Writes all staged items into the official 'contributions' ledger and updates batch to 'approved'.
+ */
+exports.approveContributionBatch = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData === null || callerData === void 0 ? void 0 : callerData.role;
+    if (callerRole !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only Super Administrators can provide final approval and commit contribution batches to the ledger.');
+    }
+    const { batchId, decision, approvalNotes } = request.data || {};
+    if (!batchId) {
+        throw new https_1.HttpsError('invalid-argument', 'Batch ID is required.');
+    }
+    if (!decision || !['approve', 'reject'].includes(decision)) {
+        throw new https_1.HttpsError('invalid-argument', 'Valid decision (approve or reject) is required.');
+    }
+    if (!approvalNotes || !approvalNotes.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'Approval/rejection notes are required.');
+    }
+    const batchRef = db.collection('contribution_batches').doc(batchId);
+    const batchSnap = await batchRef.get();
+    if (!batchSnap.exists) {
+        throw new https_1.HttpsError('not-found', `Contribution batch ${batchId} was not found.`);
+    }
+    const batchData = batchSnap.data();
+    if (batchData.status !== 'pending_approval') {
+        throw new https_1.HttpsError('failed-precondition', `Cannot approve batch with status '${batchData.status}'. Must be 'pending_approval'.`);
+    }
+    if (decision === 'reject') {
+        const rejectAuditEvent = {
+            action: 'ADMIN_REJECTED',
+            performedBy: request.auth.uid,
+            performerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Super Admin',
+            performerRole: callerRole,
+            timestamp: new Date().toISOString(),
+            notes: approvalNotes.trim()
+        };
+        await batchRef.update({
+            status: 'rejected',
+            approvedBy: request.auth.uid,
+            approverName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Super Admin',
+            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            approvalNotes: approvalNotes.trim(),
+            auditTrail: admin.firestore.FieldValue.arrayUnion(rejectAuditEvent)
+        });
+        return { success: true, batchId, status: 'rejected' };
+    }
+    // Decision is 'approve' -> Commit all staged items to official contributions collection
+    const items = batchData.items || [];
+    if (items.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'Batch contains no items to commit.');
+    }
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+        const chunk = items.slice(i, i + CHUNK_SIZE);
+        const batch = db.batch();
+        for (const item of chunk) {
+            const contribRef = db.collection('contributions').doc();
+            let deductionDateVal = admin.firestore.FieldValue.serverTimestamp();
+            if (item.deductionDate) {
+                const parsed = new Date(item.deductionDate);
+                if (!isNaN(parsed.getTime())) {
+                    deductionDateVal = admin.firestore.Timestamp.fromDate(parsed);
+                }
+            }
+            batch.set(contribRef, {
+                memberId: item.memberId,
+                amount: Number(item.amount),
+                period: item.period || batchData.defaultPeriod || '',
+                date: deductionDateVal,
+                status: 'verified',
+                paymentMethod: batchData.type === 'historical_migration' ? 'historical_migration' : 'payroll_deduction',
+                source: batchData.type === 'historical_migration' ? 'historical_migration' : 'payroll_deduction',
+                batchId: batchData.batchId,
+                batchTitle: batchData.title,
+                notes: item.notes || `Populated via Batch ${batchData.batchId}`,
+                staffName: item.staffName || null,
+                staffEmail: item.staffEmail || null,
+                recordedBy: batchData.initiatedBy,
+                approvedBy: request.auth.uid,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        if (i === 0) {
+            // Update batch document
+            const approveAuditEvent = {
+                action: 'COMMITTED_TO_LEDGER',
+                performedBy: request.auth.uid,
+                performerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Super Admin',
+                performerRole: callerRole,
+                timestamp: new Date().toISOString(),
+                notes: approvalNotes.trim()
+            };
+            batch.update(batchRef, {
+                status: 'approved',
+                approvedBy: request.auth.uid,
+                approverName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Super Admin',
+                approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+                approvalNotes: approvalNotes.trim(),
+                auditTrail: admin.firestore.FieldValue.arrayUnion(approveAuditEvent)
+            });
+            // Audit log
+            const auditRef = db.collection('audit_logs').doc();
+            batch.set(auditRef, {
+                adminId: request.auth.uid,
+                action: 'APPROVE_CONTRIBUTION_BATCH',
+                justification: approvalNotes.trim(),
+                details: {
+                    batchId,
+                    totalCount: batchData.totalCount,
+                    totalAmount: batchData.totalAmount,
+                    initiatedBy: batchData.initiatedBy,
+                    reviewedBy: batchData.reviewedBy
+                },
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        await batch.commit();
+    }
+    return {
+        success: true,
+        batchId,
+        count: items.length,
+        totalAmount: batchData.totalAmount,
+        status: 'approved'
+    };
 });
 //# sourceMappingURL=contribution-management.js.map
