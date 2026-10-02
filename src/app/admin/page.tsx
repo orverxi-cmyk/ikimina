@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { useMemo, useState } from 'react';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Users, 
   Wallet, 
@@ -16,15 +17,28 @@ import {
   Download,
   Settings,
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  TrendingDown,
+  Receipt,
+  AlertTriangle,
+  Clock,
+  CheckCircle2,
+  DollarSign,
+  PieChart,
+  ShieldAlert,
+  Calendar,
+  ExternalLink,
+  Plus,
+  FileText
 } from "lucide-react";
 import { useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useSettings } from '@/context/settings-context';
 import { formatCurrency } from '@/lib/currency';
 import { downloadStaffContributionTemplate } from '@/lib/excel-template';
 import { cn } from '@/lib/utils';
+import { format, isPast, differenceInDays } from 'date-fns';
 import Link from 'next/link';
 
 export default function AdminDashboard() {
@@ -32,7 +46,7 @@ export default function AdminDashboard() {
   const { settings } = useSettings();
   const currency = settings.currency || 'RWF';
 
-  // Subscriptions
+  // 1. Subscriptions
   const usersQuery = useMemoFirebase(() => {
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
   }, [firestore]);
@@ -48,46 +62,164 @@ export default function AdminDashboard() {
   }, [firestore]);
   const { data: loansSnap } = useCollection(loansQuery);
 
+  const repaymentsQuery = useMemoFirebase(() => {
+    return query(collection(firestore, 'repayments'));
+  }, [firestore]);
+  const { data: repaymentsSnap } = useCollection(repaymentsQuery);
+
+  const expensesQuery = useMemoFirebase(() => {
+    return query(collection(firestore, 'expenses'), orderBy('createdAt', 'desc'));
+  }, [firestore]);
+  const { data: expensesSnap } = useCollection(expensesQuery);
+
   const batchesQuery = useMemoFirebase(() => {
     return query(collection(firestore, 'contribution_batches'), orderBy('createdAt', 'desc'), limit(5));
   }, [firestore]);
   const { data: batchesSnap } = useCollection(batchesQuery);
 
+  // 2. Parsed entities
   const users = useMemo(() => usersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [usersSnap]);
   const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
+  const repayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
+  const expenses = useMemo(() => expensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [expensesSnap]);
   const recentBatches = useMemo(() => batchesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [batchesSnap]);
 
-  const totalPool = useMemo(() => {
+  // Member map helper
+  const memberMap = useMemo(() => {
+    const map = new Map<string, any>();
+    users.forEach((u: any) => map.set(u.id, u));
+    return map;
+  }, [users]);
+
+  // 3. Core Financial Calculations
+  // A. Total Verified Contributions (Savings Pot)
+  const totalVerifiedSavings = useMemo(() => {
     return contributions
       .filter((c: any) => c.status === 'verified')
-      .reduce((acc, c: any) => acc + (Number(c.amount) || 0), 0);
+      .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0);
   }, [contributions]);
 
-  const activeLoanAmount = useMemo(() => {
-    return loans
-      .filter((l: any) => l.status === 'approved' || l.status === 'active')
-      .reduce((acc, l: any) => acc + (Number(l.amount) || 0), 0);
+  // B. Operating Expenses: Approved (Subtracted from Assets) vs Pending
+  const approvedExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'approved'), [expenses]);
+  const pendingExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'pending'), [expenses]);
+
+  const totalApprovedExpenses = useMemo(() => {
+    return approvedExpenses.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+  }, [approvedExpenses]);
+
+  const totalPendingExpenses = useMemo(() => {
+    return pendingExpenses.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+  }, [pendingExpenses]);
+
+  // C. Total Loan Amount (Disbursed capital & Outstanding active balance)
+  const approvedLoans = useMemo(() => {
+    return loans.filter((l: any) => l.status === 'approved' || l.status === 'completed' || l.status === 'active');
   }, [loans]);
 
+  const totalLoanAmountDisbursed = useMemo(() => {
+    return approvedLoans.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
+  }, [approvedLoans]);
+
+  const totalActivePrincipalBalance = useMemo(() => {
+    return loans
+      .filter((l: any) => l.status === 'approved' && (Number(l.balance) || 0) > 0)
+      .reduce((sum: number, l: any) => sum + (Number(l.balance) || 0), 0);
+  }, [loans]);
+
+  // D. Total Interests (Earned from loans + Member accrued interest)
+  const totalLoanInterests = useMemo(() => {
+    return approvedLoans.reduce((sum: number, l: any) => sum + (Number(l.interestAmount) || 0), 0);
+  }, [approvedLoans]);
+
+  const totalMemberAccruedInterest = useMemo(() => {
+    return users.reduce((sum: number, u: any) => sum + (Number(u.accruedInterest) || 0), 0);
+  }, [users]);
+
+  // Verified Repayments collected
+  const totalVerifiedRepayments = useMemo(() => {
+    return repayments
+      .filter((r: any) => r.status === 'verified')
+      .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
+  }, [repayments]);
+
+  // E. Total Arrears Amount (Missed & Overdue Installments)
+  const { totalArrearsAmount, arrearsList } = useMemo(() => {
+    let arrearsSum = 0;
+    const list: any[] = [];
+
+    loans.forEach((loan: any) => {
+      if (loan.status === 'approved' && Array.isArray(loan.amortization)) {
+        loan.amortization.forEach((inst: any) => {
+          const rawDate = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
+          if (inst.status === 'pending' && isPast(rawDate)) {
+            const instAmount = Number(inst.amount) || 0;
+            arrearsSum += instAmount;
+            const daysOverdue = differenceInDays(new Date(), rawDate);
+            list.push({
+              loanId: loan.id,
+              memberId: loan.memberId,
+              memberName: memberMap.get(loan.memberId)?.name || 'Member',
+              memberEmail: memberMap.get(loan.memberId)?.email || '',
+              installmentNumber: inst.installmentNumber,
+              dueDate: rawDate,
+              daysOverdue,
+              amount: instAmount,
+              loanDescription: loan.description
+            });
+          }
+        });
+      }
+    });
+
+    list.sort((a, b) => b.daysOverdue - a.daysOverdue);
+    return { totalArrearsAmount: arrearsSum, arrearsList: list };
+  }, [loans, memberMap]);
+
+  // F. Total Members
+  const totalMembersCount = users.length;
+  const regularMembersCount = users.filter((u: any) => !u.role || u.role === 'member').length;
+  const staffOfficersCount = users.filter((u: any) => u.role && u.role !== 'member').length;
+
+  // G. TOTAL ASSET AMOUNT (Authoritatively Subtracted by Approved Expenses)
+  // Gross Institutional Capital = Verified Savings + Total Realized Loan Interest
+  // Net Total Assets = Gross Capital - Total Approved Expenses
+  const grossCapital = totalVerifiedSavings + totalLoanInterests;
+  const totalAssetAmount = Math.max(0, grossCapital - totalApprovedExpenses);
+
+  // Liquid Cash Reserve = (Verified Savings + Verified Repayments) - (Disbursed Loans + Approved Expenses)
+  const liquidCashReserve = Math.max(0, (totalVerifiedSavings + totalVerifiedRepayments) - (totalLoanAmountDisbursed + totalApprovedExpenses));
+
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-12">
-      {/* Welcome Banner */}
+    <div className="space-y-8 max-w-7xl mx-auto pb-16">
+      {/* Executive Welcome & Control Strip */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase font-bold tracking-widest">
-              Executive Console
+              Executive Institutional Console
             </Badge>
+            {pendingExpenses.length > 0 && (
+              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 text-[10px] font-bold">
+                {pendingExpenses.length} Expense{pendingExpenses.length > 1 ? 's' : ''} Pending Sign-Off
+              </Badge>
+            )}
           </div>
-          <h1 className="text-3xl font-headline font-bold tracking-tight">Admin & Finance Operations</h1>
+          <h1 className="text-3xl font-headline font-bold tracking-tight">Institutional Financial Overview</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Monitor institutional savings, manage payroll source deductions, and govern credit facilities.
+            Authoritative balance sheet, operating expenses audit, credit risk portfolio, and staff scheme management.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button asChild className="rounded-xl font-bold gap-2 shadow-lg h-11 px-5">
+        {/* Global Action CTAs */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Button asChild variant="outline" className="rounded-xl font-bold gap-2 h-11 px-4 shadow-sm border-primary/20 hover:bg-primary/5">
+            <Link href="/admin/expenses">
+              <Receipt className="h-4 w-4 text-primary" /> Operating Expenses Hub
+            </Link>
+          </Button>
+
+          <Button asChild className="rounded-xl font-bold gap-2 shadow-lg h-11 px-5 bg-primary text-primary-foreground">
             <Link href="/admin/contributions">
               <Upload className="h-4 w-4" /> Bulk Upload Contributions
             </Link>
@@ -95,194 +227,686 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="shadow-sm border border-border">
+      {/* 6 TOP EXECUTIVE KPI CARDS */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* 1. TOTAL ASSET AMOUNT (WITH EXPENSES SUBTRACTED) */}
+        <Card className="shadow-sm border-2 border-primary/30 bg-gradient-to-br from-primary/10 via-card to-background relative overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Savings Pot</CardTitle>
-            <div className="p-2.5 bg-primary/10 rounded-xl text-primary">
-              <Wallet className="h-4 w-4" />
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                Institutional Balance
+              </span>
+              <CardTitle className="text-base font-bold text-foreground">
+                Total Net Assets
+              </CardTitle>
+            </div>
+            <div className="p-2.5 bg-primary text-primary-foreground rounded-xl shadow-md">
+              <Wallet className="h-5 w-5" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-headline">{formatCurrency(totalPool, currency)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Verified member contributions</p>
+          <CardContent className="pt-2">
+            <div className="text-3xl font-bold font-headline text-foreground">
+              {formatCurrency(totalAssetAmount, currency)}
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50 text-xs">
+              <span className="text-muted-foreground text-[11px]">Gross Capital:</span>
+              <span className="font-semibold text-foreground">{formatCurrency(grossCapital, currency)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-1">
+              <span className="text-red-600 dark:text-red-400 font-medium text-[11px]">Approved Expenses:</span>
+              <span className="font-bold text-red-600 dark:text-red-400">-{formatCurrency(totalApprovedExpenses, currency)}</span>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border border-border">
+        {/* 2. TOTAL LOAN AMOUNT */}
+        <Card className="shadow-sm border border-blue-500/20 bg-blue-500/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Active Loan Portfolio</CardTitle>
-            <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600">
-              <Landmark className="h-4 w-4" />
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                Credit Facility
+              </span>
+              <CardTitle className="text-base font-bold text-foreground">
+                Total Loan Portfolio
+              </CardTitle>
+            </div>
+            <div className="p-2.5 bg-blue-500/10 text-blue-600 rounded-xl">
+              <Landmark className="h-5 w-5" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-headline">{formatCurrency(activeLoanAmount, currency)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Disbursed capital at work</p>
+          <CardContent className="pt-2">
+            <div className="text-3xl font-bold font-headline text-blue-900 dark:text-blue-100">
+              {formatCurrency(totalLoanAmountDisbursed, currency)}
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-blue-200/50 dark:border-blue-900/50 text-xs">
+              <span className="text-muted-foreground text-[11px]">Active Principal Outstanding:</span>
+              <span className="font-bold text-foreground">{formatCurrency(totalActivePrincipalBalance, currency)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-1">
+              <span className="text-muted-foreground text-[11px]">Disbursed Facilities:</span>
+              <span className="font-semibold">{approvedLoans.length} Loans</span>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border border-border">
+        {/* 3. TOTAL ARREARS AMOUNT */}
+        <Card className={cn(
+          "shadow-sm border transition-colors",
+          totalArrearsAmount > 0 
+            ? "border-red-500/30 bg-red-500/5" 
+            : "border-green-500/20 bg-green-500/5"
+        )}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Registered Staff</CardTitle>
-            <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-600">
-              <Users className="h-4 w-4" />
+            <div>
+              <span className={cn(
+                "text-[10px] font-bold uppercase tracking-wider",
+                totalArrearsAmount > 0 ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400"
+              )}>
+                Default Risk Watch
+              </span>
+              <CardTitle className="text-base font-bold text-foreground">
+                Total Arrears Amount
+              </CardTitle>
+            </div>
+            <div className={cn(
+              "p-2.5 rounded-xl",
+              totalArrearsAmount > 0 ? "bg-red-500/10 text-red-600" : "bg-green-500/10 text-green-600"
+            )}>
+              <AlertTriangle className="h-5 w-5" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-headline">{users.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Enrolled scheme participants</p>
+          <CardContent className="pt-2">
+            <div className={cn(
+              "text-3xl font-bold font-headline",
+              totalArrearsAmount > 0 ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400"
+            )}>
+              {formatCurrency(totalArrearsAmount, currency)}
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50 text-xs">
+              <span className="text-muted-foreground text-[11px]">Overdue Installments:</span>
+              <Badge variant={totalArrearsAmount > 0 ? "destructive" : "outline"} className="text-[10px] font-bold h-5">
+                {arrearsList.length} Missed
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-1">
+              <span className="text-muted-foreground text-[11px]">Portfolio Risk:</span>
+              <span className="font-semibold text-[11px]">
+                {totalActivePrincipalBalance > 0 
+                  ? `${Math.round((totalArrearsAmount / totalActivePrincipalBalance) * 100)}% of active debt` 
+                  : '0%'}
+              </span>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border border-border">
+        {/* 4. TOTAL INTERESTS */}
+        <Card className="shadow-sm border border-amber-500/20 bg-amber-500/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Borrowing Power Multiplier</CardTitle>
-            <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-600">
-              <TrendingUp className="h-4 w-4" />
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                Revenue Generation
+              </span>
+              <CardTitle className="text-base font-bold text-foreground">
+                Total Group Interest
+              </CardTitle>
+            </div>
+            <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl">
+              <TrendingUp className="h-5 w-5" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-headline">{settings.maxLoanPercentage || 200}%</div>
-            <p className="text-xs text-muted-foreground mt-1">Of verified member contributions</p>
+          <CardContent className="pt-2">
+            <div className="text-3xl font-bold font-headline text-amber-900 dark:text-amber-200">
+              {formatCurrency(totalLoanInterests, currency)}
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-900/50 text-xs">
+              <span className="text-muted-foreground text-[11px]">Accrued to Members:</span>
+              <span className="font-semibold text-foreground">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-1">
+              <span className="text-muted-foreground text-[11px]">Policy Rate:</span>
+              <span className="font-semibold">{settings.loanInterestRate || 10}% ({settings.interestModel || 'one-off'})</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 5. TOTAL MEMBERS */}
+        <Card className="shadow-sm border border-emerald-500/20 bg-emerald-500/5">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                Scheme Participation
+              </span>
+              <CardTitle className="text-base font-bold text-foreground">
+                Total Members
+              </CardTitle>
+            </div>
+            <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl">
+              <Users className="h-5 w-5" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="text-3xl font-bold font-headline text-emerald-900 dark:text-emerald-200">
+              {totalMembersCount}
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-emerald-200/50 dark:border-emerald-900/50 text-xs">
+              <span className="text-muted-foreground text-[11px]">Staff Participants:</span>
+              <span className="font-semibold text-foreground">{regularMembersCount} Savers</span>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-1">
+              <span className="text-muted-foreground text-[11px]">Administrative Officers:</span>
+              <span className="font-semibold">{staffOfficersCount} Staff</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 6. OPERATING EXPENSES (DEDUCTED FROM ASSETS) */}
+        <Card className="shadow-sm border border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Operational Outflows
+              </span>
+              <CardTitle className="text-base font-bold text-foreground">
+                Operating Expenses
+              </CardTitle>
+            </div>
+            <div className="p-2.5 bg-muted rounded-xl text-muted-foreground">
+              <Receipt className="h-5 w-5" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="text-3xl font-bold font-headline text-foreground">
+              {formatCurrency(totalApprovedExpenses, currency)}
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50 text-xs">
+              <span className="text-muted-foreground text-[11px]">Pending Approvals:</span>
+              <Badge variant={pendingExpenses.length > 0 ? "secondary" : "outline"} className="text-[10px] font-bold">
+                {pendingExpenses.length} Pending
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-1">
+              <span className="text-muted-foreground text-[11px]">Audited Vouchers:</span>
+              <span className="font-semibold">{approvedExpenses.length} Approved</span>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Primary Feature Highlight: Source Deductions Upload */}
-      <Card className="shadow-md border-primary/20 bg-gradient-to-r from-primary/5 via-card to-background">
-        <CardContent className="pt-6 pb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-primary text-primary-foreground border-none text-[10px] uppercase font-bold">
-                Accountant Tool
+      {/* DETAILED INTERACTIVE MODULE TABS */}
+      <Tabs defaultValue="balance-sheet" className="space-y-6">
+        <TabsList className="bg-muted p-1 rounded-xl flex-wrap">
+          <TabsTrigger value="balance-sheet" className="rounded-lg font-bold text-xs gap-2">
+            <PieChart className="h-3.5 w-3.5" />
+            Asset Reconciliation
+          </TabsTrigger>
+          <TabsTrigger value="arrears-watchlist" className="rounded-lg font-bold text-xs gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+            Arrears Watchlist
+            {arrearsList.length > 0 && (
+              <Badge variant="destructive" className="font-mono text-[9px] h-4 min-w-4 px-1 rounded-full">
+                {arrearsList.length}
               </Badge>
-              <span className="text-xs text-muted-foreground font-semibold">Monthly Payroll Integration</span>
-            </div>
-            <h3 className="text-xl font-bold font-headline">
-              Upload Staff Contributions from Excel
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Deduct contributions at source and upload in bulk using standard Excel or CSV files. Automatically cross-references staff by email, validates amounts, and updates member balances instantly.
-            </p>
-          </div>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="expenses-ledger" className="rounded-lg font-bold text-xs gap-2">
+            <Receipt className="h-3.5 w-3.5 text-primary" />
+            Operating Expenses
+            {pendingExpenses.length > 0 && (
+              <Badge className="bg-amber-600 text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full">
+                {pendingExpenses.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="source-deductions" className="rounded-lg font-bold text-xs gap-2">
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Payroll Batches
+          </TabsTrigger>
+        </TabsList>
 
-          <div className="flex items-center gap-3 shrink-0 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => downloadStaffContributionTemplate({ defaultAmount: 50000 })}
-              className="rounded-xl font-bold text-xs gap-2 bg-card"
-            >
-              <Download className="h-3.5 w-3.5 text-primary" />
-              Download Template (.xlsx)
-            </Button>
+        {/* TAB 1: ASSET RECONCILIATION & BALANCE SHEET */}
+        <TabsContent value="balance-sheet" className="space-y-6">
+          <Card className="border border-border shadow-sm">
+            <CardHeader className="bg-muted/30 border-b">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <PieChart className="h-5 w-5 text-primary" />
+                Institutional Balance Sheet &amp; Capital Reconciliation
+              </CardTitle>
+              <CardDescription>
+                Authoritative breakdown of group savings, interest revenues, operating expenses deductions, and net liquidity.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="grid md:grid-cols-2 gap-8">
+                {/* Balance Sheet Ledger Table */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Capital Ledger Composition
+                  </h4>
+                  <div className="border rounded-xl divide-y overflow-hidden text-sm">
+                    {/* 1. Verified Savings */}
+                    <div className="p-4 flex items-center justify-between bg-card hover:bg-muted/20 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-lg bg-green-500/10 text-green-700 dark:text-green-400 flex items-center justify-center font-bold text-xs">
+                          (+)
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">Verified Member Savings</p>
+                          <p className="text-[11px] text-muted-foreground">Total verified contributions deposited</p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-green-700 dark:text-green-400">
+                        +{formatCurrency(totalVerifiedSavings, currency)}
+                      </span>
+                    </div>
 
-            <Button asChild size="sm" className="rounded-xl font-bold text-xs gap-2 shadow-md">
-              <Link href="/admin/contributions">
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                Go to Bulk Upload <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+                    {/* 2. Realized Interest */}
+                    <div className="p-4 flex items-center justify-between bg-card hover:bg-muted/20 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
+                          (+)
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">Total Loan Interest &amp; Yield</p>
+                          <p className="text-[11px] text-muted-foreground">Cumulative interest generated from loans</p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-amber-700 dark:text-amber-400">
+                        +{formatCurrency(totalLoanInterests, currency)}
+                      </span>
+                    </div>
 
-      {/* Members & Audit Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Recent Members */}
-        <Card className="shadow-sm border border-border">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <div>
-              <CardTitle className="text-base font-bold">Registered Members</CardTitle>
-              <CardDescription>Scheme participants and system roles</CardDescription>
-            </div>
-            <Button asChild variant="ghost" size="sm" className="rounded-xl text-xs font-bold text-primary">
-              <Link href="/members">
-                Manage All <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  <TableHead className="px-5">Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="text-right px-5">Role</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.slice(0, 5).map((u: any) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-bold text-xs px-5">{u.name || 'Member'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{u.email}</TableCell>
-                    <TableCell className="text-right px-5">
-                      <Badge 
-                        variant="secondary" 
-                        className={cn(
-                          "text-[9px] uppercase font-bold border-none",
-                          u.role === 'admin' && "bg-primary/10 text-primary",
-                          u.role === 'accountant' && "bg-blue-500/10 text-blue-600",
-                          u.role === 'management' && "bg-amber-500/10 text-amber-600"
-                        )}
-                      >
-                        {u.role || 'member'}
+                    {/* 3. Approved Operating Expenses (SUBTRACTED) */}
+                    <div className="p-4 flex items-center justify-between bg-red-500/5 hover:bg-red-500/10 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-lg bg-red-500/15 text-red-600 flex items-center justify-center font-bold text-xs">
+                          (-)
+                        </div>
+                        <div>
+                          <p className="font-bold text-red-700 dark:text-red-400">Approved Operating Expenses</p>
+                          <p className="text-[11px] text-muted-foreground">Lodged by Accountant &amp; approved by Admin</p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-red-600">
+                        -{formatCurrency(totalApprovedExpenses, currency)}
+                      </span>
+                    </div>
+
+                    {/* TOTAL NET ASSET RESULT */}
+                    <div className="p-4 flex items-center justify-between bg-primary/10 font-bold border-t-2 border-primary/20">
+                      <div>
+                        <p className="text-base font-bold text-foreground">Total Net Institutional Assets</p>
+                        <p className="text-[11px] text-muted-foreground font-normal">
+                          Savings + Interest - Approved Operating Expenses
+                        </p>
+                      </div>
+                      <span className="text-xl font-headline font-bold text-primary">
+                        {formatCurrency(totalAssetAmount, currency)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Liquidity & Credit Risk Health */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Liquidity &amp; Risk Distribution
+                  </h4>
+                  <div className="grid gap-3">
+                    <div className="p-4 rounded-xl bg-muted/40 border border-border flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Estimated Cash in Bank / Net Liquidity
+                        </span>
+                        <p className="text-xl font-bold font-headline text-foreground mt-0.5">
+                          {formatCurrency(liquidCashReserve, currency)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Savings + Repayments - Disbursed Loans - Expenses
+                        </p>
+                      </div>
+                      <Badge className="bg-primary/10 text-primary border-none text-[10px] font-bold">
+                        Liquid
                       </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    </div>
 
-        {/* Recent Batches */}
-        <Card className="shadow-sm border border-border">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <div>
-              <CardTitle className="text-base font-bold">Recent Source Deduction Batches</CardTitle>
-              <CardDescription>Processed bulk contribution uploads</CardDescription>
-            </div>
-            <Button asChild variant="ghost" size="sm" className="rounded-xl text-xs font-bold text-primary">
-              <Link href="/admin/contributions">
-                Upload New <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  <TableHead className="px-5">Batch</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead className="text-right px-5">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentBatches.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                          Active Loan Principal Outstanding
+                        </span>
+                        <p className="text-xl font-bold font-headline text-blue-900 dark:text-blue-200 mt-0.5">
+                          {formatCurrency(totalActivePrincipalBalance, currency)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Performing assets owed by members
+                        </p>
+                      </div>
+                      <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-300 border-none text-[10px] font-bold">
+                        Earning
+                      </Badge>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                          Borrowing Multiplier Policy
+                        </span>
+                        <p className="text-xl font-bold font-headline text-foreground mt-0.5">
+                          {settings.maxLoanPercentage || 200}%
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Max loan entitlement per unit of savings
+                        </p>
+                      </div>
+                      <Button asChild size="sm" variant="ghost" className="h-8 text-xs font-bold text-primary">
+                        <Link href="/admin/settings">Configure →</Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 2: ARREARS WATCHLIST */}
+        <TabsContent value="arrears-watchlist" className="space-y-4">
+          <Card className="border border-border shadow-sm">
+            <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-5 w-5" />
+                  Contractual Arrears &amp; Delinquency Watchlist
+                </CardTitle>
+                <CardDescription>
+                  Unpaid installments whose contractual due dates have lapsed without full settlement.
+                </CardDescription>
+              </div>
+              <Badge variant={arrearsList.length > 0 ? "destructive" : "outline"} className="text-xs font-bold px-3 py-1">
+                Total Arrears: {formatCurrency(totalArrearsAmount, currency)}
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-muted/50">
                   <TableRow>
-                    <TableCell colSpan={3} className="h-28 text-center text-xs text-muted-foreground italic">
-                      No payroll batches processed yet.
-                    </TableCell>
+                    <TableHead className="font-bold text-[11px] uppercase">Borrower</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase">Facility / Note</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase">Installment</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase">Contract Due Date</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase">Days Overdue</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase text-right">Overdue Arrears</TableHead>
                   </TableRow>
-                ) : (
-                  recentBatches.map((b: any) => (
-                    <TableRow key={b.id}>
-                      <TableCell className="font-mono text-xs font-bold text-primary px-5">{b.batchId || b.id}</TableCell>
-                      <TableCell className="text-xs font-medium">{b.period || '—'}</TableCell>
-                      <TableCell className="text-right text-xs font-bold px-5">
-                        {formatCurrency(b.totalAmount || 0, currency)}
+                </TableHeader>
+                <TableBody>
+                  {arrearsList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-40 text-center text-muted-foreground italic font-medium">
+                        <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2 opacity-80" />
+                        Exceptional portfolio performance! There are currently zero installments in arrears.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+                  ) : (
+                    arrearsList.map((item, idx) => (
+                      <TableRow key={idx} className="hover:bg-destructive/5 transition-colors">
+                        <TableCell>
+                          <p className="font-bold text-sm text-foreground">{item.memberName}</p>
+                          <p className="text-[10px] text-muted-foreground">{item.memberEmail}</p>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-xs font-medium text-foreground truncate max-w-[180px]">
+                            {item.loanDescription || 'Capital Facility'}
+                          </p>
+                          <span className="font-mono text-[9px] text-muted-foreground">ID: {item.loanId.slice(0, 8)}</span>
+                        </TableCell>
+                        <TableCell className="font-bold text-xs">
+                          #{item.installmentNumber}
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold text-destructive">
+                          {format(item.dueDate, 'MMM d, yyyy')}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="destructive" className="text-[10px] font-bold">
+                            {item.daysOverdue} days late
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-sm text-destructive">
+                          {formatCurrency(item.amount, currency)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 3: OPERATING EXPENSES HUB OVERVIEW */}
+        <TabsContent value="expenses-ledger" className="space-y-4">
+          <Card className="border border-border shadow-sm">
+            <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between flex-wrap gap-3">
+              <div>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-primary" />
+                  Recent Operational Expenses &amp; Deductions
+                </CardTitle>
+                <CardDescription>
+                  Accountant-lodged expenses and admin-approved asset deductions.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm" className="rounded-xl font-bold text-xs gap-1.5 shadow-sm">
+                <Link href="/admin/expenses">
+                  Manage All Expenses <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead className="font-bold text-[11px] uppercase">Title / Payee</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase">Amount</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase">Date</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase">Receipt Proof</TableHead>
+                    <TableHead className="font-bold text-[11px] uppercase text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {expenses.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
+                        No expenses lodged yet. Click &ldquo;Manage All Expenses&rdquo; to lodge.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    expenses.slice(0, 6).map((exp: any) => (
+                      <TableRow key={exp.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell>
+                          <p className="font-bold text-sm text-foreground">{exp.title}</p>
+                          <p className="text-[10px] text-muted-foreground">Lodged by: {exp.lodgedByName || 'Accountant'}</p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px] font-semibold">
+                            {exp.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-bold text-sm text-foreground">
+                          {formatCurrency(exp.amount, currency)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {exp.expenseDate}
+                        </TableCell>
+                        <TableCell>
+                          {exp.receiptUrl ? (
+                            <Button variant="ghost" size="sm" asChild className="h-7 text-xs font-bold gap-1 text-primary">
+                              <a href={exp.receiptUrl} target="_blank" rel="noopener noreferrer">
+                                <FileText className="h-3 w-3" /> Proof <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                              </a>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">None</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge 
+                            className={cn(
+                              "text-[10px] uppercase font-bold",
+                              exp.status === 'approved' && "bg-green-500/10 text-green-700 dark:text-green-400 border-none",
+                              exp.status === 'pending' && "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-none",
+                              exp.status === 'rejected' && "bg-destructive/10 text-destructive border-none"
+                            )}
+                          >
+                            {exp.status === 'approved' ? 'Deducted' : exp.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 4: SOURCE DEDUCTIONS & PAYROLL BATCHES */}
+        <TabsContent value="source-deductions" className="space-y-6">
+          {/* Primary Feature Highlight: Source Deductions Upload */}
+          <Card className="shadow-md border-primary/20 bg-gradient-to-r from-primary/5 via-card to-background">
+            <CardContent className="pt-6 pb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="space-y-2 max-w-xl">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-primary text-primary-foreground border-none text-[10px] uppercase font-bold">
+                    Accountant Tool
+                  </Badge>
+                  <span className="text-xs text-muted-foreground font-semibold">Monthly Payroll Integration</span>
+                </div>
+                <h3 className="text-xl font-bold font-headline">
+                  Upload Staff Contributions from Excel
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Deduct contributions at source and upload in bulk using standard Excel or CSV files. Automatically cross-references staff by email, validates amounts, and updates member balances instantly.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadStaffContributionTemplate({ defaultAmount: 50000 })}
+                  className="rounded-xl font-bold text-xs gap-2 bg-card"
+                >
+                  <Download className="h-3.5 w-3.5 text-primary" />
+                  Download Template (.xlsx)
+                </Button>
+
+                <Button asChild size="sm" className="rounded-xl font-bold text-xs gap-2 shadow-md">
+                  <Link href="/admin/contributions">
+                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    Go to Bulk Upload <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Members & Audit Grid */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Recent Members */}
+            <Card className="shadow-sm border border-border">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div>
+                  <CardTitle className="text-base font-bold">Registered Staff Members</CardTitle>
+                  <CardDescription>Scheme participants and system roles ({users.length})</CardDescription>
+                </div>
+                <Button asChild variant="ghost" size="sm" className="rounded-xl text-xs font-bold text-primary">
+                  <Link href="/members">
+                    Manage All <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow>
+                      <TableHead className="px-5">Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="text-right px-5">Role</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.slice(0, 5).map((u: any) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-bold text-xs px-5">{u.name || 'Member'}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{u.email}</TableCell>
+                        <TableCell className="text-right px-5">
+                          <Badge 
+                            variant="secondary" 
+                            className={cn(
+                              "text-[9px] uppercase font-bold border-none",
+                              u.role === 'admin' && "bg-primary/10 text-primary",
+                              u.role === 'accountant' && "bg-blue-500/10 text-blue-600",
+                              u.role === 'management' && "bg-amber-500/10 text-amber-600"
+                            )}
+                          >
+                            {u.role || 'member'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {/* Recent Batches */}
+            <Card className="shadow-sm border border-border">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div>
+                  <CardTitle className="text-base font-bold">Recent Source Deduction Batches</CardTitle>
+                  <CardDescription>Processed bulk contribution uploads</CardDescription>
+                </div>
+                <Button asChild variant="ghost" size="sm" className="rounded-xl text-xs font-bold text-primary">
+                  <Link href="/admin/contributions">
+                    Upload New <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow>
+                      <TableHead className="px-5">Batch</TableHead>
+                      <TableHead>Period</TableHead>
+                      <TableHead className="text-right px-5">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentBatches.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="h-28 text-center text-xs text-muted-foreground italic">
+                          No payroll batches processed yet.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      recentBatches.map((b: any) => (
+                        <TableRow key={b.id}>
+                          <TableCell className="font-mono text-xs font-bold text-primary px-5">{b.batchId || b.id}</TableCell>
+                          <TableCell className="text-xs font-medium">{b.period || '—'}</TableCell>
+                          <TableCell className="text-right text-xs font-bold px-5">
+                            {formatCurrency(b.totalAmount || 0, currency)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

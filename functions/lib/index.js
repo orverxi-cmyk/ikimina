@@ -50,4 +50,5 @@ __exportStar(require("./loan-management"), exports);
 __exportStar(require("./audit-management"), exports);
 __exportStar(require("./contribution-management"), exports);
 __exportStar(require("./financial-management"), exports);
+__exportStar(require("./expense-management"), exports);
 //# sourceMappingURL=index.js.map

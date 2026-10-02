@@ -18,7 +18,8 @@ import {
   ArrowRight, 
   ShieldAlert,
   Eye,
-  EyeOff
+  EyeOff,
+  Receipt
 } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -218,6 +219,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const menuItems = [
     { href: '/admin', label: 'Main Dashboard', icon: Home },
     { href: '/admin/contributions', label: 'Contributions Batches', icon: Wallet },
+    { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
     ...(isSuperAdmin ? [
       { href: '/members', label: 'Members', icon: Users },
       { href: '/reports', label: 'Reports', icon: Flag },

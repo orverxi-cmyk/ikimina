@@ -581,3 +581,63 @@ export async function activateMemberAccountAction(memberDocId: string) {
   }
 }
 
+/**
+ * Lodges a new operational expense in Cloud Functions.
+ * Requires a supporting document (receipt / invoice / voucher).
+ */
+export async function lodgeExpenseAction(data: {
+  title: string;
+  category: string;
+  amount: number;
+  description?: string;
+  expenseDate?: string;
+  receiptUrl: string;
+  receiptFileName?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'lodgeExpense');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; expenseId: string; message: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to lodge expense');
+  }
+}
+
+/**
+ * Approves an operational expense in Cloud Functions.
+ * Approved expenses are authoritatively deducted from total institutional assets.
+ */
+export async function approveExpenseAction(data: {
+  expenseId: string;
+  adminNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'approveExpense');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; expenseId: string; message: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to approve expense');
+  }
+}
+
+/**
+ * Rejects an operational expense in Cloud Functions.
+ */
+export async function rejectExpenseAction(data: {
+  expenseId: string;
+  rejectionReason: string;
+  adminNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'rejectExpense');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; expenseId: string; message: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to reject expense');
+  }
+}
+
+

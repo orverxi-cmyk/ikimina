@@ -74,5 +74,11 @@ service cloud.firestore {
       allow read: if isManagement();
       allow write: if false;
     }
+
+    // Operating expenses: Managed exclusively via Cloud Functions
+    match /expenses/{expenseId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
   }
 }
