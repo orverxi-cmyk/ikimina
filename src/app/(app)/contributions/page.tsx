@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw, Plus, FileSpreadsheet } from 'lucide-react';
+import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw, Plus, FileSpreadsheet, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, where, doc } from 'firebase/firestore';
@@ -333,33 +333,114 @@ export default function ContributionsPage() {
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24 w-full min-w-0 overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      {/* Header & Global Action CTAs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4">
         <div>
-          <h1 className="text-[13px] font-bold font-headline text-foreground">Savings & Contributions</h1>
-          <p className="text-[12px] font-bold text-muted-foreground">
+          <div className="flex items-center gap-2 mb-1">
+            <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-wider">
+              {isManagement ? "Administrative Console" : "Member Savings Portfolio"}
+            </Badge>
+          </div>
+          <h1 className="text-[13px] font-bold font-headline text-foreground">Savings &amp; Contributions</h1>
+          <p className="text-[12px] font-bold text-muted-foreground mt-0.5">
             {isManagement ? "Audit, record, and bulk-import member savings" : "Track your verified wealth and pending submissions"}
           </p>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full sm:w-auto">
-          <div className="bg-primary/10 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl border border-primary/20 flex-1 sm:flex-none">
-            <p className="text-[10px] text-primary font-bold uppercase tracking-wider">
-              {isManagement ? "Total Verified Fund" : "My Verified Balance"}
-            </p>
-            <p data-stat-value="true" className="text-lg sm:text-xl font-bold">{formatCurrency(totalVerifiedBalance, currency)}</p>
-          </div>
+
+        {/* Global Action CTAs */}
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           {isAccountantOrAdmin && (
-            <Button asChild variant="outline" className="rounded-xl h-10 px-4 font-bold text-[12px] border-primary/30 text-primary hover:bg-primary/10 shadow-sm flex-1 sm:flex-none">
+            <Button asChild variant="outline" className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-primary/30 text-primary hover:bg-primary/10 shadow-sm justify-center">
               <Link href="/admin/contributions">
-                <FileSpreadsheet className="mr-2 h-4 w-4" /> Bulk Upload (Excel)
+                <FileSpreadsheet className="mr-1.5 h-4 w-4 shrink-0" /> Bulk Upload (Excel)
               </Link>
             </Button>
           )}
           {isManagement && (
-            <Button onClick={() => setIsManualEntryOpen(true)} className="rounded-xl h-10 px-4 font-bold text-[12px] shadow-sm flex-1 sm:flex-none">
-              <Plus className="mr-2 h-4 w-4" /> Manual Entry
+            <Button onClick={() => setIsManualEntryOpen(true)} className="rounded-xl h-10 px-4 font-bold text-[12px] shadow-sm justify-center bg-primary text-primary-foreground">
+              <Plus className="mr-1.5 h-4 w-4 shrink-0" /> Manual Entry
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Professional KPI Financial Card Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {/* Total Verified Fund / Balance Card */}
+        <Card className="border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-background shadow-sm rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 p-4 sm:p-5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <Wallet className="h-3.5 w-3.5 text-primary" />
+              {isManagement ? "Total Verified Fund" : "My Verified Balance"}
+            </span>
+            <Badge variant="outline" className="text-[9px] font-bold uppercase border-primary/30 text-primary bg-primary/5">
+              Verified
+            </Badge>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-5 pt-0">
+            <div data-stat-value="true" className="text-xl sm:text-2xl font-bold font-headline text-foreground tracking-tight whitespace-nowrap">
+              {formatCurrency(totalVerifiedBalance, currency)}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1 font-normal">
+              {isManagement 
+                ? "Total cumulative verified savings held in institutional custody" 
+                : "Active savings balance qualifying your borrowing power"}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Pending Submissions / Queue Card */}
+        <Card className="border border-border bg-card shadow-sm rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 p-4 sm:p-5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-amber-600" />
+              {isManagement ? "Pending Audit Queue" : "Pending Audits"}
+            </span>
+            {pendingContributions.length > 0 ? (
+              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-none text-[9px] font-bold">
+                {pendingContributions.length} Pending
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-[9px] font-medium text-muted-foreground">
+                All Cleared
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent className="p-4 sm:p-5 pt-0">
+            <div data-stat-value="true" className="text-xl sm:text-2xl font-bold font-headline text-foreground whitespace-nowrap">
+              {formatCurrency(
+                pendingContributions.reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0),
+                currency
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1 font-normal">
+              {pendingContributions.length === 0 
+                ? "No deposits currently awaiting management audit"
+                : `${pendingContributions.length} submission${pendingContributions.length === 1 ? '' : 's'} awaiting verification`}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Ledger Statistics Card */}
+        <Card className="border border-border bg-card shadow-sm rounded-xl hidden lg:block">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 p-4 sm:p-5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <FileSpreadsheet className="h-3.5 w-3.5 text-muted-foreground" />
+              Ledger Transactions
+            </span>
+            <Badge variant="outline" className="text-[9px] font-medium">
+              Records
+            </Badge>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-5 pt-0">
+            <div data-stat-value="true" className="text-xl sm:text-2xl font-bold font-headline text-foreground">
+              {contributions.length}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1 font-normal">
+              {verifiedContributions.length} verified &bull; {reversedContributions.length} reversed
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
