@@ -175,7 +175,7 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
     if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
     }
-    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, minLoanAmount, maxLoanAmount, penaltyRate, depositBankName, depositAccountNumber, justification } = request.data;
+    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, maxLendingPoolPercentage, minLoanAmount, maxLoanAmount, penaltyRate, depositBankName, depositAccountNumber, justification } = request.data;
     try {
         const batch = db.batch();
         const settingsRef = db.collection('settings').doc('financials');
@@ -186,6 +186,7 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
             interestType: interestType || 'immediate',
             contributionInterestRate: Number(contributionInterestRate),
             maxLoanPercentage: Number(maxLoanPercentage),
+            maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
             minLoanAmount: Number(minLoanAmount),
             maxLoanAmount: Number(maxLoanAmount),
             penaltyRate: Number(penaltyRate || 2),
@@ -208,6 +209,7 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
                 depositAccountNumber,
                 contributionInterestRate,
                 maxLoanPercentage,
+                maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
                 minLoanAmount,
                 maxLoanAmount,
                 penaltyRate

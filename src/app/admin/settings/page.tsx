@@ -86,6 +86,7 @@ export default function AdminSettingsPage() {
     const loanInterestRate = Number(formData.get('loanInterestRate'));
     const contributionInterestRate = Number(formData.get('contributionInterestRate'));
     const maxLoanPercentage = Number(formData.get('maxLoanPercentage'));
+    const maxLendingPoolPercentage = Number(formData.get('maxLendingPoolPercentage')) || 90;
     const minLoanAmount = Number(formData.get('minLoanAmount'));
     const maxLoanAmount = Number(formData.get('maxLoanAmount'));
     const penaltyRate = Number(formData.get('penaltyRate'));
@@ -101,6 +102,7 @@ export default function AdminSettingsPage() {
         interestType,
         contributionInterestRate, 
         maxLoanPercentage, 
+        maxLendingPoolPercentage,
         minLoanAmount, 
         maxLoanAmount,
         penaltyRate,
@@ -236,9 +238,9 @@ export default function AdminSettingsPage() {
               <CardDescription>Define limits for member loans and risk management</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-3">
+              <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-1 font-bold">Borrowing Power (%) <Percent className="h-3 w-3 text-primary" /></Label>
+                  <Label className="flex items-center gap-1 font-bold">Member Borrowing Power (%) <Percent className="h-3 w-3 text-primary" /></Label>
                   <Input 
                     name="maxLoanPercentage" 
                     type="number" 
@@ -248,9 +250,29 @@ export default function AdminSettingsPage() {
                     className="h-11 rounded-[10px] bg-muted border-none font-bold"
                   />
                   <p className="text-[10px] text-muted-foreground leading-tight">
-                    Max % of total verified contributions a member can borrow (e.g. 200% allows borrowing 2x their savings).
+                    Max % of total verified contributions an individual member can borrow (e.g. 200% allows borrowing 2x their savings).
                   </p>
                 </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1 font-bold text-primary">Group Lending Pool Ceiling (% of Total Assets) <Percent className="h-3 w-3 text-primary" /></Label>
+                  <Input 
+                    name="maxLendingPoolPercentage" 
+                    type="number" 
+                    step="1" 
+                    min="1"
+                    max="100"
+                    defaultValue={settings.maxLendingPoolPercentage ?? 90} 
+                    required 
+                    className="h-11 rounded-[10px] bg-muted border-none font-bold text-primary"
+                  />
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    Ceiling % of group total net assets permitted for active loans. If active loans reach this % (e.g. 90%), new loan applications and approvals are blocked with &quot;No funds available to loan from&quot;.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2 pt-2">
                 <div className="space-y-2">
                   <Label>Min Loan Amount</Label>
                   <Input 

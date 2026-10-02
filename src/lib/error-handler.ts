@@ -72,9 +72,13 @@ export function isNetworkError(error: unknown): boolean {
     message.includes('interrupted connection') ||
     message.includes('unreachable host') ||
     message.includes('client is offline') ||
+    message.includes('missing identity') ||
+    message.includes('identitytoolkit') ||
+    message.includes('net::err') ||
     errStr.includes('networkerror') ||
     errStr.includes('econnrefused') ||
-    errStr.includes('err_internet_disconnected')
+    errStr.includes('err_internet_disconnected') ||
+    errStr.includes('err_name_not_resolved')
   );
 }
 
@@ -115,15 +119,18 @@ export function parseAppError(error: unknown): AppErrorDetails {
 
   // 2. Network & Connectivity Errors
   if (isNetworkError(error)) {
+    const isIdentityFailure = messageLower.includes('identity') || messageLower.includes('missing-identifier') || messageLower.includes('identitytoolkit');
     return {
-      title: 'Network Connection Lost',
-      message: 'Unable to reach the server. The connection was interrupted or timed out. Please check your internet connection.',
+      title: isIdentityFailure ? 'Network Connection Down' : 'Network Connection Lost',
+      message: isIdentityFailure 
+        ? 'Unable to complete sign in because the connection to authentication servers was lost. Please check your internet connection and try logging in again.'
+        : 'Unable to reach the server. The connection was interrupted or timed out. Please check your internet connection.',
       category: 'network',
       severity: 'warning',
       isNetworkError: true,
       retryable: true,
       originalCode: rawCode,
-      suggestedAction: 'Verify your internet connection and try again.',
+      suggestedAction: 'Check your Wi-Fi or mobile data, then tap Retry.',
     };
   }
 
@@ -302,7 +309,42 @@ export function parseAppError(error: unknown): AppErrorDetails {
   }
 
   // 5. Cloud Function Specific Codes & Business Errors
-  if (messageLower.includes('identity') || messageLower.includes('missing identity') || messageLower.includes('token')) {
+  if (messageLower.includes('missing identity') || messageLower.includes('missing-identity') || messageLower.includes('missing-identifier')) {
+    return {
+      title: 'Network Connection Down',
+      message: 'Authentication was interrupted before your identity could be verified. This happens when the network connection drops or times out. Please check your internet connection and try logging in again.',
+      category: 'network',
+      severity: 'warning',
+      isNetworkError: true,
+      retryable: true,
+      suggestedAction: 'Ensure your Wi-Fi or mobile data is connected and tap Sign In again.',
+    };
+  }
+
+  if (messageLower.includes('no funds available to loan from') || messageLower.includes('insufficient group liquidity') || messageLower.includes('lending pool ceiling')) {
+    return {
+      title: 'No Funds Available to Loan From',
+      message: rawMessage,
+      category: 'validation',
+      severity: 'warning',
+      isNetworkError: false,
+      retryable: false,
+      suggestedAction: 'The group lending ceiling has been reached. Please wait for loan repayments or for the scheme capital base to grow before applying.',
+    };
+  }
+
+  if (messageLower.includes('admin privileges required') || messageLower.includes('management authority required')) {
+    return {
+      title: 'Administrative Authority Required',
+      message: 'Only authorized administrators or management officers can perform this operation.',
+      category: 'permission',
+      severity: 'error',
+      isNetworkError: false,
+      retryable: false,
+    };
+  }
+
+  if (messageLower.includes('identity') || messageLower.includes('token')) {
     return {
       title: 'Authentication Verification Needed',
       message: 'Unable to verify your user identity. If you recently disconnected or refreshed, please sign in again.',

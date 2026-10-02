@@ -44,6 +44,7 @@ import {
   updateMemberProfileAction,
   deleteMemberAction
 } from '@/lib/finance-client';
+import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -82,6 +83,15 @@ export default function MembersPage() {
     e.preventDefault();
     if (!user) return;
     
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently disconnected from the internet. Please connect before updating member access.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     
@@ -114,7 +124,8 @@ export default function MembersPage() {
       setIsEditing(false);
       setSelectedMember(null);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Operation Failed", description: error.message });
+      const parsed = parseAppError(error);
+      toast({ variant: "destructive", title: parsed.title || "Operation Failed", description: parsed.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -140,6 +151,15 @@ export default function MembersPage() {
     e.preventDefault();
     if (!user || !fileInputRef.current?.files?.[0]) return;
     
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently disconnected from the internet. Please connect before uploading enrollment files.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const file = fileInputRef.current.files[0];
     const formData = new FormData(e.currentTarget);
@@ -161,14 +181,21 @@ export default function MembersPage() {
           return obj;
         });
 
-        await bulkRegisterMembersAction(user.uid, data, justification);
-        toast({ title: "Success", description: `${data.length} members processed for system enrollment.` });
-        setIsBulkDialogOpen(false);
+        try {
+          await bulkRegisterMembersAction(user.uid, data, justification);
+          toast({ title: "Success", description: `${data.length} members processed for system enrollment.` });
+          setIsBulkDialogOpen(false);
+        } catch (innerError: any) {
+          const parsed = parseAppError(innerError);
+          toast({ variant: "destructive", title: parsed.title || "Bulk Upload Failed", description: parsed.message });
+        } finally {
+          setIsSubmitting(false);
+        }
       };
       reader.readAsText(file);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Bulk Upload Failed", description: error.message });
-    } finally {
+      const parsed = parseAppError(error);
+      toast({ variant: "destructive", title: parsed.title || "Bulk Upload Failed", description: parsed.message });
       setIsSubmitting(false);
     }
   };
@@ -357,14 +384,22 @@ export default function MembersPage() {
                         <DropdownMenuContent align="end" className="rounded-xl w-48 shadow-xl">
                           <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive font-bold" onClick={async () => {
-                              if(confirm(`Remove access for ${member.name}?`)) {
+                              if (isBrowserOffline()) {
+                                return toast({
+                                  variant: "destructive",
+                                  title: "Connection Offline",
+                                  description: "You are currently offline. Please connect before revoking access.",
+                                });
+                              }
+                              if (confirm(`Remove access for ${member.name}?`)) {
                                 const justification = window.prompt("Reason for removal:");
                                 if (!justification) return;
                                 try {
                                   await deleteMemberAction(member.id, justification);
                                   toast({ title: "Removed", description: "Access has been revoked." });
                                 } catch (err: any) {
-                                  toast({ variant: "destructive", title: "Removal Failed", description: err.message });
+                                  const parsed = parseAppError(err);
+                                  toast({ variant: "destructive", title: parsed.title || "Removal Failed", description: parsed.message });
                                 }
                               }
                             }}>Revoke Access</DropdownMenuItem>

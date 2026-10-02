@@ -164,6 +164,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
         interestType,
         contributionInterestRate, 
         maxLoanPercentage, 
+        maxLendingPoolPercentage,
         minLoanAmount, 
         maxLoanAmount,
         penaltyRate,
@@ -183,6 +184,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             interestType: interestType || 'immediate',
             contributionInterestRate: Number(contributionInterestRate),
             maxLoanPercentage: Number(maxLoanPercentage),
+            maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
             minLoanAmount: Number(minLoanAmount),
             maxLoanAmount: Number(maxLoanAmount),
             penaltyRate: Number(penaltyRate || 2),
@@ -206,6 +208,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
                 depositAccountNumber,
                 contributionInterestRate, 
                 maxLoanPercentage, 
+                maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
                 minLoanAmount, 
                 maxLoanAmount,
                 penaltyRate

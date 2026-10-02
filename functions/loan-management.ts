@@ -4,13 +4,87 @@ import * as admin from 'firebase-admin';
 import { calculateAmortizationSchedule } from './loan-schedules';
 
 /**
+ * Calculates authoritative institutional liquidity and lending pool metrics.
+ * Gross Capital = Verified Member Savings + Total Realized Loan Interest
+ * Net Total Assets = Math.max(0, Gross Capital - Approved Operating Expenses)
+ * Max Lending Pool = Math.round((Net Total Assets * maxLendingPoolPercentage) / 100)
+ * Current Active Loans = Sum of balance of all loans where status === 'approved' && balance > 0
+ * Available Lending Pool = Math.max(0, Max Lending Pool - Current Active Loans)
+ */
+export async function getInstitutionalLendingPool(db: admin.firestore.Firestore) {
+    const settingsSnap = await db.collection('settings').doc('financials').get();
+    const settings = settingsSnap.data() || {};
+    const maxLendingPoolPercentage = Number(settings.maxLendingPoolPercentage) || 90;
+    const currency = settings.currency || 'RWF';
+
+    // 1. Total verified savings
+    const contribsSnap = await db.collection('contributions').where('status', '==', 'verified').get();
+    let totalVerifiedSavings = 0;
+    contribsSnap.forEach(d => {
+        totalVerifiedSavings += Number(d.data().amount) || 0;
+    });
+
+    // 2. Total loan interests & Active loan balance
+    const loansSnap = await db.collection('loans').get();
+    let totalLoanInterests = 0;
+    let currentActiveLoanBalance = 0;
+    loansSnap.forEach(d => {
+        const l = d.data();
+        if (l.status === 'approved' || l.status === 'completed' || l.status === 'active') {
+            totalLoanInterests += Number(l.interestAmount) || 0;
+        }
+        if (l.status === 'approved' && (Number(l.balance) || 0) > 0) {
+            currentActiveLoanBalance += Number(l.balance) || 0;
+        }
+    });
+
+    // 3. Approved operating expenses
+    const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
+    let totalApprovedExpenses = 0;
+    expensesSnap.forEach(d => {
+        totalApprovedExpenses += Number(d.data().amount) || 0;
+    });
+
+    // 4. Net Total Assets
+    const grossCapital = totalVerifiedSavings + totalLoanInterests;
+    const netTotalAssets = Math.max(0, grossCapital - totalApprovedExpenses);
+
+    // 5. Max Lending Pool & Available Capacity
+    const maxLendingPool = Math.round((netTotalAssets * maxLendingPoolPercentage) / 100);
+    const availableLendingPool = Math.max(0, maxLendingPool - currentActiveLoanBalance);
+
+    return {
+        totalVerifiedSavings,
+        totalLoanInterests,
+        totalApprovedExpenses,
+        grossCapital,
+        netTotalAssets,
+        maxLendingPoolPercentage,
+        maxLendingPool,
+        currentActiveLoanBalance,
+        availableLendingPool,
+        currency
+    };
+}
+
+/**
+ * Callable function to fetch real-time authoritative institutional lending pool capacity.
+ */
+export const getGroupLiquidityMetrics = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    return await getInstitutionalLendingPool(db);
+});
+
+/**
  * Submits a member loan application.
  * Server authoritatively validates:
  * 1. Member authentication
  * 2. Positive amount
  * 3. Settings constraints: minLoanAmount and maxLoanAmount
- * 4. Member verified savings & maxLoanPercentage borrowing limit
- * 5. No existing active or pending loans
+ * 4. Institutional Lending Pool ceiling (% of Total Assets) & Liquidity guardrail
+ * 5. Member verified savings & maxLoanPercentage borrowing limit
+ * 6. No existing active or pending loans
  */
 export const requestLoan = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -46,6 +120,22 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
 
     if (loanAmount > maxLoanAmount) {
         throw new HttpsError('failed-precondition', `Loan amount cannot exceed the maximum of ${maxLoanAmount}.`);
+    }
+
+    // 2. Authoritative Institutional Liquidity & Lending Pool Ceiling Check
+    const pool = await getInstitutionalLendingPool(db);
+    if (pool.availableLendingPool <= 0) {
+        throw new HttpsError(
+            'failed-precondition',
+            `No funds available to loan from. Group lending pool ceiling of ${pool.maxLendingPoolPercentage}% has been fully reached (${pool.currentActiveLoanBalance.toLocaleString()} ${pool.currency} active loans out of ${pool.maxLendingPool.toLocaleString()} ${pool.currency} limit). Applications are temporarily suspended.`
+        );
+    }
+
+    if (loanAmount > pool.availableLendingPool) {
+        throw new HttpsError(
+            'failed-precondition',
+            `Insufficient group liquidity: Only ${pool.availableLendingPool.toLocaleString()} ${pool.currency} is available to loan from based on the ${pool.maxLendingPoolPercentage}% group asset ceiling (${pool.netTotalAssets.toLocaleString()} ${pool.currency} total net assets). Your application of ${loanAmount.toLocaleString()} ${pool.currency} cannot be processed.`
+        );
     }
 
     let availableRepaidPrincipal = 0;
@@ -278,6 +368,15 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         const loanData = loanSnap.data()!;
         if (loanData.status !== 'requested') {
             throw new HttpsError('failed-precondition', `Loan is currently in '${loanData.status}' status, cannot be approved.`);
+        }
+
+        // Authoritatively check institutional lending pool capacity before approving
+        const pool = await getInstitutionalLendingPool(db);
+        if (pool.availableLendingPool < loanData.amount) {
+            throw new HttpsError(
+                'failed-precondition', 
+                `Cannot approve loan: Insufficient group lending pool. Available pool capacity is ${pool.availableLendingPool.toLocaleString()} ${pool.currency} based on the ${pool.maxLendingPoolPercentage}% ceiling of net assets (${pool.netTotalAssets.toLocaleString()} ${pool.currency}). Approving this ${loanData.amount.toLocaleString()} ${pool.currency} facility would over-allocate funds.`
+            );
         }
 
         // Authoritatively fetch policy settings from Firestore

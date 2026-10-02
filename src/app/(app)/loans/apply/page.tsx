@@ -27,7 +27,8 @@ import {
   ExternalLink,
   ShieldAlert,
   FileCheck,
-  Landmark
+  Landmark,
+  AlertOctagon
 } from 'lucide-react';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeFirebase } from '@/firebase';
@@ -39,7 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/currency';
 import { useSettings } from '@/context/settings-context';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
-import { requestLoanAction, withdrawLoanApplicationAction } from '@/lib/finance-client';
+import { requestLoanAction, withdrawLoanApplicationAction, getGroupLiquidityMetricsAction } from '@/lib/finance-client';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import {
@@ -72,6 +73,27 @@ function LoanApplyContent() {
   const [managementApprovalUrl, setManagementApprovalUrl] = useState<string>('');
   const [managementApprovalFileName, setManagementApprovalFileName] = useState<string>('');
   const [managementApprovalNotes, setManagementApprovalNotes] = useState<string>('');
+  
+  // Group Liquidity & Lending Pool Ceiling State
+  const [liquidityMetrics, setLiquidityMetrics] = useState<any>(null);
+  const [loadingLiquidity, setLoadingLiquidity] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadMetrics() {
+      setLoadingLiquidity(true);
+      try {
+        const metrics = await getGroupLiquidityMetricsAction();
+        if (isMounted) setLiquidityMetrics(metrics);
+      } catch (e) {
+        console.warn('Could not fetch liquidity metrics', e);
+      } finally {
+        if (isMounted) setLoadingLiquidity(false);
+      }
+    }
+    loadMetrics();
+    return () => { isMounted = false; };
+  }, []);
 
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
@@ -170,14 +192,19 @@ function LoanApplyContent() {
   const hasSavings = totalVerifiedContributions > 0;
   const isBorrowingPowerEligible = effectiveMaxLimit >= minLoanAmount;
 
-  // Determination of canApply based on standard mode vs top-up mode
+  // Lending Pool Ceiling Validation
+  const isLendingPoolCeiled = Boolean(liquidityMetrics && liquidityMetrics.availableLendingPool <= 0);
+  const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : null;
+
+  // Determination of canApply based on standard mode vs top-up mode + pool ceiling
   const canApply = useMemo(() => {
+    if (isLendingPoolCeiled) return false;
     if (pendingLoan) return false;
     if (isTopUpMode) {
       return Boolean(activeLoan && isEligibleForTopUp);
     }
     return !activeLoan;
-  }, [pendingLoan, isTopUpMode, activeLoan, isEligibleForTopUp]);
+  }, [isLendingPoolCeiled, pendingLoan, isTopUpMode, activeLoan, isEligibleForTopUp]);
 
   const effectiveApplicationMax = isTopUpMode ? maxTopUpLimit : effectiveMaxLimit;
 
@@ -192,6 +219,8 @@ function LoanApplyContent() {
   const exceedsBorrowingPower = numericAmount > effectiveApplicationMax;
   // Exceeds absolute system-wide cap:
   const isAmountTooHigh = numericAmount > maxLoanAmount && maxLoanAmount > 0;
+  // Exceeds group lending pool ceiling:
+  const exceedsGroupPool = Boolean(availableGroupPool !== null && numericAmount > availableGroupPool);
   const hasManagementApprovalAttached = Boolean(managementApprovalUrl || managementFile);
 
   // File Upload Handlers
@@ -269,6 +298,24 @@ function LoanApplyContent() {
     e.preventDefault();
     if (!user) return;
     
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "Your device is currently offline. Please check your internet connection before submitting a loan application.",
+      });
+      return;
+    }
+
+    if (isLendingPoolCeiled) {
+      toast({
+        variant: "destructive",
+        title: "No Funds Available to Loan From",
+        description: `The group lending pool ceiling (${liquidityMetrics?.maxLendingPoolPercentage || 90}%) has been reached. Current available pool is ${formatCurrency(0, currency)}.`,
+      });
+      return;
+    }
+
     if (pendingLoan) {
       toast({ 
         variant: "destructive", 
@@ -314,6 +361,15 @@ function LoanApplyContent() {
         variant: "destructive", 
         title: "System Ceiling Exceeded", 
         description: `Loan amount cannot exceed the maximum system limit of ${formatCurrency(maxLoanAmount, currency)}.` 
+      });
+      return;
+    }
+
+    if (availableGroupPool !== null && amount > availableGroupPool) {
+      toast({ 
+        variant: "destructive", 
+        title: "Insufficient Group Liquidity", 
+        description: `Requested loan of ${formatCurrency(amount, currency)} exceeds the group's available lending pool of ${formatCurrency(availableGroupPool, currency)} (based on the ${liquidityMetrics?.maxLendingPoolPercentage || 90}% ceiling of institutional assets).` 
       });
       return;
     }
@@ -503,6 +559,44 @@ function LoanApplyContent() {
           </p>
         </div>
       </div>
+
+      {/* GROUP LENDING POOL CEILED (DEPLETED) BANNER */}
+      {isLendingPoolCeiled && (
+        <div className="p-4 rounded-xl bg-destructive/10 border-2 border-destructive text-destructive flex gap-3 shadow-sm animate-in fade-in">
+          <AlertOctagon className="h-6 w-6 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <p className="font-bold text-sm">No Funds Available to Loan From</p>
+            <p className="leading-relaxed">
+              The group lending pool ceiling of <strong>{liquidityMetrics.maxLendingPoolPercentage}%</strong> of total net assets has been fully utilized. Active loans have reached <strong>{formatCurrency(liquidityMetrics.currentActiveLoanBalance, currency)}</strong> out of the <strong>{formatCurrency(liquidityMetrics.maxLendingPool, currency)}</strong> maximum capacity (Total Assets: {formatCurrency(liquidityMetrics.netTotalAssets, currency)}).
+            </p>
+            <p className="font-semibold pt-1">
+              New loan applications are temporarily paused until members make loan repayments or institutional assets expand.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* GROUP LENDING POOL AVAILABILITY STRIP */}
+      {liquidityMetrics && !isLendingPoolCeiled && (
+        <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+              <Landmark className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="font-bold text-foreground">
+                Group Lending Pool Availability: <span className="text-primary font-headline text-sm font-bold">{formatCurrency(liquidityMetrics.availableLendingPool, currency)}</span>
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Ceiling: {liquidityMetrics.maxLendingPoolPercentage}% of total assets ({formatCurrency(liquidityMetrics.maxLendingPool, currency)} cap | {formatCurrency(liquidityMetrics.currentActiveLoanBalance, currency)} active)
+              </p>
+            </div>
+          </div>
+          <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold self-start sm:self-auto">
+            Liquidity Available
+          </Badge>
+        </div>
+      )}
 
       {/* PENDING LOAN BANNER with WITHDRAW BUTTON */}
       {pendingLoan && (
@@ -782,13 +876,19 @@ function LoanApplyContent() {
                     Amount exceeds the global maximum system limit of {formatCurrency(maxLoanAmount, currency)}.
                   </p>
                 )}
+                {exceedsGroupPool && !isAmountTooHigh && (
+                  <p className="text-xs text-destructive font-bold flex items-center gap-1 pt-1">
+                    <AlertOctagon className="h-3.5 w-3.5 shrink-0" />
+                    Amount exceeds the group&apos;s available lending pool of {formatCurrency(availableGroupPool || 0, currency)}. Please apply for {formatCurrency(availableGroupPool || 0, currency)} or less.
+                  </p>
+                )}
                 {isAmountTooLow && (
                   <p className="text-xs text-foreground font-bold flex items-center gap-1 pt-1">
                     <AlertTriangle className="h-3.5 w-3.5" />
                     Amount is below the minimum allowed loan of {formatCurrency(minLoanAmount, currency)}.
                   </p>
                 )}
-                {exceedsBorrowingPower && !isAmountTooHigh && (
+                {exceedsBorrowingPower && !isAmountTooHigh && !exceedsGroupPool && (
                   <p className="text-xs text-primary font-bold flex items-center gap-1 pt-1">
                     <ShieldAlert className="h-3.5 w-3.5" />
                     Exceeds standard borrowing power ({formatCurrency(effectiveApplicationMax, currency)}). Management approval attachment is required.
@@ -949,10 +1049,12 @@ function LoanApplyContent() {
               type="submit" 
               disabled={
                 !canApply || 
+                isLendingPoolCeiled ||
                 isSubmitting || 
                 isUploadingDoc ||
                 isAmountTooLow || 
                 isAmountTooHigh || 
+                exceedsGroupPool ||
                 numericAmount <= 0 ||
                 (exceedsBorrowingPower && !hasManagementApprovalAttached)
               } 
@@ -963,6 +1065,10 @@ function LoanApplyContent() {
                   <Loader2 className="animate-spin h-5 w-5 mr-2" />
                   {isUploadingDoc ? "Uploading Approval Document..." : "Submitting Request..."}
                 </>
+              ) : isLendingPoolCeiled ? (
+                "No Funds Available to Loan From (Ceiling Reached)"
+              ) : exceedsGroupPool ? (
+                `Exceeds Available Pool (${formatCurrency(availableGroupPool || 0, currency)})`
               ) : pendingLoan ? (
                 "Loan Request Pending Audit"
               ) : activeLoan && !isTopUpMode ? (

@@ -51,6 +51,7 @@ export type SystemSettings = {
   interestType: string;
   contributionInterestRate: number;
   maxLoanPercentage: number;
+  maxLendingPoolPercentage?: number;
   minLoanAmount: number;
   maxLoanAmount: number;
   penaltyRate: number;
@@ -65,6 +66,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   interestType: 'immediate',
   contributionInterestRate: 50000,
   maxLoanPercentage: 200,
+  maxLendingPoolPercentage: 90,
   minLoanAmount: 5000,
   maxLoanAmount: 1000000,
   penaltyRate: 2,
@@ -136,6 +138,7 @@ export async function updateFinancialSettingsAction(data: {
   interestType?: string,
   contributionInterestRate: number, 
   maxLoanPercentage: number, 
+  maxLendingPoolPercentage?: number,
   minLoanAmount: number, 
   maxLoanAmount: number,
   penaltyRate?: number,
@@ -150,6 +153,31 @@ export async function updateFinancialSettingsAction(data: {
     return result.data;
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed to update financial settings through Cloud Function.');
+  }
+}
+
+/**
+ * Fetches real-time institutional lending pool metrics and liquidity capacity.
+ */
+export async function getGroupLiquidityMetricsAction() {
+  const functions = getFinanceFunctions();
+  const metricsFn = httpsCallable(functions, 'getGroupLiquidityMetrics');
+  try {
+    const result = await metricsFn();
+    return result.data as {
+      totalVerifiedSavings: number;
+      totalLoanInterests: number;
+      totalApprovedExpenses: number;
+      grossCapital: number;
+      netTotalAssets: number;
+      maxLendingPoolPercentage: number;
+      maxLendingPool: number;
+      currentActiveLoanBalance: number;
+      availableLendingPool: number;
+      currency: string;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to fetch group liquidity metrics.');
   }
 }
 

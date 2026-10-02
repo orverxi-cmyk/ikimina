@@ -29,7 +29,10 @@ import {
   Calendar,
   ExternalLink,
   Plus,
-  FileText
+  FileText,
+  UserCog,
+  Search,
+  Loader2
 } from "lucide-react";
 import { useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, limit, Timestamp } from 'firebase/firestore';
@@ -40,11 +43,89 @@ import { downloadStaffContributionTemplate } from '@/lib/excel-template';
 import { cn } from '@/lib/utils';
 import { format, isPast, differenceInDays } from 'date-fns';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
+import { updateUserRoleAction } from '@/lib/finance-client';
+import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function AdminDashboard() {
   const firestore = useFirestore();
   const { settings } = useSettings();
   const currency = settings.currency || 'RWF';
+  const { toast } = useToast();
+
+  // Role Assignment State
+  const [roleModalMember, setRoleModalMember] = useState<any | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>('member');
+  const [roleJustification, setRoleJustification] = useState<string>('');
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [memberSearchTerm, setMemberSearchTerm] = useState('');
+
+  const handleOpenRoleModal = (member: any) => {
+    setRoleModalMember(member);
+    setSelectedRole(member.role || 'member');
+    setRoleJustification('');
+  };
+
+  const handleAssignRoleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleModalMember) return;
+
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently disconnected from the internet. Please connect and try again.",
+      });
+      return;
+    }
+
+    if (!roleJustification.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Justification Required",
+        description: "Please enter an audit reason or justification for changing this member's system role.",
+      });
+      return;
+    }
+
+    setIsUpdatingRole(true);
+    try {
+      await updateUserRoleAction(roleModalMember.id, selectedRole, roleJustification.trim());
+      toast({
+        title: "Role Updated Successfully",
+        description: `${roleModalMember.name || roleModalMember.email} has been assigned the "${selectedRole.toUpperCase()}" role.`,
+      });
+      setRoleModalMember(null);
+      setRoleJustification('');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: "destructive",
+        title: parsed.title || "Failed to Assign Role",
+        description: parsed.message,
+      });
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
 
   // 1. Subscriptions
   const usersQuery = useMemoFirebase(() => {
@@ -187,8 +268,29 @@ export default function AdminDashboard() {
   const grossCapital = totalVerifiedSavings + totalLoanInterests;
   const totalAssetAmount = Math.max(0, grossCapital - totalApprovedExpenses);
 
+  // Group Lending Pool Ceiling Metrics (% of Total Net Assets)
+  const maxLendingPoolPercentage = Number(settings.maxLendingPoolPercentage) || 90;
+  const maxLendingPoolAllowed = Math.round((totalAssetAmount * maxLendingPoolPercentage) / 100);
+  const availableLendingPool = Math.max(0, maxLendingPoolAllowed - totalActivePrincipalBalance);
+  const lendingPoolUtilizationRatio = maxLendingPoolAllowed > 0 
+    ? Math.min(100, Math.round((totalActivePrincipalBalance / maxLendingPoolAllowed) * 100))
+    : 0;
+
   // Liquid Cash Reserve = (Verified Savings + Verified Repayments) - (Disbursed Loans + Approved Expenses)
   const liquidCashReserve = Math.max(0, (totalVerifiedSavings + totalVerifiedRepayments) - (totalLoanAmountDisbursed + totalApprovedExpenses));
+
+  // Filtered members for role assignment
+  const filteredStaffMembers = useMemo(() => {
+    return users.filter((u: any) => {
+      const term = memberSearchTerm.toLowerCase();
+      return (
+        !term ||
+        (u.name && u.name.toLowerCase().includes(term)) ||
+        (u.email && u.email.toLowerCase().includes(term)) ||
+        (u.role && u.role.toLowerCase().includes(term))
+      );
+    });
+  }, [users, memberSearchTerm]);
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-16">
@@ -602,6 +704,23 @@ export default function AdminDashboard() {
                         <Link href="/admin/settings">Configure →</Link>
                       </Button>
                     </div>
+
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-2 border-primary/30 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
+                          <Landmark className="h-3 w-3" /> Group Lending Pool Ceiling ({maxLendingPoolPercentage}% of Assets)
+                        </span>
+                        <p className="text-xl font-bold font-headline text-primary">
+                          {formatCurrency(availableLendingPool, currency)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatCurrency(totalActivePrincipalBalance, currency)} active of {formatCurrency(maxLendingPoolAllowed, currency)} max loan pool ({lendingPoolUtilizationRatio}% used)
+                        </p>
+                      </div>
+                      <Badge className={availableLendingPool > 0 ? "bg-primary text-primary-foreground text-[10px] font-bold" : "bg-destructive text-white text-[10px] font-bold"}>
+                        {availableLendingPool > 0 ? 'Liquidity Open' : 'Ceiling Reached'}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -813,48 +932,83 @@ export default function AdminDashboard() {
 
           {/* Members & Audit Grid */}
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Recent Members */}
+            {/* Registered Staff Members with Quick Role Assignment */}
             <Card className="shadow-sm border border-border">
-              <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <div>
-                  <CardTitle className="text-base font-bold">Registered Staff Members</CardTitle>
-                  <CardDescription>Scheme participants and system roles ({users.length})</CardDescription>
+              <CardHeader className="flex flex-col gap-2 pb-3">
+                <div className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-bold flex items-center gap-2">
+                      <UserCog className="h-4 w-4 text-primary" /> Registered Staff Members
+                    </CardTitle>
+                    <CardDescription>Scheme participants and system roles ({users.length})</CardDescription>
+                  </div>
+                  <Button asChild variant="ghost" size="sm" className="rounded-xl text-xs font-bold text-primary">
+                    <Link href="/members">
+                      Full Directory <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
                 </div>
-                <Button asChild variant="ghost" size="sm" className="rounded-xl text-xs font-bold text-primary">
-                  <Link href="/members">
-                    Manage All <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                  </Link>
-                </Button>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search by name, email, or role..." 
+                    value={memberSearchTerm}
+                    onChange={(e) => setMemberSearchTerm(e.target.value)}
+                    className="h-8 pl-8 text-xs rounded-lg bg-muted border-none"
+                  />
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader className="bg-muted/30">
                     <TableRow>
-                      <TableHead className="px-5">Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead className="text-right px-5">Role</TableHead>
+                      <TableHead className="px-4 text-[11px] uppercase">Member</TableHead>
+                      <TableHead className="text-center text-[11px] uppercase">Current Role</TableHead>
+                      <TableHead className="text-right px-4 text-[11px] uppercase">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.slice(0, 5).map((u: any) => (
-                      <TableRow key={u.id}>
-                        <TableCell className="font-bold text-xs px-5">{u.name || 'Member'}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{u.email}</TableCell>
-                        <TableCell className="text-right px-5">
-                          <Badge 
-                            variant="secondary" 
-                            className={cn(
-                              "text-[9px] uppercase font-bold border-none",
-                              u.role === 'admin' && "bg-primary/10 text-primary",
-                              u.role === 'accountant' && "bg-blue-500/10 text-blue-600",
-                              u.role === 'management' && "bg-foreground/10 text-foreground"
-                            )}
-                          >
-                            {u.role || 'member'}
-                          </Badge>
+                    {filteredStaffMembers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="h-24 text-center text-xs text-muted-foreground italic">
+                          No members matching &ldquo;{memberSearchTerm}&rdquo; found.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      filteredStaffMembers.slice(0, 6).map((u: any) => (
+                        <TableRow key={u.id} className="hover:bg-muted/20">
+                          <TableCell className="px-4 py-2.5">
+                            <p className="font-bold text-xs text-foreground">{u.name || 'Member'}</p>
+                            <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">{u.email}</p>
+                          </TableCell>
+                          <TableCell className="text-center py-2.5">
+                            <Badge 
+                              variant="secondary" 
+                              className={cn(
+                                "text-[9px] uppercase font-bold border-none",
+                                u.role === 'admin' && "bg-primary/10 text-primary",
+                                u.role === 'accountant' && "bg-blue-500/10 text-blue-600",
+                                u.role === 'management' && "bg-foreground/10 text-foreground",
+                                u.role === 'reviewer' && "bg-green-600/10 text-green-700 dark:text-green-400",
+                                (!u.role || u.role === 'member') && "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              {u.role || 'member'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right px-4 py-2.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenRoleModal(u)}
+                              className="h-7 px-2.5 text-[11px] font-bold rounded-lg border-primary/20 text-primary hover:bg-primary/10 gap-1"
+                            >
+                              <UserCog className="h-3 w-3" /> Assign Role
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -907,6 +1061,114 @@ export default function AdminDashboard() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* ASSIGN ROLE MODAL DIALOG */}
+      <Dialog open={Boolean(roleModalMember)} onOpenChange={(open) => !open && setRoleModalMember(null)}>
+        <DialogContent className="sm:max-w-[500px] rounded-[10px]">
+          <form onSubmit={handleAssignRoleSubmit}>
+            <DialogHeader>
+              <div className="flex items-center gap-2 text-primary mb-1">
+                <UserCog className="h-5 w-5" />
+                <DialogTitle className="text-lg font-bold">Assign Member System Role</DialogTitle>
+              </div>
+              <DialogDescription>
+                Configure administrative privileges and operational responsibilities for this member.
+              </DialogDescription>
+            </DialogHeader>
+
+            {roleModalMember && (
+              <div className="space-y-4 py-4">
+                <div className="p-3 bg-muted rounded-xl flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm text-foreground">{roleModalMember.name || 'Member'}</p>
+                    <p className="text-xs text-muted-foreground">{roleModalMember.email}</p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                    Current: {roleModalMember.role || 'member'}
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider">Select New System Role</Label>
+                  <Select value={selectedRole} onValueChange={setSelectedRole}>
+                    <SelectTrigger className="h-11 rounded-[10px] bg-muted border-none font-bold">
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">General Member (Savings &amp; Standard Loans)</SelectItem>
+                      <SelectItem value="accountant">Accountant (Operating Expenses &amp; Payroll Uploads)</SelectItem>
+                      <SelectItem value="reviewer">Reviewer (Audit Trail &amp; Compliance Sign-Off)</SelectItem>
+                      <SelectItem value="management">Management (Loan Approvals &amp; Credit Decisions)</SelectItem>
+                      <SelectItem value="admin">Administrator (Full Institutional System Control)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Role Guidance Card */}
+                <div className="p-3 rounded-lg border text-xs space-y-1 bg-muted/40">
+                  <p className="font-bold text-foreground">
+                    {selectedRole === 'admin' && 'Administrator Authority'}
+                    {selectedRole === 'accountant' && 'Accountant Privileges'}
+                    {selectedRole === 'management' && 'Management Authority'}
+                    {selectedRole === 'reviewer' && 'Reviewer & Auditor Privileges'}
+                    {selectedRole === 'member' && 'General Member Privileges'}
+                  </p>
+                  <p className="text-muted-foreground text-[11px] leading-relaxed">
+                    {selectedRole === 'admin' && 'Grants comprehensive access to all financial settings, user roles, interest distribution, expense sign-off, and database resets.'}
+                    {selectedRole === 'accountant' && 'Allows lodging operating expense receipts, uploading bulk payroll spreadsheets, and managing contribution records.'}
+                    {selectedRole === 'management' && 'Authorizes approving member loan facilities, reviewing top-up requests, and auditing liquidity limits.'}
+                    {selectedRole === 'reviewer' && 'Grants read-only auditing access across institutional ledgers, arrears watchlists, and compliance logs.'}
+                    {selectedRole === 'member' && 'Standard participant with access to personal savings, loan requests, repayment schedules, and announcements.'}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider">
+                    Audit Justification / Reason <span className="text-destructive">*</span>
+                  </Label>
+                  <Textarea
+                    value={roleJustification}
+                    onChange={(e) => setRoleJustification(e.target.value)}
+                    placeholder="Enter reason for role assignment (e.g., Appointed Scheme Treasurer / Promoted to Credit Committee)..."
+                    required
+                    className="min-h-[80px] rounded-[10px] bg-muted border-none text-xs"
+                  />
+                  <p className="text-[10px] text-muted-foreground italic">
+                    * This action will be permanently recorded in the immutable administrative audit log.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRoleModalMember(null)}
+                disabled={isUpdatingRole}
+                className="rounded-[10px]"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isUpdatingRole || !roleJustification.trim()}
+                className="rounded-[10px] font-bold gap-2"
+              >
+                {isUpdatingRole ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Assigning Role...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-4 w-4" /> Confirm Role Assignment
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
