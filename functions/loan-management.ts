@@ -29,7 +29,7 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
     const settings = settingsSnap.data() || {};
     const minLoanAmount = Number(settings.minLoanAmount) || 5000;
     const maxLoanAmount = Number(settings.maxLoanAmount) || 1000000;
-    const maxLoanPercentage = Number(settings.maxLoanPercentage) || 80;
+    const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
 
     if (loanAmount < minLoanAmount) {
         throw new HttpsError('failed-precondition', `Loan amount must be at least ${minLoanAmount}.`);
@@ -69,21 +69,26 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
     const accruedInterest = Number(userSnap.data()?.accruedInterest) || 0;
     const totalEquity = totalVerifiedSavings + accruedInterest;
 
-    // Borrowing limit based on policy % of equity (e.g. 80%) with trust bonus fallback
-    const percentageLimit = Math.round((totalEquity * maxLoanPercentage) / 100);
+    // Borrowing limit based on policy % of verified savings (e.g. 200%)
+    const percentageLimit = Math.round((totalVerifiedSavings * maxLoanPercentage) / 100);
+    const equityLimit = Math.round((totalEquity * maxLoanPercentage) / 100);
     const completedLoansCount = existingLoansSnap.docs.filter(d => d.data().status === 'completed').length;
     const trustBonusLimit = (accruedInterest + (completedLoansCount * 10000)) * 2;
     
     const effectiveLimit = Math.min(
-        Math.max(percentageLimit, trustBonusLimit),
+        Math.max(percentageLimit, equityLimit, trustBonusLimit),
         maxLoanAmount
     );
 
-    if (totalEquity <= 0 && completedLoansCount === 0) {
+    if (totalVerifiedSavings <= 0 && totalEquity <= 0 && completedLoansCount === 0) {
         throw new HttpsError('failed-precondition', 'You must have verified savings contributions before requesting a loan.');
     }
 
-    if (loanAmount > effectiveLimit && effectiveLimit > 0) {
+    if (effectiveLimit < minLoanAmount) {
+        throw new HttpsError('failed-precondition', `Your current borrowing limit of ${effectiveLimit} is below the minimum allowed loan amount of ${minLoanAmount}.`);
+    }
+
+    if (loanAmount > effectiveLimit) {
         throw new HttpsError('failed-precondition', `Requested amount exceeds your borrowing power limit of ${effectiveLimit}.`);
     }
 

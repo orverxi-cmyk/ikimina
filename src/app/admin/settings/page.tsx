@@ -228,17 +228,17 @@ export default function AdminSettingsPage() {
             <CardContent className="space-y-6">
               <div className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-1">Borrowing Power (%) <Percent className="h-3 w-3" /></Label>
+                  <Label className="flex items-center gap-1 font-bold">Borrowing Power (%) <Percent className="h-3 w-3 text-primary" /></Label>
                   <Input 
                     name="maxLoanPercentage" 
                     type="number" 
                     step="1" 
-                    defaultValue={settings.maxLoanPercentage || 80} 
+                    defaultValue={settings.maxLoanPercentage ?? 200} 
                     required 
-                    className="h-11 rounded-[10px] bg-muted border-none"
+                    className="h-11 rounded-[10px] bg-muted border-none font-bold"
                   />
                   <p className="text-[10px] text-muted-foreground leading-tight">
-                    Max % of total contributions a member can borrow.
+                    Max % of total verified contributions a member can borrow (e.g. 200% allows borrowing 2x their savings).
                   </p>
                 </div>
                 <div className="space-y-2">

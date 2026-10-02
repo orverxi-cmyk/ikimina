@@ -97,9 +97,28 @@ function LoansPageContent() {
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
   }, [user, isManagement]);
 
+  const memberContributionsQuery = useMemoFirebase(() => {
+    if (!user || isManagement) return null;
+    return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
+  }, [user, isManagement]);
+
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: repaymentsSnap } = useCollection(repaymentsQuery);
   const { data: membersSnap } = useCollection(membersQuery);
+  const { data: memberContributionsSnap } = useCollection(memberContributionsQuery);
+
+  const memberVerifiedSavings = useMemo(() => {
+    if (!memberContributionsSnap) return 0;
+    return memberContributionsSnap.docs
+      .map(d => d.data())
+      .filter((c: any) => c.status === 'verified')
+      .reduce((sum, c: any) => sum + (Number(c.amount) || 0), 0);
+  }, [memberContributionsSnap]);
+
+  const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
+  const memberBorrowingPower = useMemo(() => {
+    return Math.round((memberVerifiedSavings * maxLoanPercentage) / 100);
+  }, [memberVerifiedSavings, maxLoanPercentage]);
 
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const pendingRepayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
@@ -257,7 +276,13 @@ function LoansPageContent() {
                <Plus className="mr-2 h-4 w-4" /> Apply for Loan
              </Link>
            </Button>
-           <div className="hidden lg:flex gap-2">
+           <div className="hidden sm:flex gap-2">
+              {!isManagement && (
+                <div className="bg-primary/5 px-4 py-2 rounded-[10px] border border-primary/20 text-center min-w-[130px]">
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Borrowing Power</p>
+                    <p className="text-sm font-bold text-primary">{formatCurrency(memberBorrowingPower, currency)}</p>
+                </div>
+              )}
               <div className="bg-muted px-4 py-2 rounded-[10px] border border-border text-center min-w-[120px]">
                   <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Gained Interest</p>
                   <p className="text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>

@@ -53,7 +53,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   interestModel: 'one-off',
   interestType: 'afterward',
   contributionInterestRate: 50000,
-  maxLoanPercentage: 80,
+  maxLoanPercentage: 200,
   minLoanAmount: 5000,
   maxLoanAmount: 1000000,
   penaltyRate: 2,
