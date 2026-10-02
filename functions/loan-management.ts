@@ -285,15 +285,20 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         const settings = settingsSnap.data() || {};
         const globalRate = Number(settings.loanInterestRate) || 10;
         const penaltyRate = Number(settings.penaltyRate) || 2;
-        const interestType = settings.interestType || 'afterward';
+        const interestType = settings.interestType || 'immediate';
 
-        // Authoritative interest calculation on the server
+        // Authoritative interest calculation on the server:
+        // One-off interest is deducted from the approved loan amount.
+        // Example: Approved loan = 1,000,000, interest = 100,000.
+        // Amount received (disbursed) = 900,000.
+        // Payment schedule applies to the total amount (1,000,000).
+        const isImmediate = interestType !== 'afterward';
         const interestAmount = Math.round(loanData.amount * (globalRate / 100));
         const startDate = startDateStr ? new Date(startDateStr) : new Date();
         
-        const interestToAddToRepayment = interestType === 'afterward' ? interestAmount : 0;
-        const totalBalance = loanData.amount + interestToAddToRepayment;
-        const netDisbursed = interestType === 'immediate' ? (loanData.amount - interestAmount) : loanData.amount;
+        const interestToAddToRepayment = isImmediate ? 0 : interestAmount;
+        const totalBalance = isImmediate ? loanData.amount : (loanData.amount + interestAmount);
+        const netDisbursed = isImmediate ? Math.max(0, loanData.amount - interestAmount) : loanData.amount;
 
         const schedule = calculateAmortizationSchedule(loanData.amount, interestToAddToRepayment, Number(durationMonths) || 12, startDate);
 
@@ -303,7 +308,7 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
             status: 'approved',
             startDate: admin.firestore.Timestamp.fromDate(startDate),
             interestAmount,
-            interestType,
+            interestType: isImmediate ? 'immediate' : 'afterward',
             penaltyRate,
             balance: totalBalance,
             netDisbursed,

@@ -25,7 +25,9 @@ import {
   AlertOctagon,
   RotateCcw,
   CheckCircle2,
-  ShieldAlert
+  ShieldAlert,
+  Landmark,
+  CreditCard
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -52,7 +54,9 @@ export default function AdminSettingsPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState<string>('RWF');
   const [interestModel, setInterestModel] = useState<string>('one-off');
-  const [interestType, setInterestType] = useState<string>('afterward');
+  const [interestType, setInterestType] = useState<string>('immediate');
+  const [depositBankName, setDepositBankName] = useState<string>('');
+  const [depositAccountNumber, setDepositAccountNumber] = useState<string>('');
 
   // Super Admin Reset State
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -65,6 +69,8 @@ export default function AdminSettingsPage() {
       if (settings.currency) setSelectedCurrency(settings.currency);
       if (settings.interestModel) setInterestModel(settings.interestModel);
       if (settings.interestType) setInterestType(settings.interestType);
+      if (settings.depositBankName !== undefined) setDepositBankName(settings.depositBankName);
+      if (settings.depositAccountNumber !== undefined) setDepositAccountNumber(settings.depositAccountNumber);
     }
   }, [settings]);
 
@@ -83,6 +89,8 @@ export default function AdminSettingsPage() {
     const minLoanAmount = Number(formData.get('minLoanAmount'));
     const maxLoanAmount = Number(formData.get('maxLoanAmount'));
     const penaltyRate = Number(formData.get('penaltyRate'));
+    const depositBankNameVal = (formData.get('depositBankName') as string)?.trim() ?? depositBankName;
+    const depositAccountNumberVal = (formData.get('depositAccountNumber') as string)?.trim() ?? depositAccountNumber;
     const justification = formData.get('justification') as string;
 
     try {
@@ -96,6 +104,8 @@ export default function AdminSettingsPage() {
         minLoanAmount, 
         maxLoanAmount,
         penaltyRate,
+        depositBankName: depositBankNameVal,
+        depositAccountNumber: depositAccountNumberVal,
         justification 
       });
       await refreshSettings();
@@ -275,6 +285,48 @@ export default function AdminSettingsPage() {
                      className="h-11 rounded-[10px] bg-muted border-none"
                    />
                    <p className="text-[10px] text-muted-foreground">Rate applied to installments past their due date.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Deposit Bank Information Card */}
+          <Card className="border border-border shadow-sm bg-card rounded-[10px]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl text-primary">
+                <Landmark className="h-5 w-5" /> Deposit Bank &amp; Account Details
+              </CardTitle>
+              <CardDescription>
+                Configure the group deposit account where members send contributions and loan repayments. This will be displayed below the amount fields across the platform.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="font-bold flex items-center gap-1.5">
+                    <Landmark className="h-4 w-4 text-primary" /> Deposit Bank Name
+                  </Label>
+                  <Input 
+                    name="depositBankName" 
+                    value={depositBankName}
+                    onChange={(e) => setDepositBankName(e.target.value)}
+                    placeholder="e.g. Bank of Kigali, Equity Bank, I&M Bank" 
+                    className="h-11 rounded-[10px] bg-muted border-none font-medium"
+                  />
+                  <p className="text-[10px] text-muted-foreground">The commercial bank name where members deposit funds.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-bold flex items-center gap-1.5">
+                    <CreditCard className="h-4 w-4 text-primary" /> Deposit Account Number
+                  </Label>
+                  <Input 
+                    name="depositAccountNumber" 
+                    value={depositAccountNumber}
+                    onChange={(e) => setDepositAccountNumber(e.target.value)}
+                    placeholder="e.g. 00044-01234567-89" 
+                    className="h-11 rounded-[10px] bg-muted border-none font-mono font-medium"
+                  />
+                  <p className="text-[10px] text-muted-foreground">The account number displayed below amount inputs.</p>
                 </div>
               </div>
             </CardContent>

@@ -26,7 +26,8 @@ import {
   X,
   ExternalLink,
   ShieldAlert,
-  FileCheck
+  FileCheck,
+  Landmark
 } from 'lucide-react';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeFirebase } from '@/firebase';
@@ -703,6 +704,65 @@ function LoanApplyContent() {
                     )}
                   </div>
                 )}
+
+                {/* Deposit bank details displayed below amount */}
+                {(settings.depositBankName || settings.depositAccountNumber) && (
+                  <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-xs flex items-center justify-between gap-2 mt-1">
+                    <div className="flex items-center gap-1.5 text-primary min-w-0">
+                      <Landmark className="h-3.5 w-3.5 shrink-0" />
+                      <span className="font-medium text-[11px] text-muted-foreground">Deposit Bank:</span>
+                      <strong className="text-foreground truncate">{settings.depositBankName || 'Designated Bank'}</strong>
+                    </div>
+                    {settings.depositAccountNumber && (
+                      <div className="font-mono font-bold text-xs text-foreground bg-background px-2 py-0.5 rounded border border-border shrink-0">
+                        {settings.depositAccountNumber}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Upfront interest calculation preview */}
+                {numericAmount >= minLoanAmount && !isAmountTooHigh && (() => {
+                  const rate = settings.loanInterestRate || 10;
+                  const interestAmt = Math.round(numericAmount * (rate / 100));
+                  const netReceived = Math.max(0, numericAmount - interestAmt);
+                  const monthlyEst = Math.round(numericAmount / 12);
+
+                  return (
+                    <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2 mt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Upfront Interest Calculation
+                        </span>
+                        <Badge className="bg-emerald-600 text-white font-bold text-[8px] uppercase">
+                          Interest Deducted at Source
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                        <div className="p-2 bg-background rounded-lg border border-border">
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Approved Loan</p>
+                          <p className="font-bold text-foreground mt-0.5">{formatCurrency(numericAmount, currency)}</p>
+                        </div>
+                        <div className="p-2 bg-background rounded-lg border border-border">
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Interest ({rate}%)</p>
+                          <p className="font-bold text-orange-600 mt-0.5">-{formatCurrency(interestAmt, currency)}</p>
+                        </div>
+                        <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
+                          <p className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase font-semibold">Amount Received</p>
+                          <p className="font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatCurrency(netReceived, currency)}</p>
+                        </div>
+                        <div className="p-2 bg-background rounded-lg border border-border">
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Total Repayable</p>
+                          <p className="font-bold text-primary mt-0.5">{formatCurrency(numericAmount, currency)}</p>
+                          <p className="text-[9px] text-muted-foreground mt-0.5">({formatCurrency(monthlyEst, currency)}/mo)</p>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground italic">
+                        * The {rate}% interest is deducted from the approved loan at disbursement. You receive {formatCurrency(netReceived, currency)}, and your 12-month payment schedule will repay the total amount of {formatCurrency(numericAmount, currency)}.
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Validation helper messages */}
                 {isAmountTooHigh && (

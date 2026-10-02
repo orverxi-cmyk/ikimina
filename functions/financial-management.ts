@@ -167,6 +167,8 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
         minLoanAmount, 
         maxLoanAmount,
         penaltyRate,
+        depositBankName,
+        depositAccountNumber,
         justification 
     } = request.data;
 
@@ -184,6 +186,8 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             minLoanAmount: Number(minLoanAmount),
             maxLoanAmount: Number(maxLoanAmount),
             penaltyRate: Number(penaltyRate || 2),
+            depositBankName: depositBankName ? String(depositBankName).trim() : '',
+            depositAccountNumber: depositAccountNumber ? String(depositAccountNumber).trim() : '',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedBy: request.auth.uid
         }, { merge: true });
@@ -198,6 +202,8 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
                 loanInterestRate, 
                 interestModel,
                 interestType,
+                depositBankName,
+                depositAccountNumber,
                 contributionInterestRate, 
                 maxLoanPercentage, 
                 minLoanAmount, 
@@ -353,12 +359,14 @@ export const getSystemSettings = onCall({ cors: true }, async (request) => {
             currency: 'RWF',
             loanInterestRate: 10,
             interestModel: 'one-off',
-            interestType: 'afterward',
+            interestType: 'immediate',
             contributionInterestRate: 50000,
             maxLoanPercentage: 200,
             minLoanAmount: 5000,
             maxLoanAmount: 1000000,
             penaltyRate: 2,
+            depositBankName: 'Bank of Kigali',
+            depositAccountNumber: '00044-01234567-89',
         };
     }
 
@@ -367,11 +375,13 @@ export const getSystemSettings = onCall({ cors: true }, async (request) => {
         currency: data.currency || 'RWF',
         loanInterestRate: Number(data.loanInterestRate) || 10,
         interestModel: data.interestModel || 'one-off',
-        interestType: data.interestType || 'afterward',
+        interestType: data.interestType || 'immediate',
         contributionInterestRate: Number(data.contributionInterestRate) || 50000,
         maxLoanPercentage: Number(data.maxLoanPercentage) || 200,
         minLoanAmount: Number(data.minLoanAmount) || 5000,
         maxLoanAmount: Number(data.maxLoanAmount) || 1000000,
         penaltyRate: Number(data.penaltyRate) || 2,
+        depositBankName: data.depositBankName || '',
+        depositAccountNumber: data.depositAccountNumber || '',
     };
 });

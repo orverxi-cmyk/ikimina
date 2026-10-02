@@ -175,7 +175,7 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
     if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
     }
-    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, minLoanAmount, maxLoanAmount, penaltyRate, justification } = request.data;
+    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, minLoanAmount, maxLoanAmount, penaltyRate, depositBankName, depositAccountNumber, justification } = request.data;
     try {
         const batch = db.batch();
         const settingsRef = db.collection('settings').doc('financials');
@@ -189,6 +189,8 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
             minLoanAmount: Number(minLoanAmount),
             maxLoanAmount: Number(maxLoanAmount),
             penaltyRate: Number(penaltyRate || 2),
+            depositBankName: depositBankName ? String(depositBankName).trim() : '',
+            depositAccountNumber: depositAccountNumber ? String(depositAccountNumber).trim() : '',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedBy: request.auth.uid
         }, { merge: true });
@@ -202,6 +204,8 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
                 loanInterestRate,
                 interestModel,
                 interestType,
+                depositBankName,
+                depositAccountNumber,
                 contributionInterestRate,
                 maxLoanPercentage,
                 minLoanAmount,
@@ -340,12 +344,14 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
             currency: 'RWF',
             loanInterestRate: 10,
             interestModel: 'one-off',
-            interestType: 'afterward',
+            interestType: 'immediate',
             contributionInterestRate: 50000,
             maxLoanPercentage: 200,
             minLoanAmount: 5000,
             maxLoanAmount: 1000000,
             penaltyRate: 2,
+            depositBankName: 'Bank of Kigali',
+            depositAccountNumber: '00044-01234567-89',
         };
     }
     const data = snap.data();
@@ -353,12 +359,14 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
         currency: data.currency || 'RWF',
         loanInterestRate: Number(data.loanInterestRate) || 10,
         interestModel: data.interestModel || 'one-off',
-        interestType: data.interestType || 'afterward',
+        interestType: data.interestType || 'immediate',
         contributionInterestRate: Number(data.contributionInterestRate) || 50000,
         maxLoanPercentage: Number(data.maxLoanPercentage) || 200,
         minLoanAmount: Number(data.minLoanAmount) || 5000,
         maxLoanAmount: Number(data.maxLoanAmount) || 1000000,
         penaltyRate: Number(data.penaltyRate) || 2,
+        depositBankName: data.depositBankName || '',
+        depositAccountNumber: data.depositAccountNumber || '',
     };
 });
 //# sourceMappingURL=financial-management.js.map

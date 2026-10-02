@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw, Plus, FileSpreadsheet, Wallet } from 'lucide-react';
+import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw, Plus, FileSpreadsheet, Wallet, Landmark } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, where, doc } from 'firebase/firestore';
@@ -467,11 +467,26 @@ export default function ContributionsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="amount">Contribution Amount</Label>
                     <div className="relative">
-                      <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14 bg-background border-primary/10" />
+                      <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14 bg-background border-primary/10 font-bold" />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">
                         {currency}
                       </div>
                     </div>
+                    {/* Deposit bank details displayed below amount */}
+                    {(settings.depositBankName || settings.depositAccountNumber) && (
+                      <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-xs flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 text-primary min-w-0">
+                          <Landmark className="h-3.5 w-3.5 shrink-0" />
+                          <span className="font-medium text-[11px] text-muted-foreground">Deposit Bank:</span>
+                          <strong className="text-foreground truncate">{settings.depositBankName || 'Designated Bank'}</strong>
+                        </div>
+                        {settings.depositAccountNumber && (
+                          <div className="font-mono font-bold text-xs text-foreground bg-background px-2 py-0.5 rounded border border-border shrink-0">
+                            {settings.depositAccountNumber}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="proofFile">Proof of Payment</Label>

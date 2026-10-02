@@ -45,18 +45,22 @@ export type SystemSettings = {
   minLoanAmount: number;
   maxLoanAmount: number;
   penaltyRate: number;
+  depositBankName?: string;
+  depositAccountNumber?: string;
 };
 
 export const DEFAULT_SETTINGS: SystemSettings = {
   currency: 'RWF',
   loanInterestRate: 10,
   interestModel: 'one-off',
-  interestType: 'afterward',
+  interestType: 'immediate',
   contributionInterestRate: 50000,
   maxLoanPercentage: 200,
   minLoanAmount: 5000,
   maxLoanAmount: 1000000,
   penaltyRate: 2,
+  depositBankName: 'Bank of Kigali',
+  depositAccountNumber: '00044-01234567-89',
 };
 
 /**
@@ -126,6 +130,8 @@ export async function updateFinancialSettingsAction(data: {
   minLoanAmount: number, 
   maxLoanAmount: number,
   penaltyRate?: number,
+  depositBankName?: string,
+  depositAccountNumber?: string,
   justification: string 
 }) {
   const functions = getFinanceFunctions();

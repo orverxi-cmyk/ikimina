@@ -298,7 +298,7 @@ function LoansPageContent() {
       interestAmount: calculatedInterest,
       durationMonths: Number(new FormData(e.currentTarget).get('durationMonths')),
       startDate: new FormData(e.currentTarget).get('startDate') as string,
-      interestType: globalInterestType,
+      interestType: globalInterestType || 'immediate',
       penaltyRate: globalPenaltyRate,
       checkUrl: ''
     };
@@ -909,18 +909,24 @@ function LoansPageContent() {
             </DialogDescription>
           </DialogHeader>
           <div className="p-6">
-             <div className="grid grid-cols-3 gap-4 mb-6">
+             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                 <div className="bg-muted p-3 rounded-xl border border-border">
                    <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Contract Principal</p>
-                   <p className="text-lg font-bold">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
+                   <p className="text-base sm:text-lg font-bold">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
                 </div>
                 <div className="bg-muted p-3 rounded-xl border border-border">
-                   <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Interest Committed</p>
-                   <p className="text-lg font-bold text-orange-600">+{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
+                   <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Upfront Interest ({globalRate}%)</p>
+                   <p className="text-base sm:text-lg font-bold text-orange-600">-{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
+                </div>
+                <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
+                   <p className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-400 tracking-widest mb-1">Amount Received</p>
+                   <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                     {selectedLoan ? formatCurrency(selectedLoan.netDisbursed ?? (selectedLoan.amount - (selectedLoan.interestAmount || 0)), currency) : '-'}
+                   </p>
                 </div>
                 <div className="bg-primary/5 p-3 rounded-xl border border-primary/10">
                    <p className="text-[10px] font-bold uppercase text-primary tracking-widest mb-1">Outstanding Balance</p>
-                   <p className="text-lg font-bold text-primary">{selectedLoan ? formatCurrency(selectedLoan.balance || 0, currency) : '-'}</p>
+                   <p className="text-base sm:text-lg font-bold text-primary">{selectedLoan ? formatCurrency(selectedLoan.balance || 0, currency) : '-'}</p>
                 </div>
              </div>
 
@@ -971,7 +977,12 @@ function LoansPageContent() {
             const isEligible = borrowingPower >= requestedAmt && borrowingPower > 0;
             const coveragePercent = borrowingPower > 0 ? Math.round((requestedAmt / borrowingPower) * 100) : 0;
             const loanInterest = Math.round(requestedAmt * (globalRate / 100));
-            const totalPayable = requestedAmt + loanInterest;
+            // One-off interest is deducted from approved loan amount:
+            // Amount received = loan amount - interest (e.g. 1,000,000 - 100,000 = 900,000)
+            // Payment schedule applies to the total amount (1,000,000)
+            const isImmediate = globalInterestType !== 'afterward';
+            const totalPayable = isImmediate ? requestedAmt : (requestedAmt + loanInterest);
+            const amountReceived = isImmediate ? Math.max(0, requestedAmt - loanInterest) : requestedAmt;
             const loanDuration = Number(selectedLoan.durationMonths) || 12;
             const monthlyPayment = Math.round(totalPayable / loanDuration);
 
@@ -1168,23 +1179,36 @@ function LoansPageContent() {
 
                   {/* Repayment Breakdown */}
                   <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-3">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Financial Schedule Projection
-                    </p>
-                    <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Financial Schedule Projection
+                      </p>
+                      <Badge className="bg-emerald-600 text-white font-bold text-[9px] uppercase">
+                        Upfront Interest Deduction
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                      <div className="p-2.5 bg-background rounded-lg border border-border">
+                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Approved Loan</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">{formatCurrency(requestedAmt, currency)}</p>
+                      </div>
                       <div className="p-2.5 bg-background rounded-lg border border-border">
                         <p className="text-[10px] text-muted-foreground uppercase font-semibold">Interest ({globalRate}%)</p>
-                        <p className="text-xs font-bold text-primary mt-0.5">{formatCurrency(loanInterest, currency)}</p>
+                        <p className="text-xs font-bold text-orange-600 mt-0.5">-{formatCurrency(loanInterest, currency)}</p>
+                      </div>
+                      <div className="p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase font-semibold">Amount Received</p>
+                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatCurrency(amountReceived, currency)}</p>
                       </div>
                       <div className="p-2.5 bg-background rounded-lg border border-border">
                         <p className="text-[10px] text-muted-foreground uppercase font-semibold">Total Repayable</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">{formatCurrency(totalPayable, currency)}</p>
-                      </div>
-                      <div className="p-2.5 bg-background rounded-lg border border-border">
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Monthly Est.</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">{formatCurrency(monthlyPayment, currency)}</p>
+                        <p className="text-xs font-bold text-primary mt-0.5">{formatCurrency(totalPayable, currency)}</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">({formatCurrency(monthlyPayment, currency)}/mo)</p>
                       </div>
                     </div>
+                    <p className="text-[10px] text-muted-foreground italic">
+                      * Interest of {formatCurrency(loanInterest, currency)} is deducted from the approved loan. Borrower receives {formatCurrency(amountReceived, currency)} and repays the full {formatCurrency(totalPayable, currency)} over {loanDuration} months.
+                    </p>
                   </div>
 
                   {/* Approval Parameters */}
@@ -1279,8 +1303,22 @@ function LoansPageContent() {
             </DialogHeader>
             <div className="grid gap-4 py-6">
               <div className="p-4 bg-muted rounded-[10px] border border-border">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Requested Amount</p>
+                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Approved Loan Amount</p>
                 <p className="text-2xl font-bold text-primary">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
+                {selectedLoan && (
+                  <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Upfront Interest ({globalRate}%):</span>
+                      <span className="font-bold text-orange-600">-{formatCurrency(Math.round(selectedLoan.amount * (globalRate / 100)), currency)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Amount Received:</span>
+                      <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                        {formatCurrency(Math.max(0, selectedLoan.amount - Math.round(selectedLoan.amount * (globalRate / 100))), currency)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1397,9 +1435,24 @@ function LoansPageContent() {
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Payment Amount</Label>
                   <div className="relative">
-                    <Input name="repayAmount" type="number" max={selectedLoan?.balance} required className="h-11 rounded-[10px] pr-12 bg-muted border-none" />
+                    <Input name="repayAmount" type="number" max={selectedLoan?.balance} required className="h-11 rounded-[10px] pr-12 bg-muted border-none font-bold" />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">{currency}</div>
                   </div>
+                  {/* Deposit bank details displayed below amount */}
+                  {(settings.depositBankName || settings.depositAccountNumber) && (
+                    <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-xs flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-primary min-w-0">
+                        <Landmark className="h-3.5 w-3.5 shrink-0" />
+                        <span className="font-medium text-[11px] text-muted-foreground">Deposit Bank:</span>
+                        <strong className="text-foreground truncate">{settings.depositBankName || 'Designated Bank'}</strong>
+                      </div>
+                      {settings.depositAccountNumber && (
+                        <div className="font-mono font-bold text-xs text-foreground bg-background px-2 py-0.5 rounded border border-border shrink-0">
+                          {settings.depositAccountNumber}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
