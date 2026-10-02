@@ -26,6 +26,7 @@ import {
   User as UserIcon
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { 
   Dialog, 
@@ -73,13 +74,14 @@ function LoansPageContent() {
   const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [isViewScheduleOpen, setIsViewScheduleOpen] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('schedule');
 
   const role = userData?.role || 'member';
-  const isManagement = role === 'admin' || role === 'management';
+  const isManagement = role === 'admin' || role === 'management' || role === 'accountant';
   
   const loansQuery = useMemoFirebase(() => {
     if (!user || userDataLoading || !userData) return null;
@@ -97,32 +99,55 @@ function LoansPageContent() {
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
   }, [user, isManagement]);
 
-  const memberContributionsQuery = useMemoFirebase(() => {
-    if (!user || isManagement) return null;
+  const contributionsQuery = useMemoFirebase(() => {
+    if (!user || userDataLoading || !userData) return null;
+    if (isManagement) return query(collection(firestore, 'contributions'));
     return query(collection(firestore, 'contributions'), where('memberId', '==', user.uid));
-  }, [user, isManagement]);
+  }, [user, isManagement, userDataLoading, userData]);
 
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: repaymentsSnap } = useCollection(repaymentsQuery);
   const { data: membersSnap } = useCollection(membersQuery);
-  const { data: memberContributionsSnap } = useCollection(memberContributionsQuery);
-
-  const memberVerifiedSavings = useMemo(() => {
-    if (!memberContributionsSnap) return 0;
-    return memberContributionsSnap.docs
-      .map(d => d.data())
-      .filter((c: any) => c.status === 'verified')
-      .reduce((sum, c: any) => sum + (Number(c.amount) || 0), 0);
-  }, [memberContributionsSnap]);
-
-  const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
-  const memberBorrowingPower = useMemo(() => {
-    return Math.round((memberVerifiedSavings * maxLoanPercentage) / 100);
-  }, [memberVerifiedSavings, maxLoanPercentage]);
+  const { data: contributionsSnap } = useCollection(contributionsQuery);
 
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const pendingRepayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
+  const allContributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
+
+  const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
+
+  const getMemberVerifiedContributions = (memberId: string) => {
+    if (!memberId) return 0;
+    return allContributions
+      .filter((c: any) => c.memberId === memberId && c.status === 'verified')
+      .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0);
+  };
+
+  const getMemberActiveDebt = (memberId: string) => {
+    if (!memberId) return 0;
+    return loans
+      .filter((l: any) => l.memberId === memberId && l.status === 'approved')
+      .reduce((sum: number, l: any) => sum + (Number(l.balance) || 0), 0);
+  };
+
+  const getMemberBorrowingPower = (memberId: string) => {
+    const verified = getMemberVerifiedContributions(memberId);
+    return Math.round((verified * maxLoanPercentage) / 100);
+  };
+
+  const getMember = (id: string) => {
+    if (id === user?.uid) return userData;
+    return (members as any[]).find((m: any) => m.id === id);
+  };
+
+  const memberVerifiedSavings = useMemo(() => {
+    return user ? getMemberVerifiedContributions(user.uid) : 0;
+  }, [user, allContributions]);
+
+  const memberBorrowingPower = useMemo(() => {
+    return Math.round((memberVerifiedSavings * maxLoanPercentage) / 100);
+  }, [memberVerifiedSavings, maxLoanPercentage]);
 
   const pendingRequests = useMemo(() => loans.filter((l: any) => l.status === 'requested'), [loans]);
   const activeLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved'), [loans]);
@@ -231,6 +256,7 @@ function LoansPageContent() {
       await approveLoanAction({ loanId: selectedLoan.id, terms, justification });
       toast({ title: "Loan Approved", description: "Borrower has been notified and funds released." });
       setIsApproveOpen(false);
+      setIsReviewOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Approval Failed", description: error.message });
     } finally {
@@ -248,7 +274,8 @@ function LoansPageContent() {
     try {
       await rejectLoanAction({ loanId: selectedLoan.id, justification });
       toast({ title: "Loan Rejected", description: "Request has been archived." });
-      setIsRejectOpen(true);
+      setIsRejectOpen(false);
+      setIsReviewOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Rejection Failed", description: error.message });
     } finally {
@@ -305,34 +332,99 @@ function LoansPageContent() {
           </CardHeader>
           <CardContent className="space-y-6">
             {pendingRequests.length > 0 && (
-              <div className="space-y-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary/60">Loan Requests</p>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {pendingRequests.map((r: any) => (
-                    <div key={r.id} className="bg-card p-4 rounded-[10px] border border-border flex flex-col gap-3 shadow-sm">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-0.5">
-                           <span className="text-[10px] font-bold text-muted-foreground uppercase">{getMemberName(r.memberId)}</span>
-                           <p className="text-xs font-bold truncate max-w-[140px]">{r.description || 'Capital Request'}</p>
-                        </div>
-                        <Badge variant="outline" className="text-[9px] font-bold uppercase bg-blue-50 text-blue-600 border-blue-100">Requested</Badge>
-                      </div>
-                      <div className="flex justify-between items-end">
-                         <div>
-                           <p className="text-lg font-bold text-primary">{formatCurrency(r.amount, currency)}</p>
-                           <p className="text-[10px] text-muted-foreground">{format(r.requestDate?.toDate() || new Date(), 'MMM d, yyyy')}</p>
-                         </div>
-                         <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => { setSelectedLoan(r); setIsRejectOpen(true); }} className="h-8 text-[11px] font-bold rounded-[10px] border-destructive/20 text-destructive">
-                               Reject
-                            </Button>
-                            <Button size="sm" onClick={() => { setSelectedLoan(r); setIsApproveOpen(true); }} className="h-8 text-[11px] font-bold rounded-[10px]">
-                               Approve
-                            </Button>
-                         </div>
-                      </div>
-                    </div>
-                  ))}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-primary">Pending Loan Requests</p>
+                    <Badge variant="secondary" className="text-[10px] font-mono font-bold">
+                      {pendingRequests.length} to review
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground hidden sm:block">
+                    Review applicant savings &amp; borrowing power before approval
+                  </p>
+                </div>
+
+                <div className="rounded-[10px] border border-border overflow-hidden bg-card shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      <TableRow>
+                        <TableHead className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest">Applicant / Staff</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Requested Amount</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Current Savings</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Borrowing Power ({maxLoanPercentage}%)</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Borrow Status</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Date</TableHead>
+                        <TableHead className="text-right px-5 text-[10px] font-bold uppercase tracking-widest">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingRequests.map((r: any) => {
+                        const memberContrib = getMemberVerifiedContributions(r.memberId);
+                        const memberPower = getMemberBorrowingPower(r.memberId);
+                        const isEligible = memberPower >= r.amount && memberPower > 0;
+                        const applicantMember = getMember(r.memberId);
+
+                        return (
+                          <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="px-5 py-3.5">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8 border border-border shrink-0">
+                                  <AvatarImage src={applicantMember?.avatarUrl} />
+                                  <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                    {getMemberName(r.memberId).slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-xs truncate">{getMemberName(r.memberId)}</p>
+                                  <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">
+                                    {applicantMember?.email || r.description || 'Capital Request'}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-bold text-sm text-primary">
+                              {formatCurrency(r.amount, currency)}
+                            </TableCell>
+                            <TableCell className="text-xs font-medium">
+                              {formatCurrency(memberContrib, currency)}
+                            </TableCell>
+                            <TableCell className="text-xs font-bold text-foreground">
+                              {formatCurrency(memberPower, currency)}
+                            </TableCell>
+                            <TableCell>
+                              {isEligible ? (
+                                <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-none text-[9px] uppercase font-bold">
+                                  Eligible ({memberPower > 0 ? Math.round((r.amount / memberPower) * 100) : 0}%)
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-none text-[9px] uppercase font-bold">
+                                  Exceeds Power
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">
+                              {r.requestDate?.toDate 
+                                ? format(r.requestDate.toDate(), 'MMM d, yyyy') 
+                                : format(new Date(), 'MMM d, yyyy')}
+                            </TableCell>
+                            <TableCell className="text-right px-5">
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedLoan(r);
+                                  setIsReviewOpen(true);
+                                }}
+                                className="h-8 rounded-[8px] font-bold text-xs gap-1.5 shadow-sm"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Review
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
             )}
@@ -677,6 +769,273 @@ function LoansPageContent() {
           <DialogFooter className="p-4 bg-muted/10 border-t">
              <Button variant="ghost" onClick={() => setIsViewScheduleOpen(false)} className="rounded-[10px] font-bold">Close View</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* LOAN REVIEW & UNDERWRITING DIALOG (Management / Admin) */}
+      <Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
+        <DialogContent className="max-w-2xl rounded-2xl bg-card p-0 overflow-hidden shadow-2xl border border-border">
+          {selectedLoan && (() => {
+            const applicantMember = getMember(selectedLoan.memberId);
+            const memberName = getMemberName(selectedLoan.memberId);
+            const verifiedContributions = getMemberVerifiedContributions(selectedLoan.memberId);
+            const borrowingPower = getMemberBorrowingPower(selectedLoan.memberId);
+            const activeDebt = getMemberActiveDebt(selectedLoan.memberId);
+            const netAvailablePower = Math.max(0, borrowingPower - activeDebt);
+            const requestedAmt = Number(selectedLoan.amount) || 0;
+            const isEligible = borrowingPower >= requestedAmt && borrowingPower > 0;
+            const coveragePercent = borrowingPower > 0 ? Math.round((requestedAmt / borrowingPower) * 100) : 0;
+            const loanInterest = Math.round(requestedAmt * (globalRate / 100));
+            const totalPayable = requestedAmt + loanInterest;
+            const loanDuration = Number(selectedLoan.durationMonths) || 12;
+            const monthlyPayment = Math.round(totalPayable / loanDuration);
+
+            return (
+              <form onSubmit={handleApproveLoan} className="flex flex-col max-h-[90vh]">
+                {/* Header */}
+                <DialogHeader className="p-6 pb-4 bg-muted/20 border-b">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">
+                          Credit Committee Review
+                        </Badge>
+                        <Badge variant="outline" className="text-[9px] uppercase font-mono font-medium">
+                          ID: {selectedLoan.id.slice(0, 8)}
+                        </Badge>
+                      </div>
+                      <DialogTitle className="text-xl font-bold font-headline">
+                        Loan Application &amp; Borrowing Status
+                      </DialogTitle>
+                      <DialogDescription className="text-xs">
+                        Review applicant verified savings, borrowing capacity, and terms prior to approval.
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                {/* Body */}
+                <div className="p-6 space-y-6 overflow-y-auto">
+                  {/* Applicant Profile Bar */}
+                  <div className="p-4 rounded-xl bg-muted/40 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border border-border">
+                        <AvatarImage src={applicantMember?.avatarUrl} />
+                        <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
+                          {memberName.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-bold text-sm text-foreground">{memberName}</p>
+                        <p className="text-xs text-muted-foreground">{applicantMember?.email || 'Registered Member'}</p>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground sm:text-right">
+                      <p className="font-semibold text-foreground">Requested On</p>
+                      <p>{selectedLoan.requestDate?.toDate ? format(selectedLoan.requestDate.toDate(), 'PPP') : format(new Date(), 'PPP')}</p>
+                    </div>
+                  </div>
+
+                  {/* 3 Core Metric Cards: Requested Amount, Current Contribution, Borrowing Power */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Requested Amount */}
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                          Requested Loan
+                        </span>
+                        <p className="text-2xl font-bold text-primary font-headline mt-1">
+                          {formatCurrency(requestedAmt, currency)}
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        Term: <strong>{loanDuration} Months</strong>
+                      </p>
+                    </div>
+
+                    {/* Current Contribution */}
+                    <div className="p-4 rounded-xl bg-muted/50 border border-border flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Current Contribution
+                        </span>
+                        <p className="text-2xl font-bold text-foreground font-headline mt-1">
+                          {formatCurrency(verifiedContributions, currency)}
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        Total Verified Savings
+                      </p>
+                    </div>
+
+                    {/* Borrowing Power */}
+                    <div className={cn(
+                      "p-4 rounded-xl border flex flex-col justify-between transition-colors",
+                      isEligible ? "bg-green-500/5 border-green-500/20" : "bg-amber-500/5 border-amber-500/20"
+                    )}>
+                      <div>
+                        <span className={cn(
+                          "text-[10px] font-bold uppercase tracking-wider",
+                          isEligible ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-400"
+                        )}>
+                          Borrowing Power ({maxLoanPercentage}%)
+                        </span>
+                        <p className={cn(
+                          "text-2xl font-bold font-headline mt-1",
+                          isEligible ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-400"
+                        )}>
+                          {formatCurrency(borrowingPower, currency)}
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        {maxLoanPercentage}% of verified savings
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Borrow Status Assessment Card */}
+                  <div className={cn(
+                    "p-4 rounded-xl border flex items-start gap-3.5",
+                    isEligible ? "bg-green-500/10 border-green-500/20 text-green-900 dark:text-green-200" : "bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-200"
+                  )}>
+                    {isEligible ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    )}
+                    <div className="space-y-1 text-xs">
+                      <p className="font-bold text-sm">
+                        {isEligible 
+                          ? `Eligible: Requested loan is within borrowing power (${coveragePercent}%)` 
+                          : `Policy Alert: Requested amount exceeds borrowing power`}
+                      </p>
+                      <p className="leading-relaxed opacity-90">
+                        {isEligible ? (
+                          <>
+                            The applicant has <strong>{formatCurrency(verifiedContributions, currency)}</strong> in verified savings, entitling them to borrow up to <strong>{formatCurrency(borrowingPower, currency)}</strong> under the {maxLoanPercentage}% policy.
+                            {activeDebt > 0 && ` (Existing active debt: ${formatCurrency(activeDebt, currency)}, net headroom: ${formatCurrency(netAvailablePower, currency)}).`}
+                          </>
+                        ) : (
+                          <>
+                            The requested amount of <strong>{formatCurrency(requestedAmt, currency)}</strong> exceeds the calculated borrowing power of <strong>{formatCurrency(borrowingPower, currency)}</strong> by <strong>{formatCurrency(requestedAmt - borrowingPower, currency)}</strong>. Member has <strong>{formatCurrency(verifiedContributions, currency)}</strong> in verified savings.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Purpose / Description */}
+                  {selectedLoan.description && (
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Applicant Stated Purpose
+                      </Label>
+                      <div className="p-3 bg-muted/40 rounded-xl text-xs text-foreground italic border border-border/50">
+                        &ldquo;{selectedLoan.description}&rdquo;
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Repayment Breakdown */}
+                  <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Financial Schedule Projection
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2.5 bg-background rounded-lg border border-border">
+                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Interest ({globalRate}%)</p>
+                        <p className="text-xs font-bold text-primary mt-0.5">{formatCurrency(loanInterest, currency)}</p>
+                      </div>
+                      <div className="p-2.5 bg-background rounded-lg border border-border">
+                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Total Repayable</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">{formatCurrency(totalPayable, currency)}</p>
+                      </div>
+                      <div className="p-2.5 bg-background rounded-lg border border-border">
+                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Monthly Est.</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">{formatCurrency(monthlyPayment, currency)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Approval Parameters */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold uppercase tracking-wider">Duration (Months)</Label>
+                      <Input 
+                        name="durationMonths" 
+                        type="number" 
+                        defaultValue={loanDuration} 
+                        required 
+                        min="1" 
+                        max="60"
+                        className="h-10 rounded-xl bg-muted/40 border-border" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold uppercase tracking-wider">Disbursement Date</Label>
+                      <Input 
+                        name="startDate" 
+                        type="date" 
+                        defaultValue={new Date().toISOString().split('T')[0]} 
+                        required 
+                        className="h-10 rounded-xl bg-muted/40 border-border" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Audit Justification */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider">Audit Approval / Credit Note</Label>
+                    <Textarea 
+                      name="justification" 
+                      placeholder="Credit committee approval rationale, e.g. Approved within 200% savings limit..." 
+                      required 
+                      rows={2}
+                      className="rounded-xl bg-muted/40 border-border text-xs resize-none" 
+                    />
+                  </div>
+                </div>
+
+                {/* Footer Controls */}
+                <DialogFooter className="p-6 pt-4 bg-muted/20 border-t flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsReviewOpen(false);
+                      setIsRejectOpen(true);
+                    }}
+                    className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-5 w-full sm:w-auto"
+                  >
+                    <Ban className="mr-2 h-4 w-4" /> Reject Request
+                  </Button>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setIsReviewOpen(false)}
+                      className="rounded-xl font-bold h-11 px-4 flex-1 sm:flex-none"
+                    >
+                      Close
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-6 flex-1 sm:flex-none"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                      ) : (
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                      )}
+                      Approve &amp; Disburse
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </form>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
