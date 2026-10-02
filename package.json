@@ -1,4 +1,3 @@
-
 {
   "name": "nextn",
   "version": "0.1.0",
@@ -48,6 +47,7 @@
     "date-fns": "latest",
     "dotenv": "latest",
     "embla-carousel-react": "latest",
+    "events": "latest",
     "firebase": "latest",
     "firebase-admin": "latest",
     "firebase-functions": "latest",
@@ -62,17 +62,17 @@
     "recharts": "latest",
     "tailwind-merge": "latest",
     "tailwindcss-animate": "latest",
-    "zod": "latest",
-    "events": "latest"
+    "xlsx": "^0.18.5",
+    "zod": "latest"
   },
   "devDependencies": {
+    "@types/events": "latest",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "genkit-cli": "latest",
     "postcss": "latest",
     "tailwindcss": "latest",
-    "typescript": "latest",
-    "@types/events": "latest"
+    "typescript": "latest"
   }
 }

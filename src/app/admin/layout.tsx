@@ -178,9 +178,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // 2. Authenticated but NOT an Admin: Access Denied Screen
-  const isAdmin = userData?.role === 'admin';
-  if (!isAdmin) {
+  // 2. Authenticated but NOT an Admin or Accountant: Access Denied Screen
+  const hasAccess = userData?.role === 'admin' || userData?.role === 'accountant';
+  if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md shadow-2xl border-destructive/20 text-center">
@@ -194,12 +194,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               Access Restricted
             </CardTitle>
             <CardDescription>
-              The account <strong>{user.email}</strong> does not have administrator privileges.
+              The account <strong>{user.email}</strong> does not have administrator or accountant privileges.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Please sign in with an authorized administrator account or return to the main dashboard.
+              Please sign in with an authorized administrator or accountant account or return to the main dashboard.
             </p>
             <Button variant="outline" onClick={() => router.push('/')} className="w-full h-11 rounded-xl">
               Return to Member Portal
@@ -213,13 +213,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // 3. Authenticated as Admin: Full Admin Console Layout
+  // 3. Authenticated as Admin or Accountant: Console Layout
+  const isAccountant = userData?.role === 'accountant';
   const menuItems = [
     { href: '/admin', label: 'Main Dashboard', icon: Home },
-    { href: '/members', label: 'Members', icon: Users },
-    { href: '/contributions', label: 'Contributions', icon: Wallet },
-    { href: '/reports', label: 'Reports', icon: Flag },
-    { href: '/admin/settings', label: 'Settings', icon: Settings },
+    { href: '/admin/contributions', label: 'Bulk Contributions', icon: Wallet },
+    ...(!isAccountant ? [
+      { href: '/members', label: 'Members', icon: Users },
+      { href: '/reports', label: 'Reports', icon: Flag },
+      { href: '/admin/settings', label: 'Settings', icon: Settings },
+    ] : [
+      { href: '/reports', label: 'Reports', icon: Flag },
+    ])
   ];
 
   const isRootLevel = pathname === '/admin';

@@ -242,6 +242,7 @@ export default function MembersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Administrator (Full Control)</SelectItem>
+                    <SelectItem value="accountant">Accountant (Payroll & Finance)</SelectItem>
                     <SelectItem value="management">Management (Approvals Only)</SelectItem>
                     <SelectItem value="member">General Member</SelectItem>
                   </SelectContent>
@@ -328,8 +329,17 @@ export default function MembersPage() {
                       <div className="text-[11px] text-muted-foreground">{member.email}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize border-primary/20 text-primary font-bold text-[10px] px-3">
-                        {member.role}
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "capitalize font-bold text-[10px] px-3 border-none",
+                          member.role === 'admin' && "bg-primary/10 text-primary",
+                          member.role === 'accountant' && "bg-blue-500/10 text-blue-600",
+                          member.role === 'management' && "bg-amber-500/10 text-amber-600",
+                          (!member.role || member.role === 'member') && "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {member.role || 'member'}
                       </Badge>
                     </TableCell>
                     <TableCell>

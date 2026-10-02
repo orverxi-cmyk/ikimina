@@ -10,7 +10,8 @@ import {
   HandCoins, 
   FileText, 
   Settings,
-  Landmark
+  Landmark,
+  FileSpreadsheet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -53,7 +54,11 @@ export function AppSidebar() {
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
   ];
 
-  if (role === 'admin' || role === 'management') {
+  if (role === 'admin' || role === 'accountant') {
+    menuItems.push({ href: '/admin/contributions', label: 'Bulk Contributions', icon: FileSpreadsheet });
+  }
+
+  if (role === 'admin' || role === 'management' || role === 'accountant') {
     menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   }
 
@@ -70,7 +75,13 @@ export function AppSidebar() {
           Internal System
         </h2>
         <span className="text-sm font-bold text-primary">
-          {role === 'admin' ? 'Administrator Console' : role === 'management' ? 'Management Console' : 'Member Portal'}
+          {role === 'admin' 
+            ? 'Administrator Console' 
+            : role === 'accountant'
+            ? 'Accountant Console'
+            : role === 'management' 
+            ? 'Management Console' 
+            : 'Member Portal'}
         </span>
       </div>
 

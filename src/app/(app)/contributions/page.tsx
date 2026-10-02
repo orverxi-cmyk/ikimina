@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw, Plus } from 'lucide-react';
+import { History, AlertCircle, Loader2, ShieldCheck, Upload, FileText, Info, Eye, Clock, Ban, CheckCircle2, RotateCcw, Plus, FileSpreadsheet } from 'lucide-react';
+import Link from 'next/link';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, where, doc } from 'firebase/firestore';
 import { useFirestore, useFirebaseApp } from '@/firebase/provider';
@@ -46,7 +47,8 @@ export default function ContributionsPage() {
   const [activeTab, setActiveTab] = useState('history');
 
   const role = userData?.role || 'member';
-  const isManagement = role === 'management' || role === 'admin';
+  const isManagement = role === 'management' || role === 'admin' || role === 'accountant';
+  const isAccountantOrAdmin = role === 'admin' || role === 'accountant';
   const isLoading = userDataLoading;
 
   // Firestore Subscriptions
@@ -240,6 +242,11 @@ export default function ContributionsPage() {
                   >
                     {h.status}
                   </Badge>
+                  {(h.source === 'payroll_deduction' || h.paymentMethod === 'payroll_deduction') && (
+                    <Badge variant="outline" className="text-[8px] uppercase font-bold border-blue-500/30 text-blue-600 bg-blue-500/5">
+                      Payroll
+                    </Badge>
+                  )}
                   {h.status === 'rejected' && !isManagement && (
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedContribution(h); setIsVerifyOpen(true); }}>
                        <AlertCircle className="h-3.5 w-3.5 text-destructive" />
@@ -266,16 +273,23 @@ export default function ContributionsPage() {
         <div>
           <h1 className="text-3xl font-headline font-bold">Savings & Contributions</h1>
           <p className="text-muted-foreground font-medium">
-            {isManagement ? "Audit and verify member savings" : "Track your verified wealth and pending submissions"}
+            {isManagement ? "Audit, record, and bulk-import member savings" : "Track your verified wealth and pending submissions"}
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="bg-primary/10 px-6 py-3 rounded-2xl border border-primary/20">
             <p className="text-xs text-primary font-bold uppercase tracking-wider">
               {isManagement ? "Total Verified Fund Value" : "My Verified Balance"}
             </p>
             <p className="text-2xl font-bold">{formatCurrency(totalVerifiedBalance, currency)}</p>
           </div>
+          {isAccountantOrAdmin && (
+            <Button asChild variant="outline" className="rounded-xl h-12 px-5 font-bold border-primary/30 text-primary hover:bg-primary/10 shadow-sm">
+              <Link href="/admin/contributions">
+                <FileSpreadsheet className="mr-2 h-5 w-5" /> Bulk Upload (Excel)
+              </Link>
+            </Button>
+          )}
           {isManagement && (
             <Button onClick={() => setIsManualEntryOpen(true)} className="rounded-xl h-12 px-6 font-bold shadow-lg">
               <Plus className="mr-2 h-5 w-5" /> Manual Entry

@@ -181,6 +181,33 @@ export async function rejectContributionAction(uid: string, data: { contribution
 }
 
 /**
+ * Bulk uploads staff source-deducted contributions from Excel data in Cloud Functions.
+ */
+export async function bulkUploadContributionsAction(data: {
+  items: Array<{
+    memberId: string;
+    amount: number;
+    period?: string;
+    deductionDate?: string;
+    notes?: string;
+    staffName?: string;
+    staffEmail?: string;
+  }>;
+  defaultPeriod?: string;
+  justification?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const bulkFn = httpsCallable(functions, 'bulkUploadContributions');
+  try {
+    const result = await bulkFn(data);
+    return result.data as { success: boolean; batchId: string; count: number; totalAmount: number };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to process bulk upload.');
+  }
+}
+
+
+/**
  * Records a loan repayment in Cloud Functions.
  */
 export async function recordRepaymentAction(data: { loanId: string, amount: number, proofUrl: string, justification?: string }) {
