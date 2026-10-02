@@ -36,7 +36,9 @@ import {
   AlertTriangle,
   Search,
   Receipt,
-  CheckSquare
+  CheckSquare,
+  RotateCcw,
+  Undo2
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc, limit, where } from 'firebase/firestore';
@@ -62,7 +64,9 @@ import {
   bulkReviewContributionBatchesAction,
   bulkApproveContributionBatchesAction,
   bulkVerifyContributionsAction,
-  bulkRejectContributionsAction
+  bulkRejectContributionsAction,
+  reverseContributionAction,
+  bulkReverseContributionsAction
 } from '@/lib/finance-client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
@@ -130,6 +134,14 @@ export default function AdminContributionsBulkUploadPage() {
   const [bulkSlipDecision, setBulkSlipDecision] = useState<'verify' | 'reject'>('verify');
   const [bulkSlipJustification, setBulkSlipJustification] = useState('');
 
+  // Reversal States (Admin Area)
+  const [selectedVerifiedContributionIds, setSelectedVerifiedContributionIds] = useState<string[]>([]);
+  const [isReverseModalOpen, setIsReverseModalOpen] = useState(false);
+  const [targetContributionToReverse, setTargetContributionToReverse] = useState<any | null>(null);
+  const [reversalJustification, setReversalJustification] = useState('');
+  const [isReversing, setIsReversing] = useState(false);
+  const [historySubTab, setHistorySubTab] = useState<'batches' | 'verified_slips' | 'reversed_slips'>('batches');
+
   // Inspect Modal Search
   const [inspectSearchTerm, setInspectSearchTerm] = useState('');
 
@@ -149,9 +161,27 @@ export default function AdminContributionsBulkUploadPage() {
   }, [firestore]);
   const { data: pendingSlipsSnap } = useCollection(pendingSlipsQuery);
 
+  const verifiedContributionsQuery = useMemoFirebase(() => {
+    return query(collection(firestore, 'contributions'), where('status', '==', 'verified'), limit(150));
+  }, [firestore]);
+  const { data: verifiedContributionsSnap } = useCollection(verifiedContributionsQuery);
+
+  const reversedContributionsQuery = useMemoFirebase(() => {
+    return query(collection(firestore, 'contributions'), where('status', '==', 'reversed'), limit(100));
+  }, [firestore]);
+  const { data: reversedContributionsSnap } = useCollection(reversedContributionsQuery);
+
   const pendingSlips = useMemo(() => {
     return pendingSlipsSnap?.docs.map((d) => ({ id: d.id, ...d.data() })) || [];
   }, [pendingSlipsSnap]);
+
+  const verifiedContributions = useMemo(() => {
+    return verifiedContributionsSnap?.docs.map((d) => ({ id: d.id, ...d.data() })) || [];
+  }, [verifiedContributionsSnap]);
+
+  const reversedContributions = useMemo(() => {
+    return reversedContributionsSnap?.docs.map((d) => ({ id: d.id, ...d.data() })) || [];
+  }, [reversedContributionsSnap]);
 
   const registeredMembers: RegisteredMember[] = useMemo(() => {
     return (membersSnap?.docs.map((d) => ({
@@ -245,6 +275,20 @@ export default function AdminContributionsBulkUploadPage() {
   const toggleSlip = (slipId: string) => {
     setSelectedPendingSlipIds(prev => 
       prev.includes(slipId) ? prev.filter(id => id !== slipId) : [...prev, slipId]
+    );
+  };
+
+  const toggleSelectAllVerifiedContributions = () => {
+    if (selectedVerifiedContributionIds.length === verifiedContributions.length) {
+      setSelectedVerifiedContributionIds([]);
+    } else {
+      setSelectedVerifiedContributionIds(verifiedContributions.map((c: any) => c.id));
+    }
+  };
+
+  const toggleVerifiedContribution = (contribId: string) => {
+    setSelectedVerifiedContributionIds(prev => 
+      prev.includes(contribId) ? prev.filter(id => id !== contribId) : [...prev, contribId]
     );
   };
 
@@ -683,6 +727,53 @@ export default function AdminContributionsBulkUploadPage() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleExecuteReversal = async () => {
+    if (!reversalJustification.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Justification Required",
+        description: "Please enter an audit reason for reversing the contribution approval."
+      });
+      return;
+    }
+
+    setIsReversing(true);
+    try {
+      if (targetContributionToReverse) {
+        await reverseContributionAction({
+          contributionId: targetContributionToReverse.id,
+          justification: reversalJustification.trim()
+        });
+        toast({
+          title: "Approval Reversed",
+          description: `Contribution of ${formatCurrency(targetContributionToReverse.amount || 0, currency)} has been marked reversed and deducted from member savings.`
+        });
+      } else if (selectedVerifiedContributionIds.length > 0) {
+        const result = await bulkReverseContributionsAction({
+          contributionIds: selectedVerifiedContributionIds,
+          justification: reversalJustification.trim()
+        });
+        toast({
+          title: `Bulk Approvals Reversed (${result.count} Records)`,
+          description: "All selected contributions have been reversed and deducted from verified member balances."
+        });
+      }
+
+      setIsReverseModalOpen(false);
+      setTargetContributionToReverse(null);
+      setSelectedVerifiedContributionIds([]);
+      setReversalJustification('');
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Reversal Failed",
+        description: err.message || "Failed to reverse contribution approval."
+      });
+    } finally {
+      setIsReversing(false);
     }
   };
 
@@ -1773,90 +1864,344 @@ export default function AdminContributionsBulkUploadPage() {
         </TabsContent>
 
         {/* ============================================================ */}
-        {/* TAB 4: COMMITTED LEDGER & HISTORY */}
+        {/* TAB 5: COMMITTED LEDGER & REVERSAL AUDIT HUB */}
         {/* ============================================================ */}
         <TabsContent value="history" className="space-y-6">
-          <Card className="shadow-sm border border-border">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <History className="h-5 w-5 text-primary" />
-                    Committed Batches Ledger History
-                  </CardTitle>
-                  <CardDescription>
-                    Permanent audit record of all populated contributions committed to member balances.
-                  </CardDescription>
-                </div>
-                <Button asChild variant="outline" size="sm" className="rounded-xl text-xs font-bold">
-                  <Link href="/contributions">
-                    View Contributions Ledger <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-muted/30">
-                  <TableRow>
-                    <TableHead className="px-6">Batch ID / Title</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Audit Sign-off Chain</TableHead>
-                    <TableHead>Committed Date</TableHead>
-                    <TableHead>Staff Records</TableHead>
-                    <TableHead className="text-right px-6">Total Credited</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {approvedBatches.length === 0 ? (
+          {/* Sub Navigation for Tab 5 */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                type="button"
+                size="sm"
+                variant={historySubTab === 'batches' ? 'default' : 'outline'}
+                onClick={() => setHistorySubTab('batches')}
+                className="rounded-xl text-xs font-bold gap-1.5"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Committed Batches ({approvedBatches.length})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={historySubTab === 'verified_slips' ? 'default' : 'outline'}
+                onClick={() => setHistorySubTab('verified_slips')}
+                className={cn(
+                  "rounded-xl text-xs font-bold gap-1.5",
+                  historySubTab === 'verified_slips' && "bg-green-600 hover:bg-green-700 text-white"
+                )}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Verified Contributions Ledger ({verifiedContributions.length})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={historySubTab === 'reversed_slips' ? 'default' : 'outline'}
+                onClick={() => setHistorySubTab('reversed_slips')}
+                className={cn(
+                  "rounded-xl text-xs font-bold gap-1.5",
+                  historySubTab === 'reversed_slips' && "bg-amber-600 hover:bg-amber-700 text-white"
+                )}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reversed Audit Trail ({reversedContributions.length})
+              </Button>
+            </div>
+
+            <Button asChild variant="ghost" size="sm" className="rounded-xl text-xs font-bold text-primary">
+              <Link href="/contributions">
+                View Member App Ledger <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+
+          {/* SUB-TAB 1: COMMITTED BATCHES */}
+          {historySubTab === 'batches' && (
+            <Card className="shadow-sm border border-border">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <History className="h-5 w-5 text-primary" />
+                  Committed Batches Ledger History
+                </CardTitle>
+                <CardDescription>
+                  Permanent audit record of all populated contribution batches committed by the Super Administrator.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-muted/30">
                     <TableRow>
-                      <TableCell colSpan={6} className="h-28 text-center text-muted-foreground text-xs italic">
-                        No approved batches committed to the ledger yet.
-                      </TableCell>
+                      <TableHead className="px-6">Batch ID / Title</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Audit Sign-off Chain</TableHead>
+                      <TableHead>Committed Date</TableHead>
+                      <TableHead>Staff Records</TableHead>
+                      <TableHead className="text-right">Total Credited</TableHead>
+                      <TableHead className="text-right px-6">Action</TableHead>
                     </TableRow>
-                  ) : (
-                    approvedBatches.map((b: any) => (
-                      <TableRow key={b.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="px-6 py-4">
-                          <p className="font-bold text-xs text-foreground">{b.title || 'Staff Contributions'}</p>
-                          <p className="font-mono text-[10px] text-muted-foreground">{b.batchId || b.id}</p>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[9px] uppercase font-bold">
-                            {b.type === 'historical_migration' ? 'Historical Migration' : 'Payroll Deduction'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <p className="text-[10px] text-muted-foreground">
-                            Maker: <strong className="text-foreground">{b.initiatorName || 'Accountant'}</strong>
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Reviewer: <strong className="text-foreground">{b.reviewerName || 'Reviewer'}</strong>
-                          </p>
-                          <p className="text-[10px] text-green-700 dark:text-green-400 font-bold">
-                            Approver: {b.approverName || 'Super Admin'}
-                          </p>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {b.approvedAt?.seconds 
-                            ? format(new Date(b.approvedAt.seconds * 1000), 'MMM d, yyyy HH:mm') 
-                            : '—'}
-                        </TableCell>
-                        <TableCell className="text-xs font-mono font-bold">
-                          <Badge variant="secondary" className="font-mono text-[10px]">
-                            {b.totalCount} staff
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-xs px-6 text-primary">
-                          {formatCurrency(b.totalAmount || 0, currency)}
+                  </TableHeader>
+                  <TableBody>
+                    {approvedBatches.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-28 text-center text-muted-foreground text-xs italic">
+                          No approved batches committed to the ledger yet.
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                    ) : (
+                      approvedBatches.map((b: any) => (
+                        <TableRow key={b.id} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="px-6 py-4">
+                            <p className="font-bold text-xs text-foreground">{b.title || 'Staff Contributions'}</p>
+                            <p className="font-mono text-[10px] text-muted-foreground">{b.batchId || b.id}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[9px] uppercase font-bold">
+                              {b.type === 'historical_migration' ? 'Historical Migration' : 'Payroll Deduction'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <p className="text-[10px] text-muted-foreground">
+                              Maker: <strong className="text-foreground">{b.initiatorName || 'Accountant'}</strong>
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Reviewer: <strong className="text-foreground">{b.reviewerName || 'Reviewer'}</strong>
+                            </p>
+                            <p className="text-[10px] text-green-700 dark:text-green-400 font-bold">
+                              Approver: {b.approverName || 'Super Admin'}
+                            </p>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {b.approvedAt?.seconds 
+                              ? format(new Date(b.approvedAt.seconds * 1000), 'MMM d, yyyy HH:mm') 
+                              : '—'}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono font-bold">
+                            <Badge variant="secondary" className="font-mono text-[10px]">
+                              {b.totalCount} staff
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-xs text-primary">
+                            {formatCurrency(b.totalAmount || 0, currency)}
+                          </TableCell>
+                          <TableCell className="text-right px-6">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setInspectBatch(b);
+                                setIsInspectOpen(true);
+                              }}
+                              className="rounded-xl h-8 text-xs font-bold gap-1"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> Inspect Batch
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* SUB-TAB 2: VERIFIED CONTRIBUTIONS (WITH INDIVIDUAL & BULK REVERSAL) */}
+          {historySubTab === 'verified_slips' && (
+            <Card className="shadow-sm border border-border">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    Verified Member Contributions ({verifiedContributions.length})
+                  </CardTitle>
+                  <CardDescription>
+                    All active contributions verified and contributing to member borrowing power. Administrators can reverse approvals here.
+                  </CardDescription>
+                </div>
+
+                {/* Bulk Reversal Action Button */}
+                {selectedVerifiedContributionIds.length > 0 && (
+                  <div className="flex items-center gap-3 bg-destructive/10 p-2 px-3 rounded-xl border border-destructive/20 animate-fade-in">
+                    <span className="text-xs font-bold text-destructive">
+                      {selectedVerifiedContributionIds.length} Selected
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setTargetContributionToReverse(null);
+                        setIsReverseModalOpen(true);
+                      }}
+                      className="rounded-xl font-bold text-xs gap-1.5 shadow-sm"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Bulk Reverse Approvals ({selectedVerifiedContributionIds.length})
+                    </Button>
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow>
+                      <TableHead className="w-12 px-4 text-center">
+                        <Checkbox
+                          checked={
+                            verifiedContributions.length > 0 &&
+                            selectedVerifiedContributionIds.length === verifiedContributions.length
+                          }
+                          onCheckedChange={toggleSelectAllVerifiedContributions}
+                          aria-label="Select all verified contributions"
+                        />
+                      </TableHead>
+                      <TableHead>Staff Member</TableHead>
+                      <TableHead>Period</TableHead>
+                      <TableHead>Approved Date</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right px-6">Reversal Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {verifiedContributions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-28 text-center text-muted-foreground text-xs italic">
+                          No verified contributions recorded.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      verifiedContributions.map((c: any) => {
+                        const isSelected = selectedVerifiedContributionIds.includes(c.id);
+                        const member = registeredMembers.find(m => m.id === c.memberId);
+
+                        return (
+                          <TableRow key={c.id} className={cn("hover:bg-muted/30 transition-colors", isSelected && "bg-destructive/5")}>
+                            <TableCell className="w-12 px-4 text-center">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleVerifiedContribution(c.id)}
+                                aria-label={`Select contribution ${c.id}`}
+                              />
+                            </TableCell>
+                            <TableCell className="py-3">
+                              <div className="flex items-center gap-2.5">
+                                <Avatar className="h-7 w-7 border shrink-0">
+                                  <AvatarImage src={member?.avatarUrl} />
+                                  <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
+                                    {(member?.name || c.staffName || 'M').slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-bold text-xs text-foreground">{member?.name || c.staffName || 'Member'}</p>
+                                  <p className="text-[10px] text-muted-foreground">{member?.email || c.staffEmail || c.memberId}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs font-medium">
+                              {c.period || '—'}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {c.verifiedAt?.seconds 
+                                ? format(new Date(c.verifiedAt.seconds * 1000), 'MMM d, yyyy') 
+                                : c.date?.seconds 
+                                ? format(new Date(c.date.seconds * 1000), 'MMM d, yyyy') 
+                                : '—'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-[9px] uppercase font-bold">
+                                {c.batchId ? 'Bulk Batch' : c.source === 'payroll_deduction' ? 'Payroll' : 'Member Slip'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-xs text-primary">
+                              {formatCurrency(c.amount || 0, currency)}
+                            </TableCell>
+                            <TableCell className="text-right px-6">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setTargetContributionToReverse(c);
+                                  setIsReverseModalOpen(true);
+                                }}
+                                className="rounded-xl h-8 text-xs font-bold gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" /> Reverse Approval
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* SUB-TAB 3: REVERSED AUDIT TRAIL */}
+          {historySubTab === 'reversed_slips' && (
+            <Card className="shadow-sm border border-border">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-amber-600">
+                  <RotateCcw className="h-5 w-5" />
+                  Reversed Contribution Approvals Audit Log ({reversedContributions.length})
+                </CardTitle>
+                <CardDescription>
+                  Full audit record of all contribution approvals reversed by administrators, including reasons and timestamps.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow>
+                      <TableHead className="px-6">Staff Member</TableHead>
+                      <TableHead>Period</TableHead>
+                      <TableHead>Amount Reversed</TableHead>
+                      <TableHead>Reversed Date</TableHead>
+                      <TableHead>Reversed By</TableHead>
+                      <TableHead className="px-6">Audit Justification</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {reversedContributions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-28 text-center text-muted-foreground text-xs italic">
+                          No contribution approvals have been reversed.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      reversedContributions.map((r: any) => {
+                        const member = registeredMembers.find(m => m.id === r.memberId);
+                        return (
+                          <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="px-6 py-4">
+                              <p className="font-bold text-xs text-foreground">{member?.name || r.staffName || 'Member'}</p>
+                              <p className="text-[10px] text-muted-foreground">{member?.email || r.staffEmail || r.memberId}</p>
+                            </TableCell>
+                            <TableCell className="text-xs font-medium">{r.period || '—'}</TableCell>
+                            <TableCell className="font-bold text-xs text-destructive">
+                              -{formatCurrency(r.amount || 0, currency)}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {r.reversedAt?.seconds 
+                                ? format(new Date(r.reversedAt.seconds * 1000), 'MMM d, yyyy HH:mm') 
+                                : '—'}
+                            </TableCell>
+                            <TableCell className="text-xs font-bold text-foreground">
+                              {r.reversedByName || r.reversedBy || 'Administrator'}
+                            </TableCell>
+                            <TableCell className="px-6 text-xs text-muted-foreground italic max-w-xs truncate">
+                              &ldquo;{r.reversalJustification || 'Approval reversed by admin'}&rdquo;
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -2369,6 +2714,75 @@ export default function AdminContributionsBulkUploadPage() {
                 <CheckCircle2 className="h-4 w-4" />
               )}
               Confirm {bulkSlipDecision === 'verify' ? 'Verification' : 'Rejection'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* REVERSE CONTRIBUTION APPROVAL DIALOG */}
+      <Dialog open={isReverseModalOpen} onOpenChange={setIsReverseModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-destructive">
+              <RotateCcw className="h-5 w-5" /> Reverse Contribution Approval
+            </DialogTitle>
+            <DialogDescription>
+              {targetContributionToReverse ? (
+                <>
+                  Reverse approval for <strong>{registeredMembers.find(m => m.id === targetContributionToReverse.memberId)?.name || targetContributionToReverse.staffName || 'Member'}</strong>&apos;s contribution of <strong>{formatCurrency(targetContributionToReverse.amount || 0, currency)}</strong>.
+                </>
+              ) : (
+                <>
+                  Bulk reverse approval for <strong>{selectedVerifiedContributionIds.length}</strong> selected verified contributions.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/30 text-xs text-amber-950 dark:text-amber-200 space-y-1">
+              <p className="font-bold flex items-center gap-1">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                Financial &amp; Audit Impact
+              </p>
+              <p>
+                Reversing this approval sets status to <code>reversed</code>. The credited amount will be authoritatively deducted from verified member savings and their borrowing power will be immediately recalculated.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">
+                Reversal Justification / Audit Note <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={reversalJustification}
+                onChange={(e) => setReversalJustification(e.target.value)}
+                placeholder="e.g. Inadvertent duplicate payroll credit, adjustment per payroll audit amendment..."
+                rows={3}
+                className="rounded-xl text-xs resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setIsReverseModalOpen(false)}
+              className="rounded-xl font-bold text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isReversing}
+              onClick={handleExecuteReversal}
+              className="rounded-xl font-bold text-xs gap-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-md"
+            >
+              {isReversing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              Confirm Reversal
             </Button>
           </DialogFooter>
         </DialogContent>

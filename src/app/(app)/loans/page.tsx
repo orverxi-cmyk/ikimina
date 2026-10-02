@@ -23,7 +23,9 @@ import {
   Ban,
   Lock,
   ChevronRight,
-  User as UserIcon
+  User as UserIcon,
+  Undo2,
+  Sparkles
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -47,7 +49,13 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, isPast } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { recordRepaymentAction, verifyRepaymentAction, approveLoanAction, rejectLoanAction } from '@/lib/finance-client';
+import { 
+  recordRepaymentAction, 
+  verifyRepaymentAction, 
+  approveLoanAction, 
+  rejectLoanAction,
+  withdrawLoanApplicationAction 
+} from '@/lib/finance-client';
 import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
 import { useSettings } from '@/context/settings-context';
@@ -67,14 +75,19 @@ function LoansPageContent() {
   const globalRate = settings.loanInterestRate;
   const globalPenaltyRate = settings.penaltyRate;
   const globalInterestType = settings.interestType;
+  const minLoanAmount = settings.minLoanAmount || 5000;
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [isRepayOpen, setIsRepayOpen] = useState(false);
   const [isVerifyRepayOpen, setIsVerifyRepayOpen] = useState(false);
   const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [isViewScheduleOpen, setIsViewScheduleOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [loanToWithdraw, setLoanToWithdraw] = useState<any>(null);
+  const [withdrawReason, setWithdrawReason] = useState('');
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
@@ -94,6 +107,12 @@ function LoansPageContent() {
     return query(collection(firestore, 'repayments'), where('status', '==', 'pending'), orderBy('date', 'desc'));
   }, [user, isManagement, userDataLoading]);
 
+  const verifiedRepaymentsQuery = useMemoFirebase(() => {
+    if (!user || userDataLoading) return null;
+    if (isManagement) return query(collection(firestore, 'repayments'), where('status', '==', 'verified'));
+    return query(collection(firestore, 'repayments'), where('memberId', '==', user.uid), where('status', '==', 'verified'));
+  }, [user, isManagement, userDataLoading]);
+
   const membersQuery = useMemoFirebase(() => {
     if (!user || !isManagement) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
@@ -107,11 +126,13 @@ function LoansPageContent() {
 
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: repaymentsSnap } = useCollection(repaymentsQuery);
+  const { data: verifiedRepaymentsSnap } = useCollection(verifiedRepaymentsQuery);
   const { data: membersSnap } = useCollection(membersQuery);
   const { data: contributionsSnap } = useCollection(contributionsQuery);
 
-  const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
+  const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...(d.data() as any) })) || [], [loansSnap]);
   const pendingRepayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
+  const allVerifiedRepayments = useMemo(() => verifiedRepaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [verifiedRepaymentsSnap]);
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const allContributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
 
@@ -136,6 +157,12 @@ function LoansPageContent() {
     return Math.round((verified * maxLoanPercentage) / 100);
   };
 
+  const getLoanRepaidPrincipal = (loanId: string, principalAmount: number) => {
+    const list = allVerifiedRepayments.filter((r: any) => r.loanId === loanId);
+    const totalRepaid = list.reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
+    return Math.min(principalAmount, totalRepaid);
+  };
+
   const getMember = (id: string) => {
     if (id === user?.uid) return userData;
     return (members as any[]).find((m: any) => m.id === id);
@@ -151,7 +178,29 @@ function LoansPageContent() {
 
   const pendingRequests = useMemo(() => loans.filter((l: any) => l.status === 'requested'), [loans]);
   const activeLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved'), [loans]);
-  const historyLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved' || l.status === 'rejected' || l.status === 'completed' || l.status === 'requested'), [loans]);
+  const historyLoans = useMemo(() => loans.filter((l: any) => ['approved', 'rejected', 'completed', 'requested', 'withdrawn'].includes(l.status)), [loans]);
+
+  const handleWithdrawLoan = async () => {
+    if (!loanToWithdraw) return;
+    setIsWithdrawing(true);
+    try {
+      await withdrawLoanApplicationAction({
+        loanId: loanToWithdraw.id,
+        reason: withdrawReason.trim() || 'Withdrawn by applicant'
+      });
+      toast({
+        title: "Application Withdrawn",
+        description: "Your loan application has been withdrawn. You can submit a new request anytime."
+      });
+      setIsWithdrawOpen(false);
+      setLoanToWithdraw(null);
+      setWithdrawReason('');
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Withdrawal Failed", description: error.message });
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
   
   const missedInstallments = useMemo(() => {
     const missed: any[] = [];
@@ -321,6 +370,79 @@ function LoansPageContent() {
            </div>
         </div>
       </div>
+
+      {/* Member Alerts: Pending Loan Withdrawal & Top-Up Opportunities */}
+      {!isManagement && (() => {
+        const myPending = loans.find((l: any) => l.memberId === user?.uid && l.status === 'requested') as any;
+        const myActive = loans.find((l: any) => l.memberId === user?.uid && l.status === 'approved' && (Number(l.balance) || 0) > 0) as any;
+        const myRepaid = myActive ? getLoanRepaidPrincipal(myActive.id, myActive.amount) : 0;
+        const canTopUp = myActive && myRepaid >= minLoanAmount && !myPending;
+
+        return (
+          <div className="space-y-4">
+            {myPending && (
+              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/20 text-blue-600 rounded-lg">
+                    <Clock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm text-foreground">
+                      Pending Loan Application: {formatCurrency(myPending.amount, currency)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Submitted on {myPending.requestDate?.toDate ? format(myPending.requestDate.toDate(), 'PPP') : 'recently'}. Currently undergoing management credit audit.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setLoanToWithdraw(myPending);
+                    setIsWithdrawOpen(true);
+                  }}
+                  className="rounded-xl border-blue-500/40 text-blue-700 dark:text-blue-300 hover:bg-blue-500/10 font-bold text-xs gap-1.5 shrink-0"
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Withdraw Request
+                </Button>
+              </div>
+            )}
+
+            {canTopUp && (
+              <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-primary/5 to-transparent border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/20 text-emerald-600 rounded-lg">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-sm text-foreground">
+                        Loan Top-Up Available: {formatCurrency(myRepaid, currency)}
+                      </p>
+                      <Badge className="bg-emerald-600 text-white font-bold text-[9px] uppercase">
+                        Eligible
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      You have repaid {formatCurrency(myRepaid, currency)} of your active loan. You can apply for a top-up loan today!
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  asChild
+                  className="rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shrink-0 gap-1.5"
+                >
+                  <Link href={`/loans/apply?topup=true&parentLoanId=${myActive.id}`}>
+                    <TrendingUp className="h-3.5 w-3.5" /> Apply for Top-Up
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {isManagement && (pendingRepayments.length > 0 || pendingRequests.length > 0) && (
         <Card className="border-primary/20 bg-primary/5 shadow-inner">
@@ -591,38 +713,94 @@ function LoansPageContent() {
               <CardDescription>Comprehensive record of all requested, approved, and rejected loans.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-               <Table>
+                <Table>
                 <TableHeader className="bg-muted/10">
                   <TableRow>
                     <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Purpose</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-widest">Principal</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-widest">Interest</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
-                    <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Balance</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Balance</TableHead>
+                    <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingLoans ? (
-                    <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                   ) : historyLoans.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic font-medium">No historical records found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="h-48 text-center text-muted-foreground italic font-medium">No historical records found.</TableCell></TableRow>
                   ) : (
-                    historyLoans.map((loan: any) => (
-                      <TableRow key={loan.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="px-6 py-4">
-                           <div className="font-bold text-sm">{loan.description || 'Capital Loan'}</div>
-                           <div className="text-[10px] text-muted-foreground font-medium">{format(loan.requestDate?.toDate() || new Date(), 'MMM d, yyyy')}</div>
-                        </TableCell>
-                        <TableCell className="font-medium text-sm">{formatCurrency(loan.amount, currency)}</TableCell>
-                        <TableCell className="text-xs text-orange-600 font-bold">+{formatCurrency(loan.interestAmount || 0, currency)}</TableCell>
-                        <TableCell>
-                           <Badge variant={loan.status === 'rejected' ? 'destructive' : loan.status === 'requested' ? 'secondary' : 'outline'} className="uppercase font-bold text-[9px] border-none bg-muted/50">
-                             {loan.status}
-                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-right px-6 font-bold text-primary">{formatCurrency(loan.balance || 0, currency)}</TableCell>
-                      </TableRow>
-                    ))
+                    historyLoans.map((loan: any) => {
+                      const isOwner = loan.memberId === user?.uid;
+                      const repaid = getLoanRepaidPrincipal(loan.id, loan.amount);
+                      const isEligibleTopUp = loan.status === 'approved' && (Number(loan.balance) || 0) > 0 && repaid >= minLoanAmount;
+
+                      return (
+                        <TableRow key={loan.id} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="px-6 py-4">
+                             <div className="font-bold text-sm flex items-center gap-1.5">
+                               {loan.description || 'Capital Loan'}
+                               {loan.isTopUp && (
+                                 <Badge className="bg-primary/10 text-primary border-none text-[8px] uppercase font-bold">
+                                   Top-Up
+                                 </Badge>
+                               )}
+                             </div>
+                             <div className="text-[10px] text-muted-foreground font-medium">{format(loan.requestDate?.toDate() || new Date(), 'MMM d, yyyy')}</div>
+                          </TableCell>
+                          <TableCell className="font-medium text-sm">{formatCurrency(loan.amount, currency)}</TableCell>
+                          <TableCell className="text-xs text-orange-600 font-bold">+{formatCurrency(loan.interestAmount || 0, currency)}</TableCell>
+                          <TableCell>
+                             <Badge 
+                               variant={
+                                 loan.status === 'rejected' ? 'destructive' : 
+                                 loan.status === 'requested' ? 'secondary' : 
+                                 loan.status === 'withdrawn' ? 'outline' : 'outline'
+                               } 
+                               className={cn(
+                                 "uppercase font-bold text-[9px] border-none",
+                                 loan.status === 'requested' && "bg-blue-500/10 text-blue-700 dark:text-blue-400",
+                                 loan.status === 'approved' && "bg-green-500/10 text-green-700 dark:text-green-400",
+                                 loan.status === 'withdrawn' && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                                 loan.status === 'rejected' && "bg-destructive/10 text-destructive",
+                                 loan.status === 'completed' && "bg-muted text-muted-foreground"
+                               )}
+                             >
+                               {loan.status}
+                             </Badge>
+                          </TableCell>
+                          <TableCell className="font-bold text-primary">{formatCurrency(loan.balance || 0, currency)}</TableCell>
+                          <TableCell className="text-right px-6">
+                            {loan.status === 'requested' && isOwner && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setLoanToWithdraw(loan);
+                                  setIsWithdrawOpen(true);
+                                }}
+                                className="h-7 text-xs font-bold rounded-lg border-destructive/30 text-destructive hover:bg-destructive/10"
+                              >
+                                <Undo2 className="h-3 w-3 mr-1" /> Withdraw
+                              </Button>
+                            )}
+
+                            {isEligibleTopUp && isOwner && (
+                              <Button
+                                size="sm"
+                                asChild
+                                variant="outline"
+                                className="h-7 text-xs font-bold rounded-lg border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
+                              >
+                                <Link href={`/loans/apply?topup=true&parentLoanId=${loan.id}`}>
+                                  <TrendingUp className="h-3 w-3 mr-1" /> Top-Up
+                                </Link>
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1222,6 +1400,49 @@ function LoansPageContent() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* WITHDRAW LOAN APPLICATION DIALOG */}
+      <Dialog open={isWithdrawOpen} onOpenChange={setIsWithdrawOpen}>
+        <DialogContent className="max-w-md rounded-2xl bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-destructive flex items-center gap-2">
+              <Undo2 className="h-5 w-5" /> Withdraw Loan Application
+            </DialogTitle>
+            <DialogDescription>
+              Cancel and withdraw your pending loan request of {loanToWithdraw ? formatCurrency(loanToWithdraw.amount, currency) : ''}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <div className="p-3 rounded-xl bg-destructive/5 border border-destructive/10 text-xs text-destructive">
+              Once withdrawn, this request will be archived and you can submit a new loan application immediately.
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">Reason for Withdrawal (Optional)</Label>
+              <Textarea 
+                value={withdrawReason} 
+                onChange={(e) => setWithdrawReason(e.target.value)} 
+                placeholder="E.g., Altering loan amount, no longer required..." 
+                className="rounded-xl bg-muted/40 text-xs resize-none" 
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setIsWithdrawOpen(false)} className="rounded-xl font-bold">
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              disabled={isWithdrawing} 
+              onClick={handleWithdrawLoan} 
+              className="rounded-xl font-bold gap-1.5"
+            >
+              {isWithdrawing ? <Loader2 className="animate-spin h-4 w-4" /> : <Undo2 className="h-4 w-4" />}
+              Confirm Withdrawal
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

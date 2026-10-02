@@ -17,7 +17,7 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
 
     const db = admin.firestore();
     const memberId = request.auth.uid;
-    const { amount, description, durationMonths = 12 } = request.data || {};
+    const { amount, description, durationMonths = 12, isTopUp = false, parentLoanId } = request.data || {};
     const loanAmount = Number(amount);
 
     if (!loanAmount || loanAmount <= 0) {
@@ -39,7 +39,55 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
         throw new HttpsError('failed-precondition', `Loan amount cannot exceed the maximum of ${maxLoanAmount}.`);
     }
 
-    // 2. Check for active or pending loans
+    let availableRepaidPrincipal = 0;
+
+    // 2. Validate top-up constraints if applying for a top-up
+    if (isTopUp) {
+        if (!parentLoanId) {
+            throw new HttpsError('invalid-argument', 'Parent active loan ID is required for a loan top-up.');
+        }
+
+        const parentLoanRef = db.collection('loans').doc(parentLoanId);
+        const parentLoanSnap = await parentLoanRef.get();
+
+        if (!parentLoanSnap.exists) {
+            throw new HttpsError('not-found', 'Parent loan record not found.');
+        }
+
+        const parentLoanData = parentLoanSnap.data()!;
+        if (parentLoanData.memberId !== memberId) {
+            throw new HttpsError('permission-denied', 'You can only top up your own active loan.');
+        }
+
+        if (parentLoanData.status !== 'approved' || (Number(parentLoanData.balance) || 0) <= 0) {
+            throw new HttpsError('failed-precondition', 'Parent loan must be an active approved loan with an outstanding balance.');
+        }
+
+        // Compute verified repayments towards parent loan
+        const repaysSnap = await db.collection('repayments')
+            .where('loanId', '==', parentLoanId)
+            .where('status', '==', 'verified')
+            .get();
+
+        let totalVerifiedRepayments = 0;
+        repaysSnap.forEach(d => {
+            totalVerifiedRepayments += Number(d.data().amount) || 0;
+        });
+
+        // The maximum allowed top-up is bounded by the principal repaid on this loan so far
+        const originalPrincipal = Number(parentLoanData.amount) || 0;
+        availableRepaidPrincipal = Math.min(originalPrincipal, totalVerifiedRepayments);
+
+        if (availableRepaidPrincipal <= 0) {
+            throw new HttpsError('failed-precondition', 'You have not repaid any principal on your active loan yet. Make verified repayments to unlock top-up capacity.');
+        }
+
+        if (loanAmount > availableRepaidPrincipal) {
+            throw new HttpsError('failed-precondition', `Requested top-up amount (${loanAmount}) exceeds your available repaid principal of ${availableRepaidPrincipal}.`);
+        }
+    }
+
+    // 3. Check for active or pending loans
     const existingLoansSnap = await db.collection('loans')
         .where('memberId', '==', memberId)
         .get();
@@ -47,14 +95,14 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
     for (const doc of existingLoansSnap.docs) {
         const l = doc.data();
         if (l.status === 'requested') {
-            throw new HttpsError('already-exists', 'You already have a pending loan request under review.');
+            throw new HttpsError('already-exists', 'You already have a pending loan request under review. You can withdraw it if you want to change your request.');
         }
-        if (l.status === 'approved' && (Number(l.balance) || 0) > 0) {
-            throw new HttpsError('failed-precondition', 'You must fully repay your active loan before requesting a new one.');
+        if (!isTopUp && l.status === 'approved' && (Number(l.balance) || 0) > 0) {
+            throw new HttpsError('failed-precondition', 'You must fully repay your active loan before requesting a new one, or apply for a loan top-up on repaid principal.');
         }
     }
 
-    // 3. Compute member's borrowing power based on verified savings and equity
+    // 4. Compute member's borrowing power based on verified savings and equity
     const contribsSnap = await db.collection('contributions')
         .where('memberId', '==', memberId)
         .where('status', '==', 'verified')
@@ -92,21 +140,94 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
         throw new HttpsError('failed-precondition', `Requested amount exceeds your borrowing power limit of ${effectiveLimit}.`);
     }
 
-    // 4. Create loan application
+    // 5. Create loan application
     const loanRef = db.collection('loans').doc();
     await loanRef.set({
         memberId,
         amount: loanAmount,
-        description: description || 'Member capital loan application',
+        description: description || (isTopUp ? `Loan Top-Up against facility #${parentLoanId.slice(0, 7)}` : 'Member capital loan application'),
         status: 'requested',
         requestDate: admin.firestore.FieldValue.serverTimestamp(),
         balance: 0,
         interestAmount: 0,
         penaltyRate: 0,
         durationMonths: Number(durationMonths) || 12,
+        isTopUp: Boolean(isTopUp),
+        parentLoanId: isTopUp ? parentLoanId : null,
+        repaidPrincipalAtRequest: isTopUp ? availableRepaidPrincipal : null
     });
 
-    return { success: true, loanId: loanRef.id };
+    return { 
+        success: true, 
+        loanId: loanRef.id,
+        isTopUp: Boolean(isTopUp)
+    };
+});
+
+/**
+ * Allows a member to withdraw their own pending loan application before management review.
+ */
+export const withdrawLoanApplication = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const { loanId, reason } = request.data || {};
+    if (!loanId) throw new HttpsError('invalid-argument', 'Loan ID is required.');
+
+    const db = admin.firestore();
+    const loanRef = db.collection('loans').doc(loanId);
+    const loanSnap = await loanRef.get();
+
+    if (!loanSnap.exists) {
+        throw new HttpsError('not-found', 'Loan application not found.');
+    }
+
+    const loanData = loanSnap.data()!;
+
+    // Check ownership or admin
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerSnap.data()?.role;
+    const isOwner = loanData.memberId === request.auth.uid;
+    const isAdmin = callerRole === 'admin' || callerRole === 'management';
+
+    if (!isOwner && !isAdmin) {
+        throw new HttpsError('permission-denied', 'You can only withdraw your own loan application.');
+    }
+
+    if (loanData.status !== 'requested') {
+        throw new HttpsError('failed-precondition', `Cannot withdraw loan with status '${loanData.status}'. Only pending requests under review can be withdrawn.`);
+    }
+
+    const withdrawalReason = (reason && typeof reason === 'string' && reason.trim()) ? reason.trim() : 'Withdrawn by applicant';
+
+    const batch = db.batch();
+    batch.update(loanRef, {
+        status: 'withdrawn',
+        withdrawnAt: admin.firestore.FieldValue.serverTimestamp(),
+        withdrawnBy: request.auth.uid,
+        withdrawalReason
+    });
+
+    const auditRef = db.collection('audit_logs').doc();
+    batch.set(auditRef, {
+        adminId: request.auth.uid,
+        action: 'WITHDRAW_LOAN_APPLICATION',
+        justification: withdrawalReason,
+        details: {
+            loanId,
+            memberId: loanData.memberId,
+            amount: loanData.amount,
+            isTopUp: Boolean(loanData.isTopUp)
+        },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await batch.commit();
+
+    return {
+        success: true,
+        loanId,
+        status: 'withdrawn'
+    };
 });
 
 /**

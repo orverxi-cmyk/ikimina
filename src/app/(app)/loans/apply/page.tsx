@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -17,7 +17,10 @@ import {
   Wallet,
   AlertTriangle,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Undo2,
+  TrendingUp,
+  RefreshCw
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, doc, where } from 'firebase/firestore';
@@ -26,17 +29,31 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/currency';
 import { useSettings } from '@/context/settings-context';
-import { requestLoanAction } from '@/lib/finance-client';
+import { requestLoanAction, withdrawLoanApplicationAction } from '@/lib/finance-client';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
-export default function LoanApplyPage() {
+function LoanApplyContent() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isTopUpRequested = searchParams?.get('topup') === 'true';
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState('');
+  const [isTopUpMode, setIsTopUpMode] = useState(isTopUpRequested);
   const [requestedAmount, setRequestedAmount] = useState<string>('');
 
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
@@ -55,7 +72,7 @@ export default function LoanApplyPage() {
   }, [user]);
 
   const { data: loansSnap, loading: loansLoading } = useCollection(loansQuery);
-  const loans = useMemo(() => loansSnap?.docs.map(d => d.data()) || [], [loansSnap]);
+  const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...(d.data() as any) })) || [], [loansSnap]);
 
   // 2. Fetch user's contributions to calculate exact borrowing power
   const contributionsQuery = useMemoFirebase(() => {
@@ -81,23 +98,71 @@ export default function LoanApplyPage() {
       .reduce((sum, c: any) => sum + (Number(c.amount) || 0), 0);
   }, [contributionsSnap]);
 
-  // 3. Compute Borrowing Power: configured percentage (e.g. 200%) of verified contributions
+  // 3. Fetch user's verified repayments to calculate repaid principal on active loans
+  const repaymentsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(
+      collection(firestore, 'repayments'),
+      where('memberId', '==', user.uid),
+      where('status', '==', 'verified')
+    );
+  }, [user]);
+
+  const { data: repaymentsSnap, loading: repaymentsLoading } = useCollection(repaymentsQuery);
+  const verifiedRepayments = useMemo(() => repaymentsSnap?.docs.map(d => d.data()) || [], [repaymentsSnap]);
+
+  // 4. Compute Borrowing Power: configured percentage (e.g. 200%) of verified contributions
   const borrowingPower = useMemo(() => {
     return Math.round((totalVerifiedContributions * maxLoanPercentage) / 100);
   }, [totalVerifiedContributions, maxLoanPercentage]);
 
-  // 4. Effective Max Limit capped by system-wide maxLoanAmount
+  // 5. Effective Max Limit capped by system-wide maxLoanAmount
   const effectiveMaxLimit = useMemo(() => {
     return Math.min(borrowingPower, maxLoanAmount);
   }, [borrowingPower, maxLoanAmount]);
 
-  // 5. Loan status guards
-  const pendingLoan = useMemo(() => loans.find((l: any) => l.status === 'requested'), [loans]);
-  const activeLoan = useMemo(() => loans.find((l: any) => l.status === 'approved' && (Number(l.balance) || 0) > 0), [loans]);
+  // 6. Loan status guards
+  const pendingLoan = useMemo(() => (loans.find((l: any) => l.status === 'requested') as any), [loans]);
+  const activeLoan = useMemo(() => (loans.find((l: any) => l.status === 'approved' && (Number(l.balance) || 0) > 0) as any), [loans]);
+
+  // 7. Calculate repaid principal on active loan
+  const repaidPrincipal = useMemo(() => {
+    if (!activeLoan) return 0;
+    const loanRepaymentsTotal = verifiedRepayments
+      .filter((r: any) => r.loanId === activeLoan.id)
+      .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
+    return Math.min(Number(activeLoan.amount) || 0, loanRepaymentsTotal);
+  }, [activeLoan, verifiedRepayments]);
+
+  // Effective Top-Up Cap: limited by repaid principal and borrowing power
+  const maxTopUpLimit = useMemo(() => {
+    return Math.min(repaidPrincipal, effectiveMaxLimit);
+  }, [repaidPrincipal, effectiveMaxLimit]);
+
+  const isEligibleForTopUp = Boolean(
+    activeLoan && repaidPrincipal >= minLoanAmount && maxTopUpLimit >= minLoanAmount && !pendingLoan
+  );
+
+  // Auto-switch to top-up mode if requested via URL or active loan is present with repaid principal
+  useEffect(() => {
+    if (isTopUpRequested && isEligibleForTopUp) {
+      setIsTopUpMode(true);
+    }
+  }, [isTopUpRequested, isEligibleForTopUp]);
 
   const hasSavings = totalVerifiedContributions > 0;
   const isBorrowingPowerEligible = effectiveMaxLimit >= minLoanAmount;
-  const canApply = hasSavings && isBorrowingPowerEligible && !pendingLoan && !activeLoan;
+
+  // Determination of canApply based on standard mode vs top-up mode
+  const canApply = useMemo(() => {
+    if (pendingLoan) return false;
+    if (isTopUpMode) {
+      return Boolean(activeLoan && isEligibleForTopUp && hasSavings);
+    }
+    return hasSavings && isBorrowingPowerEligible && !activeLoan;
+  }, [pendingLoan, isTopUpMode, activeLoan, isEligibleForTopUp, hasSavings, isBorrowingPowerEligible]);
+
+  const effectiveApplicationMax = isTopUpMode ? maxTopUpLimit : effectiveMaxLimit;
 
   const minRequiredSavings = useMemo(() => {
     if (maxLoanPercentage <= 0) return 0;
@@ -106,7 +171,33 @@ export default function LoanApplyPage() {
 
   const numericAmount = Number(requestedAmount) || 0;
   const isAmountTooLow = numericAmount > 0 && numericAmount < minLoanAmount;
-  const isAmountTooHigh = numericAmount > effectiveMaxLimit && effectiveMaxLimit > 0;
+  const isAmountTooHigh = numericAmount > effectiveApplicationMax && effectiveApplicationMax > 0;
+
+  // Handle Loan Withdrawal
+  const handleWithdrawApplication = async () => {
+    if (!pendingLoan) return;
+    setIsWithdrawing(true);
+    try {
+      await withdrawLoanApplicationAction({
+        loanId: pendingLoan.id,
+        reason: withdrawReason.trim() || 'Withdrawn by applicant'
+      });
+      toast({
+        title: "Application Withdrawn",
+        description: "Your pending loan application has been withdrawn. You may submit a new application whenever ready."
+      });
+      setIsWithdrawModalOpen(false);
+      setWithdrawReason('');
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Withdrawal Failed",
+        description: err.message || "Could not withdraw application."
+      });
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
 
   const handleApply = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -121,11 +212,20 @@ export default function LoanApplyPage() {
       return;
     }
 
-    if (activeLoan) {
+    if (activeLoan && !isTopUpMode) {
       toast({ 
         variant: "destructive", 
         title: "Active Loan Outstanding", 
-        description: `You must clear your active loan balance (${formatCurrency(activeLoan.balance, currency)}) before requesting a new loan.` 
+        description: `You must clear your active loan balance (${formatCurrency(activeLoan.balance, currency)}) before requesting a new loan, or choose Top-Up mode.` 
+      });
+      return;
+    }
+
+    if (isTopUpMode && !isEligibleForTopUp) {
+      toast({
+        variant: "destructive",
+        title: "Top-Up Not Available",
+        description: `You have repaid ${formatCurrency(repaidPrincipal, currency)}, which is below the minimum allowed loan (${formatCurrency(minLoanAmount, currency)}).`
       });
       return;
     }
@@ -161,11 +261,11 @@ export default function LoanApplyPage() {
       return;
     }
 
-    if (amount > effectiveMaxLimit) {
+    if (amount > effectiveApplicationMax) {
       toast({ 
         variant: "destructive", 
         title: "Limit Exceeded", 
-        description: `You cannot request more than your borrowing limit of ${formatCurrency(effectiveMaxLimit, currency)}.` 
+        description: `You cannot request more than the allowed limit of ${formatCurrency(effectiveApplicationMax, currency)}.` 
       });
       return;
     }
@@ -174,12 +274,16 @@ export default function LoanApplyPage() {
     try {
       await requestLoanAction({
         amount,
-        description,
-        durationMonths: 12
+        description: isTopUpMode 
+          ? `[Top-Up on Loan #${activeLoan?.id?.slice(0, 8)}] ${description}` 
+          : description,
+        durationMonths: 12,
+        isTopUp: isTopUpMode,
+        parentLoanId: isTopUpMode && activeLoan ? activeLoan.id : undefined
       });
 
       toast({ 
-        title: "Application Submitted", 
+        title: isTopUpMode ? "Top-Up Application Submitted" : "Application Submitted", 
         description: "Your loan request has been sent to management for audit and approval." 
       });
       router.push('/loans');
@@ -190,7 +294,7 @@ export default function LoanApplyPage() {
     }
   };
 
-  const isLoading = userDataLoading || loansLoading || contributionsLoading || settingsLoading;
+  const isLoading = userDataLoading || loansLoading || contributionsLoading || repaymentsLoading || settingsLoading;
 
   if (isLoading) {
     return (
@@ -208,8 +312,21 @@ export default function LoanApplyPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-headline font-bold">Request Capital Loan</h1>
-          <p className="text-sm text-muted-foreground">Submit a borrowing request based on your verified contribution standing</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-headline font-bold">
+              {isTopUpMode ? "Apply for Loan Top-Up" : "Request Capital Loan"}
+            </h1>
+            {isTopUpMode && (
+              <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase">
+                Top-Up Mode
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {isTopUpMode
+              ? `Re-borrow up to your repaid principal (${formatCurrency(repaidPrincipal, currency)}) without clearing the full loan.`
+              : "Submit a borrowing request based on your verified contribution standing"}
+          </p>
         </div>
       </div>
 
@@ -248,53 +365,113 @@ export default function LoanApplyPage() {
           </p>
         </div>
 
-        {/* Minimum Allowed Loan */}
-        <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-            <HandCoins className="h-3 w-3 text-blue-600" /> Minimum Loan
-          </p>
-          <p className="text-lg font-bold text-blue-600">
-            {formatCurrency(minLoanAmount, currency)}
-          </p>
-          <p className="text-[9px] text-muted-foreground font-medium">
-            Required minimum per request
-          </p>
-        </div>
+        {/* Repaid Principal (if active loan) OR Minimum Loan */}
+        {activeLoan ? (
+          <div className="p-4 bg-green-500/5 rounded-[10px] border border-green-500/20 space-y-1 shadow-sm">
+            <p className="text-[10px] font-bold text-green-700 dark:text-green-400 uppercase tracking-widest flex items-center gap-1">
+              <TrendingUp className="h-3 w-3 text-green-600" /> Repaid Principal
+            </p>
+            <p className="text-lg font-bold text-green-700 dark:text-green-400">
+              {formatCurrency(repaidPrincipal, currency)}
+            </p>
+            <p className="text-[9px] text-muted-foreground font-medium">
+              Available to Top-Up
+            </p>
+          </div>
+        ) : (
+          <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+              <HandCoins className="h-3 w-3 text-blue-600" /> Minimum Loan
+            </p>
+            <p className="text-lg font-bold text-blue-600">
+              {formatCurrency(minLoanAmount, currency)}
+            </p>
+            <p className="text-[9px] text-muted-foreground font-medium">
+              Required minimum per request
+            </p>
+          </div>
+        )}
 
-        {/* System Max Cap */}
+        {/* Effective Max Ceiling */}
         <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-            <Lock className="h-3 w-3 text-orange-600" /> System Cap
+            <Lock className="h-3 w-3 text-orange-600" /> {isTopUpMode ? 'Top-Up Ceiling' : 'System Cap'}
           </p>
           <p className="text-lg font-bold text-orange-600">
-            {formatCurrency(maxLoanAmount, currency)}
+            {formatCurrency(effectiveApplicationMax, currency)}
           </p>
           <p className="text-[9px] text-muted-foreground font-medium">
-            Global maximum ceiling
+            {isTopUpMode ? 'Max top-up allowed' : 'Global maximum ceiling'}
           </p>
         </div>
       </div>
 
-      {/* Informational Alerts & Eligibility Status */}
+      {/* PENDING LOAN BANNER with WITHDRAW BUTTON */}
       {pendingLoan && (
-        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex gap-3">
-          <AlertCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-          <div className="text-xs space-y-1">
-            <p className="font-bold">Pending Application Under Review</p>
-            <p className="text-blue-800">
-              You already have a submitted loan request of <strong>{formatCurrency(pendingLoan.amount, currency)}</strong> currently undergoing management audit. You can track its status in your Portfolio.
-            </p>
+        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex gap-3">
+            <AlertCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold">Pending Application Under Review</p>
+              <p className="text-blue-800">
+                You have a submitted loan request of <strong>{formatCurrency(pendingLoan.amount, currency)}</strong> currently awaiting management approval.
+              </p>
+            </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsWithdrawModalOpen(true)}
+            className="rounded-xl border-blue-300 hover:bg-blue-100 text-blue-900 font-bold text-xs gap-1.5 shrink-0 self-start sm:self-center"
+          >
+            <Undo2 className="h-3.5 w-3.5" /> Withdraw Application
+          </Button>
         </div>
       )}
 
-      {activeLoan && (
+      {/* TOP-UP OPPORTUNITY BANNER */}
+      {activeLoan && isEligibleForTopUp && !pendingLoan && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-primary/5 to-transparent border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex gap-3">
+            <TrendingUp className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold text-emerald-900 dark:text-emerald-300">
+                Loan Top-Up Available ({formatCurrency(repaidPrincipal, currency)} Repaid)
+              </p>
+              <p className="text-emerald-800 dark:text-emerald-400">
+                You have repaid <strong>{formatCurrency(repaidPrincipal, currency)}</strong> on your active loan of {formatCurrency(activeLoan.amount, currency)}. You can top-up and borrow back the repaid principal without clearing the balance!
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setIsTopUpMode(!isTopUpMode)}
+            className={isTopUpMode 
+              ? "rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shrink-0" 
+              : "rounded-xl font-bold text-xs bg-primary text-primary-foreground shrink-0"}
+          >
+            {isTopUpMode ? "Switch to Standard View" : "Apply as Top-Up"}
+          </Button>
+        </div>
+      )}
+
+      {/* ACTIVE LOAN WARNING (when not eligible for top-up or top-up mode not active) */}
+      {activeLoan && !isTopUpMode && (
         <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-orange-900 flex gap-3">
           <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
           <div className="text-xs space-y-1">
             <p className="font-bold">Active Loan Outstanding</p>
             <p className="text-orange-800">
-              You currently have an active loan with an outstanding balance of <strong>{formatCurrency(activeLoan.balance, currency)}</strong>. System policy requires clearing active loans in full before submitting new capital requests.
+              You currently have an active loan with an outstanding balance of <strong>{formatCurrency(activeLoan.balance, currency)}</strong>.
+              {isEligibleForTopUp ? (
+                <>
+                  {' '}You are eligible for a <strong>Loan Top-Up</strong> of up to <strong>{formatCurrency(maxTopUpLimit, currency)}</strong>. Click the &ldquo;Apply as Top-Up&rdquo; button above to proceed.
+                </>
+              ) : (
+                <>
+                  {' '}You have repaid {formatCurrency(repaidPrincipal, currency)}. Top-up becomes available once repaid principal reaches the minimum loan amount of {formatCurrency(minLoanAmount, currency)}.
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -339,16 +516,20 @@ export default function LoanApplyPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <HandCoins className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Loan Application</CardTitle>
+              <CardTitle className="text-lg">
+                {isTopUpMode ? "Loan Top-Up Application" : "Loan Application"}
+              </CardTitle>
             </div>
             {canApply && (
               <Badge className="bg-green-600 text-white font-bold text-xs uppercase px-2.5 py-0.5">
-                Eligible to Borrow
+                {isTopUpMode ? "Eligible for Top-Up" : "Eligible to Borrow"}
               </Badge>
             )}
           </div>
           <CardDescription>
-            Request a group capital loan up to your maximum borrowing power ({maxLoanPercentage}% of verified contributions).
+            {isTopUpMode
+              ? `Top up your existing loan up to the repaid principal amount (${formatCurrency(maxTopUpLimit, currency)}).`
+              : `Request a group capital loan up to your maximum borrowing power (${maxLoanPercentage}% of verified contributions).`}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6">
@@ -357,7 +538,7 @@ export default function LoanApplyPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label htmlFor="loan-amount" className="text-xs font-bold uppercase tracking-wider">
-                    Requested Amount
+                    {isTopUpMode ? "Top-Up Amount" : "Requested Amount"}
                   </Label>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-muted-foreground">
@@ -365,7 +546,7 @@ export default function LoanApplyPage() {
                     </span>
                     <span className="text-muted-foreground">|</span>
                     <span className="text-[10px] font-bold text-primary">
-                      MAX: <strong>{formatCurrency(effectiveMaxLimit, currency)}</strong>
+                      MAX: <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong>
                     </span>
                   </div>
                 </div>
@@ -377,16 +558,16 @@ export default function LoanApplyPage() {
                     type="number" 
                     value={requestedAmount}
                     onChange={(e) => setRequestedAmount(e.target.value)}
-                    placeholder={`Enter amount (${minLoanAmount} - ${effectiveMaxLimit > 0 ? effectiveMaxLimit : maxLoanAmount})`}
+                    placeholder={`Enter amount (${minLoanAmount} - ${effectiveApplicationMax > 0 ? effectiveApplicationMax : maxLoanAmount})`}
                     min={canApply ? minLoanAmount : undefined}
-                    max={canApply ? effectiveMaxLimit : undefined}
+                    max={canApply ? effectiveApplicationMax : undefined}
                     step="1"
                     disabled={!canApply || isSubmitting}
                     required 
                     className={`h-12 rounded-[10px] pr-14 bg-muted border-2 text-lg font-bold ${
                       isAmountTooHigh ? 'border-destructive focus-visible:ring-destructive' :
                       isAmountTooLow ? 'border-orange-500 focus-visible:ring-orange-500' :
-                      numericAmount >= minLoanAmount && numericAmount <= effectiveMaxLimit ? 'border-green-500/50' : 'border-transparent'
+                      numericAmount >= minLoanAmount && numericAmount <= effectiveApplicationMax ? 'border-green-500/50' : 'border-transparent'
                     }`} 
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground select-none">
@@ -396,7 +577,7 @@ export default function LoanApplyPage() {
 
                 {/* Quick Selection Buttons */}
                 {canApply && (
-                  <div className="flex items-center gap-2 pt-1">
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Quick Fill:</span>
                     <Button
                       type="button"
@@ -407,25 +588,25 @@ export default function LoanApplyPage() {
                     >
                       Min: {formatCurrency(minLoanAmount, currency)}
                     </Button>
-                    {effectiveMaxLimit > minLoanAmount && (
+                    {effectiveApplicationMax > minLoanAmount && (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setRequestedAmount(Math.round(minLoanAmount + (effectiveMaxLimit - minLoanAmount) * 0.5).toString())}
+                        onClick={() => setRequestedAmount(Math.round(minLoanAmount + (effectiveApplicationMax - minLoanAmount) * 0.5).toString())}
                         className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-primary/50"
                       >
-                        50%: {formatCurrency(Math.round(minLoanAmount + (effectiveMaxLimit - minLoanAmount) * 0.5), currency)}
+                        50%: {formatCurrency(Math.round(minLoanAmount + (effectiveApplicationMax - minLoanAmount) * 0.5), currency)}
                       </Button>
                     )}
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setRequestedAmount(effectiveMaxLimit.toString())}
+                      onClick={() => setRequestedAmount(effectiveApplicationMax.toString())}
                       className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-primary/50 text-primary border-primary/30"
                     >
-                      Max: {formatCurrency(effectiveMaxLimit, currency)}
+                      Max: {formatCurrency(effectiveApplicationMax, currency)}
                     </Button>
                   </div>
                 )}
@@ -434,7 +615,7 @@ export default function LoanApplyPage() {
                 {isAmountTooHigh && (
                   <p className="text-xs text-destructive font-bold flex items-center gap-1 pt-1">
                     <AlertCircle className="h-3.5 w-3.5" />
-                    Amount exceeds your borrowing limit of {formatCurrency(effectiveMaxLimit, currency)}.
+                    Amount exceeds allowed limit of {formatCurrency(effectiveApplicationMax, currency)}.
                   </p>
                 )}
                 {isAmountTooLow && (
@@ -447,12 +628,14 @@ export default function LoanApplyPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="loan-description" className="text-xs font-bold uppercase tracking-wider">
-                  Purpose of Loan
+                  {isTopUpMode ? "Top-Up Purpose & Justification" : "Purpose of Loan"}
                 </Label>
                 <Textarea 
                   id="loan-description"
                   name="description" 
-                  placeholder="E.g., Small business expansion, inventory purchase, tuition fees, etc." 
+                  placeholder={isTopUpMode 
+                    ? "Explain the reason for this loan top-up and how repaid principal is being redeployed..." 
+                    : "E.g., Small business expansion, inventory purchase, tuition fees, etc."} 
                   disabled={!canApply || isSubmitting}
                   required 
                   className="rounded-[10px] bg-muted border-none min-h-[110px] p-4 text-sm" 
@@ -466,6 +649,11 @@ export default function LoanApplyPage() {
                 <p>
                   <strong>Terms & Governance:</strong> All capital loans are subject to audit and ratification by Management. Once approved, the authoritative repayment schedule is generated at the system policy rate (<strong>{settings.loanInterestRate}%</strong>, <strong>{settings.interestModel}</strong> model).
                 </p>
+                {isTopUpMode && (
+                  <p className="text-emerald-700 dark:text-emerald-400 font-medium">
+                    <strong>Top-Up Rule:</strong> This top-up is linked to parent loan #{activeLoan?.id?.slice(0, 8)}. Upon approval, the top-up loan will be disbursed and scheduled under standard group lending policy.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -485,8 +673,13 @@ export default function LoanApplyPage() {
                 `Borrowing Limit Below Minimum (${formatCurrency(minLoanAmount, currency)})`
               ) : pendingLoan ? (
                 "Loan Request Pending Audit"
-              ) : activeLoan ? (
-                "Active Loan Must Be Cleared"
+              ) : activeLoan && !isTopUpMode ? (
+                "Active Loan Must Be Cleared (or Choose Top-Up)"
+              ) : isTopUpMode ? (
+                <>
+                  <TrendingUp className="mr-2 h-5 w-5" />
+                  Submit Top-Up Request ({formatCurrency(numericAmount || minLoanAmount, currency)})
+                </>
               ) : (
                 <>
                   <HandCoins className="mr-2 h-5 w-5" />
@@ -497,6 +690,71 @@ export default function LoanApplyPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* WITHDRAW LOAN CONFIRMATION MODAL */}
+      <Dialog open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Undo2 className="h-5 w-5 text-destructive" />
+              Withdraw Loan Application
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to withdraw your pending loan request for {pendingLoan ? formatCurrency(pendingLoan.amount, currency) : ''}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">
+                Withdrawal Reason (Optional)
+              </Label>
+              <Textarea
+                value={withdrawReason}
+                onChange={(e) => setWithdrawReason(e.target.value)}
+                placeholder="e.g. Changed financial plans, re-submitting with different amount..."
+                rows={3}
+                className="rounded-xl text-xs resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setIsWithdrawModalOpen(false)}
+              className="rounded-xl font-bold text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isWithdrawing}
+              onClick={handleWithdrawApplication}
+              className="rounded-xl font-bold text-xs gap-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-md"
+            >
+              {isWithdrawing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Undo2 className="h-4 w-4" />
+              )}
+              Confirm Withdrawal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+export default function LoanApplyPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-8 flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <LoanApplyContent />
+    </Suspense>
+  );
+}
+

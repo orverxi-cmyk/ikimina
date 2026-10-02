@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkRejectContributions = exports.bulkVerifyContributions = exports.bulkApproveContributionBatches = exports.bulkReviewContributionBatches = exports.approveContributionBatch = exports.reviewContributionBatch = exports.initiateContributionBatch = exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
+exports.bulkReverseContributions = exports.reverseContribution = exports.bulkRejectContributions = exports.bulkVerifyContributions = exports.bulkApproveContributionBatches = exports.bulkReviewContributionBatches = exports.approveContributionBatch = exports.reviewContributionBatch = exports.initiateContributionBatch = exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -959,5 +959,115 @@ exports.bulkRejectContributions = (0, https_1.onCall)({ cors: true }, async (req
         await batch.commit();
     }
     return { success: true, count: rejectedCount };
+});
+/**
+ * Reverses an approved/verified contribution.
+ * Role: admin, management
+ * Reverts status to 'reversed', deducting it from active savings aggregations and borrowing power.
+ */
+exports.reverseContribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData === null || callerData === void 0 ? void 0 : callerData.role;
+    if (callerRole !== 'admin' && callerRole !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Only Administrators and Management can reverse contribution approvals.');
+    }
+    const { contributionId, justification } = request.data || {};
+    if (!contributionId) {
+        throw new https_1.HttpsError('invalid-argument', 'Contribution ID is required.');
+    }
+    if (!justification || !justification.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'A formal justification is required to reverse an approved contribution.');
+    }
+    const contribRef = db.collection('contributions').doc(contributionId);
+    const contribSnap = await contribRef.get();
+    if (!contribSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Contribution record not found.');
+    }
+    const contribData = contribSnap.data();
+    if (contribData.status !== 'verified') {
+        throw new https_1.HttpsError('failed-precondition', `Cannot reverse contribution with status '${contribData.status}'. Only 'verified' contributions can be reversed.`);
+    }
+    const batch = db.batch();
+    batch.update(contribRef, {
+        status: 'reversed',
+        reversedBy: request.auth.uid,
+        reversedByName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Admin',
+        reversedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reversalJustification: justification.trim()
+    });
+    const auditRef = db.collection('audit_logs').doc();
+    batch.set(auditRef, {
+        adminId: request.auth.uid,
+        action: 'REVERSE_CONTRIBUTION_APPROVAL',
+        justification: justification.trim(),
+        details: {
+            contributionId,
+            memberId: contribData.memberId,
+            amount: contribData.amount,
+            period: contribData.period,
+            batchId: contribData.batchId || null
+        },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+    return {
+        success: true,
+        contributionId,
+        status: 'reversed'
+    };
+});
+/**
+ * Bulk reverses multiple approved/verified contributions.
+ * Role: admin, management
+ */
+exports.bulkReverseContributions = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData === null || callerData === void 0 ? void 0 : callerData.role;
+    if (callerRole !== 'admin' && callerRole !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Only Administrators and Management can reverse contribution approvals.');
+    }
+    const { contributionIds, justification } = request.data || {};
+    if (!Array.isArray(contributionIds) || contributionIds.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'An array of contribution IDs is required.');
+    }
+    if (!justification || !justification.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'A formal justification is required for bulk reversal.');
+    }
+    const CHUNK_SIZE = 400;
+    let reversedCount = 0;
+    const errors = [];
+    for (let i = 0; i < contributionIds.length; i += CHUNK_SIZE) {
+        const chunk = contributionIds.slice(i, i + CHUNK_SIZE);
+        const batch = db.batch();
+        for (const cid of chunk) {
+            const ref = db.collection('contributions').doc(cid);
+            batch.update(ref, {
+                status: 'reversed',
+                reversedBy: request.auth.uid,
+                reversedByName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Admin',
+                reversedAt: admin.firestore.FieldValue.serverTimestamp(),
+                reversalJustification: justification.trim()
+            });
+            const logRef = db.collection('audit_logs').doc();
+            batch.set(logRef, {
+                adminId: request.auth.uid,
+                action: 'BULK_REVERSE_CONTRIBUTIONS',
+                justification: justification.trim(),
+                details: { contributionId: cid, bulk: true },
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            reversedCount++;
+        }
+        await batch.commit();
+    }
+    return { success: true, count: reversedCount, errors };
 });
 //# sourceMappingURL=contribution-management.js.map

@@ -16,7 +16,13 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { verifyContributionAction, rejectContributionAction, recordContributionAction, submitContributionAction } from '@/lib/finance-client';
+import { 
+  verifyContributionAction, 
+  rejectContributionAction, 
+  recordContributionAction, 
+  submitContributionAction,
+  reverseContributionAction 
+} from '@/lib/finance-client';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/currency';
@@ -40,6 +46,9 @@ export default function ContributionsPage() {
   const defaultAmount = settings.contributionInterestRate;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReversing, setIsReversing] = useState(false);
+  const [isReverseOpen, setIsReverseOpen] = useState(false);
+  const [reversalJustification, setReversalJustification] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState(format(new Date(), 'MMMM yyyy'));
   const [selectedContribution, setSelectedContribution] = useState<any>(null);
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
@@ -94,6 +103,41 @@ export default function ContributionsPage() {
   const pendingContributions = useMemo(() => contributions.filter((c: any) => c.status === 'pending'), [contributions]);
   const verifiedContributions = useMemo(() => contributions.filter((c: any) => c.status === 'verified'), [contributions]);
   const rejectedContributions = useMemo(() => contributions.filter((c: any) => c.status === 'rejected'), [contributions]);
+  const reversedContributions = useMemo(() => contributions.filter((c: any) => c.status === 'reversed'), [contributions]);
+
+  const handleReverseContribution = async () => {
+    if (!selectedContribution || !reversalJustification.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Justification Required",
+        description: "Please provide an audit justification for reversing the contribution approval."
+      });
+      return;
+    }
+
+    setIsReversing(true);
+    try {
+      await reverseContributionAction({
+        contributionId: selectedContribution.id,
+        justification: reversalJustification.trim()
+      });
+      toast({
+        title: "Approval Reversed",
+        description: `Contribution of ${formatCurrency(selectedContribution.amount || 0, currency)} has been reversed and removed from verified savings.`
+      });
+      setIsReverseOpen(false);
+      setSelectedContribution(null);
+      setReversalJustification('');
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Reversal Failed",
+        description: err.message || "Failed to reverse contribution approval."
+      });
+    } finally {
+      setIsReversing(false);
+    }
+  };
 
   const handleSubmitContribution = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -232,11 +276,12 @@ export default function ContributionsPage() {
               <TableCell>
                 <div className="flex items-center gap-2">
                   <Badge 
-                    variant={h.status === 'pending' ? 'secondary' : h.status === 'rejected' ? 'destructive' : 'default'} 
+                    variant={h.status === 'pending' ? 'secondary' : h.status === 'rejected' ? 'destructive' : h.status === 'reversed' ? 'outline' : 'default'} 
                     className={cn(
                       "text-[9px] uppercase font-bold border-none",
                       h.status === 'pending' && "bg-orange-500/10 text-orange-600",
                       h.status === 'verified' && "bg-green-500/10 text-green-600",
+                      h.status === 'reversed' && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
                       h.status === 'rejected' && "bg-destructive/10 text-destructive"
                     )}
                   >
@@ -246,6 +291,17 @@ export default function ContributionsPage() {
                     <Badge variant="outline" className="text-[8px] uppercase font-bold border-blue-500/30 text-blue-600 bg-blue-500/5">
                       Payroll
                     </Badge>
+                  )}
+                  {h.status === 'verified' && isManagement && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => { setSelectedContribution(h); setIsReverseOpen(true); }}
+                      className="h-6 px-1.5 text-[9px] font-bold text-destructive border-destructive/30 hover:bg-destructive/10 rounded-md gap-1"
+                      title="Reverse Approval"
+                    >
+                      <RotateCcw className="h-2.5 w-2.5" /> Reverse
+                    </Button>
                   )}
                   {h.status === 'rejected' && !isManagement && (
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedContribution(h); setIsVerifyOpen(true); }}>
@@ -387,10 +443,11 @@ export default function ContributionsPage() {
 
         <div className="space-y-6 lg:col-span-2">
           <Tabs defaultValue="history" onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 h-12 rounded-xl bg-muted/50 p-1 mb-6 border border-border">
+            <TabsList className="grid w-full grid-cols-5 h-12 rounded-xl bg-muted/50 p-1 mb-6 border border-border">
               <TabsTrigger value="history" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">History</TabsTrigger>
               <TabsTrigger value="pending" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Pending</TabsTrigger>
               <TabsTrigger value="verified" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Verified</TabsTrigger>
+              <TabsTrigger value="reversed" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Reversed</TabsTrigger>
               <TabsTrigger value="rejected" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Rejected</TabsTrigger>
             </TabsList>
 
@@ -404,6 +461,7 @@ export default function ContributionsPage() {
                 <TabsContent value="history" className="m-0">{renderTable(contributions)}</TabsContent>
                 <TabsContent value="pending" className="m-0">{renderTable(pendingContributions)}</TabsContent>
                 <TabsContent value="verified" className="m-0">{renderTable(verifiedContributions)}</TabsContent>
+                <TabsContent value="reversed" className="m-0">{renderTable(reversedContributions)}</TabsContent>
                 <TabsContent value="rejected" className="m-0">{renderTable(rejectedContributions)}</TabsContent>
               </CardContent>
             </Card>
@@ -563,6 +621,67 @@ export default function ContributionsPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* REVERSE CONTRIBUTION APPROVAL DIALOG (Management) */}
+      <Dialog open={isReverseOpen} onOpenChange={setIsReverseOpen}>
+        <DialogContent className="max-w-md rounded-2xl bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-destructive">
+              <RotateCcw className="h-5 w-5" /> Reverse Contribution Approval
+            </DialogTitle>
+            <DialogDescription>
+              Reverse verified contribution of <strong>{selectedContribution ? formatCurrency(selectedContribution.amount, currency) : ''}</strong> for <strong>{selectedContribution ? getMemberName(selectedContribution.memberId) : 'member'}</strong> ({selectedContribution?.period}).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/30 text-xs text-amber-950 dark:text-amber-200 space-y-1">
+              <p className="font-bold flex items-center gap-1">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                Financial &amp; Balance Impact
+              </p>
+              <p>
+                Reversing this approval sets status to <code>reversed</code>. The credited amount will be deducted from the member&apos;s verified savings balance and their borrowing capacity will be adjusted immediately.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">
+                Reversal Justification / Audit Reason <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={reversalJustification}
+                onChange={(e) => setReversalJustification(e.target.value)}
+                placeholder="e.g. Duplicate bank transfer recorded in error, corrected deduction per HR notice..."
+                rows={3}
+                className="rounded-xl text-xs resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setIsReverseOpen(false)}
+              className="rounded-xl font-bold text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isReversing}
+              onClick={handleReverseContribution}
+              className="rounded-xl font-bold text-xs gap-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-md"
+            >
+              {isReversing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              Confirm Reversal
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

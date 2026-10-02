@@ -456,18 +456,69 @@ export async function logAdminAction(data: { adminId: string, action: string, ju
 }
 
 /**
- * Submits a loan application via Cloud Functions with authoritative server validation.
+ * Submits a loan application (standard or top-up) via Cloud Functions with authoritative server validation.
  */
-export async function requestLoanAction(data: { amount: number, description?: string, durationMonths?: number }) {
+export async function requestLoanAction(data: { 
+  amount: number; 
+  description?: string; 
+  durationMonths?: number; 
+  isTopUp?: boolean; 
+  parentLoanId?: string; 
+}) {
   const functions = getFinanceFunctions();
   const reqFn = httpsCallable(functions, 'requestLoan');
   try {
     const result = await reqFn(data);
-    return result.data as { success: boolean, loanId: string };
+    return result.data as { success: boolean, loanId: string, isTopUp?: boolean };
   } catch (error: any) {
     throw new Error(error.message || 'Failed to submit loan application');
   }
 }
+
+/**
+ * Withdraws a pending loan application before management approval.
+ */
+export async function withdrawLoanApplicationAction(data: { loanId: string; reason?: string }) {
+  const functions = getFinanceFunctions();
+  const withdrawFn = httpsCallable(functions, 'withdrawLoanApplication');
+  try {
+    const result = await withdrawFn(data);
+    return result.data as { success: boolean, loanId: string, status: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to withdraw loan application');
+  }
+}
+
+/**
+ * Reverses an approved/verified contribution.
+ * Restricted to Administrators and Management.
+ */
+export async function reverseContributionAction(data: { contributionId: string; justification: string }) {
+  const functions = getFinanceFunctions();
+  const reverseFn = httpsCallable(functions, 'reverseContribution');
+  try {
+    const result = await reverseFn(data);
+    return result.data as { success: boolean, contributionId: string, status: string };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to reverse contribution approval');
+  }
+}
+
+/**
+ * Bulk reverses multiple approved/verified contributions.
+ * Restricted to Administrators and Management.
+ */
+export async function bulkReverseContributionsAction(data: { contributionIds: string[]; justification: string }) {
+  const functions = getFinanceFunctions();
+  const bulkRevFn = httpsCallable(functions, 'bulkReverseContributions');
+  try {
+    const result = await bulkRevFn(data);
+    return result.data as { success: boolean, count: number, errors?: string[] };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to bulk reverse contribution approvals');
+  }
+}
+
 
 /**
  * Submits a member savings contribution via Cloud Functions for management review.
