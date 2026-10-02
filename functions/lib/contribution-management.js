@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.approveContributionBatch = exports.reviewContributionBatch = exports.initiateContributionBatch = exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
+exports.bulkRejectContributions = exports.bulkVerifyContributions = exports.bulkApproveContributionBatches = exports.bulkReviewContributionBatches = exports.approveContributionBatch = exports.reviewContributionBatch = exports.initiateContributionBatch = exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -624,5 +624,340 @@ exports.approveContributionBatch = (0, https_1.onCall)({ cors: true }, async (re
         totalAmount: batchData.totalAmount,
         status: 'approved'
     };
+});
+/**
+ * Bulk reviews multiple contribution batches simultaneously.
+ * Role: reviewer, management, admin
+ */
+exports.bulkReviewContributionBatches = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData === null || callerData === void 0 ? void 0 : callerData.role;
+    if (callerRole !== 'reviewer' && callerRole !== 'management' && callerRole !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only authorized Reviewers or Administrators can review contribution batches.');
+    }
+    const { batchIds, decision, reviewNotes } = request.data || {};
+    if (!Array.isArray(batchIds) || batchIds.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'An array of batch IDs is required.');
+    }
+    if (!decision || !['endorse', 'request_changes', 'reject'].includes(decision)) {
+        throw new https_1.HttpsError('invalid-argument', 'Valid decision (endorse, request_changes, reject) is required.');
+    }
+    if (!reviewNotes || !reviewNotes.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'Review notes are required.');
+    }
+    let nextStatus;
+    let actionName;
+    if (decision === 'endorse') {
+        nextStatus = 'pending_approval';
+        actionName = 'BULK_REVIEW_ENDORSED';
+    }
+    else if (decision === 'request_changes') {
+        nextStatus = 'revision_requested';
+        actionName = 'BULK_REVIEW_REVISION_REQUESTED';
+    }
+    else {
+        nextStatus = 'rejected';
+        actionName = 'BULK_REVIEW_REJECTED';
+    }
+    const newAuditEvent = {
+        action: actionName,
+        performedBy: request.auth.uid,
+        performerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Reviewer',
+        performerRole: callerRole,
+        timestamp: new Date().toISOString(),
+        notes: reviewNotes.trim()
+    };
+    let processedCount = 0;
+    const errors = [];
+    for (const batchId of batchIds) {
+        try {
+            const batchRef = db.collection('contribution_batches').doc(batchId);
+            const batchSnap = await batchRef.get();
+            if (!batchSnap.exists) {
+                errors.push(`Batch ${batchId} not found.`);
+                continue;
+            }
+            const batchData = batchSnap.data();
+            if (batchData.status !== 'pending_review' && batchData.status !== 'revision_requested') {
+                errors.push(`Batch ${batchId} is in status '${batchData.status}', not pending review.`);
+                continue;
+            }
+            await batchRef.update({
+                status: nextStatus,
+                reviewedBy: request.auth.uid,
+                reviewerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Reviewer',
+                reviewerRole: callerRole,
+                reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+                reviewNotes: reviewNotes.trim(),
+                auditTrail: admin.firestore.FieldValue.arrayUnion(newAuditEvent)
+            });
+            const auditRef = db.collection('audit_logs').doc();
+            await auditRef.set({
+                adminId: request.auth.uid,
+                action: actionName,
+                justification: reviewNotes.trim(),
+                details: {
+                    batchId,
+                    decision,
+                    nextStatus,
+                    bulk: true
+                },
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            });
+            processedCount++;
+        }
+        catch (err) {
+            errors.push(`Batch ${batchId}: ${err.message}`);
+        }
+    }
+    return {
+        success: true,
+        processedCount,
+        totalRequested: batchIds.length,
+        status: nextStatus,
+        errors
+    };
+});
+/**
+ * Bulk approves multiple contribution batches simultaneously.
+ * Role: strictly admin (Super Administrator).
+ * Commits all staged items across all specified batches to the 'contributions' collection with status 'verified'.
+ */
+exports.bulkApproveContributionBatches = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData === null || callerData === void 0 ? void 0 : callerData.role;
+    if (callerRole !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only Super Administrators can provide final approval and commit contribution batches to the ledger.');
+    }
+    const { batchIds, decision, approvalNotes } = request.data || {};
+    if (!Array.isArray(batchIds) || batchIds.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'An array of batch IDs is required.');
+    }
+    if (!decision || !['approve', 'reject'].includes(decision)) {
+        throw new https_1.HttpsError('invalid-argument', 'Valid decision (approve or reject) is required.');
+    }
+    if (!approvalNotes || !approvalNotes.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'Approval/rejection notes are required.');
+    }
+    let processedBatches = 0;
+    let totalItemsCommitted = 0;
+    let totalAmountCommitted = 0;
+    const errors = [];
+    for (const batchId of batchIds) {
+        try {
+            const batchRef = db.collection('contribution_batches').doc(batchId);
+            const batchSnap = await batchRef.get();
+            if (!batchSnap.exists) {
+                errors.push(`Batch ${batchId} not found.`);
+                continue;
+            }
+            const batchData = batchSnap.data();
+            if (batchData.status !== 'pending_approval') {
+                errors.push(`Batch ${batchId} has status '${batchData.status}', not pending approval.`);
+                continue;
+            }
+            if (decision === 'reject') {
+                const rejectAuditEvent = {
+                    action: 'BULK_ADMIN_REJECTED',
+                    performedBy: request.auth.uid,
+                    performerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Super Admin',
+                    performerRole: callerRole,
+                    timestamp: new Date().toISOString(),
+                    notes: approvalNotes.trim()
+                };
+                await batchRef.update({
+                    status: 'rejected',
+                    approvedBy: request.auth.uid,
+                    approverName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Super Admin',
+                    approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    approvalNotes: approvalNotes.trim(),
+                    auditTrail: admin.firestore.FieldValue.arrayUnion(rejectAuditEvent)
+                });
+                processedBatches++;
+                continue;
+            }
+            // Commit items
+            const items = batchData.items || [];
+            const CHUNK_SIZE = 400;
+            for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+                const chunk = items.slice(i, i + CHUNK_SIZE);
+                const writeBatch = db.batch();
+                for (const item of chunk) {
+                    const contribRef = db.collection('contributions').doc();
+                    let deductionDateVal = admin.firestore.FieldValue.serverTimestamp();
+                    if (item.deductionDate) {
+                        const parsed = new Date(item.deductionDate);
+                        if (!isNaN(parsed.getTime())) {
+                            deductionDateVal = admin.firestore.Timestamp.fromDate(parsed);
+                        }
+                    }
+                    writeBatch.set(contribRef, {
+                        memberId: item.memberId,
+                        amount: Number(item.amount),
+                        period: item.period || batchData.defaultPeriod || '',
+                        date: deductionDateVal,
+                        status: 'verified',
+                        paymentMethod: batchData.type === 'historical_migration' ? 'historical_migration' : 'payroll_deduction',
+                        source: batchData.type === 'historical_migration' ? 'historical_migration' : 'payroll_deduction',
+                        batchId: batchData.batchId,
+                        batchTitle: batchData.title,
+                        notes: item.notes || `Populated via Batch ${batchData.batchId}`,
+                        staffName: item.staffName || null,
+                        staffEmail: item.staffEmail || null,
+                        recordedBy: batchData.initiatedBy,
+                        approvedBy: request.auth.uid,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                if (i === 0) {
+                    const approveAuditEvent = {
+                        action: 'BULK_COMMITTED_TO_LEDGER',
+                        performedBy: request.auth.uid,
+                        performerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Super Admin',
+                        performerRole: callerRole,
+                        timestamp: new Date().toISOString(),
+                        notes: approvalNotes.trim()
+                    };
+                    writeBatch.update(batchRef, {
+                        status: 'approved',
+                        approvedBy: request.auth.uid,
+                        approverName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Super Admin',
+                        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        approvalNotes: approvalNotes.trim(),
+                        auditTrail: admin.firestore.FieldValue.arrayUnion(approveAuditEvent)
+                    });
+                    const auditRef = db.collection('audit_logs').doc();
+                    writeBatch.set(auditRef, {
+                        adminId: request.auth.uid,
+                        action: 'BULK_APPROVE_CONTRIBUTION_BATCH',
+                        justification: approvalNotes.trim(),
+                        details: {
+                            batchId,
+                            totalCount: batchData.totalCount,
+                            totalAmount: batchData.totalAmount,
+                            bulk: true
+                        },
+                        timestamp: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                await writeBatch.commit();
+            }
+            processedBatches++;
+            totalItemsCommitted += items.length;
+            totalAmountCommitted += Number(batchData.totalAmount || 0);
+        }
+        catch (err) {
+            errors.push(`Batch ${batchId}: ${err.message}`);
+        }
+    }
+    return {
+        success: true,
+        processedBatches,
+        totalRequested: batchIds.length,
+        totalItemsCommitted,
+        totalAmountCommitted,
+        decision,
+        errors
+    };
+});
+/**
+ * Bulk verifies multiple individual pending contributions.
+ */
+exports.bulkVerifyContributions = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    const adminData = adminSnap.data();
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'reviewer') {
+        throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can verify contributions.');
+    }
+    const { contributionIds, justification } = request.data || {};
+    if (!Array.isArray(contributionIds) || contributionIds.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'An array of contribution IDs is required.');
+    }
+    if (!justification || !justification.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'Justification is required.');
+    }
+    const CHUNK_SIZE = 400;
+    let verifiedCount = 0;
+    for (let i = 0; i < contributionIds.length; i += CHUNK_SIZE) {
+        const chunk = contributionIds.slice(i, i + CHUNK_SIZE);
+        const batch = db.batch();
+        for (const cid of chunk) {
+            const ref = db.collection('contributions').doc(cid);
+            batch.update(ref, {
+                status: 'verified',
+                verifiedBy: request.auth.uid,
+                verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+                justification: justification.trim()
+            });
+            const logRef = db.collection('audit_logs').doc();
+            batch.set(logRef, {
+                adminId: request.auth.uid,
+                action: 'BULK_VERIFY_CONTRIBUTIONS',
+                justification: justification.trim(),
+                details: { contributionId: cid, bulk: true },
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            verifiedCount++;
+        }
+        await batch.commit();
+    }
+    return { success: true, count: verifiedCount };
+});
+/**
+ * Bulk rejects multiple individual pending contributions.
+ */
+exports.bulkRejectContributions = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    const adminData = adminSnap.data();
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'reviewer') {
+        throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can reject contributions.');
+    }
+    const { contributionIds, rejectionReason } = request.data || {};
+    if (!Array.isArray(contributionIds) || contributionIds.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'An array of contribution IDs is required.');
+    }
+    if (!rejectionReason || !rejectionReason.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'Rejection reason is required.');
+    }
+    const CHUNK_SIZE = 400;
+    let rejectedCount = 0;
+    for (let i = 0; i < contributionIds.length; i += CHUNK_SIZE) {
+        const chunk = contributionIds.slice(i, i + CHUNK_SIZE);
+        const batch = db.batch();
+        for (const cid of chunk) {
+            const ref = db.collection('contributions').doc(cid);
+            batch.update(ref, {
+                status: 'rejected',
+                rejectedBy: request.auth.uid,
+                rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+                rejectionReason: rejectionReason.trim()
+            });
+            const logRef = db.collection('audit_logs').doc();
+            batch.set(logRef, {
+                adminId: request.auth.uid,
+                action: 'BULK_REJECT_CONTRIBUTIONS',
+                justification: rejectionReason.trim(),
+                details: { contributionId: cid, bulk: true },
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            rejectedCount++;
+        }
+        await batch.commit();
+    }
+    return { success: true, count: rejectedCount };
 });
 //# sourceMappingURL=contribution-management.js.map

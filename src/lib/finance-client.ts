@@ -270,6 +270,77 @@ export async function approveContributionBatchAction(data: {
   }
 }
 
+/**
+ * Bulk reviews multiple contribution batches.
+ */
+export async function bulkReviewContributionBatchesAction(data: {
+  batchIds: string[];
+  decision: 'endorse' | 'request_changes' | 'reject';
+  reviewNotes: string;
+}) {
+  const functions = getFinanceFunctions();
+  const bulkRevFn = httpsCallable(functions, 'bulkReviewContributionBatches');
+  try {
+    const result = await bulkRevFn(data);
+    return result.data as { success: boolean; processedCount: number; totalRequested: number; status: string; errors?: string[] };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to bulk review contribution batches.');
+  }
+}
+
+/**
+ * Bulk approves multiple contribution batches.
+ */
+export async function bulkApproveContributionBatchesAction(data: {
+  batchIds: string[];
+  decision: 'approve' | 'reject';
+  approvalNotes: string;
+}) {
+  const functions = getFinanceFunctions();
+  const bulkAppFn = httpsCallable(functions, 'bulkApproveContributionBatches');
+  try {
+    const result = await bulkAppFn(data);
+    return result.data as { success: boolean; processedBatches: number; totalRequested: number; totalItemsCommitted: number; totalAmountCommitted: number; decision: string; errors?: string[] };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to bulk approve contribution batches.');
+  }
+}
+
+/**
+ * Bulk verifies multiple individual pending contributions.
+ */
+export async function bulkVerifyContributionsAction(data: {
+  contributionIds: string[];
+  justification: string;
+}) {
+  const functions = getFinanceFunctions();
+  const bulkVerifyFn = httpsCallable(functions, 'bulkVerifyContributions');
+  try {
+    const result = await bulkVerifyFn(data);
+    return result.data as { success: boolean; count: number };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to bulk verify contributions.');
+  }
+}
+
+/**
+ * Bulk rejects multiple individual pending contributions.
+ */
+export async function bulkRejectContributionsAction(data: {
+  contributionIds: string[];
+  rejectionReason: string;
+}) {
+  const functions = getFinanceFunctions();
+  const bulkRejectFn = httpsCallable(functions, 'bulkRejectContributions');
+  try {
+    const result = await bulkRejectFn(data);
+    return result.data as { success: boolean; count: number };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to bulk reject contributions.');
+  }
+}
+
+
 
 
 /**

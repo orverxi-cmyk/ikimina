@@ -33,10 +33,13 @@ import {
   FileCheck,
   Layers,
   History,
-  AlertTriangle
+  AlertTriangle,
+  Search,
+  Receipt,
+  CheckSquare
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, doc, limit } from 'firebase/firestore';
+import { collection, query, orderBy, doc, limit, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
@@ -44,6 +47,7 @@ import { useSettings } from '@/context/settings-context';
 import { format, subMonths } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   downloadStaffContributionTemplate, 
   parseStaffContributionExcel, 
@@ -54,7 +58,11 @@ import {
 import { 
   initiateContributionBatchAction, 
   reviewContributionBatchAction, 
-  approveContributionBatchAction 
+  approveContributionBatchAction,
+  bulkReviewContributionBatchesAction,
+  bulkApproveContributionBatchesAction,
+  bulkVerifyContributionsAction,
+  bulkRejectContributionsAction
 } from '@/lib/finance-client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
@@ -104,6 +112,27 @@ export default function AdminContributionsBulkUploadPage() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
 
+  // Multi-Batch Bulk Review States
+  const [selectedReviewBatchIds, setSelectedReviewBatchIds] = useState<string[]>([]);
+  const [isBulkReviewOpen, setIsBulkReviewOpen] = useState(false);
+  const [bulkReviewDecision, setBulkReviewDecision] = useState<'endorse' | 'request_changes' | 'reject'>('endorse');
+  const [bulkReviewNotes, setBulkReviewNotes] = useState('');
+
+  // Multi-Batch Bulk Approval States
+  const [selectedApprovalBatchIds, setSelectedApprovalBatchIds] = useState<string[]>([]);
+  const [isBulkApprovalOpen, setIsBulkApprovalOpen] = useState(false);
+  const [bulkApprovalDecision, setBulkApprovalDecision] = useState<'approve' | 'reject'>('approve');
+  const [bulkApprovalNotes, setBulkApprovalNotes] = useState('');
+
+  // Pending Member Slips States
+  const [selectedPendingSlipIds, setSelectedPendingSlipIds] = useState<string[]>([]);
+  const [isBulkSlipModalOpen, setIsBulkSlipModalOpen] = useState(false);
+  const [bulkSlipDecision, setBulkSlipDecision] = useState<'verify' | 'reject'>('verify');
+  const [bulkSlipJustification, setBulkSlipJustification] = useState('');
+
+  // Inspect Modal Search
+  const [inspectSearchTerm, setInspectSearchTerm] = useState('');
+
   // Firestore Queries
   const membersQuery = useMemoFirebase(() => {
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
@@ -114,6 +143,15 @@ export default function AdminContributionsBulkUploadPage() {
     return query(collection(firestore, 'contribution_batches'), orderBy('initiatedAt', 'desc'), limit(50));
   }, [firestore]);
   const { data: batchesSnap } = useCollection(batchesQuery);
+
+  const pendingSlipsQuery = useMemoFirebase(() => {
+    return query(collection(firestore, 'contributions'), where('status', '==', 'pending'), limit(100));
+  }, [firestore]);
+  const { data: pendingSlipsSnap } = useCollection(pendingSlipsQuery);
+
+  const pendingSlips = useMemo(() => {
+    return pendingSlipsSnap?.docs.map((d) => ({ id: d.id, ...d.data() })) || [];
+  }, [pendingSlipsSnap]);
 
   const registeredMembers: RegisteredMember[] = useMemo(() => {
     return (membersSnap?.docs.map((d) => ({
@@ -142,6 +180,85 @@ export default function AdminContributionsBulkUploadPage() {
   const approvedBatches = useMemo(() => {
     return allBatches.filter((b: any) => b.status === 'approved');
   }, [allBatches]);
+
+  // Bulk Computed Metrics & Selection Toggles
+  const selectedReviewBatches = useMemo(() => {
+    return pendingReviewBatches.filter((b: any) => selectedReviewBatchIds.includes(b.batchId || b.id));
+  }, [pendingReviewBatches, selectedReviewBatchIds]);
+
+  const bulkReviewTotalStaff = useMemo(() => {
+    return selectedReviewBatches.reduce((acc: number, b: any) => acc + (b.totalCount || 0), 0);
+  }, [selectedReviewBatches]);
+
+  const bulkReviewTotalAmount = useMemo(() => {
+    return selectedReviewBatches.reduce((acc: number, b: any) => acc + (Number(b.totalAmount) || 0), 0);
+  }, [selectedReviewBatches]);
+
+  const selectedApprovalBatches = useMemo(() => {
+    return pendingApprovalBatches.filter((b: any) => selectedApprovalBatchIds.includes(b.batchId || b.id));
+  }, [pendingApprovalBatches, selectedApprovalBatchIds]);
+
+  const bulkApprovalTotalStaff = useMemo(() => {
+    return selectedApprovalBatches.reduce((acc: number, b: any) => acc + (b.totalCount || 0), 0);
+  }, [selectedApprovalBatches]);
+
+  const bulkApprovalTotalAmount = useMemo(() => {
+    return selectedApprovalBatches.reduce((acc: number, b: any) => acc + (Number(b.totalAmount) || 0), 0);
+  }, [selectedApprovalBatches]);
+
+  const toggleSelectAllReviewBatches = () => {
+    if (selectedReviewBatchIds.length === pendingReviewBatches.length) {
+      setSelectedReviewBatchIds([]);
+    } else {
+      setSelectedReviewBatchIds(pendingReviewBatches.map((b: any) => b.batchId || b.id));
+    }
+  };
+
+  const toggleReviewBatch = (batchId: string) => {
+    setSelectedReviewBatchIds(prev => 
+      prev.includes(batchId) ? prev.filter(id => id !== batchId) : [...prev, batchId]
+    );
+  };
+
+  const toggleSelectAllApprovalBatches = () => {
+    if (selectedApprovalBatchIds.length === pendingApprovalBatches.length) {
+      setSelectedApprovalBatchIds([]);
+    } else {
+      setSelectedApprovalBatchIds(pendingApprovalBatches.map((b: any) => b.batchId || b.id));
+    }
+  };
+
+  const toggleApprovalBatch = (batchId: string) => {
+    setSelectedApprovalBatchIds(prev => 
+      prev.includes(batchId) ? prev.filter(id => id !== batchId) : [...prev, batchId]
+    );
+  };
+
+  const toggleSelectAllSlips = () => {
+    if (selectedPendingSlipIds.length === pendingSlips.length) {
+      setSelectedPendingSlipIds([]);
+    } else {
+      setSelectedPendingSlipIds(pendingSlips.map((s: any) => s.id));
+    }
+  };
+
+  const toggleSlip = (slipId: string) => {
+    setSelectedPendingSlipIds(prev => 
+      prev.includes(slipId) ? prev.filter(id => id !== slipId) : [...prev, slipId]
+    );
+  };
+
+  const filteredInspectItems = useMemo(() => {
+    if (!inspectBatch?.items) return [];
+    if (!inspectSearchTerm.trim()) return inspectBatch.items;
+    const term = inspectSearchTerm.toLowerCase();
+    return inspectBatch.items.filter((item: any) => 
+      (item.staffName && item.staffName.toLowerCase().includes(term)) ||
+      (item.staffEmail && item.staffEmail.toLowerCase().includes(term)) ||
+      (item.period && item.period.toLowerCase().includes(term))
+    );
+  }, [inspectBatch, inspectSearchTerm]);
+
 
   // Derived statistics for staged rows
   const stats = useMemo(() => {
@@ -430,6 +547,145 @@ export default function AdminContributionsBulkUploadPage() {
     }
   };
 
+  // BULK ACTION HANDLERS
+  const handleExecuteBulkReview = async () => {
+    if (selectedReviewBatchIds.length === 0) return;
+    if (!bulkReviewNotes.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Review Notes Required",
+        description: "Please enter your review observations for the selected batches."
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await bulkReviewContributionBatchesAction({
+        batchIds: selectedReviewBatchIds,
+        decision: bulkReviewDecision,
+        reviewNotes: bulkReviewNotes.trim()
+      });
+
+      toast({
+        title: bulkReviewDecision === 'endorse' 
+          ? `Bulk Endorsed (${result.processedCount} Batches)` 
+          : bulkReviewDecision === 'request_changes'
+          ? `Bulk Revisions Requested (${result.processedCount} Batches)`
+          : `Bulk Rejected (${result.processedCount} Batches)`,
+        description: `Successfully processed ${result.processedCount} out of ${result.totalRequested} batches.`
+      });
+
+      setSelectedReviewBatchIds([]);
+      setIsBulkReviewOpen(false);
+      setBulkReviewNotes('');
+      if (bulkReviewDecision === 'endorse') {
+        setActiveTab('superadmin');
+      }
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Bulk Review Failed",
+        description: err.message || "Failed to process bulk review."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleExecuteBulkApproval = async () => {
+    if (selectedApprovalBatchIds.length === 0) return;
+    if (!bulkApprovalNotes.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Approval Notes Required",
+        description: "Please enter the executive audit approval note before committing."
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await bulkApproveContributionBatchesAction({
+        batchIds: selectedApprovalBatchIds,
+        decision: bulkApprovalDecision,
+        approvalNotes: bulkApprovalNotes.trim()
+      });
+
+      if (bulkApprovalDecision === 'approve') {
+        toast({
+          title: `Bulk Approved & Committed! (${result.processedBatches} Batches)`,
+          description: `Authoritatively credited ${result.totalItemsCommitted} staff contributions totaling ${formatCurrency(result.totalAmountCommitted, currency)} into verified member savings!`
+        });
+        setActiveTab('history');
+      } else {
+        toast({
+          title: `Bulk Rejected (${result.processedBatches} Batches)`,
+          description: "Selected batches have been rejected and archived."
+        });
+      }
+
+      setSelectedApprovalBatchIds([]);
+      setIsBulkApprovalOpen(false);
+      setBulkApprovalNotes('');
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Bulk Approval Failed",
+        description: err.message || "Failed to process bulk approval."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleExecuteBulkSlipAction = async () => {
+    if (selectedPendingSlipIds.length === 0) return;
+    if (!bulkSlipJustification.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Justification Required",
+        description: "Please enter a justification or rejection reason."
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (bulkSlipDecision === 'verify') {
+        const result = await bulkVerifyContributionsAction({
+          contributionIds: selectedPendingSlipIds,
+          justification: bulkSlipJustification.trim()
+        });
+        toast({
+          title: `Bulk Verified (${result.count} Member Slips)`,
+          description: "All selected contributions are now verified and added to member balances."
+        });
+      } else {
+        const result = await bulkRejectContributionsAction({
+          contributionIds: selectedPendingSlipIds,
+          rejectionReason: bulkSlipJustification.trim()
+        });
+        toast({
+          title: `Bulk Rejected (${result.count} Member Slips)`,
+          description: "Selected contribution slips have been rejected."
+        });
+      }
+
+      setSelectedPendingSlipIds([]);
+      setIsBulkSlipModalOpen(false);
+      setBulkSlipJustification('');
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Bulk Slip Action Failed",
+        description: err.message || "Failed to update contribution slips."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const periodOptions = [
     format(new Date(), 'MMMM yyyy'),
     format(subMonths(new Date(), 1), 'MMMM yyyy'),
@@ -559,11 +815,11 @@ export default function AdminContributionsBulkUploadPage() {
 
       {/* Main Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 h-12 rounded-xl bg-muted/60 p-1 border">
-          <TabsTrigger value="initiate" className="rounded-lg text-xs font-bold gap-2">
+        <TabsList className="grid grid-cols-2 md:grid-cols-5 h-12 rounded-xl bg-muted/60 p-1 border">
+          <TabsTrigger value="initiate" className="rounded-lg text-xs font-bold gap-1.5">
             <Upload className="h-4 w-4" /> 1. Initiate Upload
           </TabsTrigger>
-          <TabsTrigger value="review" className="rounded-lg text-xs font-bold gap-2 relative">
+          <TabsTrigger value="review" className="rounded-lg text-xs font-bold gap-1.5 relative">
             <UserCheck className="h-4 w-4" /> 2. Review Queue
             {pendingReviewBatches.length > 0 && (
               <span className="ml-1 px-1.5 py-0.2 bg-purple-600 text-white rounded-full text-[10px]">
@@ -571,7 +827,7 @@ export default function AdminContributionsBulkUploadPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="superadmin" className="rounded-lg text-xs font-bold gap-2 relative">
+          <TabsTrigger value="superadmin" className="rounded-lg text-xs font-bold gap-1.5 relative">
             <ShieldCheck className="h-4 w-4" /> 3. Super Admin
             {pendingApprovalBatches.length > 0 && (
               <span className="ml-1 px-1.5 py-0.2 bg-green-600 text-white rounded-full text-[10px]">
@@ -579,8 +835,16 @@ export default function AdminContributionsBulkUploadPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-lg text-xs font-bold gap-2">
-            <History className="h-4 w-4" /> Committed Batches ({approvedBatches.length})
+          <TabsTrigger value="slips" className="rounded-lg text-xs font-bold gap-1.5 relative">
+            <Receipt className="h-4 w-4" /> 4. Member Slips
+            {pendingSlips.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 bg-amber-600 text-white rounded-full text-[10px]">
+                {pendingSlips.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="history" className="rounded-lg text-xs font-bold gap-1.5">
+            <History className="h-4 w-4" /> 5. Committed Batches ({approvedBatches.length})
           </TabsTrigger>
         </TabsList>
 
@@ -960,7 +1224,7 @@ export default function AdminContributionsBulkUploadPage() {
         <TabsContent value="review" className="space-y-6">
           <Card className="shadow-sm border border-border">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <UserCheck className="h-5 w-5 text-purple-600" />
@@ -970,16 +1234,96 @@ export default function AdminContributionsBulkUploadPage() {
                     Batches initiated by accountants awaiting compliance check and endorsement.
                   </CardDescription>
                 </div>
-                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-none font-bold">
-                  {pendingReviewBatches.length} Awaiting Review
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-none font-bold">
+                    {pendingReviewBatches.length} Awaiting Review
+                  </Badge>
+                  {pendingReviewBatches.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleSelectAllReviewBatches}
+                      className="rounded-xl text-xs h-8 gap-1.5"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" />
+                      {selectedReviewBatchIds.length === pendingReviewBatches.length ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
+
+            {/* Bulk Action Toolbar */}
+            {selectedReviewBatchIds.length > 0 && (
+              <div className="p-3 bg-purple-500/10 border-y border-purple-500/20 flex flex-wrap items-center justify-between gap-3 px-6 animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <Badge className="bg-purple-600 text-white font-bold text-xs">
+                    {selectedReviewBatchIds.length} of {pendingReviewBatches.length} Selected
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    Staff: <strong className="text-foreground">{bulkReviewTotalStaff}</strong> &bull; Total Value: <strong className="text-primary">{formatCurrency(bulkReviewTotalAmount, currency)}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setBulkReviewDecision('endorse');
+                      setBulkReviewNotes('Consolidated review completed. Endorsed to Super Admin for ledger credit.');
+                      setIsBulkReviewOpen(true);
+                    }}
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" /> Bulk Endorse ({selectedReviewBatchIds.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setBulkReviewDecision('request_changes');
+                      setBulkReviewNotes('');
+                      setIsBulkReviewOpen(true);
+                    }}
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                  >
+                    Bulk Request Changes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setBulkReviewDecision('reject');
+                      setBulkReviewNotes('');
+                      setIsBulkReviewOpen(true);
+                    }}
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
+                  >
+                    <Ban className="h-3.5 w-3.5" /> Bulk Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedReviewBatchIds([])}
+                    className="rounded-xl h-8 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow>
-                    <TableHead className="px-6">Batch ID / Title</TableHead>
+                    <TableHead className="w-12 px-4 text-center">
+                      <Checkbox
+                        checked={pendingReviewBatches.length > 0 && selectedReviewBatchIds.length === pendingReviewBatches.length}
+                        onCheckedChange={toggleSelectAllReviewBatches}
+                        aria-label="Select all batches"
+                      />
+                    </TableHead>
+                    <TableHead className="px-4">Batch ID / Title</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Initiator</TableHead>
                     <TableHead>Date Initiated</TableHead>
@@ -991,52 +1335,69 @@ export default function AdminContributionsBulkUploadPage() {
                 <TableBody>
                   {pendingReviewBatches.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-28 text-center text-muted-foreground text-xs italic">
+                      <TableCell colSpan={8} className="h-28 text-center text-muted-foreground text-xs italic">
                         No batches currently awaiting review. All batches are up to date!
                       </TableCell>
                     </TableRow>
                   ) : (
-                    pendingReviewBatches.map((b: any) => (
-                      <TableRow key={b.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="px-6 py-4">
-                          <p className="font-bold text-xs text-foreground">{b.title || 'Staff Contributions'}</p>
-                          <p className="font-mono text-[10px] text-muted-foreground">{b.batchId || b.id}</p>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[9px] uppercase font-bold">
-                            {b.type === 'historical_migration' ? 'Historical Migration' : 'Payroll Deduction'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <span className="font-bold">{b.initiatorName || 'Accountant'}</span>
-                          <span className="text-[10px] text-muted-foreground block capitalize">{b.initiatorRole}</span>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {b.initiatedAt?.seconds 
-                            ? format(new Date(b.initiatedAt.seconds * 1000), 'MMM d, yyyy HH:mm') 
-                            : 'Just now'}
-                        </TableCell>
-                        <TableCell className="text-xs font-mono font-bold">
-                          {b.totalCount} staff
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-xs text-primary">
-                          {formatCurrency(b.totalAmount || 0, currency)}
-                        </TableCell>
-                        <TableCell className="text-right px-6">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setInspectBatch(b);
-                              setReviewNotes('');
-                              setIsInspectOpen(true);
-                            }}
-                            className="rounded-xl h-8 text-xs font-bold gap-1 bg-purple-600 hover:bg-purple-700 text-white"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> Inspect &amp; Review
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    pendingReviewBatches.map((b: any) => {
+                      const isSelected = selectedReviewBatchIds.includes(b.batchId || b.id);
+                      return (
+                        <TableRow 
+                          key={b.id} 
+                          className={cn(
+                            "hover:bg-muted/30 transition-colors",
+                            isSelected && "bg-purple-500/5"
+                          )}
+                        >
+                          <TableCell className="w-12 px-4 text-center">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleReviewBatch(b.batchId || b.id)}
+                              aria-label={`Select batch ${b.title || b.id}`}
+                            />
+                          </TableCell>
+                          <TableCell className="px-4 py-4">
+                            <p className="font-bold text-xs text-foreground">{b.title || 'Staff Contributions'}</p>
+                            <p className="font-mono text-[10px] text-muted-foreground">{b.batchId || b.id}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[9px] uppercase font-bold">
+                              {b.type === 'historical_migration' ? 'Historical Migration' : 'Payroll Deduction'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <span className="font-bold">{b.initiatorName || 'Accountant'}</span>
+                            <span className="text-[10px] text-muted-foreground block capitalize">{b.initiatorRole}</span>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {b.initiatedAt?.seconds 
+                              ? format(new Date(b.initiatedAt.seconds * 1000), 'MMM d, yyyy HH:mm') 
+                              : 'Just now'}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono font-bold">
+                            {b.totalCount} staff
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-xs text-primary">
+                            {formatCurrency(b.totalAmount || 0, currency)}
+                          </TableCell>
+                          <TableCell className="text-right px-6">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setInspectBatch(b);
+                                setInspectSearchTerm('');
+                                setReviewNotes('');
+                                setIsInspectOpen(true);
+                              }}
+                              className="rounded-xl h-8 text-xs font-bold gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> Inspect &amp; Review
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1050,7 +1411,7 @@ export default function AdminContributionsBulkUploadPage() {
         <TabsContent value="superadmin" className="space-y-6">
           <Card className="shadow-sm border border-border">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <ShieldCheck className="h-5 w-5 text-green-600" />
@@ -1060,16 +1421,84 @@ export default function AdminContributionsBulkUploadPage() {
                     Batches endorsed by the Reviewer, awaiting final sign-off to be committed to the official ledger.
                   </CardDescription>
                 </div>
-                <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-none font-bold">
-                  {pendingApprovalBatches.length} Ready for Approval
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-none font-bold">
+                    {pendingApprovalBatches.length} Ready for Approval
+                  </Badge>
+                  {pendingApprovalBatches.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleSelectAllApprovalBatches}
+                      className="rounded-xl text-xs h-8 gap-1.5"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" />
+                      {selectedApprovalBatchIds.length === pendingApprovalBatches.length ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
+
+            {/* Bulk Approval Action Toolbar */}
+            {selectedApprovalBatchIds.length > 0 && (
+              <div className="p-3 bg-green-500/10 border-y border-green-500/20 flex flex-wrap items-center justify-between gap-3 px-6 animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <Badge className="bg-green-600 text-white font-bold text-xs">
+                    {selectedApprovalBatchIds.length} of {pendingApprovalBatches.length} Selected
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    Staff: <strong className="text-foreground">{bulkApprovalTotalStaff}</strong> &bull; Total Ledger Value: <strong className="text-primary">{formatCurrency(bulkApprovalTotalAmount, currency)}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setBulkApprovalDecision('approve');
+                      setBulkApprovalNotes(`Approved and released by Super Admin on ${format(new Date(), 'PPP')}`);
+                      setIsBulkApprovalOpen(true);
+                    }}
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 bg-green-600 hover:bg-green-700 text-white shadow-md"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" /> Bulk Approve &amp; Commit ({selectedApprovalBatchIds.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setBulkApprovalDecision('reject');
+                      setBulkApprovalNotes('');
+                      setIsBulkApprovalOpen(true);
+                    }}
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
+                  >
+                    <Ban className="h-3.5 w-3.5" /> Bulk Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedApprovalBatchIds([])}
+                    className="rounded-xl h-8 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow>
-                    <TableHead className="px-6">Batch ID / Title</TableHead>
+                    <TableHead className="w-12 px-4 text-center">
+                      <Checkbox
+                        checked={pendingApprovalBatches.length > 0 && selectedApprovalBatchIds.length === pendingApprovalBatches.length}
+                        onCheckedChange={toggleSelectAllApprovalBatches}
+                        aria-label="Select all batches"
+                      />
+                    </TableHead>
+                    <TableHead className="px-4">Batch ID / Title</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Initiator</TableHead>
                     <TableHead>Reviewer Endorsement</TableHead>
@@ -1081,56 +1510,261 @@ export default function AdminContributionsBulkUploadPage() {
                 <TableBody>
                   {pendingApprovalBatches.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-28 text-center text-muted-foreground text-xs italic">
+                      <TableCell colSpan={8} className="h-28 text-center text-muted-foreground text-xs italic">
                         No endorsed batches awaiting final Super Admin sign-off right now.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    pendingApprovalBatches.map((b: any) => (
-                      <TableRow key={b.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="px-6 py-4">
-                          <p className="font-bold text-xs text-foreground">{b.title || 'Staff Contributions'}</p>
-                          <p className="font-mono text-[10px] text-muted-foreground">{b.batchId || b.id}</p>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[9px] uppercase font-bold">
-                            {b.type === 'historical_migration' ? 'Historical Migration' : 'Payroll Deduction'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <span className="font-bold">{b.initiatorName || 'Accountant'}</span>
-                          <span className="text-[10px] text-muted-foreground block">{b.defaultPeriod}</span>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <div className="flex items-center gap-1.5 text-green-600 font-bold">
-                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                            <span>{b.reviewerName || 'Reviewer'}</span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground italic truncate max-w-[160px]">
-                            &ldquo;{b.reviewNotes || 'Endorsed'}&rdquo;
-                          </p>
-                        </TableCell>
-                        <TableCell className="text-xs font-mono font-bold">
-                          {b.totalCount} staff
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-xs text-primary">
-                          {formatCurrency(b.totalAmount || 0, currency)}
-                        </TableCell>
-                        <TableCell className="text-right px-6">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setInspectBatch(b);
-                              setApprovalNotes(`Approved and released by Super Admin on ${format(new Date(), 'PPP')}`);
-                              setIsInspectOpen(true);
-                            }}
-                            className="rounded-xl h-8 text-xs font-bold gap-1 bg-green-600 hover:bg-green-700 text-white shadow-md"
-                          >
-                            <ShieldCheck className="h-3.5 w-3.5" /> Final Approve
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    pendingApprovalBatches.map((b: any) => {
+                      const isSelected = selectedApprovalBatchIds.includes(b.batchId || b.id);
+                      return (
+                        <TableRow 
+                          key={b.id} 
+                          className={cn(
+                            "hover:bg-muted/30 transition-colors",
+                            isSelected && "bg-green-500/5"
+                          )}
+                        >
+                          <TableCell className="w-12 px-4 text-center">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleApprovalBatch(b.batchId || b.id)}
+                              aria-label={`Select batch ${b.title || b.id}`}
+                            />
+                          </TableCell>
+                          <TableCell className="px-4 py-4">
+                            <p className="font-bold text-xs text-foreground">{b.title || 'Staff Contributions'}</p>
+                            <p className="font-mono text-[10px] text-muted-foreground">{b.batchId || b.id}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[9px] uppercase font-bold">
+                              {b.type === 'historical_migration' ? 'Historical Migration' : 'Payroll Deduction'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <span className="font-bold">{b.initiatorName || 'Accountant'}</span>
+                            <span className="text-[10px] text-muted-foreground block">{b.defaultPeriod}</span>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <div className="flex items-center gap-1.5 text-green-600 font-bold">
+                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                              <span>{b.reviewerName || 'Reviewer'}</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground italic truncate max-w-[160px]">
+                              &ldquo;{b.reviewNotes || 'Endorsed'}&rdquo;
+                            </p>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono font-bold">
+                            {b.totalCount} staff
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-xs text-primary">
+                            {formatCurrency(b.totalAmount || 0, currency)}
+                          </TableCell>
+                          <TableCell className="text-right px-6">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setInspectBatch(b);
+                                setInspectSearchTerm('');
+                                setApprovalNotes(`Approved and released by Super Admin on ${format(new Date(), 'PPP')}`);
+                                setIsInspectOpen(true);
+                              }}
+                              className="rounded-xl h-8 text-xs font-bold gap-1 bg-green-600 hover:bg-green-700 text-white shadow-md"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5" /> Final Approve
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ============================================================ */}
+        {/* TAB 4: MEMBER SLIPS QUEUE (Individual Pending Slips) */}
+        {/* ============================================================ */}
+        <TabsContent value="slips" className="space-y-6">
+          <Card className="shadow-sm border border-border">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <Receipt className="h-5 w-5 text-amber-600" />
+                    Member Self-Submitted Payment Slips
+                  </CardTitle>
+                  <CardDescription>
+                    Individual savings contributions submitted by members requiring payment slip verification.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-none font-bold">
+                    {pendingSlips.length} Slips Pending
+                  </Badge>
+                  {pendingSlips.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleSelectAllSlips}
+                      className="rounded-xl text-xs h-8 gap-1.5"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" />
+                      {selectedPendingSlipIds.length === pendingSlips.length ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+
+            {/* Bulk Slips Toolbar */}
+            {selectedPendingSlipIds.length > 0 && (
+              <div className="p-3 bg-amber-500/10 border-y border-amber-500/20 flex flex-wrap items-center justify-between gap-3 px-6 animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <Badge className="bg-amber-600 text-white font-bold text-xs">
+                    {selectedPendingSlipIds.length} of {pendingSlips.length} Slips Selected
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    Selected Total: <strong className="text-foreground">
+                      {formatCurrency(
+                        pendingSlips
+                          .filter((s: any) => selectedPendingSlipIds.includes(s.id))
+                          .reduce((acc: number, s: any) => acc + (Number(s.amount) || 0), 0),
+                        currency
+                      )}
+                    </strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setBulkSlipDecision('verify');
+                      setBulkSlipJustification(`Payment slip verified and bank deposit reconciled on ${format(new Date(), 'PPP')}`);
+                      setIsBulkSlipModalOpen(true);
+                    }}
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" /> Bulk Verify Slips ({selectedPendingSlipIds.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setBulkSlipDecision('reject');
+                      setBulkSlipJustification('');
+                      setIsBulkSlipModalOpen(true);
+                    }}
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
+                  >
+                    <Ban className="h-3.5 w-3.5" /> Bulk Reject Slips
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedPendingSlipIds([])}
+                    className="rounded-xl h-8 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead className="w-12 px-4 text-center">
+                      <Checkbox
+                        checked={pendingSlips.length > 0 && selectedPendingSlipIds.length === pendingSlips.length}
+                        onCheckedChange={toggleSelectAllSlips}
+                        aria-label="Select all slips"
+                      />
+                    </TableHead>
+                    <TableHead className="px-4">Member</TableHead>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Submitted Date</TableHead>
+                    <TableHead>Proof of Payment</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right px-6">Quick Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingSlips.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-28 text-center text-muted-foreground text-xs italic">
+                        No pending member contribution slips to review. All slips are processed!
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingSlips.map((s: any) => {
+                      const isSelected = selectedPendingSlipIds.includes(s.id);
+                      const memberMatch = registeredMembers.find(m => m.id === s.memberId);
+                      return (
+                        <TableRow 
+                          key={s.id} 
+                          className={cn(
+                            "hover:bg-muted/30 transition-colors",
+                            isSelected && "bg-amber-500/5"
+                          )}
+                        >
+                          <TableCell className="w-12 px-4 text-center">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSlip(s.id)}
+                              aria-label={`Select slip ${s.id}`}
+                            />
+                          </TableCell>
+                          <TableCell className="px-4 py-4">
+                            <p className="font-bold text-xs text-foreground">{memberMatch?.name || s.staffName || 'Member'}</p>
+                            <p className="text-[10px] text-muted-foreground">{memberMatch?.email || s.staffEmail || s.memberId}</p>
+                          </TableCell>
+                          <TableCell className="text-xs font-medium">
+                            {s.period || '—'}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {s.date?.seconds 
+                              ? format(new Date(s.date.seconds * 1000), 'MMM d, yyyy HH:mm') 
+                              : 'Just now'}
+                          </TableCell>
+                          <TableCell>
+                            {s.proofUrl ? (
+                              <a 
+                                href={s.proofUrl} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="text-xs text-primary underline font-medium hover:text-primary/80 inline-flex items-center gap-1"
+                              >
+                                View Slip Document &rarr;
+                              </a>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">No slip attached</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-xs text-primary">
+                            {formatCurrency(s.amount || 0, currency)}
+                          </TableCell>
+                          <TableCell className="text-right px-6">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedPendingSlipIds([s.id]);
+                                setBulkSlipDecision('verify');
+                                setBulkSlipJustification(`Verified slip for ${memberMatch?.name || s.memberId}`);
+                                setIsBulkSlipModalOpen(true);
+                              }}
+                              className="rounded-xl h-8 text-xs font-bold gap-1 text-green-700 hover:bg-green-500/10 border-green-500/30"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Verify
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1311,11 +1945,23 @@ export default function AdminContributionsBulkUploadPage() {
                   </div>
                 </div>
 
-                {/* Staged Items List */}
+                {/* Staged Items List with Search */}
                 <div className="space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Staff Contributions Breakdown ({inspectBatch.items?.length || 0} entries)
-                  </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Staff Breakdown ({filteredInspectItems.length} of {inspectBatch.items?.length || 0} entries)
+                    </p>
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Search name, email, period..."
+                        value={inspectSearchTerm}
+                        onChange={(e) => setInspectSearchTerm(e.target.value)}
+                        className="h-8 pl-8 text-xs rounded-xl"
+                      />
+                    </div>
+                  </div>
                   <div className="max-h-60 overflow-y-auto rounded-xl border border-border">
                     <Table>
                       <TableHeader className="bg-muted/40 sticky top-0">
@@ -1327,16 +1973,24 @@ export default function AdminContributionsBulkUploadPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {inspectBatch.items?.map((item: any, idx: number) => (
-                          <TableRow key={idx}>
-                            <TableCell className="text-xs font-bold py-2.5">{item.staffName || 'Staff Member'}</TableCell>
-                            <TableCell className="text-xs font-mono text-muted-foreground py-2.5">{item.staffEmail || '—'}</TableCell>
-                            <TableCell className="text-xs py-2.5">{item.period || inspectBatch.defaultPeriod}</TableCell>
-                            <TableCell className="text-right text-xs font-bold py-2.5 text-primary">
-                              {formatCurrency(item.amount, currency)}
+                        {filteredInspectItems.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="h-20 text-center text-xs text-muted-foreground italic">
+                              No staff records match &ldquo;{inspectSearchTerm}&rdquo;
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          filteredInspectItems.map((item: any, idx: number) => (
+                            <TableRow key={idx}>
+                              <TableCell className="text-xs font-bold py-2.5">{item.staffName || 'Staff Member'}</TableCell>
+                              <TableCell className="text-xs font-mono text-muted-foreground py-2.5">{item.staffEmail || '—'}</TableCell>
+                              <TableCell className="text-xs py-2.5">{item.period || inspectBatch.defaultPeriod}</TableCell>
+                              <TableCell className="text-right text-xs font-bold py-2.5 text-primary">
+                                {formatCurrency(item.amount, currency)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -1446,6 +2100,277 @@ export default function AdminContributionsBulkUploadPage() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* BULK REVIEW DIALOG */}
+      <Dialog open={isBulkReviewOpen} onOpenChange={setIsBulkReviewOpen}>
+        <DialogContent className="max-w-xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-purple-600" />
+              Bulk Review ({selectedReviewBatchIds.length} Batches)
+            </DialogTitle>
+            <DialogDescription>
+              Execute consolidated review decision across all selected contribution batches simultaneously.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Aggregated metrics */}
+            <div className="grid grid-cols-3 gap-3 p-3 bg-purple-500/5 rounded-xl border border-purple-500/20">
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">Batches</p>
+                <p className="text-lg font-bold text-foreground">{selectedReviewBatchIds.length}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">Total Staff</p>
+                <p className="text-lg font-bold text-foreground">{bulkReviewTotalStaff}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-primary uppercase font-bold">Total Value</p>
+                <p className="text-lg font-bold text-primary">{formatCurrency(bulkReviewTotalAmount, currency)}</p>
+              </div>
+            </div>
+
+            {/* Decision selector */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">Review Decision</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={bulkReviewDecision === 'endorse' ? 'default' : 'outline'}
+                  onClick={() => setBulkReviewDecision('endorse')}
+                  className={cn(
+                    "text-xs font-bold rounded-xl h-9",
+                    bulkReviewDecision === 'endorse' && "bg-purple-600 hover:bg-purple-700 text-white"
+                  )}
+                >
+                  <CheckCheck className="mr-1 h-3.5 w-3.5" /> Endorse (Step 2)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={bulkReviewDecision === 'request_changes' ? 'default' : 'outline'}
+                  onClick={() => setBulkReviewDecision('request_changes')}
+                  className={cn(
+                    "text-xs font-bold rounded-xl h-9",
+                    bulkReviewDecision === 'request_changes' && "bg-amber-600 hover:bg-amber-700 text-white"
+                  )}
+                >
+                  Request Changes
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={bulkReviewDecision === 'reject' ? 'default' : 'outline'}
+                  onClick={() => setBulkReviewDecision('reject')}
+                  className={cn(
+                    "text-xs font-bold rounded-xl h-9",
+                    bulkReviewDecision === 'reject' && "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  )}
+                >
+                  <Ban className="mr-1 h-3.5 w-3.5" /> Reject
+                </Button>
+              </div>
+            </div>
+
+            {/* Selected batches preview */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Selected Batches</p>
+              <div className="max-h-36 overflow-y-auto rounded-xl border border-border divide-y">
+                {selectedReviewBatches.map((b: any) => (
+                  <div key={b.id} className="p-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold">{b.title}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{b.batchId || b.id} &bull; {b.totalCount} staff</p>
+                    </div>
+                    <span className="font-bold text-primary">{formatCurrency(b.totalAmount || 0, currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Review Notes */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">
+                Reviewer Observations / Justification <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={bulkReviewNotes}
+                onChange={(e) => setBulkReviewNotes(e.target.value)}
+                placeholder="Enter review findings and verification endorsement..."
+                rows={3}
+                className="rounded-xl text-xs resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setIsBulkReviewOpen(false)}
+              className="rounded-xl font-bold text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isSubmitting}
+              onClick={handleExecuteBulkReview}
+              className={cn(
+                "rounded-xl font-bold text-xs gap-1.5 shadow-md",
+                bulkReviewDecision === 'endorse' && "bg-purple-600 hover:bg-purple-700 text-white",
+                bulkReviewDecision === 'request_changes' && "bg-amber-600 hover:bg-amber-700 text-white",
+                bulkReviewDecision === 'reject' && "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              )}
+            >
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCheck className="h-4 w-4" />
+              )}
+              Confirm {bulkReviewDecision === 'endorse' ? 'Bulk Endorsement' : bulkReviewDecision === 'request_changes' ? 'Bulk Change Request' : 'Bulk Rejection'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BULK APPROVAL DIALOG */}
+      <Dialog open={isBulkApprovalOpen} onOpenChange={setIsBulkApprovalOpen}>
+        <DialogContent className="max-w-xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-green-600" />
+              Bulk Super Admin Approval ({selectedApprovalBatchIds.length} Batches)
+            </DialogTitle>
+            <DialogDescription>
+              Commit all staged contributions across {selectedApprovalBatchIds.length} batches to the live database ledger.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="p-3 bg-green-500/10 rounded-xl border border-green-500/30 flex items-start gap-2.5">
+              <ShieldCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-green-950 dark:text-green-200">
+                <strong>Executive Audit Action:</strong> Committing will write {bulkApprovalTotalStaff} contributions totaling <strong>{formatCurrency(bulkApprovalTotalAmount, currency)}</strong> to the official ledger with status <code>verified</code> and instantly update member borrowing limits.
+              </p>
+            </div>
+
+            {/* Selected batches preview */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Batches Ready for Sign-Off</p>
+              <div className="max-h-36 overflow-y-auto rounded-xl border border-border divide-y">
+                {selectedApprovalBatches.map((b: any) => (
+                  <div key={b.id} className="p-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold">{b.title}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">
+                        {b.batchId || b.id} &bull; Reviewer: {b.reviewerName || 'Endorsed'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold text-primary">{formatCurrency(b.totalAmount || 0, currency)}</span>
+                      <p className="text-[10px] text-muted-foreground">{b.totalCount} staff</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Approval Notes */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">
+                Super Admin Final Approval Note <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={bulkApprovalNotes}
+                onChange={(e) => setBulkApprovalNotes(e.target.value)}
+                placeholder="Enter executive justification for final ledger commitment..."
+                rows={3}
+                className="rounded-xl text-xs resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setIsBulkApprovalOpen(false)}
+              className="rounded-xl font-bold text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isSubmitting}
+              onClick={handleExecuteBulkApproval}
+              className="rounded-xl font-bold text-xs gap-1.5 bg-green-600 hover:bg-green-700 text-white shadow-lg"
+            >
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-4 w-4" />
+              )}
+              Approve &amp; Commit All to Ledger ({formatCurrency(bulkApprovalTotalAmount, currency)})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BULK SLIPS VERIFY / REJECT DIALOG */}
+      <Dialog open={isBulkSlipModalOpen} onOpenChange={setIsBulkSlipModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-amber-600" />
+              {bulkSlipDecision === 'verify' ? 'Bulk Verify Member Slips' : 'Bulk Reject Member Slips'}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkSlipDecision === 'verify' 
+                ? `Verify payment proof for ${selectedPendingSlipIds.length} member contributions.` 
+                : `Reject ${selectedPendingSlipIds.length} contribution slips.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">
+                {bulkSlipDecision === 'verify' ? 'Verification Justification' : 'Rejection Reason'} <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={bulkSlipJustification}
+                onChange={(e) => setBulkSlipJustification(e.target.value)}
+                placeholder={bulkSlipDecision === 'verify' ? "e.g. Bank credit slip verified against account statements..." : "e.g. Unreadable receipt or invalid transaction ID..."}
+                rows={3}
+                className="rounded-xl text-xs resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setIsBulkSlipModalOpen(false)}
+              className="rounded-xl font-bold text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isSubmitting}
+              onClick={handleExecuteBulkSlipAction}
+              className={cn(
+                "rounded-xl font-bold text-xs gap-1.5 shadow-md",
+                bulkSlipDecision === 'verify' ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              )}
+            >
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+              Confirm {bulkSlipDecision === 'verify' ? 'Verification' : 'Rejection'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
