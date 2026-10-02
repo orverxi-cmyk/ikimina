@@ -2,6 +2,8 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { getAuth, updateProfile } from 'firebase/auth';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { updateMemberProfileAction } from '@/lib/finance-client';
 import { Camera, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
@@ -80,7 +82,36 @@ export function AvatarUpload({
           setProgress(null);
           startTransition(async () => {
             try {
-              await updateMemberProfileAction(uid, { photoURL: downloadURL });
+              // 1. Update Firebase Auth client profile for instant local and session persistence
+              const auth = getAuth(app);
+              if (auth.currentUser && auth.currentUser.uid === uid) {
+                try {
+                  await updateProfile(auth.currentUser, { photoURL: downloadURL });
+                } catch (authErr) {
+                  console.warn('Could not update Firebase Auth user profile:', authErr);
+                }
+              }
+
+              // 2. Persist directly to Firestore profile document
+              let firestoreUpdated = false;
+              try {
+                const firestore = getFirestore(app);
+                await updateDoc(doc(firestore, 'users', uid), { photoURL: downloadURL });
+                firestoreUpdated = true;
+              } catch (fsErr) {
+                console.warn('Direct Firestore profile write failed, will attempt Cloud Function:', fsErr);
+              }
+
+              // 3. Update via Cloud Function
+              try {
+                await updateMemberProfileAction(uid, { photoURL: downloadURL });
+              } catch (cfErr: any) {
+                if (!firestoreUpdated) {
+                  throw cfErr;
+                }
+              }
+
+              setPreview(downloadURL);
               setStatus('done');
               onUploadSuccess?.(downloadURL);
               setTimeout(() => setStatus('idle'), 2500);

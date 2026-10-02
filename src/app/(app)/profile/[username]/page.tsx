@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { AvatarUpload } from '@/components/ui/avatar-upload';
 import { Badge } from '@/components/ui/badge';
 import { Wallet, HandCoins, History, FileText, User as UserIcon, Loader2, Landmark } from 'lucide-react';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
@@ -91,10 +92,19 @@ export default function ProfilePage() {
     <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8 pb-24">
       {/* Profile Header */}
       <div className="flex flex-col md:flex-row gap-6 items-center md:items-start bg-card p-6 rounded-3xl border border-primary/5">
-        <Avatar className="w-24 h-24 border-4 border-background shadow-xl">
-          <AvatarImage src={`https://picsum.photos/seed/${targetId}/200/200`} />
-          <AvatarFallback><UserIcon className="h-10 w-10" /></AvatarFallback>
-        </Avatar>
+        {user && (targetId === user.uid || params.username === 'me') ? (
+          <AvatarUpload
+            uid={user.uid}
+            currentPhotoURL={userData.photoURL ?? user.photoURL}
+            displayName={userData.name ?? user.displayName}
+            size={96}
+          />
+        ) : (
+          <Avatar className="w-24 h-24 border-4 border-background shadow-xl">
+            <AvatarImage src={userData.photoURL || `https://picsum.photos/seed/${targetId}/200/200`} />
+            <AvatarFallback><UserIcon className="h-10 w-10" /></AvatarFallback>
+          </Avatar>
+        )}
         <div className="flex-1 text-center md:text-left space-y-2">
           <div className="flex flex-col md:flex-row md:items-center gap-2">
             <h1 className="text-3xl font-bold font-headline">{userData.name}</h1>

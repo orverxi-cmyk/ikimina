@@ -26,11 +26,14 @@ service cloud.firestore {
       );
     }
 
-    // Member profiles: Zero client-side writes. All mutations managed by Cloud Functions.
+    // Member profiles: Users can update non-financial fields (photoURL, phone, name) on their own profile.
+    // Sensitive fields (role, status, accruedInterest) are strictly protected.
     match /users/{userId} {
       allow read: if isSignedIn() || userId == request.auth.uid;
       allow list: if (request.query.limit <= 1) || isSignedIn();
-      allow write: if false; // Managed exclusively via Cloud Functions
+      allow update: if isSignedIn() && request.auth.uid == userId && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'accruedInterest', 'email', 'joinedAt']);
+      allow write: if false; // All other mutations managed via Cloud Functions
     }
 
     // Contributions: Zero client-side writes.

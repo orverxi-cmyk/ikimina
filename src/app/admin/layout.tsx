@@ -245,7 +245,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10 text-white">
                   <Avatar className="h-9 w-9 border border-white/20">
-                    <AvatarImage src={`https://picsum.photos/seed/${user?.uid}/100/100`} />
+                    <AvatarImage src={userData?.photoURL || user?.photoURL || `https://picsum.photos/seed/${user?.uid}/100/100`} />
                     <AvatarFallback className="bg-white/20 text-white font-bold">
                       {userData?.name?.charAt(0) || user.email?.charAt(0) || 'A'}
                     </AvatarFallback>

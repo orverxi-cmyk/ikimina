@@ -46,7 +46,7 @@ export function Header() {
           {user ? (
             <Link href="/profile/me">
               <Avatar className="h-9 w-9 border border-white/20 hover:scale-105 transition-transform">
-                <AvatarImage src={`https://picsum.photos/seed/${user.uid}/100/100`} />
+                <AvatarImage src={userData?.photoURL || user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`} />
                 <AvatarFallback className="bg-white/20 text-white font-bold">
                   {userData?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                 </AvatarFallback>

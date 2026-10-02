@@ -226,10 +226,15 @@ export const updateMemberProfile = onCall({ cors: true }, async (request) => {
             throw new HttpsError('invalid-argument', 'photoURL must be a Firebase Storage URL.');
         }
 
-        // Non-admins may only upload to their own avatars/ path
+        // Non-admins may only upload to their own avatars/ path.
+        // Firebase Storage download URLs URL-encode slashes as %2F, so we check
+        // both the decoded and encoded variants of the expected path.
         if (callerRole !== 'admin') {
-            const expectedPath = `/avatars/${request.auth.uid}/`;
-            if (!url.includes(expectedPath)) {
+            const uid = request.auth.uid;
+            const plainPath = `/avatars/${uid}/`;
+            const encodedPath = `avatars%2F${uid}%2F`;
+            const decodedUrl = decodeURIComponent(url);
+            if (!decodedUrl.includes(plainPath) && !url.includes(encodedPath)) {
                 throw new HttpsError('permission-denied', 'You may only set a photo from your own avatars storage path.');
             }
         }
@@ -243,6 +248,19 @@ export const updateMemberProfile = onCall({ cors: true }, async (request) => {
 
     try {
         await db.collection('users').doc(targetUserId).update(updates);
+
+        // Keep Firebase Auth profile in sync
+        const authUpdates: admin.auth.UpdateRequest = {};
+        if (updates.photoURL) authUpdates.photoURL = updates.photoURL;
+        if (updates.name) authUpdates.displayName = updates.name;
+        if (Object.keys(authUpdates).length > 0) {
+            try {
+                await admin.auth().updateUser(targetUserId, authUpdates);
+            } catch (authErr) {
+                console.warn('Failed to update Firebase Auth user profile:', authErr);
+            }
+        }
+
         return { success: true };
     } catch (error: any) {
         throw new HttpsError('internal', error.message);
