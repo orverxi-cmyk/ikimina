@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, Suspense } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,7 +28,8 @@ import {
   Sparkles,
   ShieldAlert,
   FileText,
-  ExternalLink
+  ExternalLink,
+  AlertOctagon
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -57,8 +58,10 @@ import {
   verifyRepaymentAction, 
   approveLoanAction, 
   rejectLoanAction,
-  withdrawLoanApplicationAction 
+  withdrawLoanApplicationAction,
+  getGroupLiquidityMetricsAction 
 } from '@/lib/finance-client';
+import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
 import { useSettings } from '@/context/settings-context';
@@ -95,6 +98,26 @@ function LoansPageContent() {
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('schedule');
+
+  // Group Liquidity & Lending Pool Ceiling State
+  const [liquidityMetrics, setLiquidityMetrics] = useState<any>(null);
+  const [loadingLiquidity, setLoadingLiquidity] = useState(false);
+
+  const loadLiquidityMetrics = async () => {
+    setLoadingLiquidity(true);
+    try {
+      const metrics = await getGroupLiquidityMetricsAction();
+      setLiquidityMetrics(metrics);
+    } catch (e) {
+      console.warn('Could not fetch liquidity metrics', e);
+    } finally {
+      setLoadingLiquidity(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLiquidityMetrics();
+  }, []);
 
   const role = userData?.role || 'member';
   const isManagement = role === 'admin' || role === 'management' || role === 'accountant';
@@ -185,6 +208,14 @@ function LoansPageContent() {
 
   const handleWithdrawLoan = async () => {
     if (!loanToWithdraw) return;
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Network Connection Lost",
+        description: "Cannot withdraw application while offline. Please verify your connection."
+      });
+      return;
+    }
     setIsWithdrawing(true);
     try {
       await withdrawLoanApplicationAction({
@@ -199,7 +230,8 @@ function LoansPageContent() {
       setLoanToWithdraw(null);
       setWithdrawReason('');
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Withdrawal Failed", description: error.message });
+      const appErr = parseAppError(error);
+      toast({ variant: "destructive", title: appErr.title, description: appErr.message });
     } finally {
       setIsWithdrawing(false);
     }
@@ -236,6 +268,14 @@ function LoansPageContent() {
   const handleRepay = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedLoan || !user) return;
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Network Connection Lost",
+        description: "Unable to submit repayment while offline. Please check your internet connection."
+      });
+      return;
+    }
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('repayAmount'));
@@ -260,7 +300,8 @@ function LoansPageContent() {
       toast({ title: "Payment Submitted", description: "Your repayment is awaiting management verification." });
       setIsRepayOpen(false);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      const appErr = parseAppError(error);
+      toast({ variant: "destructive", title: appErr.title, description: appErr.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -269,6 +310,14 @@ function LoansPageContent() {
   const handleVerifyRepayment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedRepayment || !isManagement) return;
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Network Connection Lost",
+        description: "Unable to verify repayments while offline. Please check your connection."
+      });
+      return;
+    }
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const justification = formData.get('justification') as string;
@@ -280,8 +329,10 @@ function LoansPageContent() {
       });
       toast({ title: "Repayment Verified", description: "Loan balance has been updated." });
       setIsVerifyRepayOpen(false);
+      await loadLiquidityMetrics();
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Verification Failed", description: error.message });
+      const appErr = parseAppError(error);
+      toast({ variant: "destructive", title: appErr.title, description: appErr.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -290,6 +341,26 @@ function LoansPageContent() {
   const handleApproveLoan = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedLoan || !isManagement) return;
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Network Connection Lost",
+        description: "Unable to disburse funds while offline. Please check your connection."
+      });
+      return;
+    }
+
+    const requestedAmt = Number(selectedLoan.amount) || 0;
+    const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : Infinity;
+    if (requestedAmt > availableGroupPool) {
+      toast({
+        variant: "destructive",
+        title: "No Funds Available to Loan From",
+        description: `This loan of ${formatCurrency(requestedAmt, currency)} exceeds the group lending pool ceiling of ${liquidityMetrics?.maxLendingPoolPercentage ?? 90}% (${formatCurrency(availableGroupPool, currency)} currently available).`
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     const calculatedInterest = Math.round(selectedLoan.amount * (globalRate / 100));
@@ -309,8 +380,10 @@ function LoansPageContent() {
       toast({ title: "Loan Approved", description: "Borrower has been notified and funds released." });
       setIsApproveOpen(false);
       setIsReviewOpen(false);
+      await loadLiquidityMetrics();
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Approval Failed", description: error.message });
+      const appErr = parseAppError(error);
+      toast({ variant: "destructive", title: appErr.title, description: appErr.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -319,6 +392,14 @@ function LoansPageContent() {
   const handleRejectLoan = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedLoan || !isManagement) return;
+    if (isBrowserOffline()) {
+      toast({
+        variant: "destructive",
+        title: "Network Connection Lost",
+        description: "Unable to process loan rejection while offline. Please check your connection."
+      });
+      return;
+    }
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const justification = formData.get('justification') as string;
@@ -329,7 +410,8 @@ function LoansPageContent() {
       setIsRejectOpen(false);
       setIsReviewOpen(false);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Rejection Failed", description: error.message });
+      const appErr = parseAppError(error);
+      toast({ variant: "destructive", title: appErr.title, description: appErr.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -355,11 +437,29 @@ function LoansPageContent() {
                <Plus className="mr-2 h-4 w-4" /> Apply for Loan
              </Link>
            </Button>
-           <div className="grid grid-cols-3 sm:flex gap-1.5 sm:gap-2 w-full sm:w-auto">
+           <div className="grid grid-cols-2 sm:flex gap-1.5 sm:gap-2 w-full sm:w-auto">
               {!isManagement && (
                 <div className="bg-primary/5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-primary/20 text-center flex-1 sm:min-w-[120px]">
                     <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Borrow Power</p>
                     <p data-stat-value="true" className="text-xs sm:text-sm font-bold text-primary">{formatCurrency(memberBorrowingPower, currency)}</p>
+                </div>
+              )}
+              {isManagement && (
+                <div className={cn(
+                  "px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border text-center flex-1 sm:min-w-[130px]",
+                  liquidityMetrics && liquidityMetrics.availableLendingPool <= 0 
+                    ? "bg-destructive/10 border-destructive/30" 
+                    : "bg-emerald-500/10 border-emerald-500/30"
+                )}>
+                    <p className="text-[10px] font-bold text-foreground uppercase tracking-tighter">
+                      Lending Pool ({liquidityMetrics?.maxLendingPoolPercentage ?? 90}%)
+                    </p>
+                    <p data-stat-value="true" className={cn(
+                      "text-xs sm:text-sm font-bold",
+                      liquidityMetrics && liquidityMetrics.availableLendingPool <= 0 ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"
+                    )}>
+                      {loadingLiquidity ? "..." : formatCurrency(liquidityMetrics?.availableLendingPool ?? 0, currency)}
+                    </p>
                 </div>
               )}
               <div className="bg-muted px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-border text-center flex-1 sm:min-w-[110px]">
@@ -518,7 +618,11 @@ function LoansPageContent() {
                               {formatCurrency(memberPower, currency)}
                             </TableCell>
                             <TableCell>
-                              {r.exceedsBorrowingPower || r.managementApprovalUrl ? (
+                              {liquidityMetrics && r.amount > liquidityMetrics.availableLendingPool ? (
+                                <Badge className="bg-destructive/10 text-destructive border-none text-[9px] uppercase font-bold flex items-center gap-1 w-fit">
+                                  <AlertOctagon className="h-3 w-3" /> Pool Ceiled
+                                </Badge>
+                              ) : r.exceedsBorrowingPower || r.managementApprovalUrl ? (
                                 <Badge className="bg-primary/10 text-primary border border-primary/20 text-[9px] uppercase font-bold flex items-center gap-1 w-fit">
                                   <ShieldAlert className="h-3 w-3" /> Approval Attached
                                 </Badge>
@@ -986,6 +1090,12 @@ function LoansPageContent() {
             const loanDuration = Number(selectedLoan.durationMonths) || 12;
             const monthlyPayment = Math.round(totalPayable / loanDuration);
 
+            const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : Infinity;
+            const lendingPoolCeilingPct = liquidityMetrics?.maxLendingPoolPercentage ?? 90;
+            const isPoolExhausted = requestedAmt > availableGroupPool;
+            const maxLendingPool = liquidityMetrics?.maxLendingPool ?? 0;
+            const currentActiveLoanBalance = liquidityMetrics?.currentActiveLoanBalance ?? 0;
+
             return (
               <form onSubmit={handleApproveLoan} className="flex flex-col max-h-[90vh]">
                 {/* Header */}
@@ -1032,15 +1142,15 @@ function LoansPageContent() {
                     </div>
                   </div>
 
-                  {/* 3 Core Metric Cards: Requested Amount, Current Contribution, Borrowing Power */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* 4 Core Metric Cards: Requested Amount, Current Contribution, Borrowing Power, Group Lending Pool */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {/* Requested Amount */}
-                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex flex-col justify-between">
+                    <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/20 flex flex-col justify-between">
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
                           Requested Loan
                         </span>
-                        <p className="text-2xl font-bold text-primary font-headline mt-1">
+                        <p className="text-xl font-bold text-primary font-headline mt-1">
                           {formatCurrency(requestedAmt, currency)}
                         </p>
                       </div>
@@ -1050,23 +1160,23 @@ function LoansPageContent() {
                     </div>
 
                     {/* Current Contribution */}
-                    <div className="p-4 rounded-xl bg-muted/50 border border-border flex flex-col justify-between">
+                    <div className="p-3.5 rounded-xl bg-muted/50 border border-border flex flex-col justify-between">
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Current Contribution
+                          Member Savings
                         </span>
-                        <p className="text-2xl font-bold text-foreground font-headline mt-1">
+                        <p className="text-xl font-bold text-foreground font-headline mt-1">
                           {formatCurrency(verifiedContributions, currency)}
                         </p>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-2">
-                        Total Verified Savings
+                        Total Verified
                       </p>
                     </div>
 
                     {/* Borrowing Power */}
                     <div className={cn(
-                      "p-4 rounded-xl border flex flex-col justify-between transition-colors",
+                      "p-3.5 rounded-xl border flex flex-col justify-between transition-colors",
                       isEligible ? "bg-green-600/5 border-green-600/20" : "bg-muted/50 border-border"
                     )}>
                       <div>
@@ -1074,20 +1184,61 @@ function LoansPageContent() {
                           "text-[10px] font-bold uppercase tracking-wider",
                           isEligible ? "text-green-700 dark:text-green-400" : "text-foreground"
                         )}>
-                          Borrowing Power ({maxLoanPercentage}%)
+                          Borrow Power ({maxLoanPercentage}%)
                         </span>
                         <p className={cn(
-                          "text-2xl font-bold font-headline mt-1",
+                          "text-xl font-bold font-headline mt-1",
                           isEligible ? "text-green-700 dark:text-green-400" : "text-foreground"
                         )}>
                           {formatCurrency(borrowingPower, currency)}
                         </p>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-2">
-                        {maxLoanPercentage}% of verified savings
+                        {maxLoanPercentage}% Policy Limit
+                      </p>
+                    </div>
+
+                    {/* Group Lending Pool */}
+                    <div className={cn(
+                      "p-3.5 rounded-xl border flex flex-col justify-between transition-colors",
+                      isPoolExhausted ? "bg-destructive/10 border-destructive/30" : "bg-emerald-500/10 border-emerald-500/30"
+                    )}>
+                      <div>
+                        <span className={cn(
+                          "text-[10px] font-bold uppercase tracking-wider",
+                          isPoolExhausted ? "text-destructive font-black" : "text-emerald-700 dark:text-emerald-400"
+                        )}>
+                          Group Pool ({lendingPoolCeilingPct}%)
+                        </span>
+                        <p className={cn(
+                          "text-xl font-bold font-headline mt-1",
+                          isPoolExhausted ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"
+                        )}>
+                          {loadingLiquidity ? "..." : formatCurrency(availableGroupPool, currency)}
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        Available to Lend
                       </p>
                     </div>
                   </div>
+
+                  {/* Group Liquidity Pool Ceiling Alert Banner */}
+                  {isPoolExhausted && (
+                    <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 flex items-start gap-3.5 text-destructive">
+                      <AlertOctagon className="h-5 w-5 shrink-0 mt-0.5" />
+                      <div className="space-y-1 text-xs">
+                        <p className="font-bold text-sm">
+                          No Funds Available to Loan From (Group Ceiling Exceeded)
+                        </p>
+                        <p className="leading-relaxed opacity-95">
+                          The group lending pool ceiling is set at <strong>{lendingPoolCeilingPct}% of total net assets</strong> ({formatCurrency(maxLendingPool, currency)}).
+                          Distributed active loans across all members currently total <strong>{formatCurrency(currentActiveLoanBalance, currency)}</strong>, leaving only <strong>{formatCurrency(availableGroupPool, currency)}</strong> available in the group pool.
+                          This loan application of <strong>{formatCurrency(requestedAmt, currency)}</strong> cannot be approved or disbursed until active loans are repaid or group capital increases.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Borrow Status Assessment Card */}
                   <div className={cn(
@@ -1105,7 +1256,7 @@ function LoansPageContent() {
                           ? `Eligible: Requested loan is within borrowing power (${coveragePercent}%)` 
                           : `Policy Alert: Requested amount exceeds borrowing power`}
                       </p>
-                      <p className="leading-relaxed opacity-90">
+                      <p className="leading-relaxed opacity-95">
                         {isEligible ? (
                           <>
                             The applicant has <strong>{formatCurrency(verifiedContributions, currency)}</strong> in verified savings, entitling them to borrow up to <strong>{formatCurrency(borrowingPower, currency)}</strong> under the {maxLoanPercentage}% policy.
@@ -1275,15 +1426,22 @@ function LoansPageContent() {
                     </Button>
                     <Button
                       type="submit"
-                      disabled={isSubmitting}
-                      className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-6 flex-1 sm:flex-none"
+                      disabled={isSubmitting || isPoolExhausted}
+                      className={cn(
+                        "rounded-xl font-bold text-white shadow-lg h-11 px-6 flex-1 sm:flex-none",
+                        isPoolExhausted 
+                          ? "bg-muted text-muted-foreground cursor-not-allowed border border-border" 
+                          : "bg-green-600 hover:bg-green-700"
+                      )}
                     >
                       {isSubmitting ? (
                         <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                      ) : isPoolExhausted ? (
+                        <AlertOctagon className="mr-2 h-4 w-4" />
                       ) : (
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                       )}
-                      Approve &amp; Disburse
+                      {isPoolExhausted ? "No Funds Available in Pool" : "Approve & Disburse"}
                     </Button>
                   </div>
                 </DialogFooter>
@@ -1296,84 +1454,119 @@ function LoansPageContent() {
       {/* APPROVE LOAN DIALOG (Management Only) */}
       <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
         <DialogContent className="max-w-md rounded-[10px] bg-card">
-          <form onSubmit={handleApproveLoan}>
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold">Approve Loan Request</DialogTitle>
-              <DialogDescription>Define the legal repayment terms for this request.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-6">
-              <div className="p-4 bg-muted rounded-[10px] border border-border">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Approved Loan Amount</p>
-                <p className="text-2xl font-bold text-primary">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
-                {selectedLoan && (
-                  <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Upfront Interest ({globalRate}%):</span>
-                      <span className="font-bold text-foreground">-{formatCurrency(Math.round(selectedLoan.amount * (globalRate / 100)), currency)}</span>
+          {(() => {
+            const isLoanPoolCeiled = selectedLoan && liquidityMetrics && Number(selectedLoan.amount) > Number(liquidityMetrics.availableLendingPool);
+            const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : Infinity;
+
+            return (
+              <form onSubmit={handleApproveLoan}>
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold">Approve Loan Request</DialogTitle>
+                  <DialogDescription>Define the legal repayment terms for this request.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-6">
+                  {/* Pool Alert Banner */}
+                  {isLoanPoolCeiled && (
+                    <div className="p-3.5 bg-destructive/10 border border-destructive/30 rounded-[10px] flex items-start gap-2.5 text-destructive text-xs">
+                      <AlertOctagon className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <p className="font-bold">No Funds Available to Loan From</p>
+                        <p className="opacity-90">
+                          Group pool ceiling ({liquidityMetrics?.maxLendingPoolPercentage ?? 90}%) has only {formatCurrency(availableGroupPool, currency)} available.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Amount Received:</span>
-                      <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                        {formatCurrency(Math.max(0, selectedLoan.amount - Math.round(selectedLoan.amount * (globalRate / 100))), currency)}
-                      </span>
+                  )}
+
+                  <div className="p-4 bg-muted rounded-[10px] border border-border">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Approved Loan Amount</p>
+                    <p className="text-2xl font-bold text-primary">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
+                    {selectedLoan && (
+                      <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Upfront Interest ({globalRate}%):</span>
+                          <span className="font-bold text-foreground">-{formatCurrency(Math.round(selectedLoan.amount * (globalRate / 100)), currency)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Amount Received:</span>
+                          <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                            {formatCurrency(Math.max(0, selectedLoan.amount - Math.round(selectedLoan.amount * (globalRate / 100))), currency)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                        Interest Amount <Lock className="h-3 w-3 text-muted-foreground" />
+                      </Label>
+                      <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 border border-border/50">
+                        {selectedLoan ? formatCurrency(Math.round(selectedLoan.amount * (globalRate / 100)), currency) : '-'}
+                      </div>
+                      <p className="text-[9px] text-muted-foreground">Locked by system rate: {globalRate}%</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-wider">Months</Label>
+                      <Input name="durationMonths" type="number" defaultValue="12" required className="h-11 rounded-[10px] bg-muted border-none" />
                     </div>
                   </div>
-                )}
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-                    Interest Amount <Lock className="h-3 w-3 text-muted-foreground" />
-                  </Label>
-                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 border border-border/50">
-                    {selectedLoan ? formatCurrency(Math.round(selectedLoan.amount * (globalRate / 100)), currency) : '-'}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-wider">Start Date</Label>
+                      <Input name="startDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="h-11 rounded-[10px] bg-muted border-none" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                        Penalty Rate (%) <Lock className="h-3 w-3 text-muted-foreground" />
+                      </Label>
+                      <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 border border-border/50">
+                        {globalPenaltyRate}%
+                      </div>
+                      <p className="text-[9px] text-muted-foreground">Locked by board policy</p>
+                    </div>
                   </div>
-                  <p className="text-[9px] text-muted-foreground">Locked by system rate: {globalRate}%</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider">Months</Label>
-                  <Input name="durationMonths" type="number" defaultValue="12" required className="h-11 rounded-[10px] bg-muted border-none" />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider">Start Date</Label>
-                  <Input name="startDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="h-11 rounded-[10px] bg-muted border-none" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-                    Penalty Rate (%) <Lock className="h-3 w-3 text-muted-foreground" />
-                  </Label>
-                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 border border-border/50">
-                    {globalPenaltyRate}%
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                      Interest Deduction Policy <Lock className="h-3 w-3 text-muted-foreground" />
+                    </Label>
+                    <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 capitalize border border-border/50">
+                      {globalInterestType === 'immediate' ? 'Upfront Deduction' : 'Pay Later (Added to Principal)'}
+                    </div>
                   </div>
-                  <p className="text-[9px] text-muted-foreground">Locked by board policy</p>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-                  Interest Deduction Policy <Lock className="h-3 w-3 text-muted-foreground" />
-                </Label>
-                <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/60 capitalize border border-border/50">
-                  {globalInterestType === 'immediate' ? 'Upfront Deduction' : 'Pay Later (Added to Principal)'}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider">Audit Justification</Label>
+                    <Textarea name="justification" placeholder="E.g., Approved per credit policy..." required className="rounded-[10px] bg-muted border-none min-h-[80px]" />
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider">Audit Justification</Label>
-                <Textarea name="justification" placeholder="E.g., Approved per credit policy..." required className="rounded-[10px] bg-muted border-none min-h-[80px]" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-[10px] font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200">
-                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                Release Funds & Approve
-              </Button>
-            </DialogFooter>
-          </form>
+                <DialogFooter>
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting || isLoanPoolCeiled} 
+                    className={cn(
+                      "w-full h-12 rounded-[10px] font-bold text-white shadow-lg",
+                      isLoanPoolCeiled 
+                        ? "bg-muted text-muted-foreground cursor-not-allowed border border-border" 
+                        : "bg-green-600 hover:bg-green-700"
+                    )}
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                    ) : isLoanPoolCeiled ? (
+                      <AlertOctagon className="mr-2 h-4 w-4" />
+                    ) : (
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                    )}
+                    {isLoanPoolCeiled ? "No Funds Available in Lending Pool" : "Release Funds & Approve"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
