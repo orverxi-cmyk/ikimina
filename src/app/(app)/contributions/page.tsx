@@ -30,6 +30,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSettings } from '@/context/settings-context';
+import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
 export default function ContributionsPage() {
   const { toast } = useToast();
@@ -129,10 +130,11 @@ export default function ContributionsPage() {
       setSelectedContribution(null);
       setReversalJustification('');
     } catch (err: any) {
+      const parsed = parseAppError(err);
       toast({
         variant: "destructive",
-        title: "Reversal Failed",
-        description: err.message || "Failed to reverse contribution approval."
+        title: parsed.title || "Reversal Failed",
+        description: parsed.message
       });
     } finally {
       setIsReversing(false);
@@ -143,6 +145,14 @@ export default function ContributionsPage() {
     e.preventDefault();
     if (!user) return;
     
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently disconnected from the internet. Please connect before uploading proof of payment.",
+      });
+    }
+
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('amount'));
@@ -169,7 +179,8 @@ export default function ContributionsPage() {
       toast({ title: "Submitted", description: "Your contribution has been submitted for verification." });
       (e.target as HTMLFormElement).reset();
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Submission Failed", description: error.message });
+      const parsed = parseAppError(error);
+      toast({ variant: "destructive", title: parsed.title || "Submission Failed", description: parsed.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -178,6 +189,15 @@ export default function ContributionsPage() {
   const handleManualRecord = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user || !isManagement) return;
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently disconnected from the internet. Please connect before recording contributions.",
+      });
+    }
+
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     
@@ -193,7 +213,8 @@ export default function ContributionsPage() {
       toast({ title: "Recorded", description: "Manual contribution has been officially added to the ledger." });
       setIsManualEntryOpen(false);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Failed", description: error.message });
+      const parsed = parseAppError(error);
+      toast({ variant: "destructive", title: parsed.title || "Recording Failed", description: parsed.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -202,6 +223,14 @@ export default function ContributionsPage() {
   const handleActionContribution = async (type: 'verify' | 'reject', e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user || !selectedContribution) return;
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently disconnected from the internet. Please connect before verifying or rejecting contributions.",
+      });
+    }
     
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
@@ -224,7 +253,8 @@ export default function ContributionsPage() {
       setIsVerifyOpen(false);
       setSelectedContribution(null);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      const parsed = parseAppError(error);
+      toast({ variant: "destructive", title: parsed.title || "Action Failed", description: parsed.message });
     } finally {
       setIsSubmitting(false);
     }

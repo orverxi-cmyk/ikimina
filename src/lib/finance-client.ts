@@ -11,6 +11,15 @@
 
 import { initializeFirebase } from '@/firebase';
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
+import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
+
+export function formatFinanceActionError(error: unknown, fallbackMessage: string): Error {
+  if (isBrowserOffline()) {
+    return new Error('Your device is currently offline. Please check your internet connection and try again.');
+  }
+  const parsed = parseAppError(error);
+  return new Error(parsed.message || fallbackMessage);
+}
 
 let functionsInstance: ReturnType<typeof getFunctions> | null = null;
 
@@ -96,7 +105,7 @@ export async function allocateInterestAction(uid: string, data: {
     });
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to allocate interest through Cloud Function.');
+    throw formatFinanceActionError(error, 'Failed to allocate interest through Cloud Function.');
   }
 }
 
@@ -113,7 +122,7 @@ export async function resetFinancialDataAction(data: { justification: string, co
     });
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to reset financial data through Cloud Function.');
+    throw formatFinanceActionError(error, 'Failed to reset financial data through Cloud Function.');
   }
 }
 
@@ -140,7 +149,7 @@ export async function updateFinancialSettingsAction(data: {
     const result = await settingsFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to update financial settings through Cloud Function.');
+    throw formatFinanceActionError(error, 'Failed to update financial settings through Cloud Function.');
   }
 }
 
@@ -154,7 +163,7 @@ export async function recordContributionAction(uid: string, data: { memberId: st
     const result = await recordFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to record contribution');
+    throw formatFinanceActionError(error, 'Failed to record contribution');
   }
 }
 
@@ -168,7 +177,7 @@ export async function verifyContributionAction(uid: string, data: { contribution
     const result = await verifyFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to verify contribution');
+    throw formatFinanceActionError(error, 'Failed to verify contribution');
   }
 }
 
@@ -182,7 +191,7 @@ export async function rejectContributionAction(uid: string, data: { contribution
     const result = await rejectFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to reject contribution');
+    throw formatFinanceActionError(error, 'Failed to reject contribution');
   }
 }
 
@@ -208,7 +217,7 @@ export async function bulkUploadContributionsAction(data: {
     const result = await bulkFn(data);
     return result.data as { success: boolean; batchId: string; count: number; totalAmount: number };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to process bulk upload.');
+    throw formatFinanceActionError(error, 'Failed to process bulk upload.');
   }
 }
 
@@ -236,7 +245,7 @@ export async function initiateContributionBatchAction(data: {
     const result = await initFn(data);
     return result.data as { success: boolean; batchId: string; totalCount: number; totalAmount: number; status: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to initiate contribution batch.');
+    throw formatFinanceActionError(error, 'Failed to initiate contribution batch.');
   }
 }
 
@@ -254,7 +263,7 @@ export async function reviewContributionBatchAction(data: {
     const result = await revFn(data);
     return result.data as { success: boolean; batchId: string; status: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to submit review for batch.');
+    throw formatFinanceActionError(error, 'Failed to submit review for batch.');
   }
 }
 
@@ -272,7 +281,7 @@ export async function approveContributionBatchAction(data: {
     const result = await appFn(data);
     return result.data as { success: boolean; batchId: string; count?: number; totalAmount?: number; status: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to execute final approval for batch.');
+    throw formatFinanceActionError(error, 'Failed to execute final approval for batch.');
   }
 }
 
@@ -290,7 +299,7 @@ export async function bulkReviewContributionBatchesAction(data: {
     const result = await bulkRevFn(data);
     return result.data as { success: boolean; processedCount: number; totalRequested: number; status: string; errors?: string[] };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to bulk review contribution batches.');
+    throw formatFinanceActionError(error, 'Failed to bulk review contribution batches.');
   }
 }
 
@@ -308,7 +317,7 @@ export async function bulkApproveContributionBatchesAction(data: {
     const result = await bulkAppFn(data);
     return result.data as { success: boolean; processedBatches: number; totalRequested: number; totalItemsCommitted: number; totalAmountCommitted: number; decision: string; errors?: string[] };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to bulk approve contribution batches.');
+    throw formatFinanceActionError(error, 'Failed to bulk approve contribution batches.');
   }
 }
 
@@ -325,7 +334,7 @@ export async function bulkVerifyContributionsAction(data: {
     const result = await bulkVerifyFn(data);
     return result.data as { success: boolean; count: number };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to bulk verify contributions.');
+    throw formatFinanceActionError(error, 'Failed to bulk verify contributions.');
   }
 }
 
@@ -342,7 +351,7 @@ export async function bulkRejectContributionsAction(data: {
     const result = await bulkRejectFn(data);
     return result.data as { success: boolean; count: number };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to bulk reject contributions.');
+    throw formatFinanceActionError(error, 'Failed to bulk reject contributions.');
   }
 }
 
@@ -359,7 +368,7 @@ export async function recordRepaymentAction(data: { loanId: string, amount: numb
     const result = await repayFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to record repayment');
+    throw formatFinanceActionError(error, 'Failed to record repayment');
   }
 }
 
@@ -373,7 +382,7 @@ export async function verifyRepaymentAction(data: { repaymentId: string, justifi
     const result = await verifyFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to verify repayment');
+    throw formatFinanceActionError(error, 'Failed to verify repayment');
   }
 }
 
@@ -387,7 +396,7 @@ export async function approveLoanAction(data: { loanId: string, terms: any, just
     const result = await approveFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to approve loan');
+    throw formatFinanceActionError(error, 'Failed to approve loan');
   }
 }
 
@@ -401,7 +410,7 @@ export async function rejectLoanAction(data: { loanId: string, justification: st
     const result = await rejectFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to reject loan');
+    throw formatFinanceActionError(error, 'Failed to reject loan');
   }
 }
 
@@ -415,7 +424,7 @@ export async function updateUserRoleAction(targetUserId: string, role: string, j
     const result = await roleFn({ targetUserId, role, justification });
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to update role');
+    throw formatFinanceActionError(error, 'Failed to update role');
   }
 }
 
@@ -429,7 +438,7 @@ export async function registerMemberAction(uid: string, memberData: any) {
     const result = await registerFn({ memberData, justification: memberData.justification });
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to register member');
+    throw formatFinanceActionError(error, 'Failed to register member');
   }
 }
 
@@ -443,7 +452,7 @@ export async function bulkRegisterMembersAction(uid: string, members: any[], jus
     const result = await bulkFn({ members, justification });
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed bulk registration');
+    throw formatFinanceActionError(error, 'Failed bulk registration');
   }
 }
 
@@ -457,7 +466,7 @@ export async function logAdminAction(data: { adminId: string, action: string, ju
     const result = await logFn(data);
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to log action');
+    throw formatFinanceActionError(error, 'Failed to log action');
   }
 }
 
@@ -481,7 +490,7 @@ export async function requestLoanAction(data: {
     const result = await reqFn(data);
     return result.data as { success: boolean, loanId: string, isTopUp?: boolean, exceedsBorrowingPower?: boolean };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to submit loan application');
+    throw formatFinanceActionError(error, 'Failed to submit loan application');
   }
 }
 
@@ -495,7 +504,7 @@ export async function withdrawLoanApplicationAction(data: { loanId: string; reas
     const result = await withdrawFn(data);
     return result.data as { success: boolean, loanId: string, status: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to withdraw loan application');
+    throw formatFinanceActionError(error, 'Failed to withdraw loan application');
   }
 }
 
@@ -510,7 +519,7 @@ export async function reverseContributionAction(data: { contributionId: string; 
     const result = await reverseFn(data);
     return result.data as { success: boolean, contributionId: string, status: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to reverse contribution approval');
+    throw formatFinanceActionError(error, 'Failed to reverse contribution approval');
   }
 }
 
@@ -525,7 +534,7 @@ export async function bulkReverseContributionsAction(data: { contributionIds: st
     const result = await bulkRevFn(data);
     return result.data as { success: boolean, count: number, errors?: string[] };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to bulk reverse contribution approvals');
+    throw formatFinanceActionError(error, 'Failed to bulk reverse contribution approvals');
   }
 }
 
@@ -540,7 +549,7 @@ export async function submitContributionAction(data: { amount: number, period: s
     const result = await submitFn(data);
     return result.data as { success: boolean, id: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to submit contribution');
+    throw formatFinanceActionError(error, 'Failed to submit contribution');
   }
 }
 
@@ -554,7 +563,7 @@ export async function deleteMemberAction(targetUserId: string, justification: st
     const result = await delFn({ targetUserId, justification });
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to remove member');
+    throw formatFinanceActionError(error, 'Failed to remove member');
   }
 }
 
@@ -569,7 +578,7 @@ export async function updateMemberProfileAction(targetUserId: string, data: { na
     const result = await updateFn({ targetUserId, ...data });
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to update member profile');
+    throw formatFinanceActionError(error, 'Failed to update member profile');
   }
 }
 
@@ -583,7 +592,7 @@ export async function activateMemberAccountAction(memberDocId: string) {
     const result = await actFn({ memberDocId });
     return result.data;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to activate member account');
+    throw formatFinanceActionError(error, 'Failed to activate member account');
   }
 }
 
@@ -606,7 +615,7 @@ export async function lodgeExpenseAction(data: {
     const result = await fn(data);
     return result.data as { success: boolean; expenseId: string; message: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to lodge expense');
+    throw formatFinanceActionError(error, 'Failed to lodge expense');
   }
 }
 
@@ -624,7 +633,7 @@ export async function approveExpenseAction(data: {
     const result = await fn(data);
     return result.data as { success: boolean; expenseId: string; message: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to approve expense');
+    throw formatFinanceActionError(error, 'Failed to approve expense');
   }
 }
 
@@ -642,7 +651,7 @@ export async function rejectExpenseAction(data: {
     const result = await fn(data);
     return result.data as { success: boolean; expenseId: string; message: string };
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to reject expense');
+    throw formatFinanceActionError(error, 'Failed to reject expense');
   }
 }
 

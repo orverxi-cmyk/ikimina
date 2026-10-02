@@ -43,6 +43,7 @@ import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { SettingsProvider } from '@/context/settings-context';
+import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user, loading: userLoading } = useUser();
@@ -69,6 +70,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     e.preventDefault();
     if (!adminEmail || !adminPassword) return;
 
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently disconnected from the internet. Please connect before signing in as administrator.",
+      });
+    }
+
     setIsLoggingIn(true);
     const normalizedEmail = adminEmail.trim().toLowerCase();
 
@@ -76,10 +85,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       // Standard, secure Firebase Authentication
       await signInWithEmailAndPassword(auth, normalizedEmail, adminPassword);
     } catch (error: any) {
+      const parsed = parseAppError(error);
       toast({
         variant: "destructive",
-        title: "Authentication Failed",
-        description: "Invalid email or password.",
+        title: parsed.title || "Authentication Failed",
+        description: parsed.message,
       });
     } finally {
       setIsLoggingIn(false);

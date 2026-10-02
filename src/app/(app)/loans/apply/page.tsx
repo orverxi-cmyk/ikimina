@@ -38,6 +38,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/currency';
 import { useSettings } from '@/context/settings-context';
+import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { requestLoanAction, withdrawLoanApplicationAction } from '@/lib/finance-client';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -232,6 +233,14 @@ function LoanApplyContent() {
   // Handle Loan Withdrawal
   const handleWithdrawApplication = async () => {
     if (!pendingLoan) return;
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently disconnected from the internet. Please connect before withdrawing loan application.",
+      });
+    }
+
     setIsWithdrawing(true);
     try {
       await withdrawLoanApplicationAction({
@@ -245,10 +254,11 @@ function LoanApplyContent() {
       setIsWithdrawModalOpen(false);
       setWithdrawReason('');
     } catch (err: any) {
+      const parsed = parseAppError(err);
       toast({
         variant: "destructive",
-        title: "Withdrawal Failed",
-        description: err.message || "Could not withdraw application."
+        title: parsed.title || "Withdrawal Failed",
+        description: parsed.message
       });
     } finally {
       setIsWithdrawing(false);
@@ -374,7 +384,8 @@ function LoanApplyContent() {
       });
       router.push('/loans');
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Application Failed", description: error.message });
+      const parsed = parseAppError(error);
+      toast({ variant: "destructive", title: parsed.title || "Application Failed", description: parsed.message });
     } finally {
       setIsSubmitting(false);
       setIsUploadingDoc(false);

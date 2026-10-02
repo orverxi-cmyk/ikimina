@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Wallet, Loader2, LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -84,7 +85,12 @@ export default function LoginPage() {
               }
             }
           } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Activation Error', description: error.message });
+            const parsed = parseAppError(error);
+            toast({ 
+              variant: 'destructive', 
+              title: parsed.title || 'Activation Error', 
+              description: parsed.message 
+            });
           } finally {
             setIsLoading(false);
           }
@@ -99,6 +105,14 @@ export default function LoginPage() {
     e.preventDefault();
     if (!email) return;
     
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'You are currently disconnected from the internet. Please connect and try again.',
+      });
+    }
+
     setIsLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     try {
@@ -110,7 +124,10 @@ export default function LoginPage() {
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        throw new Error('Email not found. Please contact an administrator.');
+        if (isBrowserOffline()) {
+          throw new Error('Connection lost while reaching the database. Please check your internet connection.');
+        }
+        throw new Error('This email address is not registered in our system. Please check your spelling or contact your scheme administrator.');
       }
 
       const memberData = querySnapshot.docs[0].data();
@@ -123,13 +140,25 @@ export default function LoginPage() {
         setStep('pending-activation');
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Lookup Failed', description: error.message });
+      const parsed = parseAppError(error);
+      toast({ 
+        variant: 'destructive', 
+        title: parsed.title || 'Lookup Failed', 
+        description: parsed.message 
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSendActivationLink = async () => {
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'Cannot send activation email while offline. Please connect to the internet.',
+      });
+    }
     setIsLoading(true);
     try {
       const actionCodeSettings = {
@@ -140,10 +169,15 @@ export default function LoginPage() {
       window.localStorage.setItem('emailForSignIn', email.toLowerCase());
       toast({ 
         title: "Activation Sent", 
-        description: "A secure link has been sent to " + email
+        description: "A secure verification link has been sent to " + email
       });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Delivery Failed', description: "Ensure your email domain is authorized in Firebase." });
+      const parsed = parseAppError(error);
+      toast({ 
+        variant: 'destructive', 
+        title: parsed.title || 'Delivery Failed', 
+        description: parsed.message 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -159,16 +193,27 @@ export default function LoginPage() {
     }
     if (!auth.currentUser || !memberDocId) return;
 
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'Cannot activate password while offline. Please connect to the internet.',
+      });
+    }
+
     setIsLoading(true);
     try {
       await updatePassword(auth.currentUser, password);
-      
       await activateMemberAccountAction(memberDocId);
-      
       toast({ title: 'Success', description: 'Account activated successfully.' });
       router.push('/');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Activation Failed', description: error.message });
+      const parsed = parseAppError(error);
+      toast({ 
+        variant: 'destructive', 
+        title: parsed.title || 'Activation Failed', 
+        description: parsed.message 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -176,13 +221,25 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'You are currently disconnected from the internet. Please check your connection before signing in.',
+      });
+    }
     setIsLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     try {
       await signInWithEmailAndPassword(auth, normalizedEmail, password);
       router.push('/');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Login Failed', description: error.message || 'Invalid credentials provided.' });
+      const parsed = parseAppError(error);
+      toast({ 
+        variant: 'destructive', 
+        title: parsed.title || 'Sign In Failed', 
+        description: parsed.message 
+      });
     } finally {
       setIsLoading(false);
     }
