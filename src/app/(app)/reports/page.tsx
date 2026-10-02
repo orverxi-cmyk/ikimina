@@ -381,12 +381,12 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold">Financial Standing & Audits</h1>
-          <p className="text-muted-foreground font-medium">Interest tracking, pro-rata dividend distribution, and member balances</p>
+          <h1 className="text-[13px] font-bold font-headline text-foreground">Financial Standing &amp; Audits</h1>
+          <p className="text-[12px] font-bold text-muted-foreground">Interest tracking, pro-rata dividend distribution, and member balances</p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-xl mr-2">

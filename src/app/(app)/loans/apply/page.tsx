@@ -391,24 +391,24 @@ function LoanApplyContent() {
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-3xl mx-auto pb-24">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-3xl mx-auto pb-24">
       {/* Page Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
-          <ArrowLeft className="h-5 w-5" />
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full shrink-0">
+          <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-headline font-bold">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-[13px] font-bold font-headline text-foreground">
               {isTopUpMode ? "Apply for Loan Top-Up" : "Request Capital Loan"}
             </h1>
             {isTopUpMode && (
-              <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase">
+              <Badge className="bg-primary text-primary-foreground font-bold text-[9px] uppercase">
                 Top-Up Mode
               </Badge>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[12px] font-bold text-muted-foreground">
             {isTopUpMode
               ? `Re-borrow up to your repaid principal (${formatCurrency(repaidPrincipal, currency)}) without clearing the full loan.`
               : "Submit a borrowing request based on your verified contribution standing"}
@@ -417,7 +417,7 @@ function LoanApplyContent() {
       </div>
 
       {/* Financial Standing Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Verified Contributions */}
         <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">

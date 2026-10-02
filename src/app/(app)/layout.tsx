@@ -42,7 +42,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="flex-1 flex overflow-hidden relative">
           {/* Workspace Container with spacing around Sidebar and Content */}
-          <div className="flex flex-1 w-full p-4 gap-4 overflow-hidden">
+          <div className="flex flex-1 w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
             {/* Floating Sidebar */}
             <AppSidebar />
             

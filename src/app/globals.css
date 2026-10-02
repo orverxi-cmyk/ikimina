@@ -37,8 +37,49 @@
 
 @layer base {
   * { @apply border-border; }
-  body { @apply bg-background text-foreground font-body; }
-  h1, h2, h3, h4, h5, h6 { @apply font-headline; }
+
+  html {
+    font-size: 12px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  /* All Headers: 13px bold */
+  h1, h2, h3, h4, 
+  .app-header,
+  [data-typography="header"] {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    letter-spacing: -0.01em;
+  }
+
+  /* All Subheaders: 12px bold */
+  h5, h6, 
+  .app-subheader,
+  [data-typography="subheader"] {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Body text: 12px regular */
+  p, span:not([data-stat-value="true"]), td, li, label, input, select, textarea {
+    font-size: 12px;
+  }
+
+  p:not(.font-bold):not(.font-semibold), 
+  li:not(.font-bold):not(.font-semibold), 
+  td:not(.font-bold):not(.font-semibold),
+  span:not(.font-bold):not(.font-semibold):not([data-stat-value="true"]) {
+    font-weight: 400;
+  }
 
   /* Custom Scrollbar Styles */
   ::-webkit-scrollbar {

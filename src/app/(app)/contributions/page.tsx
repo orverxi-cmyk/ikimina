@@ -324,31 +324,31 @@ export default function ContributionsPage() {
   );
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold">Savings & Contributions</h1>
-          <p className="text-muted-foreground font-medium">
+          <h1 className="text-[13px] font-bold font-headline text-foreground">Savings & Contributions</h1>
+          <p className="text-[12px] font-bold text-muted-foreground">
             {isManagement ? "Audit, record, and bulk-import member savings" : "Track your verified wealth and pending submissions"}
           </p>
         </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="bg-primary/10 px-6 py-3 rounded-2xl border border-primary/20">
-            <p className="text-xs text-primary font-bold uppercase tracking-wider">
-              {isManagement ? "Total Verified Fund Value" : "My Verified Balance"}
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full sm:w-auto">
+          <div className="bg-primary/10 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl border border-primary/20 flex-1 sm:flex-none">
+            <p className="text-[10px] text-primary font-bold uppercase tracking-wider">
+              {isManagement ? "Total Verified Fund" : "My Verified Balance"}
             </p>
-            <p className="text-2xl font-bold">{formatCurrency(totalVerifiedBalance, currency)}</p>
+            <p data-stat-value="true" className="text-lg sm:text-xl font-bold">{formatCurrency(totalVerifiedBalance, currency)}</p>
           </div>
           {isAccountantOrAdmin && (
-            <Button asChild variant="outline" className="rounded-xl h-12 px-5 font-bold border-primary/30 text-primary hover:bg-primary/10 shadow-sm">
+            <Button asChild variant="outline" className="rounded-xl h-10 px-4 font-bold text-[12px] border-primary/30 text-primary hover:bg-primary/10 shadow-sm flex-1 sm:flex-none">
               <Link href="/admin/contributions">
-                <FileSpreadsheet className="mr-2 h-5 w-5" /> Bulk Upload (Excel)
+                <FileSpreadsheet className="mr-2 h-4 w-4" /> Bulk Upload (Excel)
               </Link>
             </Button>
           )}
           {isManagement && (
-            <Button onClick={() => setIsManualEntryOpen(true)} className="rounded-xl h-12 px-6 font-bold shadow-lg">
-              <Plus className="mr-2 h-5 w-5" /> Manual Entry
+            <Button onClick={() => setIsManualEntryOpen(true)} className="rounded-xl h-10 px-4 font-bold text-[12px] shadow-sm flex-1 sm:flex-none">
+              <Plus className="mr-2 h-4 w-4" /> Manual Entry
             </Button>
           )}
         </div>

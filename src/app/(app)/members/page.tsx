@@ -196,27 +196,27 @@ export default function MembersPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold">Member Directory</h1>
-          <p className="text-muted-foreground font-medium">Assign roles and manage participant access</p>
+          <h1 className="text-[13px] font-bold font-headline text-foreground">Member Directory</h1>
+          <p className="text-[12px] font-bold text-muted-foreground">Assign roles and manage participant access</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-           <Button variant="outline" onClick={() => setIsBulkDialogOpen(true)} className="rounded-xl border-primary/20 text-primary font-bold">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+           <Button variant="outline" onClick={() => setIsBulkDialogOpen(true)} className="rounded-xl border-primary/20 text-primary font-bold text-[12px] h-10 flex-1 sm:flex-none">
              <Upload className="mr-2 h-4 w-4" /> Bulk Enrollment
            </Button>
-           <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setIsAddDialogOpen(true); }} className="rounded-xl shadow-lg font-bold">
+           <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setIsAddDialogOpen(true); }} className="rounded-xl shadow-sm font-bold text-[12px] h-10 flex-1 sm:flex-none">
              <UserPlus className="mr-2 h-4 w-4" /> Add Member
            </Button>
         </div>
       </div>
 
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] rounded-2xl">
+        <DialogContent className="sm:max-w-[500px] rounded-xl">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-headline">{isEditing ? 'Edit Access & Profile' : 'Register New Member'}</DialogTitle>
+              <DialogTitle>{isEditing ? 'Edit Access & Profile' : 'Register New Member'}</DialogTitle>
               <DialogDescription>Assign the appropriate system role and verification context.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-6">

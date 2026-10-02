@@ -70,23 +70,23 @@ export default function MessagesPage() {
     <div className="h-full max-h-screen flex flex-col md:flex-row overflow-hidden bg-background">
       {/* Conversation & Alerts List */}
       <div className="w-full md:w-1/3 lg:w-1/4 bg-card border-r flex flex-col">
-        <div className="p-6 border-b">
-          <h2 className="font-headline text-2xl font-bold">Inbox</h2>
-          <div className="relative mt-4">
+        <div className="p-4 sm:p-6 border-b">
+          <h2 className="font-headline text-[13px] font-bold">Inbox</h2>
+          <div className="relative mt-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search messages..." className="pl-10 h-10 rounded-xl bg-muted border-none" />
+            <Input placeholder="Search messages..." className="pl-10 h-10 rounded-xl bg-muted border-none text-[12px]" />
           </div>
         </div>
         <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
+          <div className="p-3 sm:p-4 space-y-4">
             {notifications.length > 0 && (
               <div className="space-y-3">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">System Alerts</p>
                 {notifications.map((notif) => (
                   <Alert key={notif.id} variant={notif.variant} className={cn("rounded-xl border shadow-sm cursor-default", notif.className)}>
                     <notif.icon className="h-4 w-4" />
-                    <AlertTitle className="text-xs font-bold">{notif.title}</AlertTitle>
-                    <AlertDescription className="text-[11px] leading-tight">
+                    <AlertTitle className="text-[13px] font-bold">{notif.title}</AlertTitle>
+                    <AlertDescription className="text-[12px] font-normal leading-normal">
                       {notif.message}
                     </AlertDescription>
                   </Alert>
@@ -96,8 +96,8 @@ export default function MessagesPage() {
             
             <div className="pt-6 text-center text-muted-foreground px-4">
               <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm font-bold">No direct messages</p>
-              <p className="text-[10px] leading-relaxed">System notices and payment reminders will appear in this list.</p>
+              <p className="text-[12px] font-bold">No direct messages</p>
+              <p className="text-[12px] font-normal leading-relaxed">System notices and payment reminders will appear in this list.</p>
             </div>
           </div>
         </ScrollArea>
@@ -109,8 +109,8 @@ export default function MessagesPage() {
            <Bell className="w-16 h-16 text-primary/40" />
         </div>
         <div className="space-y-2">
-          <h3 className="text-xl font-bold font-headline">Your Ikimina Inbox</h3>
-          <p className="text-muted-foreground max-w-sm mx-auto text-sm">
+          <h3 className="text-[13px] font-bold font-headline">Your Ikimina Inbox</h3>
+          <p className="text-muted-foreground max-w-sm mx-auto text-[12px] font-normal">
             Stay updated with secure system notifications, repayment reminders, and messages from the management team.
           </p>
         </div>

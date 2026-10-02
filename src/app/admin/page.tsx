@@ -191,35 +191,35 @@ export default function AdminDashboard() {
   const liquidCashReserve = Math.max(0, (totalVerifiedSavings + totalVerifiedRepayments) - (totalLoanAmountDisbursed + totalApprovedExpenses));
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-16">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-16">
       {/* Executive Welcome & Control Strip */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4 sm:pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase font-bold tracking-widest">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-wider">
               Executive Institutional Console
             </Badge>
             {pendingExpenses.length > 0 && (
-              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 text-[10px] font-bold">
+              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 text-[9px] font-bold">
                 {pendingExpenses.length} Expense{pendingExpenses.length > 1 ? 's' : ''} Pending Sign-Off
               </Badge>
             )}
           </div>
-          <h1 className="text-3xl font-headline font-bold tracking-tight">Institutional Financial Overview</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-[13px] font-bold font-headline tracking-tight text-foreground">Institutional Financial Overview</h1>
+          <p className="text-[12px] font-bold text-muted-foreground mt-0.5">
             Authoritative balance sheet, operating expenses audit, credit risk portfolio, and staff scheme management.
           </p>
         </div>
 
         {/* Global Action CTAs */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button asChild variant="outline" className="rounded-xl font-bold gap-2 h-11 px-4 shadow-sm border-primary/20 hover:bg-primary/5">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <Button asChild variant="outline" className="rounded-xl font-bold text-[12px] gap-2 h-10 px-3.5 shadow-sm border-primary/20 hover:bg-primary/5 flex-1 sm:flex-none">
             <Link href="/admin/expenses">
               <Receipt className="h-4 w-4 text-primary" /> Operating Expenses Hub
             </Link>
           </Button>
 
-          <Button asChild className="rounded-xl font-bold gap-2 shadow-lg h-11 px-5 bg-primary text-primary-foreground">
+          <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
             <Link href="/admin/contributions">
               <Upload className="h-4 w-4" /> Bulk Upload Contributions
             </Link>
@@ -228,7 +228,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* 6 TOP EXECUTIVE KPI CARDS */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {/* 1. TOTAL ASSET AMOUNT (WITH EXPENSES SUBTRACTED) */}
         <Card className="shadow-sm border-2 border-primary/30 bg-gradient-to-br from-primary/10 via-card to-background relative overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

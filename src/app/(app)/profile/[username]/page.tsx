@@ -89,9 +89,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8 pb-24">
+    <div className="max-w-5xl mx-auto p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 pb-24">
       {/* Profile Header */}
-      <div className="flex flex-col md:flex-row gap-6 items-center md:items-start bg-card p-6 rounded-3xl border border-primary/5">
+      <div className="flex flex-col md:flex-row gap-4 sm:gap-6 items-center md:items-start bg-card p-4 sm:p-6 rounded-2xl border border-primary/5 shadow-sm">
         {user && (targetId === user.uid || params.username === 'me') ? (
           <AvatarUpload
             uid={user.uid}
@@ -100,20 +100,20 @@ export default function ProfilePage() {
             size={96}
           />
         ) : (
-          <Avatar className="w-24 h-24 border-4 border-background shadow-xl">
+          <Avatar className="w-20 h-20 sm:w-24 sm:h-24 border-4 border-background shadow-xl">
             <AvatarImage src={userData.photoURL || `https://picsum.photos/seed/${targetId}/200/200`} />
             <AvatarFallback><UserIcon className="h-10 w-10" /></AvatarFallback>
           </Avatar>
         )}
-        <div className="flex-1 text-center md:text-left space-y-2">
+        <div className="flex-1 text-center md:text-left space-y-1">
           <div className="flex flex-col md:flex-row md:items-center gap-2">
-            <h1 className="text-3xl font-bold font-headline">{userData.name}</h1>
-            <Badge variant="outline" className="w-fit mx-auto md:mx-0 font-bold uppercase tracking-wider text-[10px] border-primary/20 text-primary">
+            <h1 className="text-[13px] font-bold font-headline text-foreground">{userData.name}</h1>
+            <Badge variant="outline" className="w-fit mx-auto md:mx-0 font-bold uppercase tracking-wider text-[9px] border-primary/20 text-primary">
               {userData.role}
             </Badge>
           </div>
-          <p className="text-muted-foreground text-sm">{userData.email}</p>
-          <p className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest">
+          <p className="text-muted-foreground text-[12px] font-bold">{userData.email}</p>
+          <p className="text-[12px] font-normal text-muted-foreground/80">
             Joined {userData.joinedAt ? format(userData.joinedAt.toDate(), 'MMMM yyyy') : 'Recently'}
           </p>
         </div>

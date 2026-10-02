@@ -178,26 +178,26 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-24">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="max-w-4xl mx-auto p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 pb-24">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold">System Settings</h1>
-          <p className="text-muted-foreground">Manage global financial rules, interest models, and lending policies</p>
+          <h1 className="text-[13px] font-bold font-headline text-foreground">System Settings</h1>
+          <p className="text-[12px] font-bold text-muted-foreground">Manage global financial rules, interest models, and lending policies</p>
         </div>
         {isSuperAdmin && (
-          <Badge variant="outline" className="self-start sm:self-auto bg-amber-500/10 text-amber-600 border-amber-500/20 px-3 py-1 font-semibold">
+          <Badge variant="outline" className="self-start sm:self-auto bg-amber-500/10 text-amber-600 border-amber-500/20 px-2.5 py-0.5 text-[9px] font-bold">
             Super Administrator Active
           </Badge>
         )}
       </div>
 
       <form onSubmit={handleUpdateSettings}>
-        <div className="grid gap-6">
+        <div className="grid gap-4 sm:gap-6">
           {/* Regional Settings Card */}
           <Card className="border border-border shadow-sm bg-card rounded-[10px]">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Globe className="h-5 w-5 text-primary" /> Regional Settings
+              <CardTitle className="flex items-center gap-2 text-[13px] font-bold">
+                <Globe className="h-4 w-4 text-primary" /> Regional Settings
               </CardTitle>
               <CardDescription>Configure currency and display preferences</CardDescription>
             </CardHeader>

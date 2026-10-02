@@ -133,90 +133,90 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-headline font-bold">Financial Portfolio</h1>
-          <p className="text-muted-foreground font-medium">Welcome back, {userData?.name || 'Member'}</p>
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+        <div className="space-y-0.5">
+          <h1 className="text-[13px] font-bold font-headline text-foreground">Financial Portfolio</h1>
+          <p className="text-[12px] font-bold text-muted-foreground">Welcome back, {userData?.name || 'Member'}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
            {!isManagement && (
-             <Button asChild className="rounded-[10px] font-bold h-11 px-6 shadow-lg shadow-green-200 bg-green-600 hover:bg-green-700">
+             <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-md shadow-green-200 bg-green-600 hover:bg-green-700 flex-1 sm:flex-none">
                <Link href="/contributions">
                  <Wallet className="mr-2 h-4 w-4" /> Submit Savings
                </Link>
              </Button>
            )}
-           <div className="text-right hidden md:block ml-4">
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Active System Policy</p>
-              <p className="text-lg font-bold">1 {currency} = {currency}</p>
+           <div className="text-right hidden sm:block ml-2">
+              <p className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Active System Policy</p>
+              <p className="text-[12px] font-normal">1 {currency} = {currency}</p>
             </div>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, i) => (
-          <Card key={i} className="border-none shadow-md bg-card hover:scale-[1.02] transition-transform cursor-default">
+          <Card key={i} className="border-none shadow-md bg-card hover:scale-[1.01] transition-transform cursor-default">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{stat.title}</CardTitle>
+              <CardTitle className="text-[13px] font-bold uppercase tracking-wider text-muted-foreground">{stat.title}</CardTitle>
               <div className={cn("p-2 rounded-xl", stat.bg)}>
                 <stat.icon className={cn("h-4 w-4", stat.color)} />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
+              <div data-stat-value="true" className="text-2xl font-bold">{stat.value}</div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="bg-card border-none shadow-xl">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
+        <Card className="bg-card border-none shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ArrowUpRight className="h-5 w-5 text-primary" /> Active Position
+            <CardTitle className="flex items-center gap-2 text-[13px] font-bold">
+              <ArrowUpRight className="h-4 w-4 text-primary" /> Active Position
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center p-5 bg-muted rounded-2xl border border-primary/5 hover:border-primary/20 transition-colors">
-              <span className="text-muted-foreground font-medium">Verified Assets (Savings + Interest)</span>
-              <span className="font-bold text-xl text-primary">
+          <CardContent className="space-y-3">
+            <div className="flex justify-between items-center p-3.5 sm:p-4 bg-muted rounded-xl border border-primary/5 hover:border-primary/20 transition-colors">
+              <span className="text-muted-foreground font-normal text-[12px]">Verified Assets (Savings + Interest)</span>
+              <span data-stat-value="true" className="font-bold text-base sm:text-lg text-primary">
                 {formatCurrency(myParticipation.contributions + (userData?.accruedInterest || 0), currency)}
               </span>
             </div>
-            <div className="flex justify-between items-center p-5 bg-muted rounded-2xl border border-orange-500/5 hover:border-orange-500/20 transition-colors">
-              <span className="text-muted-foreground font-medium">Current Liabilities (Active Loans)</span>
-              <span className="font-bold text-xl text-orange-500">-{formatCurrency(myParticipation.debt, currency)}</span>
+            <div className="flex justify-between items-center p-3.5 sm:p-4 bg-muted rounded-xl border border-orange-500/5 hover:border-orange-500/20 transition-colors">
+              <span className="text-muted-foreground font-normal text-[12px]">Current Liabilities (Active Loans)</span>
+              <span data-stat-value="true" className="font-bold text-base sm:text-lg text-orange-500">-{formatCurrency(myParticipation.debt, currency)}</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-none shadow-xl">
+        <Card className="bg-card border-none shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Calendar className="h-5 w-5 text-primary" /> Scheduled Payments
+            <CardTitle className="flex items-center gap-2 text-[13px] font-bold">
+              <Calendar className="h-4 w-4 text-primary" /> Scheduled Payments
             </CardTitle>
           </CardHeader>
           <CardContent>
             {myParticipation.nextPayment ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 p-5 bg-muted rounded-2xl border border-primary/10 hover:bg-muted/80 transition-colors cursor-pointer">
-                  <div className="bg-primary p-3 rounded-xl text-primary-foreground shadow-lg shadow-primary/20">
-                    <HandCoins className="h-5 w-5" />
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 sm:gap-4 p-3.5 sm:p-4 bg-muted rounded-xl border border-primary/10 hover:bg-muted/80 transition-colors cursor-pointer">
+                  <div className="bg-primary p-2.5 rounded-lg text-primary-foreground shadow-sm shadow-primary/20">
+                    <HandCoins className="h-4 w-4" />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold">Repayment Installment #{myParticipation.nextPayment.installmentNumber}</p>
-                    <p className="text-xs text-muted-foreground">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-bold truncate">Repayment Installment #{myParticipation.nextPayment.installmentNumber}</p>
+                    <p className="text-[12px] font-normal text-muted-foreground">
                       Due: {format(myParticipation.nextPayment.dueDate instanceof Timestamp ? myParticipation.nextPayment.dueDate.toDate() : new Date(myParticipation.nextPayment.dueDate), 'MMM d, yyyy')}
                     </p>
                   </div>
-                  <span className="text-lg font-bold">{formatCurrency(myParticipation.nextPayment.amount, currency)}</span>
+                  <span data-stat-value="true" className="text-sm sm:text-base font-bold whitespace-nowrap">{formatCurrency(myParticipation.nextPayment.amount, currency)}</span>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-2">
-                <CheckCircle2 className="h-10 w-10 text-green-500/50" />
-                <p className="text-sm font-medium">No upcoming debt obligations</p>
+              <div className="flex flex-col items-center justify-center py-6 text-muted-foreground space-y-2">
+                <CheckCircle2 className="h-8 w-8 text-green-500/50" />
+                <p className="text-[12px] font-normal">No upcoming debt obligations</p>
               </div>
             )}
           </CardContent>

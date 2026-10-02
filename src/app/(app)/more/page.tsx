@@ -41,29 +41,29 @@ export default function MorePage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl mx-auto pb-24">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-headline font-bold">More Options</h1>
-        <p className="text-sm text-muted-foreground">Access all Ikimina App features and settings</p>
+    <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 max-w-2xl mx-auto pb-24">
+      <div className="space-y-0.5">
+        <h1 className="text-[13px] font-bold font-headline text-foreground">More Options</h1>
+        <p className="text-[12px] font-bold text-muted-foreground">Access all Ikimina App features and settings</p>
       </div>
 
       {sections.map((section, idx) => (
-        <div key={idx} className="space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">
+        <div key={idx} className="space-y-2">
+          <h2 className="text-[12px] font-bold uppercase tracking-wider text-muted-foreground px-1">
             {section.title}
           </h2>
           <div className="grid gap-2">
             {section.items.map((item) => (
               <Link key={item.href} href={item.href}>
                 <Card className="hover:bg-accent/50 transition-colors border-none shadow-sm bg-card/50">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
-                        <item.icon className="h-5 w-5" />
+                  <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="bg-primary/10 p-2 sm:p-2.5 rounded-xl text-primary">
+                        <item.icon className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
                       <div>
-                        <p className="font-bold text-sm">{item.label}</p>
-                        <p className="text-[11px] text-muted-foreground">{item.description}</p>
+                        <p className="font-bold text-[12px]">{item.label}</p>
+                        <p className="text-[12px] font-normal text-muted-foreground">{item.description}</p>
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />

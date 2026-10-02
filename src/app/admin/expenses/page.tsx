@@ -298,33 +298,33 @@ export default function ExpensesAdminPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-16">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-16">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4 sm:pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Button variant="ghost" size="icon" asChild className="h-7 w-7 rounded-full -ml-2 text-muted-foreground hover:text-foreground">
               <Link href="/admin">
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
-            <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase font-bold tracking-widest">
+            <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-wider">
               Financial Control
             </Badge>
           </div>
-          <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center gap-3">
+          <h1 className="text-[13px] font-bold font-headline tracking-tight text-foreground flex items-center gap-2">
             Operating Expenses &amp; Outflows
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-[12px] font-bold text-muted-foreground mt-0.5">
             Lodge, review, and authorize operational expenses. Approved disbursements are authoritatively subtracted from total institutional assets.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {isAccountant && (
             <Button 
               onClick={() => setIsLodgeOpen(true)}
-              className="rounded-xl font-bold gap-2 shadow-lg h-11 px-5 bg-primary text-primary-foreground"
+              className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none"
             >
               <Plus className="h-4 w-4" /> Lodge New Expense
             </Button>
@@ -333,11 +333,11 @@ export default function ExpensesAdminPage() {
       </div>
 
       {/* KPI Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {/* Approved Expenses (Subtracted from Assets) */}
         <Card className="shadow-sm border border-red-500/20 bg-red-500/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+            <CardTitle className="text-[13px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
               Total Approved Expenses
             </CardTitle>
             <div className="p-2.5 bg-red-500/10 rounded-xl text-red-600">

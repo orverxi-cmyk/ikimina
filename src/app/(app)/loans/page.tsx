@@ -343,32 +343,32 @@ function LoansPageContent() {
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto pb-24">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold text-foreground">Lending & Capital</h1>
-          <p className="text-muted-foreground font-medium">Manage borrowing cycles and repayment schedules</p>
+          <h1 className="text-[13px] font-bold font-headline text-foreground">Lending & Capital</h1>
+          <p className="text-[12px] font-bold text-muted-foreground">Manage borrowing cycles and repayment schedules</p>
         </div>
-        <div className="flex items-center gap-2">
-           <Button asChild className="rounded-[10px] font-bold h-11 px-6 shadow-lg shadow-primary/20">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+           <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm">
              <Link href="/loans/apply">
                <Plus className="mr-2 h-4 w-4" /> Apply for Loan
              </Link>
            </Button>
-           <div className="hidden sm:flex gap-2">
+           <div className="grid grid-cols-3 sm:flex gap-1.5 sm:gap-2 w-full sm:w-auto">
               {!isManagement && (
-                <div className="bg-primary/5 px-4 py-2 rounded-[10px] border border-primary/20 text-center min-w-[130px]">
-                    <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Borrowing Power</p>
-                    <p className="text-sm font-bold text-primary">{formatCurrency(memberBorrowingPower, currency)}</p>
+                <div className="bg-primary/5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-primary/20 text-center flex-1 sm:min-w-[120px]">
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Borrow Power</p>
+                    <p data-stat-value="true" className="text-xs sm:text-sm font-bold text-primary">{formatCurrency(memberBorrowingPower, currency)}</p>
                 </div>
               )}
-              <div className="bg-muted px-4 py-2 rounded-[10px] border border-border text-center min-w-[120px]">
-                  <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Gained Interest</p>
-                  <p className="text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>
+              <div className="bg-muted px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-border text-center flex-1 sm:min-w-[110px]">
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Gained Int.</p>
+                  <p data-stat-value="true" className="text-xs sm:text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>
               </div>
-              <div className="bg-muted px-4 py-2 rounded-[10px] border border-border text-center min-w-[120px]">
-                  <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">Interest Paid</p>
-                  <p className="text-sm font-bold text-orange-600">-{formatCurrency(interestSummary.paid, currency)}</p>
+              <div className="bg-muted px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-border text-center flex-1 sm:min-w-[110px]">
+                  <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">Int. Paid</p>
+                  <p data-stat-value="true" className="text-xs sm:text-sm font-bold text-orange-600">-{formatCurrency(interestSummary.paid, currency)}</p>
               </div>
            </div>
         </div>

@@ -293,7 +293,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </header>
 
       <div className="flex-1 flex overflow-hidden relative">
-        <div className="flex flex-1 w-full p-4 gap-4 overflow-hidden">
+        <div className="flex flex-1 w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
           <aside className="hidden md:flex flex-col w-64 bg-background p-6 space-y-8 rounded-[10px] border border-border shrink-0 shadow-sm">
             <div className="flex flex-col gap-1 px-4 py-3 border-b border-border">
               <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Internal System</h2>

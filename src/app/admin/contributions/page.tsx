@@ -785,33 +785,33 @@ export default function AdminContributionsBulkUploadPage() {
   ];
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-16">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-16">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4 sm:pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase font-bold tracking-widest">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-wider">
               Three-Tier Governance Workflow
             </Badge>
-            <Badge variant="outline" className="text-[10px] uppercase font-medium">
+            <Badge variant="outline" className="text-[9px] uppercase font-medium">
               Maker • Checker • Approver
             </Badge>
           </div>
-          <h1 className="text-3xl font-headline font-bold tracking-tight">
+          <h1 className="text-[13px] font-bold font-headline tracking-tight text-foreground">
             Populate Existing &amp; Staff Contributions
           </h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
+          <p className="text-[12px] font-bold text-muted-foreground mt-0.5 max-w-3xl">
             Controlled migration and population of member savings: <strong>Accountant</strong> initiates the Excel upload &rarr; <strong>Reviewer</strong> validates compliance &rarr; <strong>Super Admin</strong> grants final approval to commit to the official ledger.
           </p>
         </div>
 
         {/* Template Downloads */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={handleDownloadBlankTemplate}
-            className="rounded-xl font-bold gap-2 bg-card hover:bg-muted/60"
+            className="rounded-xl font-bold text-[12px] gap-2 bg-card hover:bg-muted/60 flex-1 sm:flex-none"
           >
             <Download className="h-4 w-4 text-primary" />
             Blank Template
@@ -822,7 +822,7 @@ export default function AdminContributionsBulkUploadPage() {
             size="sm"
             onClick={handleDownloadPrefilledTemplate}
             disabled={loadingMembers}
-            className="rounded-xl font-bold gap-2 shadow-md"
+            className="rounded-xl font-bold text-[12px] gap-2 shadow-sm flex-1 sm:flex-none"
           >
             <Sparkles className="h-4 w-4" />
             Pre-filled Template ({registeredMembers.length} Staff)
