@@ -17,7 +17,16 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
 
     const db = admin.firestore();
     const memberId = request.auth.uid;
-    const { amount, description, durationMonths = 12, isTopUp = false, parentLoanId } = request.data || {};
+    const { 
+        amount, 
+        description, 
+        durationMonths = 12, 
+        isTopUp = false, 
+        parentLoanId,
+        managementApprovalUrl,
+        managementApprovalFileName,
+        managementApprovalNotes
+    } = request.data || {};
     const loanAmount = Number(amount);
 
     if (!loanAmount || loanAmount <= 0) {
@@ -128,16 +137,23 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
         maxLoanAmount
     );
 
-    if (totalVerifiedSavings <= 0 && totalEquity <= 0 && completedLoansCount === 0) {
-        throw new HttpsError('failed-precondition', 'You must have verified savings contributions before requesting a loan.');
-    }
+    const exceedsBorrowingPower = loanAmount > effectiveLimit;
 
-    if (effectiveLimit < minLoanAmount) {
-        throw new HttpsError('failed-precondition', `Your current borrowing limit of ${effectiveLimit} is below the minimum allowed loan amount of ${minLoanAmount}.`);
-    }
+    if (exceedsBorrowingPower) {
+        if (!managementApprovalUrl || typeof managementApprovalUrl !== 'string' || !managementApprovalUrl.trim()) {
+            throw new HttpsError(
+                'failed-precondition', 
+                `Requested loan amount of ${loanAmount.toLocaleString()} exceeds your standard borrowing power of ${effectiveLimit.toLocaleString()}. You must attach a valid management approval document to proceed.`
+            );
+        }
+    } else {
+        if (totalVerifiedSavings <= 0 && totalEquity <= 0 && completedLoansCount === 0) {
+            throw new HttpsError('failed-precondition', 'You must have verified savings contributions before requesting a loan, or attach management approval.');
+        }
 
-    if (loanAmount > effectiveLimit) {
-        throw new HttpsError('failed-precondition', `Requested amount exceeds your borrowing power limit of ${effectiveLimit}.`);
+        if (effectiveLimit < minLoanAmount) {
+            throw new HttpsError('failed-precondition', `Your current borrowing limit of ${effectiveLimit.toLocaleString()} is below the minimum allowed loan amount of ${minLoanAmount.toLocaleString()}. Attach management approval to apply for this amount.`);
+        }
     }
 
     // 5. Create loan application
@@ -154,13 +170,19 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
         durationMonths: Number(durationMonths) || 12,
         isTopUp: Boolean(isTopUp),
         parentLoanId: isTopUp ? parentLoanId : null,
-        repaidPrincipalAtRequest: isTopUp ? availableRepaidPrincipal : null
+        repaidPrincipalAtRequest: isTopUp ? availableRepaidPrincipal : null,
+        exceedsBorrowingPower: Boolean(exceedsBorrowingPower),
+        borrowingPowerAtRequest: effectiveLimit,
+        managementApprovalUrl: exceedsBorrowingPower ? managementApprovalUrl.trim() : null,
+        managementApprovalFileName: exceedsBorrowingPower ? (managementApprovalFileName || 'management_approval') : null,
+        managementApprovalNotes: exceedsBorrowingPower ? (managementApprovalNotes?.trim() || null) : null
     });
 
     return { 
         success: true, 
         loanId: loanRef.id,
-        isTopUp: Boolean(isTopUp)
+        isTopUp: Boolean(isTopUp),
+        exceedsBorrowingPower: Boolean(exceedsBorrowingPower)
     };
 });
 

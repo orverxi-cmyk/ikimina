@@ -52,7 +52,7 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
     const memberId = request.auth.uid;
-    const { amount, description, durationMonths = 12, isTopUp = false, parentLoanId } = request.data || {};
+    const { amount, description, durationMonths = 12, isTopUp = false, parentLoanId, managementApprovalUrl, managementApprovalFileName, managementApprovalNotes } = request.data || {};
     const loanAmount = Number(amount);
     if (!loanAmount || loanAmount <= 0) {
         throw new https_1.HttpsError('invalid-argument', 'A valid loan amount greater than 0 is required.');
@@ -137,14 +137,19 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     const completedLoansCount = existingLoansSnap.docs.filter(d => d.data().status === 'completed').length;
     const trustBonusLimit = (accruedInterest + (completedLoansCount * 10000)) * 2;
     const effectiveLimit = Math.min(Math.max(percentageLimit, equityLimit, trustBonusLimit), maxLoanAmount);
-    if (totalVerifiedSavings <= 0 && totalEquity <= 0 && completedLoansCount === 0) {
-        throw new https_1.HttpsError('failed-precondition', 'You must have verified savings contributions before requesting a loan.');
+    const exceedsBorrowingPower = loanAmount > effectiveLimit;
+    if (exceedsBorrowingPower) {
+        if (!managementApprovalUrl || typeof managementApprovalUrl !== 'string' || !managementApprovalUrl.trim()) {
+            throw new https_1.HttpsError('failed-precondition', `Requested loan amount of ${loanAmount.toLocaleString()} exceeds your standard borrowing power of ${effectiveLimit.toLocaleString()}. You must attach a valid management approval document to proceed.`);
+        }
     }
-    if (effectiveLimit < minLoanAmount) {
-        throw new https_1.HttpsError('failed-precondition', `Your current borrowing limit of ${effectiveLimit} is below the minimum allowed loan amount of ${minLoanAmount}.`);
-    }
-    if (loanAmount > effectiveLimit) {
-        throw new https_1.HttpsError('failed-precondition', `Requested amount exceeds your borrowing power limit of ${effectiveLimit}.`);
+    else {
+        if (totalVerifiedSavings <= 0 && totalEquity <= 0 && completedLoansCount === 0) {
+            throw new https_1.HttpsError('failed-precondition', 'You must have verified savings contributions before requesting a loan, or attach management approval.');
+        }
+        if (effectiveLimit < minLoanAmount) {
+            throw new https_1.HttpsError('failed-precondition', `Your current borrowing limit of ${effectiveLimit.toLocaleString()} is below the minimum allowed loan amount of ${minLoanAmount.toLocaleString()}. Attach management approval to apply for this amount.`);
+        }
     }
     // 5. Create loan application
     const loanRef = db.collection('loans').doc();
@@ -160,12 +165,18 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         durationMonths: Number(durationMonths) || 12,
         isTopUp: Boolean(isTopUp),
         parentLoanId: isTopUp ? parentLoanId : null,
-        repaidPrincipalAtRequest: isTopUp ? availableRepaidPrincipal : null
+        repaidPrincipalAtRequest: isTopUp ? availableRepaidPrincipal : null,
+        exceedsBorrowingPower: Boolean(exceedsBorrowingPower),
+        borrowingPowerAtRequest: effectiveLimit,
+        managementApprovalUrl: exceedsBorrowingPower ? managementApprovalUrl.trim() : null,
+        managementApprovalFileName: exceedsBorrowingPower ? (managementApprovalFileName || 'management_approval') : null,
+        managementApprovalNotes: exceedsBorrowingPower ? ((managementApprovalNotes === null || managementApprovalNotes === void 0 ? void 0 : managementApprovalNotes.trim()) || null) : null
     });
     return {
         success: true,
         loanId: loanRef.id,
-        isTopUp: Boolean(isTopUp)
+        isTopUp: Boolean(isTopUp),
+        exceedsBorrowingPower: Boolean(exceedsBorrowingPower)
     };
 });
 /**

@@ -463,13 +463,17 @@ export async function requestLoanAction(data: {
   description?: string; 
   durationMonths?: number; 
   isTopUp?: boolean; 
-  parentLoanId?: string; 
+  parentLoanId?: string;
+  exceedsBorrowingPower?: boolean;
+  managementApprovalUrl?: string;
+  managementApprovalFileName?: string;
+  managementApprovalNotes?: string;
 }) {
   const functions = getFinanceFunctions();
   const reqFn = httpsCallable(functions, 'requestLoan');
   try {
     const result = await reqFn(data);
-    return result.data as { success: boolean, loanId: string, isTopUp?: boolean };
+    return result.data as { success: boolean, loanId: string, isTopUp?: boolean, exceedsBorrowingPower?: boolean };
   } catch (error: any) {
     throw new Error(error.message || 'Failed to submit loan application');
   }

@@ -20,8 +20,16 @@ import {
   AlertCircle,
   Undo2,
   TrendingUp,
-  RefreshCw
+  RefreshCw,
+  FileText,
+  UploadCloud,
+  X,
+  ExternalLink,
+  ShieldAlert,
+  FileCheck
 } from 'lucide-react';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { initializeFirebase } from '@/firebase';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, doc, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
@@ -55,6 +63,13 @@ function LoanApplyContent() {
   const [withdrawReason, setWithdrawReason] = useState('');
   const [isTopUpMode, setIsTopUpMode] = useState(isTopUpRequested);
   const [requestedAmount, setRequestedAmount] = useState<string>('');
+  
+  // Management approval exception state
+  const [managementFile, setManagementFile] = useState<File | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [managementApprovalUrl, setManagementApprovalUrl] = useState<string>('');
+  const [managementApprovalFileName, setManagementApprovalFileName] = useState<string>('');
+  const [managementApprovalNotes, setManagementApprovalNotes] = useState<string>('');
 
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
@@ -157,10 +172,10 @@ function LoanApplyContent() {
   const canApply = useMemo(() => {
     if (pendingLoan) return false;
     if (isTopUpMode) {
-      return Boolean(activeLoan && isEligibleForTopUp && hasSavings);
+      return Boolean(activeLoan && isEligibleForTopUp);
     }
-    return hasSavings && isBorrowingPowerEligible && !activeLoan;
-  }, [pendingLoan, isTopUpMode, activeLoan, isEligibleForTopUp, hasSavings, isBorrowingPowerEligible]);
+    return !activeLoan;
+  }, [pendingLoan, isTopUpMode, activeLoan, isEligibleForTopUp]);
 
   const effectiveApplicationMax = isTopUpMode ? maxTopUpLimit : effectiveMaxLimit;
 
@@ -171,7 +186,47 @@ function LoanApplyContent() {
 
   const numericAmount = Number(requestedAmount) || 0;
   const isAmountTooLow = numericAmount > 0 && numericAmount < minLoanAmount;
-  const isAmountTooHigh = numericAmount > effectiveApplicationMax && effectiveApplicationMax > 0;
+  // Exceeds standard borrowing power:
+  const exceedsBorrowingPower = numericAmount > effectiveApplicationMax;
+  // Exceeds absolute system-wide cap:
+  const isAmountTooHigh = numericAmount > maxLoanAmount && maxLoanAmount > 0;
+  const hasManagementApprovalAttached = Boolean(managementApprovalUrl || managementFile);
+
+  // File Upload Handlers
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setManagementFile(file);
+    setManagementApprovalFileName(file.name);
+
+    if (!user) return;
+    setIsUploadingDoc(true);
+    try {
+      const storage = getStorage(initializeFirebase().app);
+      const fileRef = ref(storage, `loan_management_approvals/${user.uid}/${Date.now()}_${file.name}`);
+      const uploadResult = await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(uploadResult.ref);
+      setManagementApprovalUrl(url);
+      toast({
+        title: "Management Approval Attached",
+        description: `${file.name} successfully uploaded and attached to application.`
+      });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: err.message || "Failed to upload approval document."
+      });
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setManagementFile(null);
+    setManagementApprovalUrl('');
+    setManagementApprovalFileName('');
+  };
 
   // Handle Loan Withdrawal
   const handleWithdrawApplication = async () => {
@@ -230,24 +285,6 @@ function LoanApplyContent() {
       return;
     }
 
-    if (!hasSavings) {
-      toast({ 
-        variant: "destructive", 
-        title: "No Verified Savings", 
-        description: "You must have verified savings contributions in the group to unlock borrowing power." 
-      });
-      return;
-    }
-
-    if (!isBorrowingPowerEligible) {
-      toast({ 
-        variant: "destructive", 
-        title: "Borrowing Power Too Low", 
-        description: `Your borrowing limit (${formatCurrency(effectiveMaxLimit, currency)}) is below the minimum allowed loan (${formatCurrency(minLoanAmount, currency)}).` 
-      });
-      return;
-    }
-
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('amount'));
     const description = (formData.get('description') as string)?.trim();
@@ -261,17 +298,57 @@ function LoanApplyContent() {
       return;
     }
 
-    if (amount > effectiveApplicationMax) {
+    if (amount > maxLoanAmount) {
       toast({ 
         variant: "destructive", 
-        title: "Limit Exceeded", 
-        description: `You cannot request more than the allowed limit of ${formatCurrency(effectiveApplicationMax, currency)}.` 
+        title: "System Ceiling Exceeded", 
+        description: `Loan amount cannot exceed the maximum system limit of ${formatCurrency(maxLoanAmount, currency)}.` 
+      });
+      return;
+    }
+
+    const isExceeding = amount > effectiveApplicationMax;
+
+    if (isExceeding && !managementApprovalUrl && !managementFile) {
+      toast({ 
+        variant: "destructive", 
+        title: "Management Approval Required", 
+        description: `Your requested loan of ${formatCurrency(amount, currency)} exceeds your borrowing power (${formatCurrency(effectiveApplicationMax, currency)}). You must attach official management approval to proceed.` 
+      });
+      return;
+    }
+
+    if (!isExceeding && !hasSavings) {
+      toast({ 
+        variant: "destructive", 
+        title: "No Verified Savings", 
+        description: "You must have verified savings contributions in the group, or attach management approval." 
+      });
+      return;
+    }
+
+    if (!isExceeding && !isBorrowingPowerEligible) {
+      toast({ 
+        variant: "destructive", 
+        title: "Borrowing Power Too Low", 
+        description: `Your borrowing limit (${formatCurrency(effectiveMaxLimit, currency)}) is below the minimum allowed loan (${formatCurrency(minLoanAmount, currency)}). Attach management approval to apply for this amount.` 
       });
       return;
     }
 
     setIsSubmitting(true);
     try {
+      let finalApprovalUrl = managementApprovalUrl;
+      if (isExceeding && !finalApprovalUrl && managementFile) {
+        setIsUploadingDoc(true);
+        const storage = getStorage(initializeFirebase().app);
+        const fileRef = ref(storage, `loan_management_approvals/${user.uid}/${Date.now()}_${managementFile.name}`);
+        const uploadResult = await uploadBytes(fileRef, managementFile);
+        finalApprovalUrl = await getDownloadURL(uploadResult.ref);
+        setManagementApprovalUrl(finalApprovalUrl);
+        setIsUploadingDoc(false);
+      }
+
       await requestLoanAction({
         amount,
         description: isTopUpMode 
@@ -279,11 +356,19 @@ function LoanApplyContent() {
           : description,
         durationMonths: 12,
         isTopUp: isTopUpMode,
-        parentLoanId: isTopUpMode && activeLoan ? activeLoan.id : undefined
+        parentLoanId: isTopUpMode && activeLoan ? activeLoan.id : undefined,
+        exceedsBorrowingPower: isExceeding,
+        managementApprovalUrl: isExceeding ? finalApprovalUrl : undefined,
+        managementApprovalFileName: isExceeding ? (managementFile?.name || managementApprovalFileName || 'management_approval') : undefined,
+        managementApprovalNotes: isExceeding ? managementApprovalNotes.trim() : undefined,
       });
 
       toast({ 
-        title: isTopUpMode ? "Top-Up Application Submitted" : "Application Submitted", 
+        title: isTopUpMode 
+          ? "Top-Up Application Submitted" 
+          : isExceeding 
+            ? "Application Submitted with Management Approval" 
+            : "Application Submitted", 
         description: "Your loan request has been sent to management for audit and approval." 
       });
       router.push('/loans');
@@ -291,6 +376,7 @@ function LoanApplyContent() {
       toast({ variant: "destructive", title: "Application Failed", description: error.message });
     } finally {
       setIsSubmitting(false);
+      setIsUploadingDoc(false);
     }
   };
 
@@ -536,17 +622,21 @@ function LoanApplyContent() {
           <form onSubmit={handleApply} className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center flex-wrap gap-1">
                   <Label htmlFor="loan-amount" className="text-xs font-bold uppercase tracking-wider">
                     {isTopUpMode ? "Top-Up Amount" : "Requested Amount"}
                   </Label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] font-bold text-muted-foreground">
                       MIN: <strong className="text-foreground">{formatCurrency(minLoanAmount, currency)}</strong>
                     </span>
                     <span className="text-muted-foreground">|</span>
                     <span className="text-[10px] font-bold text-primary">
-                      MAX: <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong>
+                      POWER: <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong>
+                    </span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                      MAX CEILING: <strong>{formatCurrency(maxLoanAmount, currency)}</strong>
                     </span>
                   </div>
                 </div>
@@ -558,15 +648,16 @@ function LoanApplyContent() {
                     type="number" 
                     value={requestedAmount}
                     onChange={(e) => setRequestedAmount(e.target.value)}
-                    placeholder={`Enter amount (${minLoanAmount} - ${effectiveApplicationMax > 0 ? effectiveApplicationMax : maxLoanAmount})`}
+                    placeholder={`Enter amount (${minLoanAmount} - ${maxLoanAmount})`}
                     min={canApply ? minLoanAmount : undefined}
-                    max={canApply ? effectiveApplicationMax : undefined}
+                    max={canApply ? maxLoanAmount : undefined}
                     step="1"
                     disabled={!canApply || isSubmitting}
                     required 
                     className={`h-12 rounded-[10px] pr-14 bg-muted border-2 text-lg font-bold ${
                       isAmountTooHigh ? 'border-destructive focus-visible:ring-destructive' :
                       isAmountTooLow ? 'border-orange-500 focus-visible:ring-orange-500' :
+                      exceedsBorrowingPower ? 'border-purple-500/70 focus-visible:ring-purple-500' :
                       numericAmount >= minLoanAmount && numericAmount <= effectiveApplicationMax ? 'border-green-500/50' : 'border-transparent'
                     }`} 
                   />
@@ -593,21 +684,23 @@ function LoanApplyContent() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setRequestedAmount(Math.round(minLoanAmount + (effectiveApplicationMax - minLoanAmount) * 0.5).toString())}
-                        className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-primary/50"
+                        onClick={() => setRequestedAmount(effectiveApplicationMax.toString())}
+                        className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-primary/50 text-primary border-primary/30"
                       >
-                        50%: {formatCurrency(Math.round(minLoanAmount + (effectiveApplicationMax - minLoanAmount) * 0.5), currency)}
+                        Borrowing Power: {formatCurrency(effectiveApplicationMax, currency)}
                       </Button>
                     )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setRequestedAmount(effectiveApplicationMax.toString())}
-                      className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-primary/50 text-primary border-primary/30"
-                    >
-                      Max: {formatCurrency(effectiveApplicationMax, currency)}
-                    </Button>
+                    {maxLoanAmount > effectiveApplicationMax && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRequestedAmount(maxLoanAmount.toString())}
+                        className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-purple-500/50 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800"
+                      >
+                        Max Cap: {formatCurrency(maxLoanAmount, currency)} (Approval Req)
+                      </Button>
+                    )}
                   </div>
                 )}
 
@@ -615,7 +708,7 @@ function LoanApplyContent() {
                 {isAmountTooHigh && (
                   <p className="text-xs text-destructive font-bold flex items-center gap-1 pt-1">
                     <AlertCircle className="h-3.5 w-3.5" />
-                    Amount exceeds allowed limit of {formatCurrency(effectiveApplicationMax, currency)}.
+                    Amount exceeds the global maximum system limit of {formatCurrency(maxLoanAmount, currency)}.
                   </p>
                 )}
                 {isAmountTooLow && (
@@ -624,7 +717,126 @@ function LoanApplyContent() {
                     Amount is below the minimum allowed loan of {formatCurrency(minLoanAmount, currency)}.
                   </p>
                 )}
+                {exceedsBorrowingPower && !isAmountTooHigh && (
+                  <p className="text-xs text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1 pt-1">
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                    Exceeds standard borrowing power ({formatCurrency(effectiveApplicationMax, currency)}). Management approval attachment is required.
+                  </p>
+                )}
               </div>
+
+              {/* MANAGEMENT APPROVAL ATTACHMENT CARD */}
+              {exceedsBorrowingPower && (
+                <div className="p-4 rounded-xl bg-purple-500/10 border-2 border-purple-500/30 text-purple-950 dark:text-purple-100 space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <ShieldAlert className="h-5 w-5 text-purple-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-bold text-sm">
+                          Management Approval Attachment Required
+                        </p>
+                        <p className="text-xs text-purple-800 dark:text-purple-300 leading-relaxed">
+                          Your requested loan of <strong>{formatCurrency(numericAmount, currency)}</strong> exceeds your calculated borrowing power of <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong> by <strong>{formatCurrency(numericAmount - effectiveApplicationMax, currency)}</strong>.
+                          Please attach an official signed management approval letter or resolution to validate this request.
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className="bg-purple-600 text-white font-bold text-[10px] uppercase shrink-0">
+                      Quota Exception
+                    </Badge>
+                  </div>
+
+                  {/* File Upload Area */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-200">
+                      Upload Signed Approval Document (PDF / Image) *
+                    </Label>
+                    
+                    {!managementFile && !managementApprovalUrl ? (
+                      <div className="border-2 border-dashed border-purple-300 dark:border-purple-700/60 rounded-xl p-5 text-center bg-background/60 hover:bg-background transition-colors">
+                        <input
+                          id="management-approval-input"
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                          className="hidden"
+                          onChange={handleFileSelect}
+                        />
+                        <label htmlFor="management-approval-input" className="cursor-pointer flex flex-col items-center justify-center gap-2">
+                          <UploadCloud className="h-8 w-8 text-purple-600" />
+                          <span className="text-xs font-bold text-foreground">Click to upload or drag &amp; drop approval file</span>
+                          <span className="text-[10px] text-muted-foreground">Supported formats: PDF, JPG, PNG, DOCX (Max 10MB)</span>
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="p-3.5 bg-background rounded-xl border border-purple-300 dark:border-purple-700 flex items-center justify-between gap-3 shadow-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-9 w-9 rounded-lg bg-purple-100 dark:bg-purple-950 flex items-center justify-center text-purple-600 shrink-0">
+                            <FileCheck className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold truncate text-foreground">
+                              {managementFile?.name || managementApprovalFileName || 'Management_Approval_Document'}
+                            </p>
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                              {managementFile && (
+                                <span>{(managementFile.size / 1024).toFixed(1)} KB</span>
+                              )}
+                              {isUploadingDoc ? (
+                                <span className="text-primary font-bold flex items-center gap-1">
+                                  <Loader2 className="h-3 w-3 animate-spin" /> Uploading...
+                                </span>
+                              ) : (
+                                <span className="text-green-600 font-bold flex items-center gap-1">
+                                  <CheckCircle2 className="h-3 w-3" /> Attached &amp; Ready
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {managementApprovalUrl && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              asChild
+                              className="h-8 text-xs font-bold text-purple-600 hover:text-purple-700"
+                            >
+                              <a href={managementApprovalUrl} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-3.5 w-3.5 mr-1" /> View
+                              </a>
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleRemoveFile}
+                            className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Optional Reference Notes */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="management-approval-notes" className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-200">
+                      Approval Reference / Minute Details (Optional)
+                    </Label>
+                    <Input
+                      id="management-approval-notes"
+                      value={managementApprovalNotes}
+                      onChange={(e) => setManagementApprovalNotes(e.target.value)}
+                      placeholder="e.g. Board Resolution #08/2026, authorized by Committee Chair"
+                      className="h-10 rounded-xl bg-background border-purple-200 dark:border-purple-800 text-xs"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="loan-description" className="text-xs font-bold uppercase tracking-wider">
@@ -654,27 +866,45 @@ function LoanApplyContent() {
                     <strong>Top-Up Rule:</strong> This top-up is linked to parent loan #{activeLoan?.id?.slice(0, 8)}. Upon approval, the top-up loan will be disbursed and scheduled under standard group lending policy.
                   </p>
                 )}
+                {exceedsBorrowingPower && (
+                  <p className="text-purple-700 dark:text-purple-400 font-medium">
+                    <strong>Exception Policy:</strong> Applications exceeding standard borrowing power are routed to the Credit Committee with the attached management authorization for formal underwriting.
+                  </p>
+                )}
               </div>
             </div>
 
             <Button 
               type="submit" 
-              disabled={!canApply || isSubmitting || isAmountTooLow || isAmountTooHigh || numericAmount <= 0} 
+              disabled={
+                !canApply || 
+                isSubmitting || 
+                isUploadingDoc ||
+                isAmountTooLow || 
+                isAmountTooHigh || 
+                numericAmount <= 0 ||
+                (exceedsBorrowingPower && !hasManagementApprovalAttached)
+              } 
               className="w-full h-14 rounded-[10px] font-bold shadow-lg text-lg transition-all"
             >
-              {isSubmitting ? (
+              {isSubmitting || isUploadingDoc ? (
                 <>
                   <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                  Submitting Request...
+                  {isUploadingDoc ? "Uploading Approval Document..." : "Submitting Request..."}
                 </>
-              ) : !hasSavings ? (
-                "Contributions Required to Borrow"
-              ) : !isBorrowingPowerEligible ? (
-                `Borrowing Limit Below Minimum (${formatCurrency(minLoanAmount, currency)})`
               ) : pendingLoan ? (
                 "Loan Request Pending Audit"
               ) : activeLoan && !isTopUpMode ? (
                 "Active Loan Must Be Cleared (or Choose Top-Up)"
+              ) : isAmountTooHigh ? (
+                `Exceeds Maximum System Ceiling (${formatCurrency(maxLoanAmount, currency)})`
+              ) : exceedsBorrowingPower && !hasManagementApprovalAttached ? (
+                "Attach Management Approval to Submit"
+              ) : exceedsBorrowingPower ? (
+                <>
+                  <ShieldCheck className="mr-2 h-5 w-5 text-purple-300" />
+                  Submit with Management Approval ({formatCurrency(numericAmount, currency)})
+                </>
               ) : isTopUpMode ? (
                 <>
                   <TrendingUp className="mr-2 h-5 w-5" />

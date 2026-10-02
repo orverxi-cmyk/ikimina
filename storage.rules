@@ -22,5 +22,9 @@ service firebase.storage {
     match /contribution_proofs/{memberId}/{allPaths=**} {
       allow write: if request.auth != null && request.auth.uid == memberId;
     }
+
+    match /loan_management_approvals/{memberId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == memberId;
+    }
   }
 }

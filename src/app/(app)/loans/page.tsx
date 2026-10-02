@@ -25,7 +25,10 @@ import {
   ChevronRight,
   User as UserIcon,
   Undo2,
-  Sparkles
+  Sparkles,
+  ShieldAlert,
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -515,7 +518,11 @@ function LoansPageContent() {
                               {formatCurrency(memberPower, currency)}
                             </TableCell>
                             <TableCell>
-                              {isEligible ? (
+                              {r.exceedsBorrowingPower || r.managementApprovalUrl ? (
+                                <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[9px] uppercase font-bold flex items-center gap-1 w-fit">
+                                  <ShieldAlert className="h-3 w-3" /> Approval Attached
+                                </Badge>
+                              ) : isEligible ? (
                                 <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-none text-[9px] uppercase font-bold">
                                   Eligible ({memberPower > 0 ? Math.round((r.amount / memberPower) * 100) : 0}%)
                                 </Badge>
@@ -1101,6 +1108,51 @@ function LoansPageContent() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Management Approval Exception Card */}
+                  {(selectedLoan.exceedsBorrowingPower || selectedLoan.managementApprovalUrl) && (
+                    <div className="p-4 rounded-xl bg-purple-500/10 border-2 border-purple-500/30 text-purple-950 dark:text-purple-100 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <ShieldAlert className="h-5 w-5 text-purple-600 shrink-0" />
+                          <p className="font-bold text-sm">
+                            Management Quota Exception Authorized
+                          </p>
+                        </div>
+                        <Badge className="bg-purple-600 text-white font-bold text-[10px] uppercase">
+                          Attached Proof
+                        </Badge>
+                      </div>
+
+                      <p className="text-xs text-purple-900 dark:text-purple-200 leading-relaxed">
+                        This application requested <strong>{formatCurrency(requestedAmt, currency)}</strong>, exceeding the member&apos;s standard {maxLoanPercentage}% borrowing power ({formatCurrency(borrowingPower, currency)}) by <strong>{formatCurrency(requestedAmt - borrowingPower, currency)}</strong>. An official management authorization has been attached.
+                      </p>
+
+                      {selectedLoan.managementApprovalNotes && (
+                        <div className="p-2.5 rounded-lg bg-background/80 border border-purple-200 dark:border-purple-800 text-xs">
+                          <span className="font-bold text-purple-950 dark:text-purple-200">Approval Minute / Reference: </span>
+                          <span className="text-muted-foreground">&ldquo;{selectedLoan.managementApprovalNotes}&rdquo;</span>
+                        </div>
+                      )}
+
+                      {selectedLoan.managementApprovalUrl && (
+                        <div className="pt-1 flex items-center gap-2 flex-wrap">
+                          <Button
+                            type="button"
+                            asChild
+                            size="sm"
+                            className="h-9 rounded-xl font-bold text-xs gap-1.5 bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                          >
+                            <a href={selectedLoan.managementApprovalUrl} target="_blank" rel="noopener noreferrer">
+                              <FileText className="h-4 w-4" />
+                              View Management Approval Attachment ({selectedLoan.managementApprovalFileName || 'Document'})
+                              <ExternalLink className="h-3 w-3 ml-1 opacity-70" />
+                            </a>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Purpose / Description */}
                   {selectedLoan.description && (
