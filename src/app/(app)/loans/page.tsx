@@ -367,8 +367,8 @@ function LoansPageContent() {
                   <p data-stat-value="true" className="text-xs sm:text-sm font-bold text-green-600">+{formatCurrency(interestSummary.gained, currency)}</p>
               </div>
               <div className="bg-muted px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-border text-center flex-1 sm:min-w-[110px]">
-                  <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">Int. Paid</p>
-                  <p data-stat-value="true" className="text-xs sm:text-sm font-bold text-orange-600">-{formatCurrency(interestSummary.paid, currency)}</p>
+                  <p className="text-[10px] font-bold text-foreground uppercase tracking-tighter">Int. Paid</p>
+                  <p data-stat-value="true" className="text-xs sm:text-sm font-bold text-foreground">-{formatCurrency(interestSummary.paid, currency)}</p>
               </div>
            </div>
         </div>
@@ -519,15 +519,15 @@ function LoansPageContent() {
                             </TableCell>
                             <TableCell>
                               {r.exceedsBorrowingPower || r.managementApprovalUrl ? (
-                                <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[9px] uppercase font-bold flex items-center gap-1 w-fit">
+                                <Badge className="bg-primary/10 text-primary border border-primary/20 text-[9px] uppercase font-bold flex items-center gap-1 w-fit">
                                   <ShieldAlert className="h-3 w-3" /> Approval Attached
                                 </Badge>
                               ) : isEligible ? (
-                                <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-none text-[9px] uppercase font-bold">
+                                <Badge className="bg-green-600/10 text-green-700 dark:text-green-400 border-none text-[9px] uppercase font-bold">
                                   Eligible ({memberPower > 0 ? Math.round((r.amount / memberPower) * 100) : 0}%)
                                 </Badge>
                               ) : (
-                                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-none text-[9px] uppercase font-bold">
+                                <Badge className="bg-muted text-foreground border-border text-[9px] uppercase font-bold">
                                   Exceeds Power
                                 </Badge>
                               )}
@@ -756,7 +756,7 @@ function LoansPageContent() {
                              <div className="text-[10px] text-muted-foreground font-medium">{format(loan.requestDate?.toDate() || new Date(), 'MMM d, yyyy')}</div>
                           </TableCell>
                           <TableCell className="font-medium text-sm">{formatCurrency(loan.amount, currency)}</TableCell>
-                          <TableCell className="text-xs text-orange-600 font-bold">+{formatCurrency(loan.interestAmount || 0, currency)}</TableCell>
+                          <TableCell className="text-xs text-foreground font-bold">{formatCurrency(loan.interestAmount || 0, currency)}</TableCell>
                           <TableCell>
                              <Badge 
                                variant={
@@ -766,10 +766,10 @@ function LoansPageContent() {
                                } 
                                className={cn(
                                  "uppercase font-bold text-[9px] border-none",
-                                 loan.status === 'requested' && "bg-blue-500/10 text-blue-700 dark:text-blue-400",
-                                 loan.status === 'approved' && "bg-green-500/10 text-green-700 dark:text-green-400",
-                                 loan.status === 'withdrawn' && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-                                 loan.status === 'rejected' && "bg-destructive/10 text-destructive",
+                                 loan.status === 'requested' && "bg-primary/10 text-primary",
+                                 loan.status === 'approved' && "bg-green-600/10 text-green-700 dark:text-green-400",
+                                 loan.status === 'withdrawn' && "bg-muted text-muted-foreground",
+                                 loan.status === 'rejected' && "bg-black text-white",
                                  loan.status === 'completed' && "bg-muted text-muted-foreground"
                                )}
                              >
@@ -832,13 +832,13 @@ function LoansPageContent() {
 
             <Card className="border border-border shadow-sm bg-card rounded-[10px]">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-orange-700">
-                  <TrendingDown className="h-5 w-5" /> Interest Paid
+                <CardTitle className="flex items-center gap-2 text-foreground">
+                  <TrendingDown className="h-5 w-5 text-muted-foreground" /> Interest Paid
                 </CardTitle>
                 <CardDescription>Total interest overhead committed on loans.</CardDescription>
               </CardHeader>
               <CardContent className="text-center py-8">
-                <div className="text-4xl font-bold text-orange-600">{formatCurrency(interestSummary.paid, currency)}</div>
+                <div className="text-4xl font-bold text-foreground">{formatCurrency(interestSummary.paid, currency)}</div>
                 <p className="text-xs text-muted-foreground mt-2 font-medium">Cumulative Liability</p>
               </CardContent>
             </Card>
@@ -916,7 +916,7 @@ function LoansPageContent() {
                 </div>
                 <div className="bg-muted p-3 rounded-xl border border-border">
                    <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Upfront Interest ({globalRate}%)</p>
-                   <p className="text-base sm:text-lg font-bold text-orange-600">-{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
+                   <p className="text-base sm:text-lg font-bold text-foreground">-{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
                 </div>
                 <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
                    <p className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-400 tracking-widest mb-1">Amount Received</p>
@@ -1067,18 +1067,18 @@ function LoansPageContent() {
                     {/* Borrowing Power */}
                     <div className={cn(
                       "p-4 rounded-xl border flex flex-col justify-between transition-colors",
-                      isEligible ? "bg-green-500/5 border-green-500/20" : "bg-amber-500/5 border-amber-500/20"
+                      isEligible ? "bg-green-600/5 border-green-600/20" : "bg-muted/50 border-border"
                     )}>
                       <div>
                         <span className={cn(
                           "text-[10px] font-bold uppercase tracking-wider",
-                          isEligible ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-400"
+                          isEligible ? "text-green-700 dark:text-green-400" : "text-foreground"
                         )}>
                           Borrowing Power ({maxLoanPercentage}%)
                         </span>
                         <p className={cn(
                           "text-2xl font-bold font-headline mt-1",
-                          isEligible ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-400"
+                          isEligible ? "text-green-700 dark:text-green-400" : "text-foreground"
                         )}>
                           {formatCurrency(borrowingPower, currency)}
                         </p>
@@ -1092,12 +1092,12 @@ function LoansPageContent() {
                   {/* Borrow Status Assessment Card */}
                   <div className={cn(
                     "p-4 rounded-xl border flex items-start gap-3.5",
-                    isEligible ? "bg-green-500/10 border-green-500/20 text-green-900 dark:text-green-200" : "bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-200"
+                    isEligible ? "bg-green-600/10 border-green-600/20 text-green-900 dark:text-green-200" : "bg-muted border-border text-foreground"
                   )}>
                     {isEligible ? (
                       <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
                     ) : (
-                      <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                      <AlertTriangle className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
                     )}
                     <div className="space-y-1 text-xs">
                       <p className="font-bold text-sm">
@@ -1122,26 +1122,26 @@ function LoansPageContent() {
 
                   {/* Management Approval Exception Card */}
                   {(selectedLoan.exceedsBorrowingPower || selectedLoan.managementApprovalUrl) && (
-                    <div className="p-4 rounded-xl bg-purple-500/10 border-2 border-purple-500/30 text-purple-950 dark:text-purple-100 space-y-3">
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-foreground space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <ShieldAlert className="h-5 w-5 text-purple-600 shrink-0" />
+                          <ShieldAlert className="h-5 w-5 text-primary shrink-0" />
                           <p className="font-bold text-sm">
                             Management Quota Exception Authorized
                           </p>
                         </div>
-                        <Badge className="bg-purple-600 text-white font-bold text-[10px] uppercase">
+                        <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase">
                           Attached Proof
                         </Badge>
                       </div>
 
-                      <p className="text-xs text-purple-900 dark:text-purple-200 leading-relaxed">
+                      <p className="text-xs text-foreground/90 leading-relaxed">
                         This application requested <strong>{formatCurrency(requestedAmt, currency)}</strong>, exceeding the member&apos;s standard {maxLoanPercentage}% borrowing power ({formatCurrency(borrowingPower, currency)}) by <strong>{formatCurrency(requestedAmt - borrowingPower, currency)}</strong>. An official management authorization has been attached.
                       </p>
 
                       {selectedLoan.managementApprovalNotes && (
-                        <div className="p-2.5 rounded-lg bg-background/80 border border-purple-200 dark:border-purple-800 text-xs">
-                          <span className="font-bold text-purple-950 dark:text-purple-200">Approval Minute / Reference: </span>
+                        <div className="p-2.5 rounded-lg bg-background/80 border border-border text-xs">
+                          <span className="font-bold text-foreground">Approval Minute / Reference: </span>
                           <span className="text-muted-foreground">&ldquo;{selectedLoan.managementApprovalNotes}&rdquo;</span>
                         </div>
                       )}
@@ -1152,7 +1152,7 @@ function LoansPageContent() {
                             type="button"
                             asChild
                             size="sm"
-                            className="h-9 rounded-xl font-bold text-xs gap-1.5 bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                            className="h-9 rounded-xl font-bold text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                           >
                             <a href={selectedLoan.managementApprovalUrl} target="_blank" rel="noopener noreferrer">
                               <FileText className="h-4 w-4" />
@@ -1194,7 +1194,7 @@ function LoansPageContent() {
                       </div>
                       <div className="p-2.5 bg-background rounded-lg border border-border">
                         <p className="text-[10px] text-muted-foreground uppercase font-semibold">Interest ({globalRate}%)</p>
-                        <p className="text-xs font-bold text-orange-600 mt-0.5">-{formatCurrency(loanInterest, currency)}</p>
+                        <p className="text-xs font-bold text-foreground mt-0.5">-{formatCurrency(loanInterest, currency)}</p>
                       </div>
                       <div className="p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
                         <p className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase font-semibold">Amount Received</p>
@@ -1309,7 +1309,7 @@ function LoansPageContent() {
                   <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <span className="text-[10px] uppercase font-bold text-muted-foreground block">Upfront Interest ({globalRate}%):</span>
-                      <span className="font-bold text-orange-600">-{formatCurrency(Math.round(selectedLoan.amount * (globalRate / 100)), currency)}</span>
+                      <span className="font-bold text-foreground">-{formatCurrency(Math.round(selectedLoan.amount * (globalRate / 100)), currency)}</span>
                     </div>
                     <div>
                       <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Amount Received:</span>

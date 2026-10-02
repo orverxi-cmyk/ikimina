@@ -195,7 +195,7 @@ export default function AdminSettingsPage() {
           <p className="text-[12px] font-bold text-muted-foreground">Manage global financial rules, interest models, and lending policies</p>
         </div>
         {isSuperAdmin && (
-          <Badge variant="outline" className="self-start sm:self-auto bg-amber-500/10 text-amber-600 border-amber-500/20 px-2.5 py-0.5 text-[9px] font-bold">
+          <Badge variant="outline" className="self-start sm:self-auto bg-primary/10 text-primary border-primary/20 px-2.5 py-0.5 text-[9px] font-bold">
             Super Administrator Active
           </Badge>
         )}
@@ -275,7 +275,7 @@ export default function AdminSettingsPage() {
 
               <div className="pt-4 border-t border-border">
                 <div className="space-y-2 max-w-sm">
-                   <Label className="flex items-center gap-1">Late Payment Penalty (%) <AlertTriangle className="h-3 w-3 text-orange-600" /></Label>
+                   <Label className="flex items-center gap-1">Late Payment Penalty (%) <AlertTriangle className="h-3 w-3 text-foreground" /></Label>
                    <Input 
                      name="penaltyRate" 
                      type="number" 

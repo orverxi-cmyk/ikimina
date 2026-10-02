@@ -269,16 +269,16 @@ export default function LoginPage() {
 
           {step === 'pending-activation' && (
             <div className="space-y-6">
-              <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl flex gap-3 items-start text-left">
-                <ShieldCheck className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
+              <div className="bg-primary/10 border border-primary/20 p-4 rounded-xl flex gap-3 items-start text-left">
+                <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-orange-900">One Last Step</p>
-                  <p className="text-xs text-orange-800 leading-relaxed">
+                  <p className="text-sm font-semibold text-foreground">One Last Step</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     Your account exists but isn't active. We will send a secure activation link to your email to verify your identity.
                   </p>
                 </div>
               </div>
-              <Button className="w-full h-11 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold" onClick={handleSendActivationLink} disabled={isLoading}>
+              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold" onClick={handleSendActivationLink} disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Mail className="mr-2 h-5 w-5" />}
                 Request Activation Link
               </Button>

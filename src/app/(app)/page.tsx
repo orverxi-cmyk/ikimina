@@ -88,15 +88,15 @@ export default function DashboardPage() {
         title: isManagement ? 'Active Loan Book' : 'My Outstanding Debt', 
         value: formatCurrency(activeLoansBalance, currency), 
         icon: HandCoins, 
-        color: 'text-orange-500', 
-        bg: 'bg-orange-500/10' 
+        color: 'text-foreground', 
+        bg: 'bg-muted' 
       },
     ];
 
     if (isManagement) {
-      baseStats.push({ title: 'Pending Audits', value: pendingContsCount.toString(), icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10' });
+      baseStats.push({ title: 'Pending Audits', value: pendingContsCount.toString(), icon: Clock, color: 'text-primary', bg: 'bg-primary/10' });
     } else {
-      baseStats.push({ title: 'Pending Verification', value: pendingContsCount.toString(), icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' });
+      baseStats.push({ title: 'Pending Verification', value: pendingContsCount.toString(), icon: Clock, color: 'text-primary', bg: 'bg-primary/10' });
     }
 
     return baseStats;
@@ -184,9 +184,9 @@ export default function DashboardPage() {
                 {formatCurrency(myParticipation.contributions + (userData?.accruedInterest || 0), currency)}
               </span>
             </div>
-            <div className="flex justify-between items-center p-3.5 sm:p-4 bg-muted rounded-xl border border-orange-500/5 hover:border-orange-500/20 transition-colors">
+            <div className="flex justify-between items-center p-3.5 sm:p-4 bg-muted rounded-xl border border-border hover:border-foreground/20 transition-colors">
               <span className="text-muted-foreground font-normal text-[12px]">Current Liabilities (Active Loans)</span>
-              <span data-stat-value="true" className="font-bold text-base sm:text-lg text-orange-500">-{formatCurrency(myParticipation.debt, currency)}</span>
+              <span data-stat-value="true" className="font-bold text-base sm:text-lg text-foreground">-{formatCurrency(myParticipation.debt, currency)}</span>
             </div>
           </CardContent>
         </Card>

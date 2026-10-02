@@ -499,7 +499,7 @@ export default function ReportsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-foreground">
               -{formatCurrency(reportData.filteredInterestOut, currency)}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Credited to member interest balances</p>
@@ -567,7 +567,7 @@ export default function ReportsPage() {
                     <TableHead className="text-right">Savings / Contributions</TableHead>
                     <TableHead className="text-right">Pool Share %</TableHead>
                     <TableHead className="text-right text-primary">Accumulated Interest</TableHead>
-                    <TableHead className="text-right text-orange-600">Active Debt</TableHead>
+                    <TableHead className="text-right text-foreground">Active Debt</TableHead>
                     <TableHead className="text-right px-6 font-bold">Net Balance</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -596,7 +596,7 @@ export default function ReportsPage() {
                         <TableCell className="text-right text-primary font-bold">
                           +{formatCurrency(m.accruedInterest, currency)}
                         </TableCell>
-                        <TableCell className="text-right text-orange-600 font-medium">
+                        <TableCell className="text-right text-foreground font-medium">
                           {m.currentDebt > 0 ? `-${formatCurrency(m.currentDebt, currency)}` : formatCurrency(0, currency)}
                         </TableCell>
                         <TableCell className="text-right px-6 font-bold text-base">

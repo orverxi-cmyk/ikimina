@@ -122,9 +122,9 @@ export default function ProfilePage() {
             <p className="text-[10px] font-bold text-primary uppercase">Status</p>
             <p className="text-sm font-bold capitalize">{userData.status || 'Active'}</p>
           </div>
-          <div className="bg-orange-500/10 px-4 py-2 rounded-xl text-center">
-            <p className="text-[10px] font-bold text-orange-600 uppercase">Interest</p>
-            <p className="text-sm font-bold">+{formatCurrency(userData.accruedInterest || 0, currency)}</p>
+          <div className="bg-green-600/10 px-4 py-2 rounded-xl text-center">
+            <p className="text-[10px] font-bold text-green-600 uppercase">Interest</p>
+            <p className="text-sm font-bold text-green-600">+{formatCurrency(userData.accruedInterest || 0, currency)}</p>
           </div>
         </div>
       </div>
@@ -163,9 +163,9 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground">Liability Overview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-muted rounded-xl border border-orange-500/5">
+                <div className="flex justify-between items-center p-4 bg-muted rounded-xl border border-border">
                   <span className="text-sm text-muted-foreground font-medium">Active Loan Balance</span>
-                  <span className="font-bold text-orange-600">{formatCurrency(activeDebt, currency)}</span>
+                  <span className="font-bold text-foreground">{formatCurrency(activeDebt, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center p-4 bg-muted rounded-xl">
                   <span className="text-sm text-muted-foreground font-medium">Total Repayments Made</span>

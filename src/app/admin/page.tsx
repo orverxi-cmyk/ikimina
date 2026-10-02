@@ -200,7 +200,7 @@ export default function AdminDashboard() {
               Executive Institutional Console
             </Badge>
             {pendingExpenses.length > 0 && (
-              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 text-[9px] font-bold">
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] font-bold">
                 {pendingExpenses.length} Expense{pendingExpenses.length > 1 ? 's' : ''} Pending Sign-Off
               </Badge>
             )}
@@ -253,8 +253,8 @@ export default function AdminDashboard() {
               <span className="font-semibold text-foreground">{formatCurrency(grossCapital, currency)}</span>
             </div>
             <div className="flex items-center justify-between text-xs mt-1">
-              <span className="text-red-600 dark:text-red-400 font-medium text-[11px]">Approved Expenses:</span>
-              <span className="font-bold text-red-600 dark:text-red-400">-{formatCurrency(totalApprovedExpenses, currency)}</span>
+              <span className="text-muted-foreground font-medium text-[11px]">Approved Expenses:</span>
+              <span className="font-bold text-foreground">-{formatCurrency(totalApprovedExpenses, currency)}</span>
             </div>
           </CardContent>
         </Card>
@@ -293,14 +293,14 @@ export default function AdminDashboard() {
         <Card className={cn(
           "shadow-sm border transition-colors",
           totalArrearsAmount > 0 
-            ? "border-red-500/30 bg-red-500/5" 
-            : "border-green-500/20 bg-green-500/5"
+            ? "border-foreground/30 bg-muted/40" 
+            : "border-green-600/20 bg-green-600/5"
         )}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <span className={cn(
                 "text-[10px] font-bold uppercase tracking-wider",
-                totalArrearsAmount > 0 ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400"
+                totalArrearsAmount > 0 ? "text-foreground" : "text-green-700 dark:text-green-400"
               )}>
                 Default Risk Watch
               </span>
@@ -310,7 +310,7 @@ export default function AdminDashboard() {
             </div>
             <div className={cn(
               "p-2.5 rounded-xl",
-              totalArrearsAmount > 0 ? "bg-red-500/10 text-red-600" : "bg-green-500/10 text-green-600"
+              totalArrearsAmount > 0 ? "bg-muted text-foreground" : "bg-green-600/10 text-green-600"
             )}>
               <AlertTriangle className="h-5 w-5" />
             </div>
@@ -318,7 +318,7 @@ export default function AdminDashboard() {
           <CardContent className="pt-2">
             <div className={cn(
               "text-3xl font-bold font-headline",
-              totalArrearsAmount > 0 ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400"
+              totalArrearsAmount > 0 ? "text-foreground" : "text-green-700 dark:text-green-400"
             )}>
               {formatCurrency(totalArrearsAmount, currency)}
             </div>
@@ -340,25 +340,25 @@ export default function AdminDashboard() {
         </Card>
 
         {/* 4. TOTAL INTERESTS */}
-        <Card className="shadow-sm border border-amber-500/20 bg-amber-500/5">
+        <Card className="shadow-sm border border-green-600/20 bg-green-600/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-green-700 dark:text-green-400">
                 Revenue Generation
               </span>
               <CardTitle className="text-base font-bold text-foreground">
                 Total Group Interest
               </CardTitle>
             </div>
-            <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl">
+            <div className="p-2.5 bg-green-600/10 text-green-600 rounded-xl">
               <TrendingUp className="h-5 w-5" />
             </div>
           </CardHeader>
           <CardContent className="pt-2">
-            <div className="text-3xl font-bold font-headline text-amber-900 dark:text-amber-200">
+            <div className="text-3xl font-bold font-headline text-green-700 dark:text-green-400">
               {formatCurrency(totalLoanInterests, currency)}
             </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-900/50 text-xs">
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200/50 dark:border-green-900/50 text-xs">
               <span className="text-muted-foreground text-[11px]">Accrued to Members:</span>
               <span className="font-semibold text-foreground">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
             </div>
@@ -440,7 +440,7 @@ export default function AdminDashboard() {
             Asset Reconciliation
           </TabsTrigger>
           <TabsTrigger value="arrears-watchlist" className="rounded-lg font-bold text-xs gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+            <AlertTriangle className="h-3.5 w-3.5 text-foreground" />
             Arrears Watchlist
             {arrearsList.length > 0 && (
               <Badge variant="destructive" className="font-mono text-[9px] h-4 min-w-4 px-1 rounded-full">
@@ -452,7 +452,7 @@ export default function AdminDashboard() {
             <Receipt className="h-3.5 w-3.5 text-primary" />
             Operating Expenses
             {pendingExpenses.length > 0 && (
-              <Badge className="bg-amber-600 text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full">
+              <Badge className="bg-primary text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full">
                 {pendingExpenses.length}
               </Badge>
             )}
@@ -502,7 +502,7 @@ export default function AdminDashboard() {
                     {/* 2. Realized Interest */}
                     <div className="p-4 flex items-center justify-between bg-card hover:bg-muted/20 transition-colors">
                       <div className="flex items-center gap-2.5">
-                        <div className="h-7 w-7 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
+                        <div className="h-7 w-7 rounded-lg bg-green-600/10 text-green-700 dark:text-green-400 flex items-center justify-center font-bold text-xs">
                           (+)
                         </div>
                         <div>
@@ -510,23 +510,23 @@ export default function AdminDashboard() {
                           <p className="text-[11px] text-muted-foreground">Cumulative interest generated from loans</p>
                         </div>
                       </div>
-                      <span className="font-bold text-amber-700 dark:text-amber-400">
+                      <span className="font-bold text-green-700 dark:text-green-400">
                         +{formatCurrency(totalLoanInterests, currency)}
                       </span>
                     </div>
 
                     {/* 3. Approved Operating Expenses (SUBTRACTED) */}
-                    <div className="p-4 flex items-center justify-between bg-red-500/5 hover:bg-red-500/10 transition-colors">
+                    <div className="p-4 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-2.5">
-                        <div className="h-7 w-7 rounded-lg bg-red-500/15 text-red-600 flex items-center justify-center font-bold text-xs">
+                        <div className="h-7 w-7 rounded-lg bg-muted text-foreground flex items-center justify-center font-bold text-xs">
                           (-)
                         </div>
                         <div>
-                          <p className="font-bold text-red-700 dark:text-red-400">Approved Operating Expenses</p>
+                          <p className="font-bold text-foreground">Approved Operating Expenses</p>
                           <p className="text-[11px] text-muted-foreground">Lodged by Accountant &amp; approved by Admin</p>
                         </div>
                       </div>
-                      <span className="font-bold text-red-600">
+                      <span className="font-bold text-foreground">
                         -{formatCurrency(totalApprovedExpenses, currency)}
                       </span>
                     </div>
@@ -586,9 +586,9 @@ export default function AdminDashboard() {
                       </Badge>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 flex items-center justify-between">
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
                           Borrowing Multiplier Policy
                         </span>
                         <p className="text-xl font-bold font-headline text-foreground mt-0.5">
@@ -754,7 +754,7 @@ export default function AdminDashboard() {
                             className={cn(
                               "text-[10px] uppercase font-bold",
                               exp.status === 'approved' && "bg-green-500/10 text-green-700 dark:text-green-400 border-none",
-                              exp.status === 'pending' && "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-none",
+                              exp.status === 'pending' && "bg-primary/10 text-primary border-none",
                               exp.status === 'rejected' && "bg-destructive/10 text-destructive border-none"
                             )}
                           >
@@ -847,7 +847,7 @@ export default function AdminDashboard() {
                               "text-[9px] uppercase font-bold border-none",
                               u.role === 'admin' && "bg-primary/10 text-primary",
                               u.role === 'accountant' && "bg-blue-500/10 text-blue-600",
-                              u.role === 'management' && "bg-amber-500/10 text-amber-600"
+                              u.role === 'management' && "bg-foreground/10 text-foreground"
                             )}
                           >
                             {u.role || 'member'}

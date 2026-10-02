@@ -428,7 +428,7 @@ function LoanApplyContent() {
             {formatCurrency(totalVerifiedContributions, currency)}
           </p>
           {totalPendingContributions > 0 && (
-            <p className="text-[9px] font-bold text-orange-600">
+            <p className="text-[9px] font-bold text-muted-foreground">
               +{formatCurrency(totalPendingContributions, currency)} pending audit
             </p>
           )}
@@ -482,9 +482,9 @@ function LoanApplyContent() {
         {/* Effective Max Ceiling */}
         <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-            <Lock className="h-3 w-3 text-orange-600" /> {isTopUpMode ? 'Top-Up Ceiling' : 'System Cap'}
+            <Lock className="h-3 w-3 text-muted-foreground" /> {isTopUpMode ? 'Top-Up Ceiling' : 'System Cap'}
           </p>
-          <p className="text-lg font-bold text-orange-600">
+          <p className="text-lg font-bold text-foreground">
             {formatCurrency(effectiveApplicationMax, currency)}
           </p>
           <p className="text-[9px] text-muted-foreground font-medium">
@@ -544,15 +544,15 @@ function LoanApplyContent() {
 
       {/* ACTIVE LOAN WARNING (when not eligible for top-up or top-up mode not active) */}
       {activeLoan && !isTopUpMode && (
-        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-orange-900 flex gap-3">
-          <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-xl bg-muted/70 border border-border text-foreground flex gap-3">
+          <AlertTriangle className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
           <div className="text-xs space-y-1">
             <p className="font-bold">Active Loan Outstanding</p>
-            <p className="text-orange-800">
-              You currently have an active loan with an outstanding balance of <strong>{formatCurrency(activeLoan.balance, currency)}</strong>.
+            <p className="text-muted-foreground">
+              You currently have an active loan with an outstanding balance of <strong className="text-foreground">{formatCurrency(activeLoan.balance, currency)}</strong>.
               {isEligibleForTopUp ? (
                 <>
-                  {' '}You are eligible for a <strong>Loan Top-Up</strong> of up to <strong>{formatCurrency(maxTopUpLimit, currency)}</strong>. Click the &ldquo;Apply as Top-Up&rdquo; button above to proceed.
+                  {' '}You are eligible for a <strong className="text-foreground">Loan Top-Up</strong> of up to <strong className="text-foreground">{formatCurrency(maxTopUpLimit, currency)}</strong>. Click the &ldquo;Apply as Top-Up&rdquo; button above to proceed.
                 </>
               ) : (
                 <>
@@ -565,15 +565,15 @@ function LoanApplyContent() {
       )}
 
       {!hasSavings && !pendingLoan && !activeLoan && (
-        <div className="p-4 rounded-xl bg-yellow-50 border border-yellow-200 text-yellow-900 flex gap-3">
-          <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-xl bg-muted/70 border border-border text-foreground flex gap-3">
+          <AlertCircle className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
           <div className="text-xs space-y-1">
             <p className="font-bold">No Verified Savings Found</p>
-            <p className="text-yellow-800">
-              Your borrowing power is <strong>{maxLoanPercentage}% of your verified contributions</strong>. Currently, you have no verified savings recorded. Please deposit a monthly contribution to establish your borrowing quota.
+            <p className="text-muted-foreground">
+              Your borrowing power is <strong className="text-foreground">{maxLoanPercentage}% of your verified contributions</strong>. Currently, you have no verified savings recorded. Please deposit a monthly contribution to establish your borrowing quota.
             </p>
             <div className="pt-2">
-              <Button asChild size="sm" variant="outline" className="h-8 text-xs font-bold border-yellow-300">
+              <Button asChild size="sm" variant="outline" className="h-8 text-xs font-bold border-border">
                 <Link href="/contributions">Make a Contribution</Link>
               </Button>
             </div>
@@ -582,16 +582,16 @@ function LoanApplyContent() {
       )}
 
       {hasSavings && !isBorrowingPowerEligible && !pendingLoan && !activeLoan && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-xl bg-muted/70 border border-border text-foreground flex gap-3">
+          <AlertTriangle className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
           <div className="text-xs space-y-1">
             <p className="font-bold">Borrowing Power Below System Minimum</p>
-            <p className="text-amber-800">
-              Your verified contributions of <strong>{formatCurrency(totalVerifiedContributions, currency)}</strong> provide a borrowing power of <strong>{formatCurrency(borrowingPower, currency)} ({maxLoanPercentage}%)</strong>.
-              However, the group policy sets the minimum allowed loan at <strong>{formatCurrency(minLoanAmount, currency)}</strong>.
+            <p className="text-muted-foreground">
+              Your verified contributions of <strong className="text-foreground">{formatCurrency(totalVerifiedContributions, currency)}</strong> provide a borrowing power of <strong className="text-foreground">{formatCurrency(borrowingPower, currency)} ({maxLoanPercentage}%)</strong>.
+              However, the group policy sets the minimum allowed loan at <strong className="text-foreground">{formatCurrency(minLoanAmount, currency)}</strong>.
             </p>
-            <p className="text-amber-800 font-semibold pt-1">
-              You need at least <strong>{formatCurrency(minRequiredSavings, currency)}</strong> in total verified contributions to qualify for the minimum loan.
+            <p className="text-foreground font-semibold pt-1">
+              You need at least <strong className="text-foreground">{formatCurrency(minRequiredSavings, currency)}</strong> in total verified contributions to qualify for the minimum loan.
             </p>
           </div>
         </div>
@@ -636,7 +636,7 @@ function LoanApplyContent() {
                       POWER: <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong>
                     </span>
                     <span className="text-muted-foreground">|</span>
-                    <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                    <span className="text-[10px] font-bold text-primary">
                       MAX CEILING: <strong>{formatCurrency(maxLoanAmount, currency)}</strong>
                     </span>
                   </div>
@@ -656,10 +656,10 @@ function LoanApplyContent() {
                     disabled={!canApply || isSubmitting}
                     required 
                     className={`h-12 rounded-[10px] pr-14 bg-muted border-2 text-lg font-bold ${
-                      isAmountTooHigh ? 'border-destructive focus-visible:ring-destructive' :
-                      isAmountTooLow ? 'border-orange-500 focus-visible:ring-orange-500' :
-                      exceedsBorrowingPower ? 'border-purple-500/70 focus-visible:ring-purple-500' :
-                      numericAmount >= minLoanAmount && numericAmount <= effectiveApplicationMax ? 'border-green-500/50' : 'border-transparent'
+                      isAmountTooHigh ? 'border-black focus-visible:ring-black' :
+                      isAmountTooLow ? 'border-border focus-visible:ring-border' :
+                      exceedsBorrowingPower ? 'border-primary focus-visible:ring-primary' :
+                      numericAmount >= minLoanAmount && numericAmount <= effectiveApplicationMax ? 'border-green-600/50' : 'border-transparent'
                     }`} 
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground select-none">
@@ -697,7 +697,7 @@ function LoanApplyContent() {
                         variant="outline"
                         size="sm"
                         onClick={() => setRequestedAmount(maxLoanAmount.toString())}
-                        className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-purple-500/50 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800"
+                        className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-primary/50 text-foreground border-border"
                       >
                         Max Cap: {formatCurrency(maxLoanAmount, currency)} (Approval Req)
                       </Button>
@@ -745,7 +745,7 @@ function LoanApplyContent() {
                         </div>
                         <div className="p-2 bg-background rounded-lg border border-border">
                           <p className="text-[10px] text-muted-foreground uppercase font-semibold">Interest ({rate}%)</p>
-                          <p className="font-bold text-orange-600 mt-0.5">-{formatCurrency(interestAmt, currency)}</p>
+                          <p className="font-bold text-foreground mt-0.5">-{formatCurrency(interestAmt, currency)}</p>
                         </div>
                         <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
                           <p className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase font-semibold">Amount Received</p>
@@ -772,13 +772,13 @@ function LoanApplyContent() {
                   </p>
                 )}
                 {isAmountTooLow && (
-                  <p className="text-xs text-orange-600 font-bold flex items-center gap-1 pt-1">
+                  <p className="text-xs text-foreground font-bold flex items-center gap-1 pt-1">
                     <AlertTriangle className="h-3.5 w-3.5" />
                     Amount is below the minimum allowed loan of {formatCurrency(minLoanAmount, currency)}.
                   </p>
                 )}
                 {exceedsBorrowingPower && !isAmountTooHigh && (
-                  <p className="text-xs text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1 pt-1">
+                  <p className="text-xs text-primary font-bold flex items-center gap-1 pt-1">
                     <ShieldAlert className="h-3.5 w-3.5" />
                     Exceeds standard borrowing power ({formatCurrency(effectiveApplicationMax, currency)}). Management approval attachment is required.
                   </p>
@@ -787,33 +787,33 @@ function LoanApplyContent() {
 
               {/* MANAGEMENT APPROVAL ATTACHMENT CARD */}
               {exceedsBorrowingPower && (
-                <div className="p-4 rounded-xl bg-purple-500/10 border-2 border-purple-500/30 text-purple-950 dark:text-purple-100 space-y-4 animate-in fade-in duration-200">
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-foreground space-y-4 animate-in fade-in duration-200">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      <ShieldAlert className="h-5 w-5 text-purple-600 shrink-0 mt-0.5" />
+                      <ShieldAlert className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                       <div className="space-y-1">
                         <p className="font-bold text-sm">
                           Management Approval Attachment Required
                         </p>
-                        <p className="text-xs text-purple-800 dark:text-purple-300 leading-relaxed">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
                           Your requested loan of <strong>{formatCurrency(numericAmount, currency)}</strong> exceeds your calculated borrowing power of <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong> by <strong>{formatCurrency(numericAmount - effectiveApplicationMax, currency)}</strong>.
                           Please attach an official signed management approval letter or resolution to validate this request.
                         </p>
                       </div>
                     </div>
-                    <Badge className="bg-purple-600 text-white font-bold text-[10px] uppercase shrink-0">
+                    <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase shrink-0">
                       Quota Exception
                     </Badge>
                   </div>
 
                   {/* File Upload Area */}
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-200">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-foreground">
                       Upload Signed Approval Document (PDF / Image) *
                     </Label>
                     
                     {!managementFile && !managementApprovalUrl ? (
-                      <div className="border-2 border-dashed border-purple-300 dark:border-purple-700/60 rounded-xl p-5 text-center bg-background/60 hover:bg-background transition-colors">
+                      <div className="border-2 border-dashed border-border rounded-xl p-5 text-center bg-background/60 hover:bg-background transition-colors">
                         <input
                           id="management-approval-input"
                           type="file"
@@ -822,15 +822,15 @@ function LoanApplyContent() {
                           onChange={handleFileSelect}
                         />
                         <label htmlFor="management-approval-input" className="cursor-pointer flex flex-col items-center justify-center gap-2">
-                          <UploadCloud className="h-8 w-8 text-purple-600" />
+                          <UploadCloud className="h-8 w-8 text-primary" />
                           <span className="text-xs font-bold text-foreground">Click to upload or drag &amp; drop approval file</span>
                           <span className="text-[10px] text-muted-foreground">Supported formats: PDF, JPG, PNG, DOCX (Max 10MB)</span>
                         </label>
                       </div>
                     ) : (
-                      <div className="p-3.5 bg-background rounded-xl border border-purple-300 dark:border-purple-700 flex items-center justify-between gap-3 shadow-sm">
+                      <div className="p-3.5 bg-background rounded-xl border border-border flex items-center justify-between gap-3 shadow-sm">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-9 w-9 rounded-lg bg-purple-100 dark:bg-purple-950 flex items-center justify-center text-purple-600 shrink-0">
+                          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
                             <FileCheck className="h-5 w-5" />
                           </div>
                           <div className="min-w-0">
@@ -861,7 +861,7 @@ function LoanApplyContent() {
                               variant="ghost"
                               size="sm"
                               asChild
-                              className="h-8 text-xs font-bold text-purple-600 hover:text-purple-700"
+                              className="h-8 text-xs font-bold text-primary hover:text-primary/80"
                             >
                               <a href={managementApprovalUrl} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="h-3.5 w-3.5 mr-1" /> View
@@ -873,7 +873,7 @@ function LoanApplyContent() {
                             variant="ghost"
                             size="sm"
                             onClick={handleRemoveFile}
-                            className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground"
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -884,7 +884,7 @@ function LoanApplyContent() {
 
                   {/* Optional Reference Notes */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="management-approval-notes" className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-200">
+                    <Label htmlFor="management-approval-notes" className="text-xs font-bold uppercase tracking-wider text-foreground">
                       Approval Reference / Minute Details (Optional)
                     </Label>
                     <Input
@@ -892,7 +892,7 @@ function LoanApplyContent() {
                       value={managementApprovalNotes}
                       onChange={(e) => setManagementApprovalNotes(e.target.value)}
                       placeholder="e.g. Board Resolution #08/2026, authorized by Committee Chair"
-                      className="h-10 rounded-xl bg-background border-purple-200 dark:border-purple-800 text-xs"
+                      className="h-10 rounded-xl bg-background border-border text-xs"
                     />
                   </div>
                 </div>
@@ -927,7 +927,7 @@ function LoanApplyContent() {
                   </p>
                 )}
                 {exceedsBorrowingPower && (
-                  <p className="text-purple-700 dark:text-purple-400 font-medium">
+                  <p className="text-primary font-medium">
                     <strong>Exception Policy:</strong> Applications exceeding standard borrowing power are routed to the Credit Committee with the attached management authorization for formal underwriting.
                   </p>
                 )}
@@ -962,7 +962,7 @@ function LoanApplyContent() {
                 "Attach Management Approval to Submit"
               ) : exceedsBorrowingPower ? (
                 <>
-                  <ShieldCheck className="mr-2 h-5 w-5 text-purple-300" />
+                  <ShieldCheck className="mr-2 h-5 w-5 text-white" />
                   Submit with Management Approval ({formatCurrency(numericAmount, currency)})
                 </>
               ) : isTopUpMode ? (

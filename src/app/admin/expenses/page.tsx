@@ -335,17 +335,17 @@ export default function ExpensesAdminPage() {
       {/* KPI Summary Cards */}
       <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {/* Approved Expenses (Subtracted from Assets) */}
-        <Card className="shadow-sm border border-red-500/20 bg-red-500/5">
+        <Card className="shadow-sm border border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[13px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+            <CardTitle className="text-[13px] font-bold uppercase tracking-wider text-foreground">
               Total Approved Expenses
             </CardTitle>
-            <div className="p-2.5 bg-red-500/10 rounded-xl text-red-600">
+            <div className="p-2.5 bg-muted rounded-xl text-foreground">
               <TrendingDown className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-headline text-red-700 dark:text-red-400">
+            <div className="text-2xl font-bold font-headline text-foreground">
               -{formatCurrency(totalApprovedAmount, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 font-medium">
@@ -355,17 +355,17 @@ export default function ExpensesAdminPage() {
         </Card>
 
         {/* Pending Approvals */}
-        <Card className="shadow-sm border border-amber-500/20 bg-amber-500/5">
+        <Card className="shadow-sm border border-primary/20 bg-primary/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-primary">
               Pending Authorization
             </CardTitle>
-            <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-600">
+            <div className="p-2.5 bg-primary/10 rounded-xl text-primary">
               <Clock className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-headline text-amber-700 dark:text-amber-400">
+            <div className="text-2xl font-bold font-headline text-primary">
               {formatCurrency(totalPendingAmount, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 font-medium">
@@ -422,7 +422,7 @@ export default function ExpensesAdminPage() {
             <Clock className="h-3.5 w-3.5" />
             Pending Approval
             {pendingExpenses.length > 0 && (
-              <Badge className="bg-amber-600 text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full">
+              <Badge className="bg-primary text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full">
                 {pendingExpenses.length}
               </Badge>
             )}
@@ -597,7 +597,7 @@ export default function ExpensesAdminPage() {
                             {exp.category}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-bold text-sm text-red-600">
+                        <TableCell className="font-bold text-sm text-foreground">
                           -{formatCurrency(exp.amount, currency)}
                         </TableCell>
                         <TableCell>
@@ -924,16 +924,16 @@ export default function ExpensesAdminPage() {
 
               <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                 {/* Metric Summary */}
-                <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 flex items-center justify-between">
+                <div className="p-4 rounded-xl bg-muted border border-border flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Disbursement Amount
                     </span>
-                    <p className="text-2xl font-bold text-red-700 dark:text-red-400 font-headline mt-0.5">
+                    <p className="text-2xl font-bold text-foreground font-headline mt-0.5">
                       -{formatCurrency(selectedExpense.amount, currency)}
                     </p>
                   </div>
-                  <Badge variant="outline" className="font-semibold text-xs border-red-300 dark:border-red-800 text-red-700 dark:text-red-400">
+                  <Badge variant="outline" className="font-semibold text-xs border-border text-foreground">
                     {selectedExpense.category}
                   </Badge>
                 </div>

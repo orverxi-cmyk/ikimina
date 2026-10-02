@@ -335,9 +335,9 @@ export default function MembersPage() {
                         className={cn(
                           "capitalize font-bold text-[10px] px-3 border-none",
                           member.role === 'admin' && "bg-primary/10 text-primary",
-                          member.role === 'reviewer' && "bg-purple-500/10 text-purple-600",
-                          member.role === 'accountant' && "bg-blue-500/10 text-blue-600",
-                          member.role === 'management' && "bg-amber-500/10 text-amber-600",
+                          member.role === 'reviewer' && "bg-primary/10 text-primary",
+                          member.role === 'accountant' && "bg-primary/15 text-primary",
+                          member.role === 'management' && "bg-foreground/10 text-foreground",
                           (!member.role || member.role === 'member') && "bg-muted text-muted-foreground"
                         )}
                       >

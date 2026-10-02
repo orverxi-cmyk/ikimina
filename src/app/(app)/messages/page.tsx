@@ -49,7 +49,7 @@ export default function MessagesPage() {
           title: 'Upcoming Due Date',
           message: `Your loan is due on ${format(dueDate, 'MMM d, yyyy')}, pay before ${format(dueDate, 'MMM d, yyyy')} to avoid bad credit record.`,
           variant: 'default',
-          className: 'border-orange-500 bg-orange-50/50',
+          className: 'border-primary/30 bg-primary/5',
           icon: Bell
         });
       }

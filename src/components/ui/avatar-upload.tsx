@@ -126,8 +126,8 @@ export function AvatarUpload({
   }
 
   const ringColor =
-    status === 'done' ? 'ring-green-500' :
-    status === 'error' ? 'ring-red-500' :
+    status === 'done' ? 'ring-green-600' :
+    status === 'error' ? 'ring-black' :
     isBusy ? 'ring-primary' :
     'ring-border hover:ring-primary/60';
 

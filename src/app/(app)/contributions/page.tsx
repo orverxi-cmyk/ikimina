@@ -286,9 +286,9 @@ export default function ContributionsPage() {
                       variant={h.status === 'pending' ? 'secondary' : h.status === 'rejected' ? 'destructive' : h.status === 'reversed' ? 'outline' : 'default'} 
                       className={cn(
                         "text-[9px] uppercase font-bold border-none shrink-0",
-                        h.status === 'pending' && "bg-orange-500/10 text-orange-600",
-                        h.status === 'verified' && "bg-green-500/10 text-green-600",
-                        h.status === 'reversed' && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                        h.status === 'pending' && "bg-primary/10 text-primary",
+                        h.status === 'verified' && "bg-green-600/10 text-green-600",
+                        h.status === 'reversed' && "bg-muted text-muted-foreground",
                         h.status === 'rejected' && "bg-destructive/10 text-destructive"
                       )}
                     >
@@ -393,11 +393,11 @@ export default function ContributionsPage() {
         <Card className="border border-border bg-card shadow-sm rounded-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 p-4 sm:p-5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-amber-600" />
+              <Clock className="h-3.5 w-3.5 text-primary" />
               {isManagement ? "Pending Audit Queue" : "Pending Audits"}
             </span>
             {pendingContributions.length > 0 ? (
-              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-none text-[9px] font-bold">
+              <Badge className="bg-primary/10 text-primary border-none text-[9px] font-bold">
                 {pendingContributions.length} Pending
               </Badge>
             ) : (
@@ -746,9 +746,9 @@ export default function ContributionsPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/30 text-xs text-amber-950 dark:text-amber-200 space-y-1">
+            <div className="p-3 bg-muted rounded-xl border border-border text-xs text-foreground space-y-1">
               <p className="font-bold flex items-center gap-1">
-                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <AlertCircle className="h-4 w-4 text-foreground shrink-0" />
                 Financial &amp; Balance Impact
               </p>
               <p>

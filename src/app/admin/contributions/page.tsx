@@ -857,14 +857,14 @@ export default function AdminContributionsBulkUploadPage() {
           activeTab === 'review' ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card"
         )}>
           <CardContent className="pt-5 pb-5 flex items-start gap-3">
-            <div className="p-2.5 bg-purple-500/10 text-purple-600 rounded-xl shrink-0 font-bold text-xs">
+            <div className="p-2.5 bg-primary/10 text-primary rounded-xl shrink-0 font-bold text-xs">
               02
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">Step 2: Check (Reviewer)</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-primary">Step 2: Check (Reviewer)</p>
                 {pendingReviewBatches.length > 0 && (
-                  <Badge className="bg-purple-600 text-white border-none text-[9px] font-mono">
+                  <Badge className="bg-primary text-white border-none text-[9px] font-mono">
                     {pendingReviewBatches.length} Pending
                   </Badge>
                 )}
@@ -913,7 +913,7 @@ export default function AdminContributionsBulkUploadPage() {
           <TabsTrigger value="review" className="rounded-lg text-xs font-bold gap-1.5 relative">
             <UserCheck className="h-4 w-4" /> 2. Review Queue
             {pendingReviewBatches.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 bg-purple-600 text-white rounded-full text-[10px]">
+              <span className="ml-1 px-1.5 py-0.2 bg-primary text-white rounded-full text-[10px]">
                 {pendingReviewBatches.length}
               </span>
             )}
@@ -929,7 +929,7 @@ export default function AdminContributionsBulkUploadPage() {
           <TabsTrigger value="slips" className="rounded-lg text-xs font-bold gap-1.5 relative">
             <Receipt className="h-4 w-4" /> 4. Member Slips
             {pendingSlips.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 bg-amber-600 text-white rounded-full text-[10px]">
+              <span className="ml-1 px-1.5 py-0.2 bg-primary text-white rounded-full text-[10px]">
                 {pendingSlips.length}
               </span>
             )}
@@ -1087,22 +1087,22 @@ export default function AdminContributionsBulkUploadPage() {
 
                 <Card className={cn(
                   "shadow-sm border transition-colors",
-                  stats.unmatched > 0 ? "border-amber-500/30 bg-amber-500/5" : "border-border"
+                  stats.unmatched > 0 ? "border-foreground/30 bg-muted/40" : "border-border"
                 )}>
                   <CardContent className="pt-4 pb-4 flex items-center justify-between">
                     <div>
                       <p className={cn(
                         "text-[10px] font-bold uppercase tracking-wider",
-                        stats.unmatched > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+                        stats.unmatched > 0 ? "text-foreground" : "text-muted-foreground"
                       )}>Unmatched Staff</p>
                       <p className={cn(
                         "text-2xl font-bold font-headline",
-                        stats.unmatched > 0 ? "text-amber-700 dark:text-amber-300" : "text-foreground"
+                        stats.unmatched > 0 ? "text-foreground" : "text-foreground"
                       )}>{stats.unmatched}</p>
                     </div>
                     <div className={cn(
                       "p-2.5 rounded-xl",
-                      stats.unmatched > 0 ? "bg-amber-500/20 text-amber-600" : "bg-muted text-muted-foreground"
+                      stats.unmatched > 0 ? "bg-muted text-foreground" : "bg-muted text-muted-foreground"
                     )}>
                       <AlertCircle className="h-5 w-5" />
                     </div>
@@ -1171,7 +1171,7 @@ export default function AdminContributionsBulkUploadPage() {
                             key={idx} 
                             className={cn(
                               "transition-colors",
-                              row.status === 'unmatched' && "bg-amber-500/5",
+                              row.status === 'unmatched' && "bg-muted/30",
                               row.status === 'invalid_amount' && "bg-destructive/5"
                             )}
                           >
@@ -1196,11 +1196,11 @@ export default function AdminContributionsBulkUploadPage() {
                                 </div>
                               ) : (
                                 <div className="space-y-1">
-                                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                                  <p className="text-xs font-semibold text-foreground">
                                     {row.staffName || 'Unknown Staff'}
                                   </p>
                                   <Select onValueChange={(val) => handleManualMemberMatch(idx, val)}>
-                                    <SelectTrigger className="h-7 text-xs rounded-lg bg-background border-amber-500/40">
+                                    <SelectTrigger className="h-7 text-xs rounded-lg bg-background border-border">
                                       <SelectValue placeholder="Map to registered member..." />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1241,7 +1241,7 @@ export default function AdminContributionsBulkUploadPage() {
                                   Matched
                                 </Badge>
                               ) : row.status === 'unmatched' ? (
-                                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-none text-[9px] uppercase font-bold">
+                                <Badge className="bg-muted text-foreground border border-border text-[9px] uppercase font-bold">
                                   Unmatched
                                 </Badge>
                               ) : (
@@ -1318,7 +1318,7 @@ export default function AdminContributionsBulkUploadPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-purple-600" />
+                    <UserCheck className="h-5 w-5 text-primary" />
                     Reviewer Verification Queue (Step 2)
                   </CardTitle>
                   <CardDescription>
@@ -1326,7 +1326,7 @@ export default function AdminContributionsBulkUploadPage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-none font-bold">
+                  <Badge className="bg-primary/10 text-primary border-none font-bold">
                     {pendingReviewBatches.length} Awaiting Review
                   </Badge>
                   {pendingReviewBatches.length > 0 && (
@@ -1346,9 +1346,9 @@ export default function AdminContributionsBulkUploadPage() {
 
             {/* Bulk Action Toolbar */}
             {selectedReviewBatchIds.length > 0 && (
-              <div className="p-3 bg-purple-500/10 border-y border-purple-500/20 flex flex-wrap items-center justify-between gap-3 px-6 animate-in fade-in">
+              <div className="p-3 bg-primary/10 border-y border-primary/20 flex flex-wrap items-center justify-between gap-3 px-6 animate-in fade-in">
                 <div className="flex items-center gap-3">
-                  <Badge className="bg-purple-600 text-white font-bold text-xs">
+                  <Badge className="bg-primary text-white font-bold text-xs">
                     {selectedReviewBatchIds.length} of {pendingReviewBatches.length} Selected
                   </Badge>
                   <span className="text-xs text-muted-foreground">
@@ -1363,7 +1363,7 @@ export default function AdminContributionsBulkUploadPage() {
                       setBulkReviewNotes('Consolidated review completed. Endorsed to Super Admin for ledger credit.');
                       setIsBulkReviewOpen(true);
                     }}
-                    className="rounded-xl h-8 text-xs font-bold gap-1.5 bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-white shadow-sm"
                   >
                     <CheckCheck className="h-3.5 w-3.5" /> Bulk Endorse ({selectedReviewBatchIds.length})
                   </Button>
@@ -1375,7 +1375,7 @@ export default function AdminContributionsBulkUploadPage() {
                       setBulkReviewNotes('');
                       setIsBulkReviewOpen(true);
                     }}
-                    className="rounded-xl h-8 text-xs font-bold gap-1.5 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                    className="rounded-xl h-8 text-xs font-bold gap-1.5 border-border text-foreground hover:bg-muted"
                   >
                     Bulk Request Changes
                   </Button>
@@ -1438,7 +1438,7 @@ export default function AdminContributionsBulkUploadPage() {
                           key={b.id} 
                           className={cn(
                             "hover:bg-muted/30 transition-colors",
-                            isSelected && "bg-purple-500/5"
+                            isSelected && "bg-primary/5"
                           )}
                         >
                           <TableCell className="w-12 px-4 text-center">
@@ -1481,7 +1481,7 @@ export default function AdminContributionsBulkUploadPage() {
                                 setReviewNotes('');
                                 setIsInspectOpen(true);
                               }}
-                              className="rounded-xl h-8 text-xs font-bold gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                              className="rounded-xl h-8 text-xs font-bold gap-1 bg-primary hover:bg-primary/90 text-white"
                             >
                               <Eye className="h-3.5 w-3.5" /> Inspect &amp; Review
                             </Button>
@@ -1684,7 +1684,7 @@ export default function AdminContributionsBulkUploadPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Receipt className="h-5 w-5 text-amber-600" />
+                    <Receipt className="h-5 w-5 text-primary" />
                     Member Self-Submitted Payment Slips
                   </CardTitle>
                   <CardDescription>
@@ -1692,7 +1692,7 @@ export default function AdminContributionsBulkUploadPage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-none font-bold">
+                  <Badge className="bg-primary/10 text-primary border-none font-bold">
                     {pendingSlips.length} Slips Pending
                   </Badge>
                   {pendingSlips.length > 0 && (
@@ -1712,9 +1712,9 @@ export default function AdminContributionsBulkUploadPage() {
 
             {/* Bulk Slips Toolbar */}
             {selectedPendingSlipIds.length > 0 && (
-              <div className="p-3 bg-amber-500/10 border-y border-amber-500/20 flex flex-wrap items-center justify-between gap-3 px-6 animate-in fade-in">
+              <div className="p-3 bg-primary/10 border-y border-primary/20 flex flex-wrap items-center justify-between gap-3 px-6 animate-in fade-in">
                 <div className="flex items-center gap-3">
-                  <Badge className="bg-amber-600 text-white font-bold text-xs">
+                  <Badge className="bg-primary text-white font-bold text-xs">
                     {selectedPendingSlipIds.length} of {pendingSlips.length} Slips Selected
                   </Badge>
                   <span className="text-xs text-muted-foreground">
@@ -1799,7 +1799,7 @@ export default function AdminContributionsBulkUploadPage() {
                           key={s.id} 
                           className={cn(
                             "hover:bg-muted/30 transition-colors",
-                            isSelected && "bg-amber-500/5"
+                            isSelected && "bg-primary/5"
                           )}
                         >
                           <TableCell className="w-12 px-4 text-center">
@@ -1900,7 +1900,7 @@ export default function AdminContributionsBulkUploadPage() {
                 onClick={() => setHistorySubTab('reversed_slips')}
                 className={cn(
                   "rounded-xl text-xs font-bold gap-1.5",
-                  historySubTab === 'reversed_slips' && "bg-amber-600 hover:bg-amber-700 text-white"
+                  historySubTab === 'reversed_slips' && "bg-black hover:bg-black/90 text-white"
                 )}
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -2142,7 +2142,7 @@ export default function AdminContributionsBulkUploadPage() {
           {historySubTab === 'reversed_slips' && (
             <Card className="shadow-sm border border-border">
               <CardHeader>
-                <CardTitle className="text-lg font-bold flex items-center gap-2 text-amber-600">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
                   <RotateCcw className="h-5 w-5" />
                   Reversed Contribution Approvals Audit Log ({reversedContributions.length})
                 </CardTitle>
@@ -2219,7 +2219,7 @@ export default function AdminContributionsBulkUploadPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <Badge className={cn(
                         "border-none text-[9px] uppercase font-bold tracking-widest",
-                        inspectBatch.status === 'pending_review' && "bg-purple-500/10 text-purple-700 dark:text-purple-400",
+                        inspectBatch.status === 'pending_review' && "bg-primary/10 text-primary",
                         inspectBatch.status === 'pending_approval' && "bg-green-500/10 text-green-700 dark:text-green-400",
                         inspectBatch.status === 'approved' && "bg-primary/10 text-primary"
                       )}>
@@ -2273,11 +2273,11 @@ export default function AdminContributionsBulkUploadPage() {
                     {inspectBatch.reviewedBy && (
                       <div className="flex items-center justify-between pt-1 border-t">
                         <span className="text-muted-foreground">2. Reviewed By:</span>
-                        <span className="font-bold text-purple-600">{inspectBatch.reviewerName}</span>
+                        <span className="font-bold text-primary">{inspectBatch.reviewerName}</span>
                       </div>
                     )}
                     {inspectBatch.reviewNotes && (
-                      <div className="p-2 bg-purple-500/5 rounded-lg border border-purple-500/20 text-purple-900 dark:text-purple-300 text-[11px] italic">
+                      <div className="p-2 bg-primary/5 rounded-lg border border-primary/20 text-foreground text-[11px] italic">
                         Reviewer Note: &ldquo;{inspectBatch.reviewNotes}&rdquo;
                       </div>
                     )}
@@ -2343,8 +2343,8 @@ export default function AdminContributionsBulkUploadPage() {
 
                 {/* Decision Inputs based on Batch Status & User Role */}
                 {inspectBatch.status === 'pending_review' && isReviewer && (
-                  <div className="space-y-2 p-4 bg-purple-500/5 rounded-xl border border-purple-500/20">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">
+                  <div className="space-y-2 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-primary">
                       Reviewer Observations / Verification Note
                     </Label>
                     <Textarea
@@ -2398,14 +2398,14 @@ export default function AdminContributionsBulkUploadPage() {
                       variant="outline"
                       disabled={isSubmitting}
                       onClick={() => handleReviewDecision('request_changes')}
-                      className="rounded-xl font-bold border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 h-11 px-4 text-xs"
+                      className="rounded-xl font-bold border-border text-foreground hover:bg-muted h-11 px-4 text-xs"
                     >
                       Request Changes
                     </Button>
                     <Button
                       disabled={isSubmitting}
                       onClick={() => handleReviewDecision('endorse')}
-                      className="rounded-xl font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md h-11 px-5 text-xs gap-1.5"
+                      className="rounded-xl font-bold bg-primary hover:bg-primary/90 text-white shadow-md h-11 px-5 text-xs gap-1.5"
                     >
                       {isSubmitting ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -2453,7 +2453,7 @@ export default function AdminContributionsBulkUploadPage() {
         <DialogContent className="max-w-xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <UserCheck className="h-5 w-5 text-purple-600" />
+              <UserCheck className="h-5 w-5 text-primary" />
               Bulk Review ({selectedReviewBatchIds.length} Batches)
             </DialogTitle>
             <DialogDescription>
@@ -2463,7 +2463,7 @@ export default function AdminContributionsBulkUploadPage() {
 
           <div className="space-y-4 py-2">
             {/* Aggregated metrics */}
-            <div className="grid grid-cols-3 gap-3 p-3 bg-purple-500/5 rounded-xl border border-purple-500/20">
+            <div className="grid grid-cols-3 gap-3 p-3 bg-primary/5 rounded-xl border border-primary/20">
               <div>
                 <p className="text-[10px] text-muted-foreground uppercase font-bold">Batches</p>
                 <p className="text-lg font-bold text-foreground">{selectedReviewBatchIds.length}</p>
@@ -2489,7 +2489,7 @@ export default function AdminContributionsBulkUploadPage() {
                   onClick={() => setBulkReviewDecision('endorse')}
                   className={cn(
                     "text-xs font-bold rounded-xl h-9",
-                    bulkReviewDecision === 'endorse' && "bg-purple-600 hover:bg-purple-700 text-white"
+                    bulkReviewDecision === 'endorse' && "bg-primary hover:bg-primary/90 text-white"
                   )}
                 >
                   <CheckCheck className="mr-1 h-3.5 w-3.5" /> Endorse (Step 2)
@@ -2501,7 +2501,7 @@ export default function AdminContributionsBulkUploadPage() {
                   onClick={() => setBulkReviewDecision('request_changes')}
                   className={cn(
                     "text-xs font-bold rounded-xl h-9",
-                    bulkReviewDecision === 'request_changes' && "bg-amber-600 hover:bg-amber-700 text-white"
+                    bulkReviewDecision === 'request_changes' && "bg-black hover:bg-black/90 text-white"
                   )}
                 >
                   Request Changes
@@ -2565,8 +2565,8 @@ export default function AdminContributionsBulkUploadPage() {
               onClick={handleExecuteBulkReview}
               className={cn(
                 "rounded-xl font-bold text-xs gap-1.5 shadow-md",
-                bulkReviewDecision === 'endorse' && "bg-purple-600 hover:bg-purple-700 text-white",
-                bulkReviewDecision === 'request_changes' && "bg-amber-600 hover:bg-amber-700 text-white",
+                bulkReviewDecision === 'endorse' && "bg-primary hover:bg-primary/90 text-white",
+                bulkReviewDecision === 'request_changes' && "bg-black hover:bg-black/90 text-white",
                 bulkReviewDecision === 'reject' && "bg-destructive text-destructive-foreground hover:bg-destructive/90"
               )}
             >
@@ -2667,7 +2667,7 @@ export default function AdminContributionsBulkUploadPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-amber-600" />
+              <Receipt className="h-5 w-5 text-primary" />
               {bulkSlipDecision === 'verify' ? 'Bulk Verify Member Slips' : 'Bulk Reject Member Slips'}
             </DialogTitle>
             <DialogDescription>
@@ -2740,9 +2740,9 @@ export default function AdminContributionsBulkUploadPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/30 text-xs text-amber-950 dark:text-amber-200 space-y-1">
+            <div className="p-3 bg-muted rounded-xl border border-border text-xs text-foreground space-y-1">
               <p className="font-bold flex items-center gap-1">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                <AlertTriangle className="h-4 w-4 text-foreground shrink-0" />
                 Financial &amp; Audit Impact
               </p>
               <p>
