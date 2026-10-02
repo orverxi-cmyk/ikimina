@@ -785,7 +785,7 @@ export default function AdminContributionsBulkUploadPage() {
   ];
 
   return (
-    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-16">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-16 w-full min-w-0 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4 sm:pb-6">
         <div>

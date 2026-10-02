@@ -242,89 +242,97 @@ export default function ContributionsPage() {
   ];
 
   const renderTable = (data: any[]) => (
-    <Table>
-      <TableHeader className="bg-muted/10">
-        <TableRow>
-          {isManagement && <TableHead className="px-6">Member</TableHead>}
-          <TableHead className={cn(!isManagement && "px-6")}>Period</TableHead>
-          <TableHead>Date</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead className="text-right px-6">Amount</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {loadingContributions ? (
+    <div className="w-full max-w-full overflow-x-auto touch-pan-x overscroll-x-contain">
+      <Table className="min-w-[620px] w-full">
+        <TableHeader className="bg-muted/10">
           <TableRow>
-            <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center">
-              <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-            </TableCell>
+            {isManagement && <TableHead className="px-4 py-3 whitespace-nowrap">Member</TableHead>}
+            <TableHead className={cn(!isManagement && "px-4", "py-3 whitespace-nowrap")}>Period</TableHead>
+            <TableHead className="px-4 py-3 whitespace-nowrap">Date</TableHead>
+            <TableHead className="px-4 py-3 whitespace-nowrap">Status</TableHead>
+            <TableHead className="text-right px-4 py-3 whitespace-nowrap">Amount</TableHead>
           </TableRow>
-        ) : data.length === 0 ? (
-          <TableRow>
-            <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center text-muted-foreground italic">
-              No transactions found in this view.
-            </TableCell>
-          </TableRow>
-        ) : (
-          data.map((h: any) => (
-            <TableRow key={h.id} className="hover:bg-muted/30 transition-colors">
-              {isManagement && <TableCell className="font-bold px-6">{getMemberName(h.memberId)}</TableCell>}
-              <TableCell className={cn("font-medium", !isManagement && "px-6")}>{h.period}</TableCell>
-              <TableCell className="text-[10px] text-muted-foreground">
-                {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Processing...'}
+        </TableHeader>
+        <TableBody>
+          {loadingContributions ? (
+            <TableRow>
+              <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
               </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Badge 
-                    variant={h.status === 'pending' ? 'secondary' : h.status === 'rejected' ? 'destructive' : h.status === 'reversed' ? 'outline' : 'default'} 
-                    className={cn(
-                      "text-[9px] uppercase font-bold border-none",
-                      h.status === 'pending' && "bg-orange-500/10 text-orange-600",
-                      h.status === 'verified' && "bg-green-500/10 text-green-600",
-                      h.status === 'reversed' && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-                      h.status === 'rejected' && "bg-destructive/10 text-destructive"
-                    )}
-                  >
-                    {h.status}
-                  </Badge>
-                  {(h.source === 'payroll_deduction' || h.paymentMethod === 'payroll_deduction') && (
-                    <Badge variant="outline" className="text-[8px] uppercase font-bold border-blue-500/30 text-blue-600 bg-blue-500/5">
-                      Payroll
-                    </Badge>
-                  )}
-                  {h.status === 'verified' && isManagement && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => { setSelectedContribution(h); setIsReverseOpen(true); }}
-                      className="h-6 px-1.5 text-[9px] font-bold text-destructive border-destructive/30 hover:bg-destructive/10 rounded-md gap-1"
-                      title="Reverse Approval"
-                    >
-                      <RotateCcw className="h-2.5 w-2.5" /> Reverse
-                    </Button>
-                  )}
-                  {h.status === 'rejected' && !isManagement && (
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedContribution(h); setIsVerifyOpen(true); }}>
-                       <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  )}
-                  {h.proofUrl && (
-                    <a href={h.proofUrl} target="_blank" rel="noopener noreferrer" title="View Proof">
-                      <FileText className="h-4 w-4 text-primary hover:scale-110 transition-transform cursor-pointer" />
-                    </a>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell className="text-right px-6 font-bold">{formatCurrency(h.amount, currency)}</TableCell>
             </TableRow>
-          ))
-        )}
-      </TableBody>
-    </Table>
+          ) : data.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center text-muted-foreground italic">
+                No transactions found in this view.
+              </TableCell>
+            </TableRow>
+          ) : (
+            data.map((h: any) => (
+              <TableRow key={h.id} className="hover:bg-muted/30 transition-colors">
+                {isManagement && (
+                  <TableCell className="font-bold px-4 py-3 whitespace-nowrap text-[12px]">
+                    {getMemberName(h.memberId)}
+                  </TableCell>
+                )}
+                <TableCell className={cn("font-medium px-4 py-3 whitespace-nowrap text-[12px]", !isManagement && "px-4")}>
+                  {h.period}
+                </TableCell>
+                <TableCell className="text-[10px] text-muted-foreground px-4 py-3 whitespace-nowrap">
+                  {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Processing...'}
+                </TableCell>
+                <TableCell className="px-4 py-3 whitespace-nowrap">
+                  <div className="flex items-center gap-1.5 flex-nowrap">
+                    <Badge 
+                      variant={h.status === 'pending' ? 'secondary' : h.status === 'rejected' ? 'destructive' : h.status === 'reversed' ? 'outline' : 'default'} 
+                      className={cn(
+                        "text-[9px] uppercase font-bold border-none shrink-0",
+                        h.status === 'pending' && "bg-orange-500/10 text-orange-600",
+                        h.status === 'verified' && "bg-green-500/10 text-green-600",
+                        h.status === 'reversed' && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                        h.status === 'rejected' && "bg-destructive/10 text-destructive"
+                      )}
+                    >
+                      {h.status}
+                    </Badge>
+                    {(h.source === 'payroll_deduction' || h.paymentMethod === 'payroll_deduction') && (
+                      <Badge variant="outline" className="text-[8px] uppercase font-bold border-blue-500/30 text-blue-600 bg-blue-500/5 shrink-0">
+                        Payroll
+                      </Badge>
+                    )}
+                    {h.status === 'verified' && isManagement && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => { setSelectedContribution(h); setIsReverseOpen(true); }}
+                        className="h-6 px-1.5 text-[9px] font-bold text-destructive border-destructive/30 hover:bg-destructive/10 rounded-md gap-1 shrink-0"
+                        title="Reverse Approval"
+                      >
+                        <RotateCcw className="h-2.5 w-2.5" /> Reverse
+                      </Button>
+                    )}
+                    {h.status === 'rejected' && !isManagement && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setSelectedContribution(h); setIsVerifyOpen(true); }}>
+                         <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    )}
+                    {h.proofUrl && (
+                      <a href={h.proofUrl} target="_blank" rel="noopener noreferrer" title="View Proof" className="shrink-0">
+                        <FileText className="h-4 w-4 text-primary hover:scale-110 transition-transform cursor-pointer" />
+                      </a>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right px-4 py-3 font-bold whitespace-nowrap text-[12px]">{formatCurrency(h.amount, currency)}</TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 
   return (
-    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24 w-full min-w-0 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-[13px] font-bold font-headline text-foreground">Savings & Contributions</h1>
@@ -354,8 +362,8 @@ export default function ContributionsPage() {
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-1 space-y-6">
+      <div className="grid gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
+        <div className="lg:col-span-1 space-y-6 w-full min-w-0 max-w-full">
           {!isManagement ? (
             <Card className="border-primary/20 bg-primary/5 h-fit sticky top-24">
               <CardHeader>
@@ -441,28 +449,33 @@ export default function ContributionsPage() {
           )}
         </div>
 
-        <div className="space-y-6 lg:col-span-2">
-          <Tabs defaultValue="history" onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5 h-12 rounded-xl bg-muted/50 p-1 mb-6 border border-border">
-              <TabsTrigger value="history" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">History</TabsTrigger>
-              <TabsTrigger value="pending" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Pending</TabsTrigger>
-              <TabsTrigger value="verified" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Verified</TabsTrigger>
-              <TabsTrigger value="reversed" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Reversed</TabsTrigger>
-              <TabsTrigger value="rejected" className="rounded-lg font-bold text-[11px] uppercase tracking-wider">Rejected</TabsTrigger>
-            </TabsList>
+        <div className="space-y-4 sm:space-y-6 lg:col-span-2 w-full min-w-0 max-w-full">
+          <Tabs defaultValue="history" onValueChange={setActiveTab} className="w-full min-w-0 max-w-full">
+            <div className="w-full overflow-x-auto no-scrollbar pb-1">
+              <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-5 h-11 rounded-xl bg-muted/50 p-1 mb-4 sm:mb-6 border border-border">
+                <TabsTrigger value="history" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">History</TabsTrigger>
+                <TabsTrigger value="pending" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">Pending</TabsTrigger>
+                <TabsTrigger value="verified" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">Verified</TabsTrigger>
+                <TabsTrigger value="reversed" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">Reversed</TabsTrigger>
+                <TabsTrigger value="rejected" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">Rejected</TabsTrigger>
+              </TabsList>
+            </div>
 
-            <Card className="border border-border shadow-xl bg-card rounded-2xl overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/5">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                   <History className="h-5 w-5" /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Record
+            <Card className="border border-border shadow-md bg-card rounded-2xl overflow-hidden w-full min-w-0 max-w-full">
+              <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/5 p-3.5 sm:p-5">
+                <CardTitle className="flex items-center gap-2 text-[13px] font-bold">
+                   <History className="h-4 w-4" /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Record
                 </CardTitle>
+                <span className="text-[10px] text-muted-foreground sm:hidden font-medium">
+                  Swipe table &rarr;
+                </span>
               </CardHeader>
-              <CardContent className="p-0">
-                <TabsContent value="history" className="m-0">{renderTable(contributions)}</TabsContent>
-                <TabsContent value="pending" className="m-0">{renderTable(pendingContributions)}</TabsContent>
-                <TabsContent value="verified" className="m-0">{renderTable(verifiedContributions)}</TabsContent>
-                <TabsContent value="reversed" className="m-0">{renderTable(reversedContributions)}</TabsContent>
-                <TabsContent value="rejected" className="m-0">{renderTable(rejectedContributions)}</TabsContent>
+              <CardContent className="p-0 w-full min-w-0 max-w-full overflow-hidden">
+                <TabsContent value="history" className="m-0 w-full min-w-0">{renderTable(contributions)}</TabsContent>
+                <TabsContent value="pending" className="m-0 w-full min-w-0">{renderTable(pendingContributions)}</TabsContent>
+                <TabsContent value="verified" className="m-0 w-full min-w-0">{renderTable(verifiedContributions)}</TabsContent>
+                <TabsContent value="reversed" className="m-0 w-full min-w-0">{renderTable(reversedContributions)}</TabsContent>
+                <TabsContent value="rejected" className="m-0 w-full min-w-0">{renderTable(rejectedContributions)}</TabsContent>
               </CardContent>
             </Card>
           </Tabs>
