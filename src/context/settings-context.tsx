@@ -27,27 +27,56 @@ const SettingsContext = createContext<SettingsContextValue>({
   refreshSettings: async () => {},
 });
 
+const SETTINGS_CACHE_KEY = 'ikimina_system_settings';
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useUser();
-  const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<SystemSettings>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
+        if (cached) return { ...DEFAULT_SETTINGS, ...JSON.parse(cached) };
+      } catch (e) {}
+    }
+    return DEFAULT_SETTINGS;
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchSettings = useCallback(async () => {
+    // Only call the Cloud Function when authenticated.
+    // Unauthenticated visitors (e.g. on /login) use cached or default branding to avoid 401.
+    if (!user) {
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
+          if (cached) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(cached) });
+        } catch (e) {}
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const data = await getSystemSettingsAction();
       setSettings(data);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(data));
+        } catch (e) {}
+      }
     } catch (err) {
-      console.error('SettingsProvider: failed to load settings', err);
-      setSettings(DEFAULT_SETTINGS);
+      console.warn('SettingsProvider: failed to load settings from cloud function', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings, user]);
+    if (!authLoading) {
+      fetchSettings();
+    }
+  }, [fetchSettings, authLoading]);
 
   return (
     <SettingsContext.Provider value={{ settings, loading, refreshSettings: fetchSettings }}>
