@@ -9,20 +9,15 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     
-    function isManagement() {
+
+    function isStaff() {
       return isSignedIn() && (
         request.auth.token.admin == true || 
         request.auth.token.management == true ||
+        request.auth.token.accountant == true ||
+        request.auth.token.reviewer == true ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (getUserData().role == 'management' || getUserData().role == 'admin'))
-      );
-    }
-    
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.admin == true ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         getUserData().role == 'admin')
+         (getUserData().role in ['admin', 'management', 'accountant', 'reviewer']))
       );
     }
 
@@ -38,28 +33,34 @@ service cloud.firestore {
 
     // Contributions: Zero client-side writes.
     match /contributions/{contributionId} {
-      allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
-      allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
+      allow read: if isSignedIn() && (isStaff() || resource.data.memberId == request.auth.uid);
+      allow list: if isSignedIn() && (isStaff() || request.query.filters.memberId == request.auth.uid);
       allow write: if false; // Managed via submitContribution / recordContribution / verifyContribution
+    }
+
+    // Contribution upload batches (Three-tier migration & payroll batches)
+    match /contribution_batches/{batchId} {
+      allow read: if isStaff();
+      allow write: if false; // Managed exclusively via Cloud Functions
     }
 
     // Loans: Zero client-side writes.
     match /loans/{loanId} {
-      allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
-      allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
+      allow read: if isSignedIn() && (isStaff() || resource.data.memberId == request.auth.uid);
+      allow list: if isSignedIn() && (isStaff() || request.query.filters.memberId == request.auth.uid);
       allow write: if false; // Managed via requestLoan / approveLoan / rejectLoan / verifyRepayment
     }
     
     // Repayments: Zero client-side writes.
     match /repayments/{repaymentId} {
-      allow read: if isSignedIn() && (isManagement() || resource.data.memberId == request.auth.uid);
-      allow list: if isSignedIn() && (isManagement() || request.query.filters.memberId == request.auth.uid);
+      allow read: if isSignedIn() && (isStaff() || resource.data.memberId == request.auth.uid);
+      allow list: if isSignedIn() && (isStaff() || request.query.filters.memberId == request.auth.uid);
       allow write: if false; // Managed via recordRepayment / verifyRepayment
     }
 
     // Audit logs: Strictly immutable and created exclusively by Cloud Functions
     match /audit_logs/{logId} {
-      allow read: if isManagement();
+      allow read: if isStaff();
       allow write: if false;
     }
 
@@ -71,7 +72,7 @@ service cloud.firestore {
 
     // Ledger entries: Strictly immutable and server-controlled
     match /interest_distributions/{distId} {
-      allow read: if isManagement();
+      allow read: if isStaff();
       allow write: if false;
     }
 

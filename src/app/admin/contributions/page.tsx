@@ -906,28 +906,41 @@ export default function AdminContributionsBulkUploadPage() {
 
       {/* Main Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-2 md:grid-cols-5 h-12 rounded-xl bg-muted/60 p-1 border">
-          <TabsTrigger value="initiate" className="rounded-lg text-xs font-bold gap-1.5">
-            <Upload className="h-4 w-4" /> 1. Initiate Upload
-          </TabsTrigger>
-          <TabsTrigger value="review" className="rounded-lg text-xs font-bold gap-1.5 relative">
-            <UserCheck className="h-4 w-4" /> 2. Review Queue
-            {pendingReviewBatches.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 bg-primary text-white rounded-full text-[10px]">
-                {pendingReviewBatches.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="superadmin" className="rounded-lg text-xs font-bold gap-1.5 relative">
-            <ShieldCheck className="h-4 w-4" /> 3. Super Admin
-            {pendingApprovalBatches.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 bg-green-600 text-white rounded-full text-[10px]">
-                {pendingApprovalBatches.length}
-              </span>
-            )}
-          </TabsTrigger>
+        <TabsList className={cn(
+          "grid h-12 rounded-xl bg-muted/60 p-1 border",
+          isSuperAdmin 
+            ? "grid-cols-2 md:grid-cols-5" 
+            : isAccountant 
+            ? "grid-cols-2 md:grid-cols-3" 
+            : "grid-cols-2 md:grid-cols-3"
+        )}>
+          {(isAccountant || isSuperAdmin) && (
+            <TabsTrigger value="initiate" className="rounded-lg text-xs font-bold gap-1.5">
+              <Upload className="h-4 w-4" /> 1. Initiate Upload
+            </TabsTrigger>
+          )}
+          {(isReviewer || isSuperAdmin) && (
+            <TabsTrigger value="review" className="rounded-lg text-xs font-bold gap-1.5 relative">
+              <UserCheck className="h-4 w-4" /> 2. Review Queue
+              {pendingReviewBatches.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-primary text-white rounded-full text-[10px]">
+                  {pendingReviewBatches.length}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
+          {isSuperAdmin && (
+            <TabsTrigger value="superadmin" className="rounded-lg text-xs font-bold gap-1.5 relative">
+              <ShieldCheck className="h-4 w-4" /> 3. Super Admin
+              {pendingApprovalBatches.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-green-600 text-white rounded-full text-[10px]">
+                  {pendingApprovalBatches.length}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="slips" className="rounded-lg text-xs font-bold gap-1.5 relative">
-            <Receipt className="h-4 w-4" /> 4. Member Slips
+            <Receipt className="h-4 w-4" /> {isSuperAdmin ? '4. Member Slips' : 'Member Slips'}
             {pendingSlips.length > 0 && (
               <span className="ml-1 px-1.5 py-0.2 bg-primary text-white rounded-full text-[10px]">
                 {pendingSlips.length}
@@ -935,7 +948,7 @@ export default function AdminContributionsBulkUploadPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="history" className="rounded-lg text-xs font-bold gap-1.5">
-            <History className="h-4 w-4" /> 5. Committed Batches ({approvedBatches.length})
+            <History className="h-4 w-4" /> {isSuperAdmin ? '5. Committed Batches' : 'Committed Batches'} ({approvedBatches.length})
           </TabsTrigger>
         </TabsList>
 

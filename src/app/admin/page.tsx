@@ -34,9 +34,10 @@ import {
   Search,
   Loader2
 } from "lucide-react";
-import { useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
+import { collection, doc, query, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
+import { useUser } from '@/firebase/auth/use-user';
 import { useSettings } from '@/context/settings-context';
 import { formatCurrency } from '@/lib/currency';
 import { downloadStaffContributionTemplate } from '@/lib/excel-template';
@@ -67,9 +68,16 @@ import {
 
 export default function AdminDashboard() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { settings } = useSettings();
   const currency = settings.currency || 'RWF';
   const { toast } = useToast();
+
+  const currentUserRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
+  const { data: currentUserData } = useDoc(currentUserRef);
+  const currentRole = currentUserData?.role || 'admin';
+  const isSuperAdmin = currentRole === 'admin';
+  const isAccountant = currentRole === 'accountant';
 
   // Role Assignment State
   const [roleModalMember, setRoleModalMember] = useState<any | null>(null);
@@ -321,11 +329,25 @@ export default function AdminDashboard() {
             </Link>
           </Button>
 
-          <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
-            <Link href="/admin/contributions">
-              <Upload className="h-4 w-4" /> Bulk Upload Contributions
-            </Link>
-          </Button>
+          {isAccountant ? (
+            <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
+              <Link href="/admin/contributions">
+                <Upload className="h-4 w-4" /> Upload in Batches
+              </Link>
+            </Button>
+          ) : isSuperAdmin ? (
+            <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
+              <Link href="/admin/contributions">
+                <ShieldCheck className="h-4 w-4" /> Batch Approvals &amp; Ledger
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
+              <Link href="/admin/contributions">
+                <FileSpreadsheet className="h-4 w-4" /> Batch Review Queue
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 

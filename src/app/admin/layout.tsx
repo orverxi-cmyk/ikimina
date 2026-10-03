@@ -225,11 +225,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   // 3. Authenticated: Console Layout
-  const isSuperAdmin = userData?.role === 'admin';
+  const userRole = userData?.role || 'member';
+  const isSuperAdmin = userRole === 'admin';
+  const isAccountant = userRole === 'accountant';
+  const isReviewer = userRole === 'reviewer' || userRole === 'management';
+
+  const batchLabel = isSuperAdmin ? 'Batch Approvals' : isAccountant ? 'Batch Upload' : 'Review Batches';
+
   const menuItems = [
     { href: '/admin', label: 'Main Dashboard', icon: Home },
-    { href: '/admin/contributions', label: 'Contributions Batches', icon: Wallet },
-    { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
+    { href: '/admin/contributions', label: batchLabel, icon: Wallet },
+    ...(isSuperAdmin || isAccountant ? [
+      { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
+    ] : []),
     ...(isSuperAdmin ? [
       { href: '/members', label: 'Members', icon: Users },
       { href: '/reports', label: 'Reports', icon: Flag },

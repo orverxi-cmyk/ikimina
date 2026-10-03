@@ -11,7 +11,8 @@ import {
   FileText, 
   Settings,
   Landmark,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Receipt
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -54,17 +55,18 @@ export function AppSidebar() {
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
   ];
 
-  if (role === 'admin' || role === 'accountant') {
-    menuItems.push({ href: '/admin/contributions', label: 'Bulk Contributions', icon: FileSpreadsheet });
-  }
-
-  if (role === 'admin' || role === 'management' || role === 'accountant') {
-    menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
-  }
-
   if (role === 'admin') {
+    menuItems.push({ href: '/admin/contributions', label: 'Batch Approvals', icon: FileSpreadsheet });
+    menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
     menuItems.push({ href: '/members', label: 'Members', icon: Users });
     menuItems.push({ href: '/admin/settings', label: 'Settings', icon: Settings });
+  } else if (role === 'accountant') {
+    menuItems.push({ href: '/admin/contributions', label: 'Batch Upload', icon: FileSpreadsheet });
+    menuItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
+    menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
+  } else if (role === 'management' || role === 'reviewer') {
+    menuItems.push({ href: '/admin/contributions', label: 'Review Batches', icon: FileSpreadsheet });
+    menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   }
 
   return (
