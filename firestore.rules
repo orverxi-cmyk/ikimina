@@ -16,8 +16,9 @@ service cloud.firestore {
         request.auth.token.management == true ||
         request.auth.token.accountant == true ||
         request.auth.token.reviewer == true ||
+        request.auth.token.auditor == true ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (getUserData().role in ['admin', 'management', 'accountant', 'reviewer']))
+         (getUserData().role in ['admin', 'management', 'accountant', 'reviewer', 'auditor']))
       );
     }
 

@@ -189,8 +189,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // 2. Authenticated but NOT an Admin, Reviewer, or Accountant: Access Denied Screen
-  const hasAccess = userData?.role === 'admin' || userData?.role === 'accountant' || userData?.role === 'reviewer' || userData?.role === 'management';
+  // 2. Authenticated but NOT an Admin, Reviewer, Accountant, or Auditor: Access Denied Screen
+  const hasAccess = userData?.role === 'admin' || userData?.role === 'accountant' || userData?.role === 'reviewer' || userData?.role === 'management' || userData?.role === 'auditor';
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -205,7 +205,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               Access Restricted
             </CardTitle>
             <CardDescription>
-              The account <strong>{user.email}</strong> does not have administrator, reviewer, or accountant privileges.
+              The account <strong>{user.email}</strong> does not have administrator, auditor, reviewer, or accountant privileges.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -229,21 +229,28 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const isSuperAdmin = userRole === 'admin';
   const isAccountant = userRole === 'accountant';
   const isReviewer = userRole === 'reviewer' || userRole === 'management';
+  const isAuditor = userRole === 'auditor';
 
   const batchLabel = isSuperAdmin ? 'Batch Approvals' : isAccountant ? 'Batch Upload' : 'Review Batches';
 
   const menuItems = [
     { href: '/admin', label: 'Main Dashboard', icon: Home },
-    { href: '/admin/contributions', label: batchLabel, icon: Wallet },
-    ...(isSuperAdmin || isAccountant ? [
-      { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
-    ] : []),
-    ...(isSuperAdmin ? [
-      { href: '/members', label: 'Members', icon: Users },
-      { href: '/reports', label: 'Reports', icon: Flag },
-      { href: '/admin/settings', label: 'Settings', icon: Settings },
+    ...(isAuditor ? [
+      { href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck },
+      { href: '/reports', label: 'Financial Reports', icon: Flag },
     ] : [
-      { href: '/reports', label: 'Reports', icon: Flag },
+      { href: '/admin/contributions', label: batchLabel, icon: Wallet },
+      ...(isSuperAdmin || isAccountant ? [
+        { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
+      ] : []),
+      { href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck },
+      ...(isSuperAdmin ? [
+        { href: '/members', label: 'Members', icon: Users },
+        { href: '/reports', label: 'Reports', icon: Flag },
+        { href: '/admin/settings', label: 'Settings', icon: Settings },
+      ] : [
+        { href: '/reports', label: 'Reports', icon: Flag },
+      ])
     ])
   ];
 
@@ -302,7 +309,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-end">
           <div className="hidden sm:flex items-center gap-2 text-[10px] font-bold text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/20">
             <ShieldCheck className="h-3 w-3" />
-            ADMIN ACCESS
+            {userRole.toUpperCase()} ACCESS
           </div>
           <Button variant="ghost" size="icon" onClick={handleLogout} className="sm:hidden text-white hover:bg-white/10">
              <LogOut className="h-5 w-5" />
@@ -317,7 +324,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <div className="bg-blue-600 px-5 py-3.5 border-b border-blue-700/60 flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-white shrink-0" />
               <h2 className="text-xs font-bold uppercase tracking-wider text-white">
-                Administrator Console
+                {isAuditor 
+                  ? 'Auditor Console' 
+                  : isAccountant 
+                  ? 'Accountant Console' 
+                  : isReviewer 
+                  ? 'Reviewer Console' 
+                  : 'Administrator Console'}
               </h2>
             </div>
 

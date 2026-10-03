@@ -12,7 +12,8 @@ import {
   Settings,
   Landmark,
   FileSpreadsheet,
-  Receipt
+  Receipt,
+  ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -57,15 +58,21 @@ export function AppSidebar() {
 
   if (role === 'admin') {
     menuItems.push({ href: '/admin/contributions', label: 'Batch Approvals', icon: FileSpreadsheet });
+    menuItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
     menuItems.push({ href: '/members', label: 'Members', icon: Users });
     menuItems.push({ href: '/admin/settings', label: 'Settings', icon: Settings });
+  } else if (role === 'auditor') {
+    menuItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck });
+    menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (role === 'accountant') {
     menuItems.push({ href: '/admin/contributions', label: 'Batch Upload', icon: FileSpreadsheet });
     menuItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
+    menuItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (role === 'management' || role === 'reviewer') {
     menuItems.push({ href: '/admin/contributions', label: 'Review Batches', icon: FileSpreadsheet });
+    menuItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   }
 
@@ -76,10 +83,14 @@ export function AppSidebar() {
         <h2 className="text-xs font-bold uppercase tracking-wider text-white">
           {role === 'admin' 
             ? 'Administrator Console' 
+            : role === 'auditor'
+            ? 'Auditor Console'
             : role === 'accountant'
             ? 'Accountant Console'
             : role === 'management' 
             ? 'Management Console' 
+            : role === 'reviewer'
+            ? 'Reviewer Console'
             : 'Member Portal'}
         </h2>
       </div>

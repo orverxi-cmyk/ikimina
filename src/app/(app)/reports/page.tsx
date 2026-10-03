@@ -18,8 +18,10 @@ import {
   Scale,
   Trash2,
   AlertOctagon,
-  RotateCcw
+  RotateCcw,
+  ShieldCheck
 } from 'lucide-react';
+import Link from 'next/link';
 import { 
   Select, 
   SelectContent, 
@@ -78,7 +80,7 @@ export default function ReportsPage() {
   const role = userData?.role || 'member';
   const isAdmin = role === 'admin';
   const isSuperAdmin = userData?.isSuperAdmin === true || user?.email === 'tharushyamagara@gmail.com';
-  const isAuthorized = role === 'admin' || role === 'management';
+  const isAuthorized = role === 'admin' || role === 'management' || role === 'auditor';
 
   const membersQuery = useMemoFirebase(() => {
     if (!isAuthorized) return null;
@@ -375,7 +377,7 @@ export default function ReportsPage() {
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <ShieldAlert className="h-12 w-12 text-destructive" />
         <h2 className="text-2xl font-bold font-headline">Access Restricted</h2>
-        <p className="text-muted-foreground">Only management can view financial reports.</p>
+        <p className="text-muted-foreground">Only administrators, auditors, and management can view financial reports.</p>
       </div>
     );
   }
@@ -403,6 +405,11 @@ export default function ReportsPage() {
               </SelectContent>
             </Select>
           </div>
+          <Button asChild size="sm" variant="outline" className="rounded-xl h-9 font-semibold border-primary/20 text-primary">
+            <Link href="/admin/audit-logs">
+              <ShieldCheck className="mr-2 h-4 w-4" /> Audit Trail &amp; PDF
+            </Link>
+          </Button>
           {isAdmin && (
             <Button 
               size="sm" 

@@ -998,6 +998,7 @@ export default function AdminDashboard() {
                                 u.role === 'accountant' && "bg-blue-500/10 text-blue-600",
                                 u.role === 'management' && "bg-foreground/10 text-foreground",
                                 u.role === 'reviewer' && "bg-green-600/10 text-green-700 dark:text-green-400",
+                                u.role === 'auditor' && "bg-purple-600/10 text-purple-700 dark:text-purple-400",
                                 (!u.role || u.role === 'member') && "bg-muted text-muted-foreground"
                               )}
                             >
@@ -1105,8 +1106,9 @@ export default function AdminDashboard() {
                     <SelectContent>
                       <SelectItem value="member">General Member (Savings &amp; Standard Loans)</SelectItem>
                       <SelectItem value="accountant">Accountant (Operating Expenses &amp; Payroll Uploads)</SelectItem>
-                      <SelectItem value="reviewer">Reviewer (Audit Trail &amp; Compliance Sign-Off)</SelectItem>
+                      <SelectItem value="reviewer">Reviewer (Batch Verification &amp; Compliance Sign-Off)</SelectItem>
                       <SelectItem value="management">Management (Loan Approvals &amp; Credit Decisions)</SelectItem>
+                      <SelectItem value="auditor">Auditor (Full Audit Trail &amp; PDF Report Generation)</SelectItem>
                       <SelectItem value="admin">Administrator (Full Institutional System Control)</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1116,16 +1118,18 @@ export default function AdminDashboard() {
                 <div className="p-3 rounded-lg border text-xs space-y-1 bg-muted/40">
                   <p className="font-bold text-foreground">
                     {selectedRole === 'admin' && 'Administrator Authority'}
+                    {selectedRole === 'auditor' && 'Auditor Privileges'}
                     {selectedRole === 'accountant' && 'Accountant Privileges'}
                     {selectedRole === 'management' && 'Management Authority'}
-                    {selectedRole === 'reviewer' && 'Reviewer & Auditor Privileges'}
+                    {selectedRole === 'reviewer' && 'Reviewer Privileges'}
                     {selectedRole === 'member' && 'General Member Privileges'}
                   </p>
                   <p className="text-muted-foreground text-[11px] leading-relaxed">
                     {selectedRole === 'admin' && 'Grants comprehensive access to all financial settings, user roles, interest distribution, expense sign-off, and database resets.'}
+                    {selectedRole === 'auditor' && 'Authorizes independent read-only auditing across all admin and accountant actions, ledger verification, and official PDF compliance reports.'}
                     {selectedRole === 'accountant' && 'Allows lodging operating expense receipts, uploading bulk payroll spreadsheets, and managing contribution records.'}
                     {selectedRole === 'management' && 'Authorizes approving member loan facilities, reviewing top-up requests, and auditing liquidity limits.'}
-                    {selectedRole === 'reviewer' && 'Grants read-only auditing access across institutional ledgers, arrears watchlists, and compliance logs.'}
+                    {selectedRole === 'reviewer' && 'Grants verification and endorsement rights for contribution batches in the 3-eye approval chain.'}
                     {selectedRole === 'member' && 'Standard participant with access to personal savings, loan requests, repayment schedules, and announcements.'}
                   </p>
                 </div>

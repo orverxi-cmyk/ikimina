@@ -10,8 +10,11 @@ export const logAdminAction = onCall({ cors: true }, async (request) => {
     const db = admin.firestore();
     const userSnap = await db.collection('users').doc(request.auth.uid).get();
     
-    if (userSnap.data()?.role !== 'admin' && userSnap.data()?.role !== 'management') {
-        throw new HttpsError('permission-denied', 'Administrative access required for logging.');
+    const userData = userSnap.data();
+    const userRole = userData?.role;
+    const isStaffRole = ['admin', 'management', 'accountant', 'reviewer', 'auditor'].includes(userRole);
+    if (!isStaffRole) {
+        throw new HttpsError('permission-denied', 'Administrative or auditor access required for logging.');
     }
 
     const { action, justification, details } = request.data;
@@ -19,8 +22,11 @@ export const logAdminAction = onCall({ cors: true }, async (request) => {
     try {
         await db.collection('audit_logs').add({
             adminId: request.auth.uid,
+            performedBy: request.auth.uid,
+            performedByName: userData?.name || userData?.email || 'Staff Member',
+            performedByRole: userRole || 'staff',
             action,
-            justification,
+            justification: justification || '',
             details: details || {},
             ipAddress: request.rawRequest.ip || 'internal',
             timestamp: admin.firestore.FieldValue.serverTimestamp(),

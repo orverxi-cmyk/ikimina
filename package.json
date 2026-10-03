@@ -52,6 +52,8 @@
     "firebase-admin": "latest",
     "firebase-functions": "latest",
     "genkit": "latest",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "latest",
     "next": "latest",
     "patch-package": "latest",
