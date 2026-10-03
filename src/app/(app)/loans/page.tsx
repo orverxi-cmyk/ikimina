@@ -1016,21 +1016,21 @@ function LoansPageContent() {
              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                 <div className="bg-blue-600 p-3.5 rounded-xl border border-blue-700/50 shadow-sm text-white flex flex-col justify-center">
                    <p className="text-[10px] font-bold uppercase text-blue-100 tracking-wider mb-1">Contract Principal</p>
-                   <p className="text-base sm:text-lg font-extrabold text-white font-mono">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
+                   <p className="text-base sm:text-lg font-extrabold text-white">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
                 </div>
                 <div className="bg-blue-600 p-3.5 rounded-xl border border-blue-700/50 shadow-sm text-white flex flex-col justify-center">
                    <p className="text-[10px] font-bold uppercase text-blue-100 tracking-wider mb-1">Upfront Interest ({globalRate}%)</p>
-                   <p className="text-base sm:text-lg font-extrabold text-white font-mono">-{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
+                   <p className="text-base sm:text-lg font-extrabold text-white">-{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
                 </div>
                 <div className="bg-blue-600 p-3.5 rounded-xl border border-blue-700/50 shadow-sm text-white flex flex-col justify-center">
                    <p className="text-[10px] font-bold uppercase text-blue-100 tracking-wider mb-1">Amount Received</p>
-                   <p className="text-base sm:text-lg font-extrabold text-white font-mono">
+                   <p className="text-base sm:text-lg font-extrabold text-white">
                      {selectedLoan ? formatCurrency(selectedLoan.netDisbursed ?? (selectedLoan.amount - (selectedLoan.interestAmount || 0)), currency) : '-'}
                    </p>
                 </div>
                 <div className="bg-blue-600 p-3.5 rounded-xl border border-blue-700/50 shadow-sm text-white flex flex-col justify-center">
                    <p className="text-[10px] font-bold uppercase text-blue-100 tracking-wider mb-1">Outstanding Balance</p>
-                   <p className="text-base sm:text-lg font-extrabold text-white font-mono">{selectedLoan ? formatCurrency(selectedLoan.balance || 0, currency) : '-'}</p>
+                   <p className="text-base sm:text-lg font-extrabold text-white">{selectedLoan ? formatCurrency(selectedLoan.balance || 0, currency) : '-'}</p>
                 </div>
              </div>
 
@@ -1324,7 +1324,7 @@ function LoansPageContent() {
                           <p className="text-[10px] text-white uppercase font-semibold truncate">Approved Loan</p>
                         </div>
                         <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
-                          <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono truncate">{formatCurrency(requestedAmt, currency)}</p>
+                          <p className="text-xs sm:text-sm font-bold text-foreground truncate">{formatCurrency(requestedAmt, currency)}</p>
                         </div>
                       </div>
                       <div className="rounded-lg border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
@@ -1332,7 +1332,7 @@ function LoansPageContent() {
                           <p className="text-[10px] text-white uppercase font-semibold truncate">Interest ({globalRate}%)</p>
                         </div>
                         <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
-                          <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono truncate">-{formatCurrency(loanInterest, currency)}</p>
+                          <p className="text-xs sm:text-sm font-bold text-foreground truncate">-{formatCurrency(loanInterest, currency)}</p>
                         </div>
                       </div>
                       <div className="rounded-lg border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
@@ -1340,7 +1340,7 @@ function LoansPageContent() {
                           <p className="text-[10px] text-white uppercase font-semibold truncate">Amount Received</p>
                         </div>
                         <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
-                          <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono truncate">{formatCurrency(amountReceived, currency)}</p>
+                          <p className="text-xs sm:text-sm font-bold text-foreground truncate">{formatCurrency(amountReceived, currency)}</p>
                         </div>
                       </div>
                       <div className="rounded-lg border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
@@ -1348,8 +1348,8 @@ function LoansPageContent() {
                           <p className="text-[10px] text-white uppercase font-semibold truncate">Total Repayable</p>
                         </div>
                         <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
-                          <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono truncate">{formatCurrency(totalPayable, currency)}</p>
-                          <p className="text-[9px] text-muted-foreground mt-0.5 truncate font-mono">({formatCurrency(monthlyPayment, currency)}/mo)</p>
+                          <p className="text-xs sm:text-sm font-bold text-foreground truncate">{formatCurrency(totalPayable, currency)}</p>
+                          <p className="text-[9px] text-muted-foreground mt-0.5 truncate">({formatCurrency(monthlyPayment, currency)}/mo)</p>
                         </div>
                       </div>
                     </div>

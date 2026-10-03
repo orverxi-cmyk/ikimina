@@ -377,16 +377,16 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-3xl font-bold font-headline text-black font-mono">
+            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalAssetAmount, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Gross Capital:</span>
-              <span className="font-semibold text-black font-mono">{formatCurrency(grossCapital, currency)}</span>
+              <span className="font-bold text-foreground text-xs">{formatCurrency(grossCapital, currency)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground font-medium text-[11px]">Approved Expenses:</span>
-              <span className="font-bold text-black font-mono">-{formatCurrency(totalApprovedExpenses, currency)}</span>
+              <span className="font-bold text-destructive text-xs">-{formatCurrency(totalApprovedExpenses, currency)}</span>
             </div>
           </CardContent>
         </Card>
@@ -407,16 +407,16 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-3xl font-bold font-headline text-black font-mono">
+            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalLoanAmountDisbursed, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Active Principal Outstanding:</span>
-              <span className="font-bold text-black font-mono">{formatCurrency(totalActivePrincipalBalance, currency)}</span>
+              <span className="font-bold text-foreground text-xs">{formatCurrency(totalActivePrincipalBalance, currency)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Disbursed Facilities:</span>
-              <span className="font-semibold text-black">{approvedLoans.length} Loans</span>
+              <span className="font-semibold text-foreground text-xs">{approvedLoans.length} Loans</span>
             </div>
           </CardContent>
         </Card>
@@ -437,7 +437,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-3xl font-bold font-headline text-black font-mono">
+            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalArrearsAmount, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
@@ -448,7 +448,7 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Portfolio Risk:</span>
-              <span className="font-semibold text-[11px] text-black">
+              <span className="font-semibold text-[11px] text-foreground">
                 {totalActivePrincipalBalance > 0 
                   ? `${Math.round((totalArrearsAmount / totalActivePrincipalBalance) * 100)}% of active debt` 
                   : '0%'}
@@ -473,16 +473,16 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-3xl font-bold font-headline text-black font-mono">
+            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalLoanInterests, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Accrued to Members:</span>
-              <span className="font-semibold text-black font-mono">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
+              <span className="font-bold text-foreground text-xs">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Policy Rate:</span>
-              <span className="font-semibold text-black">{settings.loanInterestRate || 10}% ({settings.interestModel || 'one-off'})</span>
+              <span className="font-semibold text-foreground text-xs">{settings.loanInterestRate || 10}% ({settings.interestModel || 'one-off'})</span>
             </div>
           </CardContent>
         </Card>
@@ -503,16 +503,16 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-3xl font-bold font-headline text-black font-mono">
+            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
               {totalMembersCount}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Staff Participants:</span>
-              <span className="font-semibold text-black">{regularMembersCount} Savers</span>
+              <span className="font-semibold text-foreground text-xs">{regularMembersCount} Savers</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Administrative Officers:</span>
-              <span className="font-semibold text-black">{staffOfficersCount} Staff</span>
+              <span className="font-semibold text-foreground text-xs">{staffOfficersCount} Staff</span>
             </div>
           </CardContent>
         </Card>
@@ -533,7 +533,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-3xl font-bold font-headline text-black font-mono">
+            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalApprovedExpenses, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
@@ -544,7 +544,7 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Audited Vouchers:</span>
-              <span className="font-semibold text-black">{approvedExpenses.length} Approved</span>
+              <span className="font-semibold text-foreground text-xs">{approvedExpenses.length} Approved</span>
             </div>
           </CardContent>
         </Card>
@@ -570,7 +570,7 @@ export default function AdminDashboard() {
             <Receipt className="h-3.5 w-3.5" />
             Operating Expenses
             {pendingExpenses.length > 0 && (
-              <Badge className="bg-white/20 text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
+              <Badge className="bg-white/20 text-white font-bold text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
                 {pendingExpenses.length}
               </Badge>
             )}
@@ -612,7 +612,7 @@ export default function AdminDashboard() {
                           <p className="text-[11px] text-muted-foreground">Total verified contributions deposited</p>
                         </div>
                       </div>
-                      <span className="font-bold text-black font-mono">
+                      <span className="font-bold text-foreground text-sm">
                         +{formatCurrency(totalVerifiedSavings, currency)}
                       </span>
                     </div>
@@ -628,7 +628,7 @@ export default function AdminDashboard() {
                           <p className="text-[11px] text-muted-foreground">Cumulative interest generated from loans</p>
                         </div>
                       </div>
-                      <span className="font-bold text-black font-mono">
+                      <span className="font-bold text-foreground text-sm">
                         +{formatCurrency(totalLoanInterests, currency)}
                       </span>
                     </div>
@@ -644,7 +644,7 @@ export default function AdminDashboard() {
                           <p className="text-[11px] text-muted-foreground">Lodged by Accountant &amp; approved by Admin</p>
                         </div>
                       </div>
-                      <span className="font-bold text-black font-mono">
+                      <span className="font-bold text-destructive text-sm">
                         -{formatCurrency(totalApprovedExpenses, currency)}
                       </span>
                     </div>
@@ -657,7 +657,7 @@ export default function AdminDashboard() {
                           Savings + Interest - Approved Operating Expenses
                         </p>
                       </div>
-                      <span className="text-xl font-headline font-bold text-black font-mono">
+                      <span className="text-xl font-headline font-bold text-foreground">
                         {formatCurrency(totalAssetAmount, currency)}
                       </span>
                     </div>
@@ -675,7 +675,7 @@ export default function AdminDashboard() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                           Estimated Cash in Bank / Net Liquidity
                         </span>
-                        <p className="text-xl font-bold font-headline text-black mt-0.5 font-mono">
+                        <p className="text-xl font-bold font-headline text-foreground mt-0.5">
                           {formatCurrency(liquidCashReserve, currency)}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
@@ -692,7 +692,7 @@ export default function AdminDashboard() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                           Active Loan Principal Outstanding
                         </span>
-                        <p className="text-xl font-bold font-headline text-black mt-0.5 font-mono">
+                        <p className="text-xl font-bold font-headline text-foreground mt-0.5">
                           {formatCurrency(totalActivePrincipalBalance, currency)}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
@@ -709,7 +709,7 @@ export default function AdminDashboard() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                           Borrowing Multiplier Policy
                         </span>
-                        <p className="text-xl font-bold font-headline text-black mt-0.5 font-mono">
+                        <p className="text-xl font-bold font-headline text-foreground mt-0.5">
                           {settings.maxLoanPercentage || 200}%
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
@@ -726,7 +726,7 @@ export default function AdminDashboard() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
                           <Landmark className="h-3 w-3 text-blue-600" /> Lending Pool Ceiling ({maxLendingPoolPercentage}% of Assets)
                         </span>
-                        <p className="text-xl font-bold font-headline text-black font-mono">
+                        <p className="text-xl font-bold font-headline text-foreground">
                           {formatCurrency(availableLendingPool, currency)}
                         </p>
                         <p className="text-[10px] text-muted-foreground">
