@@ -10,9 +10,11 @@ import { User, LogOut, LogIn, Wallet, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAuth, signOut } from 'firebase/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useSettings } from '@/context/settings-context';
 
 export function Header() {
   const { user } = useUser();
+  const { settings } = useSettings();
   const pathname = usePathname();
   const router = useRouter();
   const firestore = useFirestore();
@@ -64,7 +66,7 @@ export function Header() {
           <Wallet className="h-4 w-4 md:h-5 md:w-5 text-primary" />
         </div>
         <span className="font-headline text-sm md:text-lg font-bold tracking-tight text-white uppercase whitespace-nowrap">
-          Ikimina App
+          {settings.appName?.trim() || 'Ikimina App'}
         </span>
       </div>
 

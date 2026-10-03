@@ -7,8 +7,6 @@
   },
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
-    "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
-    "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
@@ -18,8 +16,6 @@
     "deploy:functions": "echo 'Checking auth...' && firebase login && firebase deploy --only functions"
   },
   "dependencies": {
-    "@genkit-ai/google-genai": "latest",
-    "@genkit-ai/next": "latest",
     "@hookform/resolvers": "latest",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
@@ -51,7 +47,6 @@
     "firebase": "latest",
     "firebase-admin": "latest",
     "firebase-functions": "latest",
-    "genkit": "latest",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "latest",
@@ -72,7 +67,6 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "genkit-cli": "latest",
     "postcss": "latest",
     "tailwindcss": "latest",
     "typescript": "latest"

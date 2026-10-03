@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_APP_NAME, getDefaultAbout, getDefaultTerms, getDefaultPrivacy } from '@/lib/legal-defaults';
 
 export interface LegalPolicyModalProps {
   isOpen: boolean;
@@ -39,16 +40,12 @@ export function LegalPolicyModal({ isOpen, onOpenChange, initialTab = 'about' }:
     onOpenChange(open);
   };
 
+  const appName = settings.appName?.trim() || DEFAULT_APP_NAME;
   const brandingText = settings.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
 
-  const aboutContent = settings.aboutUs?.trim() || 
-    'Ikimina is a community-driven savings and credit scheme dedicated to empowering members through collective financial resilience, transparent savings management, and fair, accessible credit.';
-
-  const termsContent = settings.termsOfService?.trim() || 
-    'By participating in the Ikimina platform, members agree to adhere to monthly contribution commitments, timely loan repayments according to the agreed schedule, and mutual group accountability. All financial actions and disbursements are audited and recorded authoritatively.';
-
-  const privacyContent = settings.privacyPolicy?.trim() || 
-    'We respect member privacy and treat all personal and financial data with strict confidentiality. Member records, savings ledgers, and transaction histories are securely protected and accessible only to authorized officers and account holders.';
+  const aboutContent = settings.aboutUs?.trim() || getDefaultAbout(appName);
+  const termsContent = settings.termsOfService?.trim() || getDefaultTerms(appName);
+  const privacyContent = settings.privacyPolicy?.trim() || getDefaultPrivacy(appName);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -151,7 +148,7 @@ export function AppFooter() {
   };
 
   const currentYear = new Date().getFullYear();
-  const copyrightText = settings.copyrightNotice?.trim() || `© ${currentYear} Ikimina. All rights reserved.`;
+  const copyrightText = settings.copyrightNotice?.trim() || `© ${currentYear} ${settings.appName?.trim() || DEFAULT_APP_NAME}. All rights reserved.`;
   const brandingText = settings.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
 
   return (

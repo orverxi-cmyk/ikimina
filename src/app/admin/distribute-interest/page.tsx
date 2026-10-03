@@ -201,12 +201,12 @@ export default function DistributeInterestPage() {
     };
   }, [loans, auditLogs, contributions, members]);
 
-  // 3. Pro-Rata Live Simulation Calculations
+  // 3. Pro-Rata Allocation Calculations
   const parsedDistributeAmount = Number(distributeAmountInput) || 0;
   const isAmountValid = parsedDistributeAmount > 0 && parsedDistributeAmount <= poolMetrics.availableUndistributedInterest;
   const isAmountExceeded = parsedDistributeAmount > poolMetrics.availableUndistributedInterest;
 
-  const simulationPreview = useMemo(() => {
+  const allocationPreview = useMemo(() => {
     if (parsedDistributeAmount <= 0 || poolMetrics.totalVerifiedSavings <= 0) return [];
 
     return poolMetrics.activeSavers.map(saver => {
@@ -224,13 +224,13 @@ export default function DistributeInterestPage() {
     });
   }, [parsedDistributeAmount, poolMetrics.totalVerifiedSavings, poolMetrics.activeSavers]);
 
-  const simulationSplit = useMemo(() => {
+  const allocationSplit = useMemo(() => {
     let totalCapitalized = 0;
     let totalCashPayout = 0;
     let capitalizedCount = 0;
     let cashPayoutCount = 0;
 
-    simulationPreview.forEach(s => {
+    allocationPreview.forEach(s => {
       if (s.preference === 'add_to_contribution') {
         totalCapitalized += s.incomingShare;
         capitalizedCount++;
@@ -241,7 +241,7 @@ export default function DistributeInterestPage() {
     });
 
     return { totalCapitalized, totalCashPayout, capitalizedCount, cashPayoutCount };
-  }, [simulationPreview]);
+  }, [allocationPreview]);
 
   // Campaign Handlers
   const handleOpenCampaign = async (e: React.FormEvent) => {
@@ -316,13 +316,13 @@ export default function DistributeInterestPage() {
     }
   };
 
-  const filteredSimulation = useMemo(() => {
-    if (!memberSearchTerm.trim()) return simulationPreview;
+  const filteredAllocation = useMemo(() => {
+    if (!memberSearchTerm.trim()) return allocationPreview;
     const term = memberSearchTerm.toLowerCase();
-    return simulationPreview.filter(
+    return allocationPreview.filter(
       item => item.name.toLowerCase().includes(term) || item.email.toLowerCase().includes(term)
     );
-  }, [simulationPreview, memberSearchTerm]);
+  }, [allocationPreview, memberSearchTerm]);
 
   // Quick fill percentages
   const handleQuickFill = (percentage: number) => {
@@ -637,7 +637,7 @@ export default function DistributeInterestPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Execution & Live Simulator */}
+        {/* Tab 1: Execution & Allocation Preview */}
         <TabsContent value="execute" className="space-y-6">
           {/* Member Payout Request Campaign Hub */}
           <Card className={cn(
@@ -900,19 +900,19 @@ export default function DistributeInterestPage() {
               </div>
             </div>
 
-            {/* Right Column: Live Simulator Breakdown Table */}
+            {/* Right Column: Allocation Preview Table */}
             <div className="lg:col-span-7 space-y-6">
               <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden flex flex-col h-full">
                 <CardHeader className="bg-blue-600 text-white border-b border-blue-700/60 p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                       <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                        <Users className="h-4 w-4" /> Live Pro-Rata Dividend Simulator
+                        <Users className="h-4 w-4" /> Dividend Allocation Preview
                       </CardTitle>
                       <CardDescription className="text-blue-100 text-xs mt-0.5">
                         {isAmountValid
                           ? `Projected breakdown for ${formatCurrency(parsedDistributeAmount, currency)} across ${poolMetrics.activeSaversCount} savers.`
-                          : 'Enter an amount on the left to simulate the exact distribution across all savers.'}
+                          : 'Enter an amount on the left to preview the exact allocation for each saver.'}
                       </CardDescription>
                     </div>
 
@@ -935,7 +935,7 @@ export default function DistributeInterestPage() {
                     />
                   </div>
                   <div className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
-                    Showing {filteredSimulation.length} of {poolMetrics.activeSaversCount} savers
+                    Showing {filteredAllocation.length} of {poolMetrics.activeSaversCount} savers
                   </div>
                 </div>
 
@@ -952,8 +952,8 @@ export default function DistributeInterestPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredSimulation.length > 0 ? (
-                        filteredSimulation.map((saver) => (
+                      {filteredAllocation.length > 0 ? (
+                        filteredAllocation.map((saver) => (
                           <TableRow key={saver.id} className="hover:bg-muted/30 text-xs">
                             <TableCell className="py-3 px-4 font-semibold">
                               <div>{saver.name}</div>
@@ -1036,12 +1036,12 @@ export default function DistributeInterestPage() {
                       <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold">
                         <PiggyBank className="h-3.5 w-3.5" />
                         <span>Capitalized into Savings:</span>
-                        <span>{formatCurrency(simulationSplit.totalCapitalized, currency)} ({simulationSplit.capitalizedCount})</span>
+                        <span>{formatCurrency(allocationSplit.totalCapitalized, currency)} ({allocationSplit.capitalizedCount})</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 font-bold">
                         <Banknote className="h-3.5 w-3.5" />
                         <span>Liquid Cash Payout:</span>
-                        <span>{formatCurrency(simulationSplit.totalCashPayout, currency)} ({simulationSplit.cashPayoutCount})</span>
+                        <span>{formatCurrency(allocationSplit.totalCashPayout, currency)} ({allocationSplit.cashPayoutCount})</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1193,10 +1193,10 @@ export default function DistributeInterestPage() {
                   <PiggyBank className="h-3.5 w-3.5" /> Reinvest into Savings
                 </div>
                 <div className="text-base font-extrabold text-foreground">
-                  {formatCurrency(simulationSplit.totalCapitalized, currency)}
+                  {formatCurrency(allocationSplit.totalCapitalized, currency)}
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {simulationSplit.capitalizedCount} members &bull; Excluded from cash
+                  {allocationSplit.capitalizedCount} members &bull; Excluded from cash
                 </div>
               </div>
 
@@ -1205,10 +1205,10 @@ export default function DistributeInterestPage() {
                   <Banknote className="h-3.5 w-3.5" /> Cash Payout
                 </div>
                 <div className="text-base font-extrabold text-foreground">
-                  {formatCurrency(simulationSplit.totalCashPayout, currency)}
+                  {formatCurrency(allocationSplit.totalCashPayout, currency)}
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {simulationSplit.cashPayoutCount} members &bull; Liquid interest
+                  {allocationSplit.cashPayoutCount} members &bull; Liquid interest
                 </div>
               </div>
             </div>

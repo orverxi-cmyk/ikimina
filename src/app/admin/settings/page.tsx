@@ -43,6 +43,8 @@ import { Badge } from '@/components/ui/badge';
 import { updateFinancialSettingsAction, resetFinancialDataAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
 import { useSettings } from '@/context/settings-context';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getDefaultAbout, getDefaultTerms, getDefaultPrivacy, DEFAULT_APP_NAME } from '@/lib/legal-defaults';
 
 export default function AdminSettingsPage() {
   const { toast } = useToast();
@@ -60,6 +62,8 @@ export default function AdminSettingsPage() {
   const [depositBankName, setDepositBankName] = useState<string>('');
   const [depositAccountNumber, setDepositAccountNumber] = useState<string>('');
   const [infrastructureBranding, setInfrastructureBranding] = useState<string>('Secure Infrastructure Provided by ORVEXI');
+  const [appName, setAppName] = useState<string>('Ikimina App');
+  const [activeTab, setActiveTab] = useState<string>('financials');
   const [aboutUs, setAboutUs] = useState<string>('');
   const [termsOfService, setTermsOfService] = useState<string>('');
   const [privacyPolicy, setPrivacyPolicy] = useState<string>('');
@@ -79,9 +83,11 @@ export default function AdminSettingsPage() {
       if (settings.depositBankName !== undefined) setDepositBankName(settings.depositBankName);
       if (settings.depositAccountNumber !== undefined) setDepositAccountNumber(settings.depositAccountNumber);
       if (settings.infrastructureBranding !== undefined) setInfrastructureBranding(settings.infrastructureBranding);
-      if (settings.aboutUs !== undefined) setAboutUs(settings.aboutUs);
-      if (settings.termsOfService !== undefined) setTermsOfService(settings.termsOfService);
-      if (settings.privacyPolicy !== undefined) setPrivacyPolicy(settings.privacyPolicy);
+      if (settings.appName !== undefined) setAppName(settings.appName);
+      const effectiveName = settings.appName?.trim() || DEFAULT_APP_NAME;
+      setAboutUs(settings.aboutUs?.trim() || getDefaultAbout(effectiveName));
+      setTermsOfService(settings.termsOfService?.trim() || getDefaultTerms(effectiveName));
+      setPrivacyPolicy(settings.privacyPolicy?.trim() || getDefaultPrivacy(effectiveName));
       if (settings.copyrightNotice !== undefined) setCopyrightNotice(settings.copyrightNotice);
     }
   }, [settings]);
@@ -104,6 +110,7 @@ export default function AdminSettingsPage() {
     const depositBankNameVal = (formData.get('depositBankName') as string)?.trim() ?? depositBankName;
     const depositAccountNumberVal = (formData.get('depositAccountNumber') as string)?.trim() ?? depositAccountNumber;
     const infrastructureBrandingVal = (formData.get('infrastructureBranding') as string)?.trim() || infrastructureBranding;
+    const appNameVal = (formData.get('appName') as string)?.trim() || appName || 'Ikimina App';
     const aboutUsVal = (formData.get('aboutUs') as string)?.trim() ?? aboutUs;
     const termsOfServiceVal = (formData.get('termsOfService') as string)?.trim() ?? termsOfService;
     const privacyPolicyVal = (formData.get('privacyPolicy') as string)?.trim() ?? privacyPolicy;
@@ -124,6 +131,7 @@ export default function AdminSettingsPage() {
         depositBankName: depositBankNameVal,
         depositAccountNumber: depositAccountNumberVal,
         infrastructureBranding: infrastructureBrandingVal,
+        appName: appNameVal,
         aboutUs: aboutUsVal,
         termsOfService: termsOfServiceVal,
         privacyPolicy: privacyPolicyVal,
@@ -131,7 +139,7 @@ export default function AdminSettingsPage() {
         justification 
       });
       await refreshSettings();
-      toast({ title: "Settings Updated", description: "Global financial policies and platform legal settings updated successfully." });
+      toast({ title: "Settings Updated", description: "Financial policies and platform identity updated successfully." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Update Failed", description: error.message });
     } finally {
@@ -214,7 +222,7 @@ export default function AdminSettingsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-[13px] font-bold font-headline text-foreground">System Settings</h1>
-          <p className="text-[12px] font-bold text-muted-foreground">Manage global financial rules, interest models, and lending policies</p>
+          <p className="text-[12px] font-bold text-muted-foreground">Manage financial rules, platform identity, and administrative tools</p>
         </div>
         {isSuperAdmin && (
           <Badge variant="outline" className="self-start sm:self-auto bg-primary/10 text-primary border-primary/20 px-2.5 py-0.5 text-[9px] font-bold">
@@ -223,8 +231,24 @@ export default function AdminSettingsPage() {
         )}
       </div>
 
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+        <TabsList className="bg-muted p-1 rounded-xl h-11 border border-border/60">
+          <TabsTrigger id="tab-financials" value="financials" className="rounded-lg font-bold text-xs gap-2 px-5 data-[state=active]:bg-background">
+            <Wallet className="h-4 w-4 text-primary" /> Financials
+          </TabsTrigger>
+          <TabsTrigger id="tab-identity" value="identity" className="rounded-lg font-bold text-xs gap-2 px-5 data-[state=active]:bg-background">
+            <ShieldCheck className="h-4 w-4 text-primary" /> Identity
+          </TabsTrigger>
+          {isSuperAdmin && (
+            <TabsTrigger id="tab-reset" value="reset" className="rounded-lg font-bold text-xs gap-2 px-5 data-[state=active]:bg-background data-[state=active]:text-destructive">
+              <RotateCcw className="h-4 w-4" /> Reset
+            </TabsTrigger>
+          )}
+        </TabsList>
+
       <form onSubmit={handleUpdateSettings}>
         <div className="grid gap-4 sm:gap-6">
+          <TabsContent value="financials" forceMount className="mt-0 grid gap-4 sm:gap-6 data-[state=inactive]:hidden">
           {/* Regional Settings Card */}
           <Card className="border border-border shadow-sm bg-card rounded-[10px]">
             <CardHeader>
@@ -367,7 +391,10 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Platform Branding, Footer & Legal Policies Card */}
+          </TabsContent>
+
+          <TabsContent value="identity" forceMount className="mt-0 grid gap-4 sm:gap-6 data-[state=inactive]:hidden">
+          {/* Platform Identity, Footer & Legal Policies Card */}
           <Card className="border border-border shadow-sm bg-card rounded-[10px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl text-primary">
@@ -378,6 +405,25 @@ export default function AdminSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* App Name */}
+              <div className="space-y-2 max-w-md">
+                <Label htmlFor="appName" className="font-bold flex items-center gap-1.5">
+                  <Globe className="h-4 w-4 text-primary" /> Application Name
+                </Label>
+                <Input
+                  id="appName"
+                  name="appName"
+                  value={appName}
+                  onChange={(e) => setAppName(e.target.value)}
+                  placeholder="e.g. Umurenge Savings Group"
+                  maxLength={60}
+                  className="h-11 rounded-[10px] bg-muted border-none font-bold"
+                />
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Shown in the header, login screen, footer, and legal pages across the member and admin portals.
+                </p>
+              </div>
+
               {/* Attribution and Copyright Row */}
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
@@ -406,7 +452,7 @@ export default function AdminSettingsPage() {
                     name="copyrightNotice" 
                     value={copyrightNotice}
                     onChange={(e) => setCopyrightNotice(e.target.value)}
-                    placeholder={`e.g. © ${new Date().getFullYear()} Ikimina Scheme. All rights reserved.`}
+                    placeholder={`e.g. © ${new Date().getFullYear()} ${appName || 'Your Organization'}. All rights reserved.`}
                     className="h-11 rounded-[10px] bg-muted border-none font-medium"
                   />
                   <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -445,7 +491,7 @@ export default function AdminSettingsPage() {
                   value={termsOfService}
                   onChange={(e) => setTermsOfService(e.target.value)}
                   placeholder="Specify contribution commitments, loan repayment obligations, penalty terms, and governance policies..."
-                  rows={5}
+                  rows={12}
                   className="rounded-[10px] bg-muted border-none font-medium text-xs leading-relaxed resize-y"
                 />
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -464,7 +510,7 @@ export default function AdminSettingsPage() {
                   value={privacyPolicy}
                   onChange={(e) => setPrivacyPolicy(e.target.value)}
                   placeholder="Detail member data confidentiality, financial record security, and access standards..."
-                  rows={5}
+                  rows={12}
                   className="rounded-[10px] bg-muted border-none font-medium text-xs leading-relaxed resize-y"
                 />
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -474,6 +520,9 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
 
+          </TabsContent>
+
+          <TabsContent value="financials" forceMount className="mt-0 grid gap-4 sm:gap-6 data-[state=inactive]:hidden">
           {/* Interest Policy Card */}
           <Card className="border border-border shadow-sm bg-card rounded-[10px]">
             <CardHeader>
@@ -540,7 +589,10 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
 
+          </TabsContent>
+
           {/* Authorization Card */}
+          {activeTab !== 'reset' && (
           <Card className="border border-border shadow-sm bg-card rounded-[10px] border-primary/10">
             <CardHeader>
               <CardTitle className="text-xl">Authorization</CardTitle>
@@ -559,16 +611,18 @@ export default function AdminSettingsPage() {
               </div>
               <Button type="submit" disabled={isUpdating} className="w-full h-12 rounded-[10px] font-bold shadow-lg shadow-primary/20">
                 {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
-                Save Financial Policies
+                {activeTab === 'identity' ? 'Save Identity Settings' : 'Save Financial Policies'}
               </Button>
             </CardContent>
           </Card>
+          )}
         </div>
       </form>
 
       {/* Super Admin: Danger Zone Section */}
       {isSuperAdmin && (
-        <div className="pt-6">
+        <TabsContent value="reset" className="mt-0">
+        <div>
           <Card className="border-2 border-destructive/30 shadow-lg bg-destructive/5 rounded-2xl overflow-hidden">
             <CardHeader className="bg-destructive/10 border-b border-destructive/20">
               <div className="flex items-center gap-2 text-destructive">
@@ -615,7 +669,9 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
         </div>
+        </TabsContent>
       )}
+      </Tabs>
 
       {/* Super Admin Reset Confirmation Dialog */}
       <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>

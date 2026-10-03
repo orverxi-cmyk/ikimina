@@ -39,6 +39,8 @@ import { useToast } from '@/hooks/use-toast';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
 export default function LoginPage() {
+  const { settings: appSettings } = useSettings();
+  const appName = appSettings.appName?.trim() || 'Ikimina App';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -310,7 +312,7 @@ export default function LoginPage() {
               <Wallet className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-headline font-bold">Ikimina App</CardTitle>
+          <CardTitle className="text-3xl font-headline font-bold">{appName}</CardTitle>
           <CardDescription>
             {step === 'email' && "Verify your member email"}
             {step === 'password' && "Enter your password to sign in"}

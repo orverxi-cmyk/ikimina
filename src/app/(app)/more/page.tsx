@@ -93,13 +93,14 @@ export default function MorePage() {
   }
 
   const currentYear = new Date().getFullYear();
-  const copyrightText = settings.copyrightNotice?.trim() || `© ${currentYear} Ikimina. All rights reserved.`;
+  const appName = settings.appName?.trim() || 'Ikimina App';
+  const copyrightText = settings.copyrightNotice?.trim() || `© ${currentYear} ${appName}. All rights reserved.`;
 
   return (
     <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 max-w-2xl mx-auto pb-24">
       <div className="space-y-0.5">
         <h1 className="text-[13px] font-bold font-headline text-foreground">More Options</h1>
-        <p className="text-[12px] font-bold text-muted-foreground">Access all Ikimina App features and settings</p>
+        <p className="text-[12px] font-bold text-muted-foreground">Access all {appName} features and settings</p>
       </div>
 
       {sections.map((section, idx) => (
@@ -146,7 +147,7 @@ export default function MorePage() {
                   <Info className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div>
-                  <p className="font-bold text-[12px]">About Ikimina</p>
+                  <p className="font-bold text-[12px]">About {appName}</p>
                   <p className="text-[12px] font-normal text-muted-foreground">Purpose, mission, and scheme background</p>
                 </div>
               </div>

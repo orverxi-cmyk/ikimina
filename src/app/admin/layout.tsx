@@ -471,7 +471,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <Wallet className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           </div>
           <span className="font-headline text-sm md:text-lg font-bold tracking-tight text-white uppercase whitespace-nowrap">
-            Ikimina App
+            {settings.appName?.trim() || 'Ikimina App'}
           </span>
         </div>
 
