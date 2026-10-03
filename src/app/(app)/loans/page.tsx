@@ -1069,7 +1069,7 @@ function LoansPageContent() {
 
       {/* LOAN REVIEW & UNDERWRITING DIALOG (Management / Admin) */}
       <Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
-        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-3xl lg:max-w-4xl rounded-2xl bg-card p-0 overflow-hidden shadow-2xl border border-border">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-3xl lg:max-w-4xl rounded-2xl bg-card p-0 overflow-hidden shadow-2xl border border-border [&>button]:text-white [&>button]:opacity-90 hover:[&>button]:opacity-100">
           {selectedLoan && (() => {
             const applicantMember = getMember(selectedLoan.memberId);
             const memberName = getMemberName(selectedLoan.memberId);
@@ -1099,21 +1099,21 @@ function LoansPageContent() {
             return (
               <form onSubmit={handleApproveLoan} className="flex flex-col max-h-[90vh]">
                 {/* Header */}
-                <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/20 border-b">
+                <DialogHeader className="bg-blue-600 text-white p-4 sm:p-6 pb-4 border-b border-blue-700/30">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
-                        <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
+                        <Badge className="bg-white/20 text-white hover:bg-white/30 border-none text-[9px] uppercase font-bold tracking-widest">
                           Credit Committee Review
                         </Badge>
-                        <Badge variant="outline" className="text-[9px] uppercase font-mono font-medium">
+                        <Badge variant="outline" className="text-[9px] uppercase font-mono font-medium text-white border-white/30 bg-white/10">
                           ID: {selectedLoan.id.slice(0, 8)}
                         </Badge>
                       </div>
-                      <DialogTitle className="text-lg sm:text-xl font-bold font-headline">
+                      <DialogTitle className="text-xl sm:text-2xl font-bold font-headline text-white">
                         Loan Application &amp; Borrowing Status
                       </DialogTitle>
-                      <DialogDescription className="text-xs">
+                      <DialogDescription className="text-xs sm:text-sm text-blue-100 mt-1">
                         Review applicant verified savings, borrowing capacity, and terms prior to approval.
                       </DialogDescription>
                     </div>
@@ -1123,11 +1123,11 @@ function LoansPageContent() {
                 {/* Body */}
                 <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto">
                   {/* Applicant Profile Bar */}
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-muted/40 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                       <Avatar className="h-10 w-10 border border-border shrink-0">
                         <AvatarImage src={applicantMember?.avatarUrl} />
-                        <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
+                        <AvatarFallback className="text-xs font-bold bg-blue-50 text-blue-600">
                           {memberName.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -1137,35 +1137,35 @@ function LoansPageContent() {
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground sm:text-right shrink-0">
-                      <p className="font-semibold text-foreground">Requested On</p>
-                      <p>{selectedLoan.requestDate?.toDate ? format(selectedLoan.requestDate.toDate(), 'PPP') : format(new Date(), 'PPP')}</p>
+                      <p className="font-semibold text-blue-600 uppercase tracking-wider text-[10px]">Requested On</p>
+                      <p className="text-foreground font-medium mt-0.5">{selectedLoan.requestDate?.toDate ? format(selectedLoan.requestDate.toDate(), 'PPP') : format(new Date(), 'PPP')}</p>
                     </div>
                   </div>
 
                   {/* 4 Core Metric Cards: Requested Amount, Current Contribution, Borrowing Power, Group Lending Pool */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
                     {/* Requested Amount */}
-                    <div className="p-3 sm:p-3.5 rounded-xl bg-primary/5 border border-primary/20 flex flex-col justify-between min-w-0">
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col justify-between min-w-0">
                       <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-primary block truncate">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 block truncate">
                           Requested Loan
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-primary font-headline mt-1 truncate">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono mt-1 truncate">
                           {formatCurrency(requestedAmt, currency)}
                         </p>
                       </div>
                       <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
-                        Term: <strong>{loanDuration} Months</strong>
+                        Term: <strong className="text-foreground">{loanDuration} Months</strong>
                       </p>
                     </div>
 
                     {/* Current Contribution */}
-                    <div className="p-3 sm:p-3.5 rounded-xl bg-muted/50 border border-border flex flex-col justify-between min-w-0">
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col justify-between min-w-0">
                       <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground block truncate">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 block truncate">
                           Member Savings
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-foreground font-headline mt-1 truncate">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono mt-1 truncate">
                           {formatCurrency(verifiedContributions, currency)}
                         </p>
                       </div>
@@ -1175,21 +1175,12 @@ function LoansPageContent() {
                     </div>
 
                     {/* Borrowing Power */}
-                    <div className={cn(
-                      "p-3 sm:p-3.5 rounded-xl border flex flex-col justify-between transition-colors min-w-0",
-                      isEligible ? "bg-green-600/5 border-green-600/20" : "bg-muted/50 border-border"
-                    )}>
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col justify-between min-w-0">
                       <div>
-                        <span className={cn(
-                          "text-[10px] sm:text-[11px] font-bold uppercase tracking-wider block truncate",
-                          isEligible ? "text-green-700 dark:text-green-400" : "text-foreground"
-                        )}>
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 block truncate">
                           Borrow Power ({maxLoanPercentage}%)
                         </span>
-                        <p className={cn(
-                          "text-base sm:text-lg lg:text-xl font-bold font-headline mt-1 truncate",
-                          isEligible ? "text-green-700 dark:text-green-400" : "text-foreground"
-                        )}>
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono mt-1 truncate">
                           {formatCurrency(borrowingPower, currency)}
                         </p>
                       </div>
@@ -1199,21 +1190,12 @@ function LoansPageContent() {
                     </div>
 
                     {/* Lending Pool */}
-                    <div className={cn(
-                      "p-3 sm:p-3.5 rounded-xl border flex flex-col justify-between transition-colors min-w-0",
-                      isPoolExhausted ? "bg-destructive/10 border-destructive/30" : "bg-emerald-500/10 border-emerald-500/30"
-                    )}>
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col justify-between min-w-0">
                       <div>
-                        <span className={cn(
-                          "text-[10px] sm:text-[11px] font-bold uppercase tracking-wider block truncate",
-                          isPoolExhausted ? "text-destructive font-black" : "text-emerald-700 dark:text-emerald-400"
-                        )}>
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 block truncate">
                           Lending Pool ({lendingPoolCeilingPct}%)
                         </span>
-                        <p className={cn(
-                          "text-base sm:text-lg lg:text-xl font-bold font-headline mt-1 truncate",
-                          isPoolExhausted ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"
-                        )}>
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono mt-1 truncate">
                           {loadingLiquidity ? "..." : formatCurrency(availableGroupPool, currency)}
                         </p>
                       </div>
@@ -1273,15 +1255,15 @@ function LoansPageContent() {
 
                   {/* Management Approval Exception Card */}
                   {(selectedLoan.exceedsBorrowingPower || selectedLoan.managementApprovalUrl) && (
-                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-foreground space-y-3">
+                    <div className="p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm text-foreground space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <ShieldAlert className="h-5 w-5 text-primary shrink-0" />
+                          <ShieldAlert className="h-5 w-5 text-blue-600 shrink-0" />
                           <p className="font-bold text-sm">
                             Management Quota Exception Authorized
                           </p>
                         </div>
-                        <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase w-fit">
+                        <Badge className="bg-blue-600 text-white font-bold text-[10px] uppercase w-fit">
                           Attached Proof
                         </Badge>
                       </div>
@@ -1303,7 +1285,7 @@ function LoansPageContent() {
                             type="button"
                             asChild
                             size="sm"
-                            className="h-9 rounded-xl font-bold text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm w-full sm:w-auto"
+                            className="h-9 rounded-xl font-bold text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-sm w-full sm:w-auto"
                           >
                             <a href={selectedLoan.managementApprovalUrl} target="_blank" rel="noopener noreferrer">
                               <FileText className="h-4 w-4" />
@@ -1319,7 +1301,7 @@ function LoansPageContent() {
                   {/* Purpose / Description */}
                   {selectedLoan.description && (
                     <div className="space-y-1">
-                      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
                         Applicant Stated Purpose
                       </Label>
                       <div className="p-3 bg-muted/40 rounded-xl text-xs text-foreground italic border border-border/50">
@@ -1329,9 +1311,9 @@ function LoansPageContent() {
                   )}
 
                   {/* Repayment Breakdown */}
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-muted/30 border border-border space-y-3">
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-muted/30 border border-border space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
                         Financial Schedule Projection
                       </p>
                       <Badge className="bg-emerald-600 text-white font-bold text-[9px] uppercase w-fit">
@@ -1339,22 +1321,22 @@ function LoansPageContent() {
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-                      <div className="p-2 sm:p-2.5 bg-background rounded-lg border border-border min-w-0">
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold truncate">Approved Loan</p>
-                        <p className="text-xs sm:text-sm font-bold text-foreground mt-0.5 truncate">{formatCurrency(requestedAmt, currency)}</p>
+                      <div className="p-2 sm:p-2.5 bg-white dark:bg-card rounded-lg border border-border shadow-sm min-w-0">
+                        <p className="text-[10px] text-blue-600 uppercase font-semibold truncate">Approved Loan</p>
+                        <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono mt-0.5 truncate">{formatCurrency(requestedAmt, currency)}</p>
                       </div>
-                      <div className="p-2 sm:p-2.5 bg-background rounded-lg border border-border min-w-0">
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold truncate">Interest ({globalRate}%)</p>
-                        <p className="text-xs sm:text-sm font-bold text-foreground mt-0.5 truncate">-{formatCurrency(loanInterest, currency)}</p>
+                      <div className="p-2 sm:p-2.5 bg-white dark:bg-card rounded-lg border border-border shadow-sm min-w-0">
+                        <p className="text-[10px] text-blue-600 uppercase font-semibold truncate">Interest ({globalRate}%)</p>
+                        <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono mt-0.5 truncate">-{formatCurrency(loanInterest, currency)}</p>
                       </div>
-                      <div className="p-2 sm:p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/30 min-w-0">
-                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase font-semibold truncate">Amount Received</p>
-                        <p className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 truncate">{formatCurrency(amountReceived, currency)}</p>
+                      <div className="p-2 sm:p-2.5 bg-white dark:bg-card rounded-lg border border-border shadow-sm min-w-0">
+                        <p className="text-[10px] text-blue-600 uppercase font-semibold truncate">Amount Received</p>
+                        <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono mt-0.5 truncate">{formatCurrency(amountReceived, currency)}</p>
                       </div>
-                      <div className="p-2 sm:p-2.5 bg-background rounded-lg border border-border min-w-0">
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold truncate">Total Repayable</p>
-                        <p className="text-xs sm:text-sm font-bold text-primary mt-0.5 truncate">{formatCurrency(totalPayable, currency)}</p>
-                        <p className="text-[9px] text-muted-foreground mt-0.5 truncate">({formatCurrency(monthlyPayment, currency)}/mo)</p>
+                      <div className="p-2 sm:p-2.5 bg-white dark:bg-card rounded-lg border border-border shadow-sm min-w-0">
+                        <p className="text-[10px] text-blue-600 uppercase font-semibold truncate">Total Repayable</p>
+                        <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono mt-0.5 truncate">{formatCurrency(totalPayable, currency)}</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5 truncate font-mono">({formatCurrency(monthlyPayment, currency)}/mo)</p>
                       </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground italic leading-relaxed">
