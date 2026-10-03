@@ -62,6 +62,16 @@ export type SystemSettings = {
   termsOfService?: string;
   privacyPolicy?: string;
   copyrightNotice?: string;
+  payoutCampaign?: {
+    status: 'open' | 'closed';
+    targetAmount?: number | null;
+    announcement?: string;
+    openedAt?: any;
+    openedBy?: string;
+    closedAt?: any;
+    lastDistributionId?: string;
+    lastDistributionAmount?: number;
+  };
 };
 
 export const DEFAULT_SETTINGS: SystemSettings = {
@@ -81,6 +91,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   termsOfService: 'By participating in the Ikimina platform, members agree to adhere to monthly contribution commitments, timely loan repayments according to the agreed schedule, and mutual group accountability. All financial actions and disbursements are audited and recorded authoritatively.',
   privacyPolicy: 'We respect member privacy and treat all personal and financial data with strict confidentiality. Member records, savings ledgers, and transaction histories are securely protected and accessible only to authorized officers and account holders.',
   copyrightNotice: '',
+  payoutCampaign: { status: 'closed' },
 };
 
 /**
@@ -117,6 +128,53 @@ export async function allocateInterestAction(uid: string, data: {
     return result.data;
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed to allocate interest through Cloud Function.');
+  }
+}
+
+/**
+ * Opens an active member interest payout election campaign.
+ */
+export async function openInterestPayoutCampaignAction(data: {
+  targetAmount?: number | null;
+  announcement?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const openFn = httpsCallable(functions, 'openInterestPayoutCampaign');
+  try {
+    const result = await openFn(data);
+    return result.data;
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to open interest payout campaign.');
+  }
+}
+
+/**
+ * Closes an active interest payout election campaign.
+ */
+export async function closeInterestPayoutCampaignAction() {
+  const functions = getFinanceFunctions();
+  const closeFn = httpsCallable(functions, 'closeInterestPayoutCampaign');
+  try {
+    const result = await closeFn();
+    return result.data;
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to close interest payout campaign.');
+  }
+}
+
+/**
+ * Records a member's preference for interest payout:
+ * - 'add_to_contribution': Capitalize into total verified savings.
+ * - 'receive_payout': Liquid cash payout (accrued interest).
+ */
+export async function setMemberPayoutPreferenceAction(preference: 'add_to_contribution' | 'receive_payout', memberId?: string) {
+  const functions = getFinanceFunctions();
+  const prefFn = httpsCallable(functions, 'setMemberPayoutPreference');
+  try {
+    const result = await prefFn({ preference, memberId });
+    return result.data;
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to save payout preference.');
   }
 }
 

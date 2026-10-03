@@ -36,7 +36,14 @@ import {
   Loader2,
   Eye,
   Check,
-  HelpCircle
+  HelpCircle,
+  PiggyBank,
+  Banknote,
+  Megaphone,
+  ArrowRightLeft,
+  Radio,
+  StopCircle,
+  Play
 } from "lucide-react";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc, Timestamp } from 'firebase/firestore';
@@ -46,8 +53,14 @@ import { useSettings } from '@/context/settings-context';
 import { formatCurrency } from '@/lib/currency';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { allocateInterestAction } from '@/lib/finance-client';
+import {
+  allocateInterestAction,
+  openInterestPayoutCampaignAction,
+  closeInterestPayoutCampaignAction,
+  setMemberPayoutPreferenceAction
+} from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 export default function DistributeInterestPage() {
@@ -73,6 +86,17 @@ export default function DistributeInterestPage() {
   const [memberSearchTerm, setMemberSearchTerm] = useState<string>('');
   const [historySearchTerm, setHistorySearchTerm] = useState<string>('');
   const [selectedLedgerItem, setSelectedLedgerItem] = useState<any | null>(null);
+
+  // Campaign & Preference Management State
+  const [isLaunchModalOpen, setIsLaunchModalOpen] = useState<boolean>(false);
+  const [campaignAnnouncementInput, setCampaignAnnouncementInput] = useState<string>('');
+  const [campaignTargetAmountInput, setCampaignTargetAmountInput] = useState<string>('');
+  const [isLaunchingCampaign, setIsLaunchingCampaign] = useState<boolean>(false);
+  const [isClosingCampaign, setIsClosingCampaign] = useState<boolean>(false);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+
+  const campaign = settings.payoutCampaign;
+  const isCampaignOpen = campaign?.status === 'open';
 
   // 1. Data Subscriptions
   const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
@@ -140,12 +164,15 @@ export default function DistributeInterestPage() {
       }
     });
 
-    // Savers list with verified positive savings
+    // Savers list with verified positive savings and preference tracking
     const activeSavers = members
       .map(m => {
         const contributed = memberSavingsMap[m.id] || 0;
         const accrued = Number(m.accruedInterest) || 0;
         const shareFraction = totalVerifiedSavings > 0 ? contributed / totalVerifiedSavings : 0;
+        const preference: 'add_to_contribution' | 'receive_payout' =
+          m.interestPayoutPreference === 'add_to_contribution' ? 'add_to_contribution' : 'receive_payout';
+
         return {
           id: m.id,
           name: m.name || m.email || 'Unnamed Member',
@@ -154,9 +181,13 @@ export default function DistributeInterestPage() {
           accruedInterest: accrued,
           shareFraction,
           sharePercentage: (shareFraction * 100).toFixed(2),
+          preference,
         };
       })
       .filter(m => m.contributed > 0);
+
+    const capitalizedSaversCount = activeSavers.filter(s => s.preference === 'add_to_contribution').length;
+    const cashPayoutSaversCount = activeSavers.filter(s => s.preference === 'receive_payout').length;
 
     return {
       totalRealizedInterest,
@@ -164,6 +195,8 @@ export default function DistributeInterestPage() {
       availableUndistributedInterest,
       totalVerifiedSavings,
       activeSaversCount: activeSavers.length,
+      capitalizedSaversCount,
+      cashPayoutSaversCount,
       activeSavers,
     };
   }, [loans, auditLogs, contributions, members]);
@@ -178,15 +211,110 @@ export default function DistributeInterestPage() {
 
     return poolMetrics.activeSavers.map(saver => {
       const incomingShare = Math.round(saver.shareFraction * parsedDistributeAmount);
-      const projectedTotal = saver.accruedInterest + incomingShare;
+      const isReinvest = saver.preference === 'add_to_contribution';
+      const projectedTotal = saver.accruedInterest + (isReinvest ? 0 : incomingShare);
+      const projectedSavings = saver.contributed + (isReinvest ? incomingShare : 0);
 
       return {
         ...saver,
         incomingShare,
         projectedTotal,
+        projectedSavings,
       };
     });
   }, [parsedDistributeAmount, poolMetrics.totalVerifiedSavings, poolMetrics.activeSavers]);
+
+  const simulationSplit = useMemo(() => {
+    let totalCapitalized = 0;
+    let totalCashPayout = 0;
+    let capitalizedCount = 0;
+    let cashPayoutCount = 0;
+
+    simulationPreview.forEach(s => {
+      if (s.preference === 'add_to_contribution') {
+        totalCapitalized += s.incomingShare;
+        capitalizedCount++;
+      } else {
+        totalCashPayout += s.incomingShare;
+        cashPayoutCount++;
+      }
+    });
+
+    return { totalCapitalized, totalCashPayout, capitalizedCount, cashPayoutCount };
+  }, [simulationPreview]);
+
+  // Campaign Handlers
+  const handleOpenCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !isSuperAdmin) return;
+    setIsLaunchingCampaign(true);
+    try {
+      const targetAmount = campaignTargetAmountInput ? Number(campaignTargetAmountInput) : undefined;
+      await openInterestPayoutCampaignAction({
+        targetAmount,
+        announcement: campaignAnnouncementInput.trim() || undefined,
+      });
+      toast({
+        title: "Member Payout Request Initiated",
+        description: "Members have been notified in the app to select their payout preference.",
+      });
+      setIsLaunchModalOpen(false);
+      setCampaignAnnouncementInput('');
+      setCampaignTargetAmountInput('');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: "destructive",
+        title: parsed.title || "Failed to Launch Request",
+        description: parsed.message,
+      });
+    } finally {
+      setIsLaunchingCampaign(false);
+    }
+  };
+
+  const handleCloseCampaign = async () => {
+    if (!user || !isSuperAdmin) return;
+    setIsClosingCampaign(true);
+    try {
+      await closeInterestPayoutCampaignAction();
+      toast({
+        title: "Payout Request Closed",
+        description: "The member payout election window is now closed. You can proceed with distribution.",
+      });
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: "destructive",
+        title: parsed.title || "Failed to Close Request",
+        description: parsed.message,
+      });
+    } finally {
+      setIsClosingCampaign(false);
+    }
+  };
+
+  const handleToggleMemberPreference = async (memberId: string, currentPreference: 'add_to_contribution' | 'receive_payout') => {
+    if (!user || !isSuperAdmin) return;
+    const newPreference = currentPreference === 'add_to_contribution' ? 'receive_payout' : 'add_to_contribution';
+    setUpdatingMemberId(memberId);
+    try {
+      await setMemberPayoutPreferenceAction(newPreference, memberId);
+      toast({
+        title: "Preference Updated",
+        description: `Member preference switched to ${newPreference === 'add_to_contribution' ? 'Add to Contribution' : 'Cash Payout'}.`,
+      });
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: parsed.message,
+      });
+    } finally {
+      setUpdatingMemberId(null);
+    }
+  };
 
   const filteredSimulation = useMemo(() => {
     if (!memberSearchTerm.trim()) return simulationPreview;
@@ -303,6 +431,10 @@ export default function DistributeInterestPage() {
           totalPool: d.totalPool || 0,
           breakdown: d.breakdown || [],
           admin: d.adminId || 'Admin',
+          capitalizedCount: d.capitalizedCount || 0,
+          cashPayoutCount: d.cashPayoutCount || 0,
+          totalCapitalizedToContributions: d.totalCapitalizedToContributions || 0,
+          totalCashPayout: d.totalCashPayout || 0,
           source: 'ledger',
         };
       });
@@ -323,6 +455,10 @@ export default function DistributeInterestPage() {
           totalPool: l.details?.totalPool || 0,
           breakdown: l.details?.breakdown || l.details?.memberDistributions || [],
           admin: l.performedBy || l.adminId || 'System',
+          capitalizedCount: l.details?.capitalizedCount || 0,
+          cashPayoutCount: l.details?.cashPayoutCount || 0,
+          totalCapitalizedToContributions: l.details?.totalCapitalizedToContributions || 0,
+          totalCashPayout: l.details?.totalCashPayout || 0,
           source: 'audit',
         };
       });
@@ -503,6 +639,101 @@ export default function DistributeInterestPage() {
 
         {/* Tab 1: Execution & Live Simulator */}
         <TabsContent value="execute" className="space-y-6">
+          {/* Member Payout Request Campaign Hub */}
+          <Card className={cn(
+            "border-2 rounded-2xl overflow-hidden shadow-md transition-all",
+            isCampaignOpen
+              ? "border-primary bg-gradient-to-r from-primary/10 via-background to-blue-500/10"
+              : "border-border/80 bg-card"
+          )}>
+            <div className="p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {isCampaignOpen ? (
+                    <Badge className="bg-emerald-600 text-white font-bold text-[10px] tracking-wide uppercase px-2.5 py-1 gap-1.5 flex items-center">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                      </span>
+                      Member Payout Poll Active
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-border text-muted-foreground font-bold text-[10px] tracking-wide uppercase px-2.5 py-1">
+                      Election Polling Inactive
+                    </Badge>
+                  )}
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Megaphone className="h-3.5 w-3.5 text-primary" /> Member Payout Election Request
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-foreground">
+                    {isCampaignOpen ? "Members Are Actively Selecting Payout Preferences" : "Initiate Member Payout Request Window"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground max-w-2xl mt-0.5 leading-relaxed">
+                    {isCampaignOpen
+                      ? (campaign?.announcement || "An election window is currently open in the member app. Members are choosing between adding interest to their total contribution or receiving cash payouts.")
+                      : "Before executing a distribution run, send an in-app request to all members so they can choose between reinvesting interest into their savings (capitalized) or receiving cash."}
+                  </p>
+                </div>
+
+                {/* Polling Statistics Counter */}
+                <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+                  <div className="flex items-center gap-1.5 bg-muted/60 px-2.5 py-1 rounded-lg border border-border/60">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground font-medium">Eligible Savers:</span>
+                    <span className="font-bold text-foreground">{poolMetrics.activeSaversCount}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                    <PiggyBank className="h-3.5 w-3.5" />
+                    <span className="font-medium">To Contribution:</span>
+                    <span className="font-bold">{poolMetrics.capitalizedSaversCount}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20 text-blue-700 dark:text-blue-400">
+                    <Banknote className="h-3.5 w-3.5" />
+                    <span className="font-medium">Cash Payout:</span>
+                    <span className="font-bold">{poolMetrics.cashPayoutSaversCount}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2.5 shrink-0 self-start md:self-center">
+                {isCampaignOpen ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isClosingCampaign}
+                    onClick={handleCloseCampaign}
+                    className="h-10 rounded-xl font-bold text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+                  >
+                    {isClosingCampaign ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <StopCircle className="h-3.5 w-3.5" />
+                    )}
+                    Close Election Window
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (poolMetrics.availableUndistributedInterest > 0) {
+                        setCampaignTargetAmountInput(poolMetrics.availableUndistributedInterest.toString());
+                      }
+                      setIsLaunchModalOpen(true);
+                    }}
+                    className="h-10 rounded-xl font-bold text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    Initiate Member Payout Request
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left Column: Distribution Parameters Form */}
             <div className="lg:col-span-5 space-y-6">
@@ -653,17 +884,17 @@ export default function DistributeInterestPage() {
               {/* Informative Guidance Box */}
               <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-2.5">
                 <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
-                  <HelpCircle className="h-4 w-4" /> How Pro-Rata Distribution Works
+                  <HelpCircle className="h-4 w-4" /> Two Payout Channels
                 </div>
-                <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4">
+                <ul className="text-xs text-muted-foreground space-y-2 list-disc pl-4">
                   <li>
-                    Each member&apos;s dividend share is strictly proportionate to their <strong>verified savings</strong> at the time of execution.
+                    <strong>Add to Total Contribution (Reinvestment):</strong> Excluded from cash payouts. Directly creates a verified contribution savings record, boosting the member's savings and future loan qualification multiplier.
+                  </li>
+                  <li>
+                    <strong>Receive Cash Payout:</strong> Directly credits the member's liquid <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono text-foreground">accruedInterest</code> balance for cash disbursement.
                   </li>
                   <li>
                     Formula: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono text-foreground">Member Share = (Member Savings / Total Savings) &times; Total Dividend</code>
-                  </li>
-                  <li>
-                    All payouts directly increment member <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono text-foreground">accruedInterest</code> balances in real-time.
                   </li>
                 </ul>
               </div>
@@ -713,11 +944,11 @@ export default function DistributeInterestPage() {
                     <TableHeader className="bg-blue-600/90 text-white">
                       <TableRow className="border-none hover:bg-transparent">
                         <TableHead className="text-white font-bold text-xs py-3 px-4">Member Saver</TableHead>
-                        <TableHead className="text-white font-bold text-xs text-right">Verified Savings</TableHead>
+                        <TableHead className="text-white font-bold text-xs text-right">Savings</TableHead>
                         <TableHead className="text-white font-bold text-xs text-right">Share %</TableHead>
-                        <TableHead className="text-white font-bold text-xs text-right">Current Balance</TableHead>
-                        <TableHead className="text-white font-bold text-xs text-right text-emerald-200">+ New Dividend</TableHead>
-                        <TableHead className="text-white font-bold text-xs text-right pr-4">= Projected Total</TableHead>
+                        <TableHead className="text-white font-bold text-xs text-right text-emerald-200">+ Dividend</TableHead>
+                        <TableHead className="text-white font-bold text-xs text-center">Payout Election</TableHead>
+                        <TableHead className="text-white font-bold text-xs text-right pr-4">Projected Position</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -736,14 +967,53 @@ export default function DistributeInterestPage() {
                             <TableCell className="text-right font-mono text-primary font-bold">
                               {saver.sharePercentage}%
                             </TableCell>
-                            <TableCell className="text-right text-muted-foreground font-medium">
-                              {formatCurrency(saver.accruedInterest, currency)}
-                            </TableCell>
                             <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-bold">
                               +{formatCurrency(saver.incomingShare, currency)}
                             </TableCell>
-                            <TableCell className="text-right font-extrabold text-foreground pr-4">
-                              {formatCurrency(saver.projectedTotal, currency)}
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {saver.preference === 'add_to_contribution' ? (
+                                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-none font-bold text-[10px] gap-1 py-0.5">
+                                    <PiggyBank className="h-3 w-3" /> To Contribution
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-none font-bold text-[10px] gap-1 py-0.5">
+                                    <Banknote className="h-3 w-3" /> Cash Payout
+                                  </Badge>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={updatingMemberId === saver.id}
+                                  onClick={() => handleToggleMemberPreference(saver.id, saver.preference)}
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                                  title="Switch payout method for member"
+                                >
+                                  {updatingMemberId === saver.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                  ) : (
+                                    <ArrowRightLeft className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-foreground pr-4">
+                              {saver.preference === 'add_to_contribution' ? (
+                                <div>
+                                  <div className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                                    {formatCurrency(saver.projectedSavings, currency)}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground font-normal">Savings (Capitalized)</div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="text-blue-600 dark:text-blue-400 font-extrabold">
+                                    {formatCurrency(saver.projectedTotal, currency)}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground font-normal">Accrued (Withdrawable)</div>
+                                </div>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))
@@ -761,11 +1031,25 @@ export default function DistributeInterestPage() {
                 </CardContent>
 
                 {isAmountValid && (
-                  <CardFooter className="bg-muted/30 border-t border-border/60 p-4 flex items-center justify-between text-xs font-bold">
-                    <span className="text-muted-foreground">Total Dividend to be Distributed:</span>
-                    <span className="text-base text-primary font-black">
-                      {formatCurrency(parsedDistributeAmount, currency)}
-                    </span>
+                  <CardFooter className="bg-muted/40 border-t border-border/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold">
+                        <PiggyBank className="h-3.5 w-3.5" />
+                        <span>Capitalized into Savings:</span>
+                        <span>{formatCurrency(simulationSplit.totalCapitalized, currency)} ({simulationSplit.capitalizedCount})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 font-bold">
+                        <Banknote className="h-3.5 w-3.5" />
+                        <span>Liquid Cash Payout:</span>
+                        <span>{formatCurrency(simulationSplit.totalCashPayout, currency)} ({simulationSplit.cashPayoutCount})</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground font-bold">Total Dividend:</span>
+                      <span className="text-base text-primary font-black">
+                        {formatCurrency(parsedDistributeAmount, currency)}
+                      </span>
+                    </div>
                   </CardFooter>
                 )}
               </Card>
@@ -871,14 +1155,14 @@ export default function DistributeInterestPage() {
 
       {/* Confirmation Dialog before Authoritative Execution */}
       <Dialog open={isConfirmModalOpen} onOpenChange={setIsConfirmModalOpen}>
-        <DialogContent className="sm:max-w-[500px] rounded-2xl p-6">
+        <DialogContent className="sm:max-w-[520px] rounded-2xl p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
               <TrendingUp className="h-5 w-5 text-primary" />
               Confirm Profit Distribution
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Please review the distribution parameters carefully. Once executed, this transaction is permanent and will credit all eligible savers immediately.
+              Please review the distribution parameters carefully. Once executed, this transaction is permanent and will credit all eligible savers according to their elected preference.
             </DialogDescription>
           </DialogHeader>
 
@@ -902,6 +1186,33 @@ export default function DistributeInterestPage() {
               </div>
             </div>
 
+            {/* Two-Track Distribution Breakdown */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold mb-1">
+                  <PiggyBank className="h-3.5 w-3.5" /> Reinvest into Savings
+                </div>
+                <div className="text-base font-extrabold text-foreground">
+                  {formatCurrency(simulationSplit.totalCapitalized, currency)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {simulationSplit.capitalizedCount} members &bull; Excluded from cash
+                </div>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 font-bold mb-1">
+                  <Banknote className="h-3.5 w-3.5" /> Cash Payout
+                </div>
+                <div className="text-base font-extrabold text-foreground">
+                  {formatCurrency(simulationSplit.totalCashPayout, currency)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {simulationSplit.cashPayoutCount} members &bull; Liquid interest
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1">
               <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                 Logged Justification
@@ -914,7 +1225,7 @@ export default function DistributeInterestPage() {
             <div className="text-[11px] text-muted-foreground flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl">
               <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <span>
-                An immutable audit record will be logged with your administrator signature. Each member will see their credited dividend reflected instantly in their member portfolio.
+                Verified contribution records will be created immediately for members electing contribution reinvestment. Cash dividends will be credited to accrued interest.
               </span>
             </div>
           </div>
@@ -949,9 +1260,96 @@ export default function DistributeInterestPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Launch Member Payout Campaign Dialog */}
+      <Dialog open={isLaunchModalOpen} onOpenChange={setIsLaunchModalOpen}>
+        <DialogContent className="sm:max-w-[480px] rounded-2xl p-6">
+          <form onSubmit={handleOpenCampaign} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
+                <Megaphone className="h-5 w-5 text-primary" />
+                Initiate Member Payout Request
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Opens an interactive payout election poll banner across all member portfolios. Members can choose between adding their interest share to their verified contributions (savings) or receiving a liquid cash payout.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3.5 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="target-amount" className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Target Dividend Pool ({currency}) <span className="text-muted-foreground font-normal">(Optional)</span>
+                </Label>
+                <Input
+                  id="target-amount"
+                  type="number"
+                  min="0"
+                  placeholder={`e.g. ${poolMetrics.availableUndistributedInterest || 0}`}
+                  value={campaignTargetAmountInput}
+                  onChange={(e) => setCampaignTargetAmountInput(e.target.value)}
+                  className="rounded-xl font-bold bg-muted/40"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Gives members visibility into the expected pool size being distributed.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="announcement" className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Announcement / Instructions for Members <span className="text-muted-foreground font-normal">(Optional)</span>
+                </Label>
+                <Textarea
+                  id="announcement"
+                  placeholder="e.g. Dear members, our interest dividend distribution has been initiated. Please select your preferred payout option before Friday."
+                  value={campaignAnnouncementInput}
+                  onChange={(e) => setCampaignAnnouncementInput(e.target.value)}
+                  rows={3}
+                  className="rounded-xl text-xs bg-muted/40"
+                />
+              </div>
+
+              <div className="p-3 bg-muted rounded-xl text-xs text-muted-foreground space-y-1">
+                <p className="font-bold text-foreground flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-primary" /> How it works:
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  Members who choose <strong>Add to Total Contribution</strong> are excluded from cash payouts, and their dividend is automatically added directly to their verified savings. Members who choose <strong>Cash Payout</strong> receive withdrawable liquid accrued interest.
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isLaunchingCampaign}
+                onClick={() => setIsLaunchModalOpen(false)}
+                className="rounded-xl font-bold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isLaunchingCampaign}
+                className="rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+              >
+                {isLaunchingCampaign ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Launching...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3.5 w-3.5 fill-current" /> Launch Payout Request
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Historical Breakdown Detail Dialog */}
       <Dialog open={Boolean(selectedLedgerItem)} onOpenChange={(open) => !open && setSelectedLedgerItem(null)}>
-        <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col rounded-2xl p-6">
+        <DialogContent className="sm:max-w-[760px] max-h-[85vh] flex flex-col rounded-2xl p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
               <History className="h-5 w-5 text-primary" />
@@ -968,6 +1366,35 @@ export default function DistributeInterestPage() {
               <p className="text-muted-foreground">{selectedLedgerItem?.justification}</p>
             </div>
 
+            {/* Split breakdown summary chips if available */}
+            {(selectedLedgerItem?.totalCapitalizedToContributions > 0 || selectedLedgerItem?.totalCashPayout > 0) && (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
+                  <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold mb-0.5">
+                    <PiggyBank className="h-3.5 w-3.5" /> Reinvested to Savings
+                  </div>
+                  <div className="text-base font-extrabold text-foreground">
+                    {formatCurrency(selectedLedgerItem.totalCapitalizedToContributions, currency)}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {selectedLedgerItem.capitalizedCount} members credited with verified savings
+                  </div>
+                </div>
+
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                  <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 font-bold mb-0.5">
+                    <Banknote className="h-3.5 w-3.5" /> Liquid Cash Payouts
+                  </div>
+                  <div className="text-base font-extrabold text-foreground">
+                    {formatCurrency(selectedLedgerItem.totalCashPayout, currency)}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {selectedLedgerItem.cashPayoutCount} members credited with withdrawable interest
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-xl border border-border/60 overflow-hidden">
               <Table>
                 <TableHeader className="bg-blue-600/90 text-white">
@@ -975,6 +1402,7 @@ export default function DistributeInterestPage() {
                     <TableHead className="py-2.5 px-3 text-white font-bold text-xs">Recipient Member</TableHead>
                     <TableHead className="text-right text-white font-bold text-xs">Savings at Run</TableHead>
                     <TableHead className="text-right text-white font-bold text-xs">Share Ratio</TableHead>
+                    <TableHead className="text-center text-white font-bold text-xs">Payout Channel</TableHead>
                     <TableHead className="text-right text-white font-bold text-xs text-emerald-200">Dividend Credited</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -991,6 +1419,17 @@ export default function DistributeInterestPage() {
                         <TableCell className="text-right font-mono text-primary font-bold">
                           {b.shareRatio ? `${(b.shareRatio * 100).toFixed(2)}%` : '—'}
                         </TableCell>
+                        <TableCell className="text-center">
+                          {b.payoutType === 'add_to_contribution' ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-none font-bold text-[10px] gap-1 py-0.5">
+                              <PiggyBank className="h-3 w-3" /> To Savings
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-none font-bold text-[10px] gap-1 py-0.5">
+                              <Banknote className="h-3 w-3" /> Cash Payout
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400">
                           +{formatCurrency(b.distributedShare || b.share || 0, currency)}
                         </TableCell>
@@ -998,7 +1437,7 @@ export default function DistributeInterestPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={4} className="h-28 text-center text-muted-foreground text-xs italic">
+                      <TableCell colSpan={5} className="h-28 text-center text-muted-foreground text-xs italic">
                         Detailed member breakdown not stored for this legacy audit record.
                       </TableCell>
                     </TableRow>

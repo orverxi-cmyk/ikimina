@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSystemSettings = exports.resetFinancialData = exports.updateFinancialSettings = exports.allocateInterest = void 0;
+exports.setMemberPayoutPreference = exports.closeInterestPayoutCampaign = exports.openInterestPayoutCampaign = exports.getSystemSettings = exports.resetFinancialData = exports.updateFinancialSettings = exports.allocateInterest = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -43,8 +43,9 @@ const admin = __importStar(require("firebase-admin"));
 exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const adminUid = request.auth.uid;
     const db = admin.firestore();
-    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    const adminSnap = await db.collection('users').doc(adminUid).get();
     const adminData = adminSnap.data();
     if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Only administrators can allocate interest.');
@@ -93,36 +94,80 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
             throw new https_1.HttpsError('failed-precondition', 'Total contribution pool is empty.');
         const membersSnap = await db.collection('users').get();
         const batch = db.batch();
+        const distRef = db.collection('interest_distributions').doc();
+        const currentPeriod = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
         let recipientsCount = 0;
+        let capitalizedCount = 0;
+        let cashPayoutCount = 0;
+        let totalCapitalizedToContributions = 0;
+        let totalCashPayout = 0;
         const breakdown = [];
         membersSnap.forEach(memberDoc => {
             const memberId = memberDoc.id;
             const memberData = memberDoc.data();
             const memberTotal = memberTotals[memberId] || 0;
             const previousAccruedInterest = Number(memberData.accruedInterest) || 0;
+            // Read member's payout election preference (default: receive_payout)
+            const preference = memberData.interestPayoutPreference || memberData.payoutPreference || 'receive_payout';
             if (memberTotal > 0) {
                 const shareRatio = memberTotal / totalPool;
                 const memberShare = Math.floor(totalInterestToDistribute * shareRatio);
                 if (memberShare > 0) {
-                    batch.update(memberDoc.ref, {
-                        accruedInterest: admin.firestore.FieldValue.increment(memberShare)
-                    });
+                    if (preference === 'add_to_contribution') {
+                        // EXCLUDED from cash payout. Credited directly as a verified contribution to their total contributions!
+                        const contribRef = db.collection('contributions').doc();
+                        batch.set(contribRef, {
+                            memberId,
+                            amount: memberShare,
+                            period: currentPeriod,
+                            date: admin.firestore.FieldValue.serverTimestamp(),
+                            proofUrl: '',
+                            status: 'verified',
+                            verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            verifiedBy: adminUid,
+                            justification: `Interest profit capitalized into total savings (Distribution ${distRef.id})`,
+                            type: 'interest_reinvestment'
+                        });
+                        totalCapitalizedToContributions += memberShare;
+                        capitalizedCount++;
+                        breakdown.push({
+                            memberId,
+                            memberName: memberData.name || 'Unknown',
+                            memberEmail: memberData.email || '',
+                            contributions: memberTotal,
+                            shareRatio,
+                            distributedShare: memberShare,
+                            payoutType: 'add_to_contribution',
+                            outcome: 'Added to Total Contribution Savings',
+                            previousAccruedInterest,
+                            newTotalAccruedInterest: previousAccruedInterest
+                        });
+                    }
+                    else {
+                        // Received as Payout / Accrued Interest
+                        batch.update(memberDoc.ref, {
+                            accruedInterest: admin.firestore.FieldValue.increment(memberShare)
+                        });
+                        totalCashPayout += memberShare;
+                        cashPayoutCount++;
+                        breakdown.push({
+                            memberId,
+                            memberName: memberData.name || 'Unknown',
+                            memberEmail: memberData.email || '',
+                            contributions: memberTotal,
+                            shareRatio,
+                            distributedShare: memberShare,
+                            payoutType: 'receive_payout',
+                            outcome: 'Accrued for Liquid Cash Payout',
+                            previousAccruedInterest,
+                            newTotalAccruedInterest: previousAccruedInterest + memberShare
+                        });
+                    }
                     recipientsCount++;
-                    breakdown.push({
-                        memberId,
-                        memberName: memberData.name || 'Unknown',
-                        memberEmail: memberData.email || '',
-                        contributions: memberTotal,
-                        shareRatio,
-                        previousAccruedInterest,
-                        distributedShare: memberShare,
-                        newTotalAccruedInterest: previousAccruedInterest + memberShare
-                    });
                 }
             }
         });
         // 5. Permanent Ledger Entry in interest_distributions
-        const distRef = db.collection('interest_distributions').doc();
         batch.set(distRef, {
             distributedAt: admin.firestore.FieldValue.serverTimestamp(),
             adminId: request.auth.uid,
@@ -134,6 +179,10 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
             availableAfterDistribution: availableToDistribute - totalInterestToDistribute,
             justification,
             recipientsCount,
+            capitalizedCount,
+            cashPayoutCount,
+            totalCapitalizedToContributions,
+            totalCashPayout,
             breakdown
         });
         // 6. Audit Log
@@ -147,14 +196,32 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
                 totalDistributed: totalInterestToDistribute,
                 totalPool,
                 recipientsCount,
+                capitalizedCount,
+                cashPayoutCount,
+                totalCapitalizedToContributions,
+                totalCashPayout,
                 availableAfter: availableToDistribute - totalInterestToDistribute
             },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
+        // 7. Conclude active payout campaign in settings if open
+        const settingsRef = db.collection('settings').doc('financials');
+        batch.set(settingsRef, {
+            payoutCampaign: {
+                status: 'closed',
+                closedAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastDistributionId: distRef.id,
+                lastDistributionAmount: totalInterestToDistribute
+            }
+        }, { merge: true });
         await batch.commit();
         return {
             success: true,
             recipients: recipientsCount,
+            capitalizedCount,
+            cashPayoutCount,
+            totalCapitalizedToContributions,
+            totalCashPayout,
             availableAfter: availableToDistribute - totalInterestToDistribute,
             distributionId: distRef.id
         };
@@ -364,6 +431,7 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
             termsOfService: 'By participating in the Ikimina platform, members agree to adhere to monthly contribution commitments, timely loan repayments according to the agreed schedule, and mutual group accountability. All financial actions and disbursements are audited and recorded authoritatively.',
             privacyPolicy: 'We respect member privacy and treat all personal and financial data with strict confidentiality. Member records, savings ledgers, and transaction histories are securely protected and accessible only to authorized officers and account holders.',
             copyrightNotice: '',
+            payoutCampaign: { status: 'closed' }
         };
     }
     const data = snap.data();
@@ -384,6 +452,85 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
         termsOfService: data.termsOfService || 'By participating in the Ikimina platform, members agree to adhere to monthly contribution commitments, timely loan repayments according to the agreed schedule, and mutual group accountability. All financial actions and disbursements are audited and recorded authoritatively.',
         privacyPolicy: data.privacyPolicy || 'We respect member privacy and treat all personal and financial data with strict confidentiality. Member records, savings ledgers, and transaction histories are securely protected and accessible only to authorized officers and account holders.',
         copyrightNotice: data.copyrightNotice || '',
+        payoutCampaign: data.payoutCampaign || { status: 'closed' }
     };
+});
+/**
+ * Admin Action: Opens an active member interest payout election campaign.
+ * Broadcasts in-app for all members to elect whether to add profit to contributions or receive cash.
+ */
+exports.openInterestPayoutCampaign = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
+    }
+    const { targetAmount, announcement } = request.data || {};
+    const settingsRef = db.collection('settings').doc('financials');
+    await settingsRef.set({
+        payoutCampaign: {
+            status: 'open',
+            targetAmount: targetAmount ? Number(targetAmount) : null,
+            announcement: announcement ? String(announcement).trim() : 'Annual / Periodic Profit Distribution is being prepared. Please elect your payout preference.',
+            openedAt: admin.firestore.FieldValue.serverTimestamp(),
+            openedBy: request.auth.uid
+        }
+    }, { merge: true });
+    const logRef = db.collection('audit_logs').doc();
+    await logRef.set({
+        adminId: request.auth.uid,
+        action: 'OPEN_INTEREST_PAYOUT_CAMPAIGN',
+        justification: 'Opened member payout preference election window',
+        details: { targetAmount, announcement },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true };
+});
+/**
+ * Admin Action: Closes an active interest payout campaign without executing distribution.
+ */
+exports.closeInterestPayoutCampaign = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
+    }
+    const settingsRef = db.collection('settings').doc('financials');
+    await settingsRef.set({
+        payoutCampaign: {
+            status: 'closed',
+            closedAt: admin.firestore.FieldValue.serverTimestamp()
+        }
+    }, { merge: true });
+    return { success: true };
+});
+/**
+ * Member / Admin Action: Records a member's interest payout preference.
+ * - 'add_to_contribution': Interest is capitalized directly into total verified savings.
+ * - 'receive_payout': Interest is paid out as liquid accrued profit.
+ */
+exports.setMemberPayoutPreference = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const { preference, memberId } = request.data || {};
+    if (preference !== 'add_to_contribution' && preference !== 'receive_payout') {
+        throw new https_1.HttpsError('invalid-argument', 'Preference must be either "add_to_contribution" or "receive_payout".');
+    }
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    // An admin can record the preference on behalf of any member; otherwise users can only update their own
+    const targetUserId = ((callerData === null || callerData === void 0 ? void 0 : callerData.role) === 'admin' && memberId) ? memberId : request.auth.uid;
+    await db.collection('users').doc(targetUserId).update({
+        interestPayoutPreference: preference,
+        interestPayoutPreferenceUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true, preference, targetUserId };
 });
 //# sourceMappingURL=financial-management.js.map
