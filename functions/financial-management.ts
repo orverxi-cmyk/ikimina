@@ -169,6 +169,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
         penaltyRate,
         depositBankName,
         depositAccountNumber,
+        infrastructureBranding,
         justification 
     } = request.data;
 
@@ -188,6 +189,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             penaltyRate: Number(penaltyRate || 2),
             depositBankName: depositBankName ? String(depositBankName).trim() : '',
             depositAccountNumber: depositAccountNumber ? String(depositAccountNumber).trim() : '',
+            infrastructureBranding: infrastructureBranding !== undefined ? String(infrastructureBranding).trim() : 'Secure Infrastructure Provided by ORVEXI',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedBy: request.auth.uid
         }, { merge: true });
@@ -208,7 +210,8 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
                 maxLoanPercentage, 
                 maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
                 minLoanAmount, 
-                penaltyRate
+                penaltyRate,
+                infrastructureBranding
             },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
@@ -348,8 +351,6 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
  * pages must not directly query settings/financials via Firestore.
  */
 export const getSystemSettings = onCall({ cors: true }, async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
-
     const db = admin.firestore();
     const snap = await db.collection('settings').doc('financials').get();
 
@@ -362,10 +363,12 @@ export const getSystemSettings = onCall({ cors: true }, async (request) => {
             interestType: 'immediate',
             contributionInterestRate: 50000,
             maxLoanPercentage: 200,
+            maxLendingPoolPercentage: 90,
             minLoanAmount: 5000,
             penaltyRate: 2,
             depositBankName: 'Bank of Kigali',
             depositAccountNumber: '00044-01234567-89',
+            infrastructureBranding: 'Secure Infrastructure Provided by ORVEXI',
         };
     }
 
@@ -377,9 +380,11 @@ export const getSystemSettings = onCall({ cors: true }, async (request) => {
         interestType: data.interestType || 'immediate',
         contributionInterestRate: Number(data.contributionInterestRate) || 50000,
         maxLoanPercentage: Number(data.maxLoanPercentage) || 200,
+        maxLendingPoolPercentage: data.maxLendingPoolPercentage !== undefined ? Number(data.maxLendingPoolPercentage) : 90,
         minLoanAmount: Number(data.minLoanAmount) || 5000,
         penaltyRate: Number(data.penaltyRate) || 2,
         depositBankName: data.depositBankName || '',
         depositAccountNumber: data.depositAccountNumber || '',
+        infrastructureBranding: data.infrastructureBranding || 'Secure Infrastructure Provided by ORVEXI',
     };
 });

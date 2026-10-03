@@ -46,15 +46,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Only fetch once the Firebase auth session is ready and a user is signed in.
-    if (!authLoading && user) {
-      fetchSettings();
-    } else if (!authLoading && !user) {
-      // Reset to defaults when signed out
-      setSettings(DEFAULT_SETTINGS);
-      setLoading(false);
-    }
-  }, [authLoading, user, fetchSettings]);
+    fetchSettings();
+  }, [fetchSettings, user]);
 
   return (
     <SettingsContext.Provider value={{ settings, loading, refreshSettings: fetchSettings }}>

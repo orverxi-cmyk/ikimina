@@ -65,9 +65,9 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // System financial policy settings: Read via getSystemSettings Cloud Function
+    // System financial policy and platform branding settings
     match /settings/financials {
-      allow read: if isSignedIn();
+      allow read: true;
       allow write: if false;
     }
 

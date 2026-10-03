@@ -57,6 +57,7 @@ export default function AdminSettingsPage() {
   const [interestType, setInterestType] = useState<string>('immediate');
   const [depositBankName, setDepositBankName] = useState<string>('');
   const [depositAccountNumber, setDepositAccountNumber] = useState<string>('');
+  const [infrastructureBranding, setInfrastructureBranding] = useState<string>('Secure Infrastructure Provided by ORVEXI');
 
   // Super Admin Reset State
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -71,6 +72,7 @@ export default function AdminSettingsPage() {
       if (settings.interestType) setInterestType(settings.interestType);
       if (settings.depositBankName !== undefined) setDepositBankName(settings.depositBankName);
       if (settings.depositAccountNumber !== undefined) setDepositAccountNumber(settings.depositAccountNumber);
+      if (settings.infrastructureBranding !== undefined) setInfrastructureBranding(settings.infrastructureBranding);
     }
   }, [settings]);
 
@@ -91,6 +93,7 @@ export default function AdminSettingsPage() {
     const penaltyRate = Number(formData.get('penaltyRate'));
     const depositBankNameVal = (formData.get('depositBankName') as string)?.trim() ?? depositBankName;
     const depositAccountNumberVal = (formData.get('depositAccountNumber') as string)?.trim() ?? depositAccountNumber;
+    const infrastructureBrandingVal = (formData.get('infrastructureBranding') as string)?.trim() || infrastructureBranding;
     const justification = formData.get('justification') as string;
 
     try {
@@ -106,6 +109,7 @@ export default function AdminSettingsPage() {
         penaltyRate,
         depositBankName: depositBankNameVal,
         depositAccountNumber: depositAccountNumberVal,
+        infrastructureBranding: infrastructureBrandingVal,
         justification 
       });
       await refreshSettings();
@@ -341,6 +345,36 @@ export default function AdminSettingsPage() {
                   />
                   <p className="text-[10px] text-muted-foreground">The account number displayed below amount inputs.</p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Platform Branding & Customization Card */}
+          <Card className="border border-border shadow-sm bg-card rounded-[10px]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl text-primary">
+                <ShieldCheck className="h-5 w-5" /> Platform Branding &amp; Infrastructure
+              </CardTitle>
+              <CardDescription>
+                Customize the infrastructure attribution text and footer credentials displayed across the application.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-w-xl">
+                <Label htmlFor="infrastructureBranding" className="font-bold flex items-center gap-1.5">
+                  Footer Attribution Text
+                </Label>
+                <Input 
+                  id="infrastructureBranding"
+                  name="infrastructureBranding" 
+                  value={infrastructureBranding}
+                  onChange={(e) => setInfrastructureBranding(e.target.value)}
+                  placeholder="e.g. Secure Infrastructure Provided by ORVEXI" 
+                  className="h-11 rounded-[10px] bg-muted border-none font-medium"
+                />
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  This text is dynamically displayed in the footer of the member login screen, the admin login screen, and the member portal. Default: <span className="font-semibold">&ldquo;Secure Infrastructure Provided by ORVEXI&rdquo;</span>.
+                </p>
               </div>
             </CardContent>
           </Card>

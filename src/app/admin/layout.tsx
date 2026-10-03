@@ -81,6 +81,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: docLoading } = useDoc(userRef);
 
+  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), [firestore]);
+  const { data: settingsData } = useDoc(settingsRef);
+  const infrastructureBranding = settingsData?.infrastructureBranding || 'Secure Infrastructure Provided by ORVEXI';
+
   // Cached role logic to prevent role loss or flicker during page navigation
   const [cachedRole, setCachedRole] = useState<string | null>(null);
 
@@ -271,10 +275,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </form>
           </CardContent>
 
-          <CardFooter className="justify-center border-t p-4">
+          <CardFooter className="flex flex-col items-center justify-center border-t p-4 gap-2">
             <Link href="/login" className="text-xs text-muted-foreground hover:text-primary transition-colors">
               Looking for member login? Go to Member Portal →
             </Link>
+            <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold">
+              {infrastructureBranding}
+            </p>
           </CardFooter>
         </Card>
 

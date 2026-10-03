@@ -20,8 +20,10 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
+import { useSettings } from '@/context/settings-context';
 
 export default function MorePage() {
+  const { settings } = useSettings();
   const { user } = useUser();
   const firestore = useFirestore();
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
@@ -119,7 +121,7 @@ export default function MorePage() {
           <CardContent className="p-4 flex items-center gap-3">
             <ShieldCheck className="h-5 w-5 text-primary" />
             <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
-              Secure Infrastructure Provided by ORVEXI
+              {settings.infrastructureBranding || "Secure Infrastructure Provided by ORVEXI"}
             </div>
           </CardContent>
         </Card>

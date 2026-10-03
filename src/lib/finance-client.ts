@@ -57,6 +57,7 @@ export type SystemSettings = {
   penaltyRate: number;
   depositBankName?: string;
   depositAccountNumber?: string;
+  infrastructureBranding?: string;
 };
 
 export const DEFAULT_SETTINGS: SystemSettings = {
@@ -71,6 +72,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   penaltyRate: 2,
   depositBankName: 'Bank of Kigali',
   depositAccountNumber: '00044-01234567-89',
+  infrastructureBranding: 'Secure Infrastructure Provided by ORVEXI',
 };
 
 /**
@@ -143,6 +145,7 @@ export async function updateFinancialSettingsAction(data: {
   penaltyRate?: number,
   depositBankName?: string,
   depositAccountNumber?: string,
+  infrastructureBranding?: string,
   justification: string 
 }) {
   const functions = getFinanceFunctions();

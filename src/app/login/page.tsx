@@ -20,6 +20,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase/provider';
+import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { activateMemberAccountAction } from '@/lib/finance-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,10 @@ export default function LoginPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+
+  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), [firestore]);
+  const { data: settingsData } = useDoc(settingsRef);
+  const infrastructureBranding = settingsData?.infrastructureBranding || 'Secure Infrastructure Provided by ORVEXI';
 
   useEffect(() => {
     const handleAuthLink = async () => {
@@ -490,7 +495,7 @@ export default function LoginPage() {
 
         <CardFooter className="justify-center border-t p-4">
           <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold">
-            Secure Infrastructure Provided by ORVEXI
+            {infrastructureBranding}
           </p>
         </CardFooter>
       </Card>
