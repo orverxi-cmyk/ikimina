@@ -1142,63 +1142,71 @@ function LoansPageContent() {
                   {/* 4 Core Metric Cards: Requested Amount, Current Contribution, Borrowing Power, Group Lending Pool */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
                     {/* Requested Amount */}
-                    <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col justify-between min-w-0">
-                      <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 block truncate">
+                    <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
+                      <div className="bg-blue-600 text-white px-3 py-1.5 sm:py-2 border-b border-blue-700/30">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white block truncate">
                           Requested Loan
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono mt-1 truncate">
+                      </div>
+                      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono truncate">
                           {formatCurrency(requestedAmt, currency)}
                         </p>
+                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 truncate">
+                          Term: <strong className="text-foreground">{loanDuration} Months</strong>
+                        </p>
                       </div>
-                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
-                        Term: <strong className="text-foreground">{loanDuration} Months</strong>
-                      </p>
                     </div>
 
                     {/* Current Contribution */}
-                    <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col justify-between min-w-0">
-                      <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 block truncate">
+                    <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
+                      <div className="bg-blue-600 text-white px-3 py-1.5 sm:py-2 border-b border-blue-700/30">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white block truncate">
                           Member Savings
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono mt-1 truncate">
+                      </div>
+                      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono truncate">
                           {formatCurrency(verifiedContributions, currency)}
                         </p>
+                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 truncate">
+                          Total Verified
+                        </p>
                       </div>
-                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
-                        Total Verified
-                      </p>
                     </div>
 
                     {/* Borrowing Power */}
-                    <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col justify-between min-w-0">
-                      <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 block truncate">
+                    <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
+                      <div className="bg-blue-600 text-white px-3 py-1.5 sm:py-2 border-b border-blue-700/30">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white block truncate">
                           Borrow Power ({maxLoanPercentage}%)
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono mt-1 truncate">
+                      </div>
+                      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono truncate">
                           {formatCurrency(borrowingPower, currency)}
                         </p>
+                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 truncate">
+                          {maxLoanPercentage}% Policy Limit
+                        </p>
                       </div>
-                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
-                        {maxLoanPercentage}% Policy Limit
-                      </p>
                     </div>
 
                     {/* Lending Pool */}
-                    <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-card border border-border shadow-sm flex flex-col justify-between min-w-0">
-                      <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 block truncate">
+                    <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
+                      <div className="bg-blue-600 text-white px-3 py-1.5 sm:py-2 border-b border-blue-700/30">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white block truncate">
                           Lending Pool ({lendingPoolCeilingPct}%)
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono mt-1 truncate">
+                      </div>
+                      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono truncate">
                           {loadingLiquidity ? "..." : formatCurrency(availableGroupPool, currency)}
                         </p>
+                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 truncate">
+                          Available to Lend
+                        </p>
                       </div>
-                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
-                        Available to Lend
-                      </p>
                     </div>
                   </div>
 
@@ -1318,22 +1326,38 @@ function LoansPageContent() {
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-                      <div className="p-2 sm:p-2.5 bg-white dark:bg-card rounded-lg border border-border shadow-sm min-w-0">
-                        <p className="text-[10px] text-blue-600 uppercase font-semibold truncate">Approved Loan</p>
-                        <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono mt-0.5 truncate">{formatCurrency(requestedAmt, currency)}</p>
+                      <div className="rounded-lg border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
+                        <div className="bg-blue-600 text-white px-2 py-1 border-b border-blue-700/30">
+                          <p className="text-[10px] text-white uppercase font-semibold truncate">Approved Loan</p>
+                        </div>
+                        <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
+                          <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono truncate">{formatCurrency(requestedAmt, currency)}</p>
+                        </div>
                       </div>
-                      <div className="p-2 sm:p-2.5 bg-white dark:bg-card rounded-lg border border-border shadow-sm min-w-0">
-                        <p className="text-[10px] text-blue-600 uppercase font-semibold truncate">Interest ({globalRate}%)</p>
-                        <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono mt-0.5 truncate">-{formatCurrency(loanInterest, currency)}</p>
+                      <div className="rounded-lg border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
+                        <div className="bg-blue-600 text-white px-2 py-1 border-b border-blue-700/30">
+                          <p className="text-[10px] text-white uppercase font-semibold truncate">Interest ({globalRate}%)</p>
+                        </div>
+                        <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
+                          <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono truncate">-{formatCurrency(loanInterest, currency)}</p>
+                        </div>
                       </div>
-                      <div className="p-2 sm:p-2.5 bg-white dark:bg-card rounded-lg border border-border shadow-sm min-w-0">
-                        <p className="text-[10px] text-blue-600 uppercase font-semibold truncate">Amount Received</p>
-                        <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono mt-0.5 truncate">{formatCurrency(amountReceived, currency)}</p>
+                      <div className="rounded-lg border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
+                        <div className="bg-blue-600 text-white px-2 py-1 border-b border-blue-700/30">
+                          <p className="text-[10px] text-white uppercase font-semibold truncate">Amount Received</p>
+                        </div>
+                        <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
+                          <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono truncate">{formatCurrency(amountReceived, currency)}</p>
+                        </div>
                       </div>
-                      <div className="p-2 sm:p-2.5 bg-white dark:bg-card rounded-lg border border-border shadow-sm min-w-0">
-                        <p className="text-[10px] text-blue-600 uppercase font-semibold truncate">Total Repayable</p>
-                        <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono mt-0.5 truncate">{formatCurrency(totalPayable, currency)}</p>
-                        <p className="text-[9px] text-muted-foreground mt-0.5 truncate font-mono">({formatCurrency(monthlyPayment, currency)}/mo)</p>
+                      <div className="rounded-lg border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
+                        <div className="bg-blue-600 text-white px-2 py-1 border-b border-blue-700/30">
+                          <p className="text-[10px] text-white uppercase font-semibold truncate">Total Repayable</p>
+                        </div>
+                        <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
+                          <p className="text-xs sm:text-sm font-bold text-black dark:text-white font-mono truncate">{formatCurrency(totalPayable, currency)}</p>
+                          <p className="text-[9px] text-muted-foreground mt-0.5 truncate font-mono">({formatCurrency(monthlyPayment, currency)}/mo)</p>
+                        </div>
                       </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground italic leading-relaxed">
