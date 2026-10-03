@@ -1142,71 +1142,63 @@ function LoansPageContent() {
                   {/* 4 Core Metric Cards: Requested Amount, Current Contribution, Borrowing Power, Group Lending Pool */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
                     {/* Requested Amount */}
-                    <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
-                      <div className="bg-blue-600 text-white px-3 py-1.5 sm:py-2 border-b border-blue-700/30">
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white block truncate">
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-blue-600 text-white border border-blue-700/50 shadow-sm flex flex-col justify-between min-w-0">
+                      <div>
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-100 block truncate">
                           Requested Loan
                         </span>
-                      </div>
-                      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1">
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono truncate">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-white font-mono mt-1 truncate">
                           {formatCurrency(requestedAmt, currency)}
                         </p>
-                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 truncate">
-                          Term: <strong className="text-foreground">{loanDuration} Months</strong>
-                        </p>
                       </div>
+                      <p className="text-[10px] sm:text-[11px] text-blue-100 mt-1.5 truncate">
+                        Term: <strong className="text-white">{loanDuration} Months</strong>
+                      </p>
                     </div>
 
                     {/* Current Contribution */}
-                    <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
-                      <div className="bg-blue-600 text-white px-3 py-1.5 sm:py-2 border-b border-blue-700/30">
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white block truncate">
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-blue-600 text-white border border-blue-700/50 shadow-sm flex flex-col justify-between min-w-0">
+                      <div>
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-100 block truncate">
                           Member Savings
                         </span>
-                      </div>
-                      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1">
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono truncate">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-white font-mono mt-1 truncate">
                           {formatCurrency(verifiedContributions, currency)}
                         </p>
-                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 truncate">
-                          Total Verified
-                        </p>
                       </div>
+                      <p className="text-[10px] sm:text-[11px] text-blue-100 mt-1.5 truncate">
+                        Total Verified
+                      </p>
                     </div>
 
                     {/* Borrowing Power */}
-                    <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
-                      <div className="bg-blue-600 text-white px-3 py-1.5 sm:py-2 border-b border-blue-700/30">
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white block truncate">
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-blue-600 text-white border border-blue-700/50 shadow-sm flex flex-col justify-between min-w-0">
+                      <div>
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-100 block truncate">
                           Borrow Power ({maxLoanPercentage}%)
                         </span>
-                      </div>
-                      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1">
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono truncate">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-white font-mono mt-1 truncate">
                           {formatCurrency(borrowingPower, currency)}
                         </p>
-                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 truncate">
-                          {maxLoanPercentage}% Policy Limit
-                        </p>
                       </div>
+                      <p className="text-[10px] sm:text-[11px] text-blue-100 mt-1.5 truncate">
+                        {maxLoanPercentage}% Policy Limit
+                      </p>
                     </div>
 
                     {/* Lending Pool */}
-                    <div className="rounded-xl border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
-                      <div className="bg-blue-600 text-white px-3 py-1.5 sm:py-2 border-b border-blue-700/30">
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white block truncate">
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-blue-600 text-white border border-blue-700/50 shadow-sm flex flex-col justify-between min-w-0">
+                      <div>
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-100 block truncate">
                           Lending Pool ({lendingPoolCeilingPct}%)
                         </span>
-                      </div>
-                      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1">
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-black dark:text-white font-mono truncate">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-white font-mono mt-1 truncate">
                           {loadingLiquidity ? "..." : formatCurrency(availableGroupPool, currency)}
                         </p>
-                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 truncate">
-                          Available to Lend
-                        </p>
                       </div>
+                      <p className="text-[10px] sm:text-[11px] text-blue-100 mt-1.5 truncate">
+                        Available to Lend
+                      </p>
                     </div>
                   </div>
 
