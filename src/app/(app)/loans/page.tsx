@@ -1102,12 +1102,9 @@ function LoansPageContent() {
                 <DialogHeader className="bg-blue-600 text-white p-4 sm:p-6 pb-4 border-b border-blue-700/30">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
+                      <div className="mb-1.5">
                         <Badge className="bg-white/20 text-white hover:bg-white/30 border-none text-[9px] uppercase font-bold tracking-widest">
-                          Credit Committee Review
-                        </Badge>
-                        <Badge variant="outline" className="text-[9px] uppercase font-mono font-medium text-white border-white/30 bg-white/10">
-                          ID: {selectedLoan.id.slice(0, 8)}
+                          Credit Review
                         </Badge>
                       </div>
                       <DialogTitle className="text-xl sm:text-2xl font-bold font-headline text-white">
