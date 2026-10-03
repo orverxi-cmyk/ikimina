@@ -274,7 +274,7 @@ export default function ContributionsPage() {
   const renderTable = (data: any[]) => (
     <div className="w-full max-w-full overflow-x-auto touch-pan-x overscroll-x-contain">
       <Table className="min-w-[620px] w-full">
-        <TableHeader className="bg-muted/10">
+        <TableHeader>
           <TableRow>
             {isManagement && <TableHead className="px-4 py-3 whitespace-nowrap">Member</TableHead>}
             <TableHead className={cn(!isManagement && "px-4", "py-3 whitespace-nowrap")}>Period</TableHead>

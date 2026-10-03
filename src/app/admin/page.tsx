@@ -755,7 +755,7 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/50">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="font-bold text-[11px] uppercase">Borrower</TableHead>
                     <TableHead className="font-bold text-[11px] uppercase">Facility / Note</TableHead>
@@ -830,7 +830,7 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/50">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="font-bold text-[11px] uppercase">Title / Payee</TableHead>
                     <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>
@@ -968,7 +968,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader className="bg-muted/30">
+                  <TableHeader>
                     <TableRow>
                       <TableHead className="px-4 text-[11px] uppercase">Member</TableHead>
                       <TableHead className="text-center text-[11px] uppercase">Current Role</TableHead>
@@ -1037,7 +1037,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader className="bg-muted/30">
+                  <TableHeader>
                     <TableRow>
                       <TableHead className="px-5">Batch</TableHead>
                       <TableHead>Period</TableHead>

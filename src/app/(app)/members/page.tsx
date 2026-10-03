@@ -339,7 +339,7 @@ export default function MembersPage() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30">
+              <TableRow>
                 <TableHead className="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Member Details</TableHead>
                 <TableHead className="font-bold uppercase text-[10px] tracking-widest">Role</TableHead>
                 <TableHead className="font-bold uppercase text-[10px] tracking-widest">Status</TableHead>

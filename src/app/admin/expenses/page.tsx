@@ -454,7 +454,7 @@ export default function ExpensesAdminPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/50">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="font-bold text-[11px] uppercase">Date &amp; Payee</TableHead>
                     <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>
@@ -555,7 +555,7 @@ export default function ExpensesAdminPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/50">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="font-bold text-[11px] uppercase">Title &amp; Date</TableHead>
                     <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>
@@ -649,7 +649,7 @@ export default function ExpensesAdminPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/50">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="font-bold text-[11px] uppercase">Title &amp; Date</TableHead>
                     <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>

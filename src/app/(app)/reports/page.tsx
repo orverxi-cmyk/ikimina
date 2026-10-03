@@ -434,36 +434,36 @@ export default function ReportsPage() {
       </div>
 
       {/* Undistributed Pool Spotlight Banner */}
-      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-500/20 rounded-2xl p-5 shadow-sm">
+      <div className="bg-blue-600 border border-blue-700/40 rounded-2xl p-5 shadow-sm text-white">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-emerald-500/20 rounded-xl text-emerald-600">
+            <div className="p-3 bg-white/15 rounded-xl text-white">
               <Scale className="h-6 w-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-foreground">Available Undistributed Interest Pool</h3>
-                <Badge variant={reportData.availableUndistributedInterest > 0 ? "default" : "secondary"} className="text-xs">
+                <h3 className="text-base font-bold text-white">Available Undistributed Interest Pool</h3>
+                <Badge variant="secondary" className="text-xs bg-white/20 text-white hover:bg-white/30 border-none font-medium">
                   {reportData.availableUndistributedInterest > 0 ? "Ready to Share" : "Fully Allocated"}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-blue-100 mt-0.5">
                 Total Realized: {formatCurrency(reportData.lifetimeRealizedInterest, currency)} &bull; Previously Distributed: {formatCurrency(reportData.lifetimeDistributedInterest, currency)}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
+              <div className="text-2xl font-extrabold text-white">
                 {formatCurrency(reportData.availableUndistributedInterest, currency)}
               </div>
-              <div className="text-[11px] text-muted-foreground">Net Safe Distribution Pool</div>
+              <div className="text-[11px] text-blue-200">Net Safe Distribution Pool</div>
             </div>
             {isAdmin && reportData.availableUndistributedInterest > 0 && (
               <Button 
                 size="sm" 
                 variant="outline" 
-                className="border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 h-9"
+                className="border-white/40 text-white hover:bg-white/20 h-9 bg-transparent"
                 onClick={() => {
                   setDistributeAmountInput(reportData.availableUndistributedInterest.toString());
                   setIsDialogOpen(true);
@@ -561,13 +561,13 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/5">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="py-4 px-6">Member</TableHead>
                     <TableHead className="text-right">Savings / Contributions</TableHead>
                     <TableHead className="text-right">Pool Share %</TableHead>
-                    <TableHead className="text-right text-primary">Accumulated Interest</TableHead>
-                    <TableHead className="text-right text-foreground">Active Debt</TableHead>
+                    <TableHead className="text-right">Accumulated Interest</TableHead>
+                    <TableHead className="text-right">Active Debt</TableHead>
                     <TableHead className="text-right px-6 font-bold">Net Balance</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -622,7 +622,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/5">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="py-4 px-6">Execution Date</TableHead>
                     <TableHead>Reason / Justification</TableHead>
@@ -809,12 +809,12 @@ export default function ReportsPage() {
                   
                   <div className="rounded-xl border border-muted overflow-hidden">
                     <Table>
-                      <TableHeader className="bg-muted/40">
+                      <TableHeader>
                         <TableRow className="text-xs">
                           <TableHead className="py-2.5">Member</TableHead>
                           <TableHead className="text-right">Share %</TableHead>
                           <TableHead className="text-right">Current Accrued</TableHead>
-                          <TableHead className="text-right text-emerald-600 font-bold">+ New Share</TableHead>
+                          <TableHead className="text-right font-bold">+ New Share</TableHead>
                           <TableHead className="text-right font-extrabold pr-4">= Projected Total</TableHead>
                         </TableRow>
                       </TableHeader>

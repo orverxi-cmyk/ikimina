@@ -572,7 +572,7 @@ function LoansPageContent() {
 
                 <div className="rounded-[10px] border border-border overflow-hidden bg-card shadow-sm">
                   <Table>
-                    <TableHeader className="bg-muted/40">
+                    <TableHeader>
                       <TableRow>
                         <TableHead className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest">Applicant / Staff</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Requested Amount</TableHead>
@@ -726,7 +726,7 @@ function LoansPageContent() {
             <CardContent className="p-0">
               {isManagement ? (
                 <Table>
-                  <TableHeader className="bg-muted/10">
+                  <TableHeader>
                     <TableRow>
                       <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Borrower</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-widest">Description</TableHead>
@@ -772,7 +772,7 @@ function LoansPageContent() {
                 </Table>
               ) : (
                 <Table>
-                  <TableHeader className="bg-muted/10">
+                  <TableHeader>
                     <TableRow>
                       <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Installment</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-widest">Due Date</TableHead>
@@ -825,7 +825,7 @@ function LoansPageContent() {
             </CardHeader>
             <CardContent className="p-0">
                 <Table>
-                <TableHeader className="bg-muted/10">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Purpose</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-widest">Principal</TableHead>
@@ -959,12 +959,12 @@ function LoansPageContent() {
             </CardHeader>
             <CardContent className="p-0">
                <Table>
-                <TableHeader className="bg-destructive/10">
+                <TableHeader>
                   <TableRow>
-                    <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-destructive">Source Loan</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest text-destructive">Missed Due Date</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest text-destructive">Arrears Amount</TableHead>
-                    {!isManagement && <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest text-destructive">Actions</TableHead>}
+                    <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Source Loan</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Missed Due Date</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Arrears Amount</TableHead>
+                    {!isManagement && <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1036,7 +1036,7 @@ function LoansPageContent() {
 
              <div className="max-h-[400px] overflow-auto border rounded-xl">
                <Table>
-                 <TableHeader className="bg-muted/50 sticky top-0">
+                 <TableHeader className="sticky top-0">
                     <TableRow>
                       <TableHead className="text-[10px] font-bold uppercase">Installment</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase">Due Date</TableHead>

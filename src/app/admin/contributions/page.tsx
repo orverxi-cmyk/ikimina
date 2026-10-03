@@ -1182,7 +1182,7 @@ export default function AdminContributionsBulkUploadPage() {
                 <CardContent className="p-0">
                   <div className="overflow-x-auto max-h-[450px]">
                     <Table>
-                      <TableHeader className="bg-muted/40 sticky top-0 z-10">
+                      <TableHeader className="sticky top-0 z-10">
                         <TableRow>
                           <TableHead className="w-12 text-center">#</TableHead>
                           <TableHead className="min-w-[200px]">Staff Member</TableHead>
@@ -1433,7 +1433,7 @@ export default function AdminContributionsBulkUploadPage() {
 
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/30">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="w-12 px-4 text-center">
                       <Checkbox
@@ -1608,7 +1608,7 @@ export default function AdminContributionsBulkUploadPage() {
 
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/30">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="w-12 px-4 text-center">
                       <Checkbox
@@ -1794,7 +1794,7 @@ export default function AdminContributionsBulkUploadPage() {
 
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-muted/30">
+                <TableHeader>
                   <TableRow>
                     <TableHead className="w-12 px-4 text-center">
                       <Checkbox
@@ -1957,7 +1957,7 @@ export default function AdminContributionsBulkUploadPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader className="bg-muted/30">
+                  <TableHeader>
                     <TableRow>
                       <TableHead className="px-6">Batch ID / Title</TableHead>
                       <TableHead>Type</TableHead>
@@ -2070,7 +2070,7 @@ export default function AdminContributionsBulkUploadPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader className="bg-muted/30">
+                  <TableHeader>
                     <TableRow>
                       <TableHead className="w-12 px-4 text-center">
                         <Checkbox
@@ -2180,7 +2180,7 @@ export default function AdminContributionsBulkUploadPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader className="bg-muted/30">
+                  <TableHeader>
                     <TableRow>
                       <TableHead className="px-6">Staff Member</TableHead>
                       <TableHead>Period</TableHead>
@@ -2337,7 +2337,7 @@ export default function AdminContributionsBulkUploadPage() {
                   </div>
                   <div className="max-h-60 overflow-y-auto rounded-xl border border-border">
                     <Table>
-                      <TableHeader className="bg-muted/40 sticky top-0">
+                      <TableHeader className="sticky top-0">
                         <TableRow>
                           <TableHead className="text-[10px] font-bold uppercase">Staff Name</TableHead>
                           <TableHead className="text-[10px] font-bold uppercase">Email</TableHead>
