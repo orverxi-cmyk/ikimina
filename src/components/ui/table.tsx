@@ -22,7 +22,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn("[&_tr]:border-b bg-muted/30 text-[12px]", className)}
+    className={cn("[&_tr]:border-b bg-muted/30 text-[12px] leading-[0] leading-none", className)}
     {...props}
   />
 ))
@@ -77,7 +77,14 @@ const TableHead = React.forwardRef<
   const sanitizedClassName = className
     ? className
         .split(/\s+/)
-        .filter((c) => !c.match(/^text-\[(10|11|13|14|15)px\]$/) && c !== "text-xs" && c !== "text-sm")
+        .filter(
+          (c) =>
+            !c.match(/^text-\[(10|11|13|14|15)px\]$/) &&
+            c !== "text-xs" &&
+            c !== "text-sm" &&
+            !c.startsWith("leading-") &&
+            !c.startsWith("py-")
+        )
         .join(" ")
     : ""
 
@@ -86,7 +93,7 @@ const TableHead = React.forwardRef<
       ref={ref}
       data-typography="header"
       className={cn(
-        "h-11 px-4 text-left align-middle text-[12px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "h-11 px-4 text-left align-middle text-[12px] font-bold leading-[0] leading-none text-muted-foreground uppercase whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         sanitizedClassName
       )}
       {...props}

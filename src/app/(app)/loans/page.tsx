@@ -728,11 +728,11 @@ function LoansPageContent() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="px-6 py-4 text-[12px] font-bold uppercase tracking-widest">Borrower</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Description</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Contract Amount</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Current Balance</TableHead>
-                      <TableHead className="text-right px-6 text-[12px] font-bold uppercase tracking-widest">Actions</TableHead>
+                      <TableHead className="px-6 text-[12px] font-bold uppercase">Borrower</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Description</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Contract Amount</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Current Balance</TableHead>
+                      <TableHead className="text-right px-6 text-[12px] font-bold uppercase">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -774,11 +774,11 @@ function LoansPageContent() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="px-6 py-4 text-[12px] font-bold uppercase tracking-widest">Installment</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Due Date</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Target Amount</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Status</TableHead>
-                      <TableHead className="text-right px-6 text-[12px] font-bold uppercase tracking-widest">Actions</TableHead>
+                      <TableHead className="px-6 text-[12px] font-bold uppercase">Installment</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Due Date</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Target Amount</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Status</TableHead>
+                      <TableHead className="text-right px-6 text-[12px] font-bold uppercase">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -827,12 +827,12 @@ function LoansPageContent() {
                 <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="px-6 py-4 text-[12px] font-bold uppercase tracking-widest">Purpose</TableHead>
-                    <TableHead className="text-[12px] font-bold uppercase tracking-widest">Principal</TableHead>
-                    <TableHead className="text-[12px] font-bold uppercase tracking-widest">Interest</TableHead>
-                    <TableHead className="text-[12px] font-bold uppercase tracking-widest">Status</TableHead>
-                    <TableHead className="text-[12px] font-bold uppercase tracking-widest">Balance</TableHead>
-                    <TableHead className="text-right px-6 text-[12px] font-bold uppercase tracking-widest">Actions</TableHead>
+                    <TableHead className="px-6 text-[12px] font-bold uppercase">Purpose</TableHead>
+                    <TableHead className="text-[12px] font-bold uppercase">Principal</TableHead>
+                    <TableHead className="text-[12px] font-bold uppercase">Interest</TableHead>
+                    <TableHead className="text-[12px] font-bold uppercase">Status</TableHead>
+                    <TableHead className="text-[12px] font-bold uppercase">Balance</TableHead>
+                    <TableHead className="text-right px-6 text-[12px] font-bold uppercase">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
