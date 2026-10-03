@@ -564,10 +564,7 @@ function LoanApplyContent() {
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
-            <p className="text-sm text-foreground leading-relaxed">
-              The lending pool ceiling of <strong>{liquidityMetrics?.maxLendingPoolPercentage || 90}%</strong> of total net assets has been fully utilized. Active loans have reached <strong>{formatCurrency(liquidityMetrics?.currentActiveLoanBalance || 0, currency)}</strong> out of the <strong>{formatCurrency(liquidityMetrics?.maxLendingPool || 0, currency)}</strong> maximum capacity (Total Assets: {formatCurrency(liquidityMetrics?.netTotalAssets || 0, currency)}).
-            </p>
-            <p className="text-xs text-muted-foreground font-medium">
+            <p className="text-sm text-muted-foreground font-medium leading-relaxed">
               New loan applications are temporarily paused until members make loan repayments or institutional assets expand. The application form is currently disabled to prevent failed requests.
             </p>
             <div className="flex items-center gap-3 pt-2 flex-wrap">
