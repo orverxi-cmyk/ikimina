@@ -1069,7 +1069,7 @@ function LoansPageContent() {
 
       {/* LOAN REVIEW & UNDERWRITING DIALOG (Management / Admin) */}
       <Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
-        <DialogContent className="max-w-2xl rounded-2xl bg-card p-0 overflow-hidden shadow-2xl border border-border">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-3xl lg:max-w-4xl rounded-2xl bg-card p-0 overflow-hidden shadow-2xl border border-border">
           {selectedLoan && (() => {
             const applicantMember = getMember(selectedLoan.memberId);
             const memberName = getMemberName(selectedLoan.memberId);
@@ -1099,10 +1099,10 @@ function LoansPageContent() {
             return (
               <form onSubmit={handleApproveLoan} className="flex flex-col max-h-[90vh]">
                 {/* Header */}
-                <DialogHeader className="p-6 pb-4 bg-muted/20 border-b">
+                <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/20 border-b">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                         <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">
                           Credit Committee Review
                         </Badge>
@@ -1110,7 +1110,7 @@ function LoansPageContent() {
                           ID: {selectedLoan.id.slice(0, 8)}
                         </Badge>
                       </div>
-                      <DialogTitle className="text-xl font-bold font-headline">
+                      <DialogTitle className="text-lg sm:text-xl font-bold font-headline">
                         Loan Application &amp; Borrowing Status
                       </DialogTitle>
                       <DialogDescription className="text-xs">
@@ -1121,103 +1121,103 @@ function LoansPageContent() {
                 </DialogHeader>
 
                 {/* Body */}
-                <div className="p-6 space-y-6 overflow-y-auto">
+                <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto">
                   {/* Applicant Profile Bar */}
-                  <div className="p-4 rounded-xl bg-muted/40 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border border-border">
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-muted/40 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-10 w-10 border border-border shrink-0">
                         <AvatarImage src={applicantMember?.avatarUrl} />
                         <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
                           {memberName.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <p className="font-bold text-sm text-foreground">{memberName}</p>
-                        <p className="text-xs text-muted-foreground">{applicantMember?.email || 'Registered Member'}</p>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-foreground truncate">{memberName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{applicantMember?.email || 'Registered Member'}</p>
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground sm:text-right">
+                    <div className="text-xs text-muted-foreground sm:text-right shrink-0">
                       <p className="font-semibold text-foreground">Requested On</p>
                       <p>{selectedLoan.requestDate?.toDate ? format(selectedLoan.requestDate.toDate(), 'PPP') : format(new Date(), 'PPP')}</p>
                     </div>
                   </div>
 
                   {/* 4 Core Metric Cards: Requested Amount, Current Contribution, Borrowing Power, Group Lending Pool */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
                     {/* Requested Amount */}
-                    <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/20 flex flex-col justify-between">
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-primary/5 border border-primary/20 flex flex-col justify-between min-w-0">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-primary block truncate">
                           Requested Loan
                         </span>
-                        <p className="text-xl font-bold text-primary font-headline mt-1">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-primary font-headline mt-1 truncate">
                           {formatCurrency(requestedAmt, currency)}
                         </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-2">
+                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
                         Term: <strong>{loanDuration} Months</strong>
                       </p>
                     </div>
 
                     {/* Current Contribution */}
-                    <div className="p-3.5 rounded-xl bg-muted/50 border border-border flex flex-col justify-between">
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-muted/50 border border-border flex flex-col justify-between min-w-0">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground block truncate">
                           Member Savings
                         </span>
-                        <p className="text-xl font-bold text-foreground font-headline mt-1">
+                        <p className="text-base sm:text-lg lg:text-xl font-bold text-foreground font-headline mt-1 truncate">
                           {formatCurrency(verifiedContributions, currency)}
                         </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-2">
+                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
                         Total Verified
                       </p>
                     </div>
 
                     {/* Borrowing Power */}
                     <div className={cn(
-                      "p-3.5 rounded-xl border flex flex-col justify-between transition-colors",
+                      "p-3 sm:p-3.5 rounded-xl border flex flex-col justify-between transition-colors min-w-0",
                       isEligible ? "bg-green-600/5 border-green-600/20" : "bg-muted/50 border-border"
                     )}>
                       <div>
                         <span className={cn(
-                          "text-[10px] font-bold uppercase tracking-wider",
+                          "text-[10px] sm:text-[11px] font-bold uppercase tracking-wider block truncate",
                           isEligible ? "text-green-700 dark:text-green-400" : "text-foreground"
                         )}>
                           Borrow Power ({maxLoanPercentage}%)
                         </span>
                         <p className={cn(
-                          "text-xl font-bold font-headline mt-1",
+                          "text-base sm:text-lg lg:text-xl font-bold font-headline mt-1 truncate",
                           isEligible ? "text-green-700 dark:text-green-400" : "text-foreground"
                         )}>
                           {formatCurrency(borrowingPower, currency)}
                         </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-2">
+                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
                         {maxLoanPercentage}% Policy Limit
                       </p>
                     </div>
 
                     {/* Lending Pool */}
                     <div className={cn(
-                      "p-3.5 rounded-xl border flex flex-col justify-between transition-colors",
+                      "p-3 sm:p-3.5 rounded-xl border flex flex-col justify-between transition-colors min-w-0",
                       isPoolExhausted ? "bg-destructive/10 border-destructive/30" : "bg-emerald-500/10 border-emerald-500/30"
                     )}>
                       <div>
                         <span className={cn(
-                          "text-[10px] font-bold uppercase tracking-wider",
+                          "text-[10px] sm:text-[11px] font-bold uppercase tracking-wider block truncate",
                           isPoolExhausted ? "text-destructive font-black" : "text-emerald-700 dark:text-emerald-400"
                         )}>
                           Lending Pool ({lendingPoolCeilingPct}%)
                         </span>
                         <p className={cn(
-                          "text-xl font-bold font-headline mt-1",
+                          "text-base sm:text-lg lg:text-xl font-bold font-headline mt-1 truncate",
                           isPoolExhausted ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"
                         )}>
                           {loadingLiquidity ? "..." : formatCurrency(availableGroupPool, currency)}
                         </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-2">
+                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1.5 sm:mt-2 truncate">
                         Available to Lend
                       </p>
                     </div>
@@ -1274,14 +1274,14 @@ function LoansPageContent() {
                   {/* Management Approval Exception Card */}
                   {(selectedLoan.exceedsBorrowingPower || selectedLoan.managementApprovalUrl) && (
                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-foreground space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <ShieldAlert className="h-5 w-5 text-primary shrink-0" />
                           <p className="font-bold text-sm">
                             Management Quota Exception Authorized
                           </p>
                         </div>
-                        <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase">
+                        <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase w-fit">
                           Attached Proof
                         </Badge>
                       </div>
@@ -1303,7 +1303,7 @@ function LoansPageContent() {
                             type="button"
                             asChild
                             size="sm"
-                            className="h-9 rounded-xl font-bold text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                            className="h-9 rounded-xl font-bold text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm w-full sm:w-auto"
                           >
                             <a href={selectedLoan.managementApprovalUrl} target="_blank" rel="noopener noreferrer">
                               <FileText className="h-4 w-4" />
@@ -1329,41 +1329,41 @@ function LoansPageContent() {
                   )}
 
                   {/* Repayment Breakdown */}
-                  <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-3">
-                    <div className="flex items-center justify-between">
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-muted/30 border border-border space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                         Financial Schedule Projection
                       </p>
-                      <Badge className="bg-emerald-600 text-white font-bold text-[9px] uppercase">
+                      <Badge className="bg-emerald-600 text-white font-bold text-[9px] uppercase w-fit">
                         Upfront Interest Deduction
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                      <div className="p-2.5 bg-background rounded-lg border border-border">
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Approved Loan</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">{formatCurrency(requestedAmt, currency)}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                      <div className="p-2 sm:p-2.5 bg-background rounded-lg border border-border min-w-0">
+                        <p className="text-[10px] text-muted-foreground uppercase font-semibold truncate">Approved Loan</p>
+                        <p className="text-xs sm:text-sm font-bold text-foreground mt-0.5 truncate">{formatCurrency(requestedAmt, currency)}</p>
                       </div>
-                      <div className="p-2.5 bg-background rounded-lg border border-border">
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Interest ({globalRate}%)</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">-{formatCurrency(loanInterest, currency)}</p>
+                      <div className="p-2 sm:p-2.5 bg-background rounded-lg border border-border min-w-0">
+                        <p className="text-[10px] text-muted-foreground uppercase font-semibold truncate">Interest ({globalRate}%)</p>
+                        <p className="text-xs sm:text-sm font-bold text-foreground mt-0.5 truncate">-{formatCurrency(loanInterest, currency)}</p>
                       </div>
-                      <div className="p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
-                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase font-semibold">Amount Received</p>
-                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatCurrency(amountReceived, currency)}</p>
+                      <div className="p-2 sm:p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/30 min-w-0">
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase font-semibold truncate">Amount Received</p>
+                        <p className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 truncate">{formatCurrency(amountReceived, currency)}</p>
                       </div>
-                      <div className="p-2.5 bg-background rounded-lg border border-border">
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Total Repayable</p>
-                        <p className="text-xs font-bold text-primary mt-0.5">{formatCurrency(totalPayable, currency)}</p>
-                        <p className="text-[9px] text-muted-foreground mt-0.5">({formatCurrency(monthlyPayment, currency)}/mo)</p>
+                      <div className="p-2 sm:p-2.5 bg-background rounded-lg border border-border min-w-0">
+                        <p className="text-[10px] text-muted-foreground uppercase font-semibold truncate">Total Repayable</p>
+                        <p className="text-xs sm:text-sm font-bold text-primary mt-0.5 truncate">{formatCurrency(totalPayable, currency)}</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5 truncate">({formatCurrency(monthlyPayment, currency)}/mo)</p>
                       </div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground italic">
+                    <p className="text-[10px] text-muted-foreground italic leading-relaxed">
                       * Interest of {formatCurrency(loanInterest, currency)} is deducted from the approved loan. Borrower receives {formatCurrency(amountReceived, currency)} and repays the full {formatCurrency(totalPayable, currency)} over {loanDuration} months.
                     </p>
                   </div>
 
                   {/* Approval Parameters */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold uppercase tracking-wider">Duration (Months)</Label>
                       <Input 
@@ -1402,7 +1402,7 @@ function LoansPageContent() {
                 </div>
 
                 {/* Footer Controls */}
-                <DialogFooter className="p-6 pt-4 bg-muted/20 border-t flex flex-col sm:flex-row items-center justify-between gap-3">
+                <DialogFooter className="p-4 sm:p-6 pt-3 sm:pt-4 bg-muted/20 border-t flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
                   <Button
                     type="button"
                     variant="outline"
@@ -1410,7 +1410,7 @@ function LoansPageContent() {
                       setIsReviewOpen(false);
                       setIsRejectOpen(true);
                     }}
-                    className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-5 w-full sm:w-auto"
+                    className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-10 sm:h-11 px-5 w-full sm:w-auto"
                   >
                     <Ban className="mr-2 h-4 w-4" /> Reject Request
                   </Button>
@@ -1420,7 +1420,7 @@ function LoansPageContent() {
                       type="button"
                       variant="ghost"
                       onClick={() => setIsReviewOpen(false)}
-                      className="rounded-xl font-bold h-11 px-4 flex-1 sm:flex-none"
+                      className="rounded-xl font-bold h-10 sm:h-11 px-4 flex-1 sm:flex-none"
                     >
                       Close
                     </Button>
@@ -1428,7 +1428,7 @@ function LoansPageContent() {
                       type="submit"
                       disabled={isSubmitting || isPoolExhausted}
                       className={cn(
-                        "rounded-xl font-bold text-white shadow-lg h-11 px-6 flex-1 sm:flex-none",
+                        "rounded-xl font-bold text-white shadow-lg h-10 sm:h-11 px-6 flex-1 sm:flex-none",
                         isPoolExhausted 
                           ? "bg-muted text-muted-foreground cursor-not-allowed border border-border" 
                           : "bg-green-600 hover:bg-green-700"
