@@ -743,23 +743,23 @@ export default function ExpensesAdminPage() {
 
       {/* MODAL 1: LODGE EXPENSE (Accountant / Admin) */}
       <Dialog open={isLodgeOpen} onOpenChange={setIsLodgeOpen}>
-        <DialogContent className="max-w-lg rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="w-[95vw] sm:max-w-xl md:max-w-2xl rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
           <form onSubmit={handleLodgeExpense} className="flex flex-col">
-            <DialogHeader className="p-6 pb-4 bg-muted/30 border-b">
+            <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/30 border-b">
               <div className="flex items-center gap-2 mb-1">
                 <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">
                   Accountant Desk
                 </Badge>
               </div>
-              <DialogTitle className="text-xl font-bold font-headline">Lodge Operational Expense</DialogTitle>
+              <DialogTitle className="text-lg sm:text-xl font-bold font-headline">Lodge Operational Expense</DialogTitle>
               <DialogDescription className="text-xs">
                 Submit an institutional operational outflow with mandatory supporting voucher or receipt.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5 col-span-2">
+            <div className="p-4 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 col-span-1 sm:col-span-2">
                   <Label className="text-xs font-bold uppercase tracking-wider">Title / Payee *</Label>
                   <Input 
                     value={title}
@@ -795,8 +795,8 @@ export default function ExpensesAdminPage() {
                   />
                 </div>
 
-                <div className="space-y-1.5 col-span-2">
-                  <div className="flex justify-between items-center">
+                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1">
                     <Label className="text-xs font-bold uppercase tracking-wider">Expense Amount ({currency}) *</Label>
                     <span className="text-[10px] text-muted-foreground font-bold">Subtracted from Total Assets on Approval</span>
                   </div>
@@ -941,11 +941,11 @@ export default function ExpensesAdminPage() {
 
       {/* MODAL 2: REVIEW & APPROVE (Administrator Only) */}
       <Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
-        <DialogContent className="max-w-lg rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="w-[95vw] sm:max-w-xl md:max-w-2xl rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
           {selectedExpense && (
             <div className="flex flex-col">
-              <DialogHeader className="p-6 pb-4 bg-muted/30 border-b">
-                <div className="flex items-center gap-2 mb-1">
+              <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/30 border-b">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">
                     Executive Review
                   </Badge>
@@ -953,45 +953,45 @@ export default function ExpensesAdminPage() {
                     ID: {selectedExpense.id.slice(0, 8)}
                   </Badge>
                 </div>
-                <DialogTitle className="text-xl font-bold font-headline">Audit &amp; Authorize Expense</DialogTitle>
+                <DialogTitle className="text-lg sm:text-xl font-bold font-headline">Audit &amp; Authorize Expense</DialogTitle>
                 <DialogDescription className="text-xs">
                   Review supporting documentation. Approving will subtract this sum from total institutional assets.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 space-y-4 max-h-[65vh] overflow-y-auto">
                 {/* Metric Summary */}
-                <div className="p-4 rounded-xl bg-muted border border-border flex items-center justify-between">
-                  <div>
+                <div className="p-3.5 sm:p-4 rounded-xl bg-muted border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="min-w-0">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Disbursement Amount
                     </span>
-                    <p className="text-2xl font-bold text-foreground font-headline mt-0.5">
+                    <p className="text-xl sm:text-2xl font-bold text-foreground font-headline mt-0.5 break-all">
                       -{formatCurrency(selectedExpense.amount, currency)}
                     </p>
                   </div>
-                  <Badge variant="outline" className="font-semibold text-xs border-border text-foreground">
+                  <Badge variant="outline" className="font-semibold text-xs border-border text-foreground self-start sm:self-auto shrink-0 max-w-full truncate">
                     {selectedExpense.category}
                   </Badge>
                 </div>
 
                 {/* Details Grid */}
-                <div className="grid grid-cols-2 gap-3 text-xs bg-muted/30 p-3.5 rounded-xl border border-border">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-muted/30 p-3.5 rounded-xl border border-border">
+                  <div className="min-w-0">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Title / Payee</span>
-                    <p className="font-bold text-foreground mt-0.5">{selectedExpense.title}</p>
+                    <p className="font-bold text-foreground mt-0.5 break-words">{selectedExpense.title}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Expense Date</span>
                     <p className="font-bold text-foreground mt-0.5">{selectedExpense.expenseDate}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Lodged By</span>
-                    <p className="font-semibold text-foreground mt-0.5">{selectedExpense.lodgedByName || 'Accountant'}</p>
+                    <p className="font-semibold text-foreground mt-0.5 break-words">{selectedExpense.lodgedByName || 'Accountant'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground">Accountant Email</span>
-                    <p className="font-mono text-[11px] text-muted-foreground mt-0.5">{selectedExpense.lodgedByEmail || '—'}</p>
+                    <p className="font-mono text-[11px] text-muted-foreground mt-0.5 break-all">{selectedExpense.lodgedByEmail || '—'}</p>
                   </div>
                 </div>
 
@@ -1001,7 +1001,7 @@ export default function ExpensesAdminPage() {
                     <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Operational Justification
                     </Label>
-                    <div className="p-3 bg-muted/40 rounded-xl text-xs text-foreground italic border border-border/50">
+                    <div className="p-3 bg-muted/40 rounded-xl text-xs text-foreground italic border border-border/50 break-words whitespace-pre-wrap">
                       &ldquo;{selectedExpense.description}&rdquo;
                     </div>
                   </div>
@@ -1013,14 +1013,14 @@ export default function ExpensesAdminPage() {
                     Supporting Document (Proof)
                   </Label>
                   {selectedExpense.receiptUrl ? (
-                    <div className="p-3 bg-background rounded-xl border border-primary/20 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-3 bg-background rounded-xl border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <FileText className="h-5 w-5 text-primary shrink-0" />
-                        <span className="text-xs font-bold truncate text-foreground">
+                        <span className="text-xs font-bold truncate text-foreground min-w-0">
                           {selectedExpense.receiptFileName || 'Supporting_Receipt.pdf'}
                         </span>
                       </div>
-                      <Button asChild size="sm" className="h-8 rounded-lg font-bold text-xs gap-1.5">
+                      <Button asChild size="sm" className="h-8 rounded-lg font-bold text-xs gap-1.5 shrink-0 w-full sm:w-auto justify-center">
                         <a href={selectedExpense.receiptUrl} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="h-3.5 w-3.5" /> Inspect Document
                         </a>
@@ -1040,27 +1040,27 @@ export default function ExpensesAdminPage() {
                     value={adminNotes}
                     onChange={(e) => setAdminNotes(e.target.value)}
                     placeholder="e.g., Verified against physical invoice, approved for debit..."
-                    className="h-10 rounded-xl bg-muted/40 text-xs"
+                    className="h-10 rounded-xl bg-muted/40 text-xs w-full"
                   />
                 </div>
               </div>
 
-              <DialogFooter className="p-6 pt-4 bg-muted/30 border-t flex flex-col sm:flex-row items-center justify-between gap-3">
+              <DialogFooter className="p-4 sm:p-6 pt-3 sm:pt-4 bg-muted/30 border-t flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsRejectOpen(true)}
-                  className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-5 w-full sm:w-auto"
+                  className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1 w-full md:w-auto shrink-0"
                 >
                   <Ban className="mr-2 h-4 w-4" /> Reject Expense
                 </Button>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 order-1 md:order-2 w-full md:w-auto">
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={() => setIsReviewOpen(false)}
-                    className="rounded-xl font-bold h-11 px-4 flex-1 sm:flex-none"
+                    className="rounded-xl font-bold h-11 px-4 w-full sm:w-auto"
                   >
                     Close
                   </Button>
@@ -1068,7 +1068,7 @@ export default function ExpensesAdminPage() {
                     type="button"
                     disabled={isSubmitting}
                     onClick={handleApprove}
-                    className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-6 flex-1 sm:flex-none gap-2"
+                    className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
                   >
                     {isSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1086,7 +1086,7 @@ export default function ExpensesAdminPage() {
 
       {/* MODAL 3: REJECT EXPENSE DIALOG */}
       <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
-        <DialogContent className="max-w-md rounded-2xl bg-card border shadow-2xl">
+        <DialogContent className="w-[95vw] sm:max-w-md rounded-2xl bg-card border shadow-2xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2 text-destructive">
               <XCircle className="h-5 w-5" /> Reject Operational Expense
