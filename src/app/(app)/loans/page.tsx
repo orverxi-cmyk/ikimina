@@ -1005,8 +1005,8 @@ function LoansPageContent() {
       <Dialog open={isViewScheduleOpen} onOpenChange={setIsViewScheduleOpen}>
         <DialogContent className="max-w-3xl rounded-[10px] bg-card p-0 overflow-hidden">
           <DialogHeader className="p-6 bg-muted/30 border-b">
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" /> Loan Repayment Schedule
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-blue-600">
+              <Calendar className="h-5 w-5 text-blue-600" /> Loan Repayment Schedule
             </DialogTitle>
             <DialogDescription>
               Detailed breakdown for {selectedLoan ? getMemberName(selectedLoan.memberId) : 'member'}'s capital loan.
@@ -1014,34 +1014,34 @@ function LoansPageContent() {
           </DialogHeader>
           <div className="p-6">
              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-                <div className="bg-muted p-3 rounded-xl border border-border">
-                   <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Contract Principal</p>
-                   <p className="text-base sm:text-lg font-bold">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
+                <div className="bg-blue-600 p-3.5 rounded-xl border border-blue-700/50 shadow-sm text-white flex flex-col justify-center">
+                   <p className="text-[10px] font-bold uppercase text-blue-100 tracking-wider mb-1">Contract Principal</p>
+                   <p className="text-base sm:text-lg font-extrabold text-white font-mono">{selectedLoan ? formatCurrency(selectedLoan.amount, currency) : '-'}</p>
                 </div>
-                <div className="bg-muted p-3 rounded-xl border border-border">
-                   <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Upfront Interest ({globalRate}%)</p>
-                   <p className="text-base sm:text-lg font-bold text-foreground">-{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
+                <div className="bg-blue-600 p-3.5 rounded-xl border border-blue-700/50 shadow-sm text-white flex flex-col justify-center">
+                   <p className="text-[10px] font-bold uppercase text-blue-100 tracking-wider mb-1">Upfront Interest ({globalRate}%)</p>
+                   <p className="text-base sm:text-lg font-extrabold text-white font-mono">-{selectedLoan ? formatCurrency(selectedLoan.interestAmount || 0, currency) : '-'}</p>
                 </div>
-                <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
-                   <p className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-400 tracking-widest mb-1">Amount Received</p>
-                   <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                <div className="bg-blue-600 p-3.5 rounded-xl border border-blue-700/50 shadow-sm text-white flex flex-col justify-center">
+                   <p className="text-[10px] font-bold uppercase text-blue-100 tracking-wider mb-1">Amount Received</p>
+                   <p className="text-base sm:text-lg font-extrabold text-white font-mono">
                      {selectedLoan ? formatCurrency(selectedLoan.netDisbursed ?? (selectedLoan.amount - (selectedLoan.interestAmount || 0)), currency) : '-'}
                    </p>
                 </div>
-                <div className="bg-primary/5 p-3 rounded-xl border border-primary/10">
-                   <p className="text-[10px] font-bold uppercase text-primary tracking-widest mb-1">Outstanding Balance</p>
-                   <p className="text-base sm:text-lg font-bold text-primary">{selectedLoan ? formatCurrency(selectedLoan.balance || 0, currency) : '-'}</p>
+                <div className="bg-blue-600 p-3.5 rounded-xl border border-blue-700/50 shadow-sm text-white flex flex-col justify-center">
+                   <p className="text-[10px] font-bold uppercase text-blue-100 tracking-wider mb-1">Outstanding Balance</p>
+                   <p className="text-base sm:text-lg font-extrabold text-white font-mono">{selectedLoan ? formatCurrency(selectedLoan.balance || 0, currency) : '-'}</p>
                 </div>
              </div>
 
              <div className="max-h-[400px] overflow-auto border rounded-xl">
                <Table>
-                 <TableHeader className="sticky top-0">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-bold uppercase">Installment</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase">Due Date</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase">Amount</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase text-right">Status</TableHead>
+                 <TableHeader className="sticky top-0 bg-blue-600 z-10 shadow-sm">
+                    <TableRow className="border-b border-blue-700/50 hover:bg-transparent">
+                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Installment</TableHead>
+                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Due Date</TableHead>
+                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Amount</TableHead>
+                      <TableHead className="text-[11px] font-bold uppercase text-white text-right py-3 px-4">Status</TableHead>
                     </TableRow>
                  </TableHeader>
                  <TableBody>
