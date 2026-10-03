@@ -84,7 +84,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), [firestore]);
   const { data: settingsData } = useDoc(settingsRef);
-  const infrastructureBranding = settingsData?.infrastructureBranding || 'Secure Infrastructure Provided by ORVEXI';
+  const infrastructureBranding = settingsData?.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
 
   // Cached role logic to prevent role loss or flicker during page navigation
   const [cachedRole, setCachedRole] = useState<string | null>(null);
@@ -280,7 +280,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <Link href="/login" className="text-xs text-muted-foreground hover:text-primary transition-colors">
               Looking for member login? Go to Member Portal →
             </Link>
-            <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold">
+            <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold leading-none">
               {infrastructureBranding}
             </p>
           </CardFooter>

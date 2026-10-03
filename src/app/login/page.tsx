@@ -61,7 +61,7 @@ export default function LoginPage() {
 
   const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), [firestore]);
   const { data: settingsData } = useDoc(settingsRef);
-  const infrastructureBranding = settingsData?.infrastructureBranding || 'Secure Infrastructure Provided by ORVEXI';
+  const infrastructureBranding = settingsData?.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
 
   useEffect(() => {
     const handleAuthLink = async () => {
@@ -493,8 +493,8 @@ export default function LoginPage() {
           )}
         </CardContent>
 
-        <CardFooter className="justify-center border-t p-4">
-          <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold">
+        <CardFooter className="justify-center border-t py-3 px-4">
+          <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold leading-none">
             {infrastructureBranding}
           </p>
         </CardFooter>
