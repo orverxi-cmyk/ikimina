@@ -691,20 +691,20 @@ function LoansPageContent() {
       )}
 
       <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-14 rounded-[10px] bg-muted border border-border p-1.5 mb-8">
-          <TabsTrigger value="schedule" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-14 p-1.5 mb-8">
+          <TabsTrigger value="schedule" className="gap-2 uppercase tracking-wider text-[11px]">
             <Calendar className="h-4 w-4" /> {isManagement ? 'Active Loans' : 'My Schedule'}
           </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground">
+          <TabsTrigger value="history" className="gap-2 uppercase tracking-wider text-[11px]">
             <HistoryIcon className="h-4 w-4" /> History
           </TabsTrigger>
-          <TabsTrigger value="interest" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground">
+          <TabsTrigger value="interest" className="gap-2 uppercase tracking-wider text-[11px]">
             <Landmark className="h-4 w-4" /> Interest
           </TabsTrigger>
-          <TabsTrigger value="arrears" className="rounded-[8px] font-bold text-xs uppercase tracking-widest gap-2 data-[state=active]:bg-card data-[state=active]:text-foreground text-muted-foreground relative">
+          <TabsTrigger value="arrears" className="gap-2 uppercase tracking-wider text-[11px] relative">
             <AlertTriangle className="h-4 w-4" /> Arrears
             {missedInstallments.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] text-white animate-bounce">
+              <span className="ml-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
                 {missedInstallments.length}
               </span>
             )}

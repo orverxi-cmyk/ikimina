@@ -540,11 +540,11 @@ export default function ReportsPage() {
       {/* Main Tabs: Member Audit Standings vs Distribution History */}
       <Tabs defaultValue="standings" className="w-full">
         <div className="flex items-center justify-between mb-4">
-          <TabsList className="bg-muted/40 p-1 rounded-xl">
-            <TabsTrigger value="standings" className="rounded-lg text-sm font-semibold">
+          <TabsList>
+            <TabsTrigger value="standings">
               <PiggyBank className="h-4 w-4 mr-2" /> Member Standings Audit
             </TabsTrigger>
-            <TabsTrigger value="history" className="rounded-lg text-sm font-semibold">
+            <TabsTrigger value="history">
               <History className="h-4 w-4 mr-2" /> Distribution History Ledger
             </TabsTrigger>
           </TabsList>

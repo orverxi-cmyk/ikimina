@@ -417,27 +417,27 @@ export default function ExpensesAdminPage() {
 
       {/* Tabs Hub: Pending, Approved, Rejected */}
       <Tabs defaultValue="pending" className="space-y-6">
-        <TabsList className="bg-muted p-1 rounded-xl">
-          <TabsTrigger value="pending" className="rounded-lg font-bold text-xs gap-2">
+        <TabsList>
+          <TabsTrigger value="pending" className="gap-2">
             <Clock className="h-3.5 w-3.5" />
             Pending Approval
             {pendingExpenses.length > 0 && (
-              <Badge className="bg-primary text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full">
+              <Badge className="bg-white/20 text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
                 {pendingExpenses.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="approved" className="rounded-lg font-bold text-xs gap-2">
-            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+          <TabsTrigger value="approved" className="gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5" />
             Approved Expenses
-            <Badge variant="outline" className="text-[10px] font-mono h-4 min-w-4 px-1">
+            <Badge className="bg-white/20 text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
               {approvedExpenses.length}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="rejected" className="rounded-lg font-bold text-xs gap-2">
-            <XCircle className="h-3.5 w-3.5 text-destructive" />
+          <TabsTrigger value="rejected" className="gap-2">
+            <XCircle className="h-3.5 w-3.5" />
             Rejected
-            <Badge variant="outline" className="text-[10px] font-mono h-4 min-w-4 px-1">
+            <Badge className="bg-white/20 text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
               {rejectedExpenses.length}
             </Badge>
           </TabsTrigger>

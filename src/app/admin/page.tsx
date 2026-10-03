@@ -544,30 +544,30 @@ export default function AdminDashboard() {
 
       {/* DETAILED INTERACTIVE MODULE TABS */}
       <Tabs defaultValue="balance-sheet" className="space-y-6">
-        <TabsList className="bg-muted p-1 rounded-xl flex-wrap">
-          <TabsTrigger value="balance-sheet" className="rounded-lg font-bold text-xs gap-2">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="balance-sheet" className="gap-2">
             <PieChart className="h-3.5 w-3.5" />
             Asset Reconciliation
           </TabsTrigger>
-          <TabsTrigger value="arrears-watchlist" className="rounded-lg font-bold text-xs gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-foreground" />
+          <TabsTrigger value="arrears-watchlist" className="gap-2">
+            <AlertTriangle className="h-3.5 w-3.5" />
             Arrears Watchlist
             {arrearsList.length > 0 && (
-              <Badge variant="destructive" className="font-mono text-[9px] h-4 min-w-4 px-1 rounded-full">
+              <Badge className="bg-destructive text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
                 {arrearsList.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="expenses-ledger" className="rounded-lg font-bold text-xs gap-2">
-            <Receipt className="h-3.5 w-3.5 text-primary" />
+          <TabsTrigger value="expenses-ledger" className="gap-2">
+            <Receipt className="h-3.5 w-3.5" />
             Operating Expenses
             {pendingExpenses.length > 0 && (
-              <Badge className="bg-primary text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full">
+              <Badge className="bg-white/20 text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
                 {pendingExpenses.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="source-deductions" className="rounded-lg font-bold text-xs gap-2">
+          <TabsTrigger value="source-deductions" className="gap-2">
             <FileSpreadsheet className="h-3.5 w-3.5" />
             Payroll Batches
           </TabsTrigger>

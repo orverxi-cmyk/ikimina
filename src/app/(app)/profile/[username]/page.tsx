@@ -130,10 +130,10 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="bg-card border w-full md:w-fit grid grid-cols-3 rounded-2xl p-1 h-12">
-          <TabsTrigger value="overview" className="rounded-xl font-bold text-xs"><Landmark className="mr-2 h-4 w-4" /> Summary</TabsTrigger>
-          <TabsTrigger value="contributions" className="rounded-xl font-bold text-xs"><Wallet className="mr-2 h-4 w-4" /> Contributions</TabsTrigger>
-          <TabsTrigger value="loans" className="rounded-xl font-bold text-xs"><HandCoins className="mr-2 h-4 w-4" /> Loans</TabsTrigger>
+        <TabsList className="w-full md:w-fit grid grid-cols-3 h-12">
+          <TabsTrigger value="overview"><Landmark className="mr-2 h-4 w-4" /> Summary</TabsTrigger>
+          <TabsTrigger value="contributions"><Wallet className="mr-2 h-4 w-4" /> Contributions</TabsTrigger>
+          <TabsTrigger value="loans"><HandCoins className="mr-2 h-4 w-4" /> Loans</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">

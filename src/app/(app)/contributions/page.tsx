@@ -586,12 +586,12 @@ export default function ContributionsPage() {
         <div className="space-y-4 sm:space-y-6 lg:col-span-2 w-full min-w-0 max-w-full">
           <Tabs defaultValue="history" onValueChange={setActiveTab} className="w-full min-w-0 max-w-full">
             <div className="w-full overflow-x-auto no-scrollbar pb-1">
-              <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-5 h-11 rounded-xl bg-muted/50 p-1 mb-4 sm:mb-6 border border-border">
-                <TabsTrigger value="history" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">History</TabsTrigger>
-                <TabsTrigger value="pending" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">Pending</TabsTrigger>
-                <TabsTrigger value="verified" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">Verified</TabsTrigger>
-                <TabsTrigger value="reversed" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">Reversed</TabsTrigger>
-                <TabsTrigger value="rejected" className="rounded-lg font-bold text-[11px] uppercase tracking-wider px-3 whitespace-nowrap">Rejected</TabsTrigger>
+              <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-5 h-11 mb-4 sm:mb-6">
+                <TabsTrigger value="history" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">History</TabsTrigger>
+                <TabsTrigger value="pending" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">Pending</TabsTrigger>
+                <TabsTrigger value="verified" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">Verified</TabsTrigger>
+                <TabsTrigger value="reversed" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">Reversed</TabsTrigger>
+                <TabsTrigger value="rejected" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">Rejected</TabsTrigger>
               </TabsList>
             </div>
 
