@@ -147,10 +147,6 @@ export default function DashboardPage() {
                </Link>
              </Button>
            )}
-           <div className="text-right hidden sm:block ml-2">
-              <p className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Active System Policy</p>
-              <p className="text-[12px] font-normal">1 {currency} = {currency}</p>
-            </div>
         </div>
       </div>
 
