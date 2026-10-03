@@ -57,6 +57,7 @@ import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'fir
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { SettingsProvider } from '@/context/settings-context';
+import { AppFooter } from '@/components/layout/app-footer';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -558,12 +559,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </aside>
           
-          <main className="flex-1 overflow-y-auto overflow-x-hidden rounded-[10px] relative min-w-0">
-            <div className="min-h-full min-w-0 w-full">
-              <SettingsProvider>
+          <main className="flex-1 overflow-y-auto overflow-x-hidden rounded-[10px] relative min-w-0 flex flex-col">
+            <SettingsProvider>
+              <div className="flex-1 min-w-0 w-full">
                 {children}
-              </SettingsProvider>
-            </div>
+              </div>
+              <AppFooter />
+            </SettingsProvider>
           </main>
         </div>
       </div>

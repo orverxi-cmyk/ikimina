@@ -27,7 +27,9 @@ import {
   CheckCircle2,
   ShieldAlert,
   Landmark,
-  CreditCard
+  CreditCard,
+  FileText,
+  Lock
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -58,6 +60,10 @@ export default function AdminSettingsPage() {
   const [depositBankName, setDepositBankName] = useState<string>('');
   const [depositAccountNumber, setDepositAccountNumber] = useState<string>('');
   const [infrastructureBranding, setInfrastructureBranding] = useState<string>('Secure Infrastructure Provided by ORVEXI');
+  const [aboutUs, setAboutUs] = useState<string>('');
+  const [termsOfService, setTermsOfService] = useState<string>('');
+  const [privacyPolicy, setPrivacyPolicy] = useState<string>('');
+  const [copyrightNotice, setCopyrightNotice] = useState<string>('');
 
   // Super Admin Reset State
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -73,6 +79,10 @@ export default function AdminSettingsPage() {
       if (settings.depositBankName !== undefined) setDepositBankName(settings.depositBankName);
       if (settings.depositAccountNumber !== undefined) setDepositAccountNumber(settings.depositAccountNumber);
       if (settings.infrastructureBranding !== undefined) setInfrastructureBranding(settings.infrastructureBranding);
+      if (settings.aboutUs !== undefined) setAboutUs(settings.aboutUs);
+      if (settings.termsOfService !== undefined) setTermsOfService(settings.termsOfService);
+      if (settings.privacyPolicy !== undefined) setPrivacyPolicy(settings.privacyPolicy);
+      if (settings.copyrightNotice !== undefined) setCopyrightNotice(settings.copyrightNotice);
     }
   }, [settings]);
 
@@ -94,6 +104,10 @@ export default function AdminSettingsPage() {
     const depositBankNameVal = (formData.get('depositBankName') as string)?.trim() ?? depositBankName;
     const depositAccountNumberVal = (formData.get('depositAccountNumber') as string)?.trim() ?? depositAccountNumber;
     const infrastructureBrandingVal = (formData.get('infrastructureBranding') as string)?.trim() || infrastructureBranding;
+    const aboutUsVal = (formData.get('aboutUs') as string)?.trim() ?? aboutUs;
+    const termsOfServiceVal = (formData.get('termsOfService') as string)?.trim() ?? termsOfService;
+    const privacyPolicyVal = (formData.get('privacyPolicy') as string)?.trim() ?? privacyPolicy;
+    const copyrightNoticeVal = (formData.get('copyrightNotice') as string)?.trim() ?? copyrightNotice;
     const justification = formData.get('justification') as string;
 
     try {
@@ -110,10 +124,14 @@ export default function AdminSettingsPage() {
         depositBankName: depositBankNameVal,
         depositAccountNumber: depositAccountNumberVal,
         infrastructureBranding: infrastructureBrandingVal,
+        aboutUs: aboutUsVal,
+        termsOfService: termsOfServiceVal,
+        privacyPolicy: privacyPolicyVal,
+        copyrightNotice: copyrightNoticeVal,
         justification 
       });
       await refreshSettings();
-      toast({ title: "Settings Updated", description: "Global financial policies updated successfully." });
+      toast({ title: "Settings Updated", description: "Global financial policies and platform legal settings updated successfully." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Update Failed", description: error.message });
     } finally {
@@ -349,31 +367,108 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Platform Branding & Customization Card */}
+          {/* Platform Branding, Footer & Legal Policies Card */}
           <Card className="border border-border shadow-sm bg-card rounded-[10px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl text-primary">
-                <ShieldCheck className="h-5 w-5" /> Platform Branding &amp; Infrastructure
+                <ShieldCheck className="h-5 w-5" /> Platform Branding, Footer &amp; Legal Policies
               </CardTitle>
               <CardDescription>
-                Customize the infrastructure attribution text and footer credentials displayed across the application.
+                Customize the platform footer, infrastructure attribution, About Us section, Terms of Service, and Privacy Policy.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2 max-w-xl">
-                <Label htmlFor="infrastructureBranding" className="font-bold flex items-center gap-1.5">
-                  Footer Attribution Text
+            <CardContent className="space-y-6">
+              {/* Attribution and Copyright Row */}
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="infrastructureBranding" className="font-bold flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-primary" /> Footer Infrastructure Attribution
+                  </Label>
+                  <Input 
+                    id="infrastructureBranding"
+                    name="infrastructureBranding" 
+                    value={infrastructureBranding}
+                    onChange={(e) => setInfrastructureBranding(e.target.value)}
+                    placeholder="e.g. Secure Infrastructure Provided by ORVEXI" 
+                    className="h-11 rounded-[10px] bg-muted border-none font-medium"
+                  />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Displayed in the footer across member &amp; admin login cards and portal. Default: <span className="font-semibold">&ldquo;Secure Infrastructure Provided by ORVEXI&rdquo;</span>.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="copyrightNotice" className="font-bold flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-primary" /> Custom Copyright Statement
+                  </Label>
+                  <Input 
+                    id="copyrightNotice"
+                    name="copyrightNotice" 
+                    value={copyrightNotice}
+                    onChange={(e) => setCopyrightNotice(e.target.value)}
+                    placeholder={`e.g. © ${new Date().getFullYear()} Ikimina Scheme. All rights reserved.`}
+                    className="h-11 rounded-[10px] bg-muted border-none font-medium"
+                  />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Leave blank to automatically display the default copyright with the current year.
+                  </p>
+                </div>
+              </div>
+
+              {/* About Us */}
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label htmlFor="aboutUs" className="font-bold flex items-center gap-1.5">
+                  <Info className="h-4 w-4 text-primary" /> About Us (Organization / Scheme Description)
                 </Label>
-                <Input 
-                  id="infrastructureBranding"
-                  name="infrastructureBranding" 
-                  value={infrastructureBranding}
-                  onChange={(e) => setInfrastructureBranding(e.target.value)}
-                  placeholder="e.g. Secure Infrastructure Provided by ORVEXI" 
-                  className="h-11 rounded-[10px] bg-muted border-none font-medium"
+                <Textarea
+                  id="aboutUs"
+                  name="aboutUs"
+                  value={aboutUs}
+                  onChange={(e) => setAboutUs(e.target.value)}
+                  placeholder="Describe your savings group, mission, community objectives, and scheme overview..."
+                  rows={4}
+                  className="rounded-[10px] bg-muted border-none font-medium text-xs leading-relaxed resize-y"
                 />
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  This text is dynamically displayed in the footer of the member login screen, the admin login screen, and the member portal. Default: <span className="font-semibold">&ldquo;Secure Infrastructure Provided by ORVEXI&rdquo;</span>.
+                  Displayed when members or administrators click &ldquo;About&rdquo; in the desktop footer.
+                </p>
+              </div>
+
+              {/* Terms of Service */}
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label htmlFor="termsOfService" className="font-bold flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-primary" /> Terms of Service &amp; Governance Rules
+                </Label>
+                <Textarea
+                  id="termsOfService"
+                  name="termsOfService"
+                  value={termsOfService}
+                  onChange={(e) => setTermsOfService(e.target.value)}
+                  placeholder="Specify contribution commitments, loan repayment obligations, penalty terms, and governance policies..."
+                  rows={5}
+                  className="rounded-[10px] bg-muted border-none font-medium text-xs leading-relaxed resize-y"
+                />
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Displayed when members or administrators click &ldquo;Terms of Service&rdquo; in the desktop footer.
+                </p>
+              </div>
+
+              {/* Privacy Policy */}
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label htmlFor="privacyPolicy" className="font-bold flex items-center gap-1.5">
+                  <Lock className="h-4 w-4 text-primary" /> Privacy Policy &amp; Data Protection
+                </Label>
+                <Textarea
+                  id="privacyPolicy"
+                  name="privacyPolicy"
+                  value={privacyPolicy}
+                  onChange={(e) => setPrivacyPolicy(e.target.value)}
+                  placeholder="Detail member data confidentiality, financial record security, and access standards..."
+                  rows={5}
+                  className="rounded-[10px] bg-muted border-none font-medium text-xs leading-relaxed resize-y"
+                />
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Displayed when members or administrators click &ldquo;Privacy Policy&rdquo; in the desktop footer.
                 </p>
               </div>
             </CardContent>

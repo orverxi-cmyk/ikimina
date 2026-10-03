@@ -175,7 +175,7 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
     if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
     }
-    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, maxLendingPoolPercentage, minLoanAmount, penaltyRate, depositBankName, depositAccountNumber, infrastructureBranding, justification } = request.data;
+    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, maxLendingPoolPercentage, minLoanAmount, penaltyRate, depositBankName, depositAccountNumber, infrastructureBranding, aboutUs, termsOfService, privacyPolicy, copyrightNotice, justification } = request.data;
     try {
         const batch = db.batch();
         const settingsRef = db.collection('settings').doc('financials');
@@ -192,6 +192,10 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
             depositBankName: depositBankName ? String(depositBankName).trim() : '',
             depositAccountNumber: depositAccountNumber ? String(depositAccountNumber).trim() : '',
             infrastructureBranding: infrastructureBranding !== undefined ? String(infrastructureBranding).trim() : 'Secure Infrastructure Provided by ORVEXI',
+            aboutUs: aboutUs !== undefined ? String(aboutUs).trim() : 'Ikimina is a community-driven savings and credit scheme dedicated to empowering members through collective financial resilience, transparent savings management, and fair, accessible credit.',
+            termsOfService: termsOfService !== undefined ? String(termsOfService).trim() : 'By participating in the Ikimina platform, members agree to adhere to monthly contribution commitments, timely loan repayments according to the agreed schedule, and mutual group accountability. All financial actions and disbursements are audited and recorded authoritatively.',
+            privacyPolicy: privacyPolicy !== undefined ? String(privacyPolicy).trim() : 'We respect member privacy and treat all personal and financial data with strict confidentiality. Member records, savings ledgers, and transaction histories are securely protected and accessible only to authorized officers and account holders.',
+            copyrightNotice: copyrightNotice !== undefined ? String(copyrightNotice).trim() : '',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedBy: request.auth.uid
         }, { merge: true });
@@ -212,7 +216,10 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
                 maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
                 minLoanAmount,
                 penaltyRate,
-                infrastructureBranding
+                infrastructureBranding,
+                hasCustomAbout: !!aboutUs,
+                hasCustomTerms: !!termsOfService,
+                hasCustomPrivacy: !!privacyPolicy
             },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
@@ -353,6 +360,10 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
             depositBankName: 'Bank of Kigali',
             depositAccountNumber: '00044-01234567-89',
             infrastructureBranding: 'Secure Infrastructure Provided by ORVEXI',
+            aboutUs: 'Ikimina is a community-driven savings and credit scheme dedicated to empowering members through collective financial resilience, transparent savings management, and fair, accessible credit.',
+            termsOfService: 'By participating in the Ikimina platform, members agree to adhere to monthly contribution commitments, timely loan repayments according to the agreed schedule, and mutual group accountability. All financial actions and disbursements are audited and recorded authoritatively.',
+            privacyPolicy: 'We respect member privacy and treat all personal and financial data with strict confidentiality. Member records, savings ledgers, and transaction histories are securely protected and accessible only to authorized officers and account holders.',
+            copyrightNotice: '',
         };
     }
     const data = snap.data();
@@ -369,6 +380,10 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
         depositBankName: data.depositBankName || '',
         depositAccountNumber: data.depositAccountNumber || '',
         infrastructureBranding: data.infrastructureBranding || 'Secure Infrastructure Provided by ORVEXI',
+        aboutUs: data.aboutUs || 'Ikimina is a community-driven savings and credit scheme dedicated to empowering members through collective financial resilience, transparent savings management, and fair, accessible credit.',
+        termsOfService: data.termsOfService || 'By participating in the Ikimina platform, members agree to adhere to monthly contribution commitments, timely loan repayments according to the agreed schedule, and mutual group accountability. All financial actions and disbursements are audited and recorded authoritatively.',
+        privacyPolicy: data.privacyPolicy || 'We respect member privacy and treat all personal and financial data with strict confidentiality. Member records, savings ledgers, and transaction histories are securely protected and accessible only to authorized officers and account holders.',
+        copyrightNotice: data.copyrightNotice || '',
     };
 });
 //# sourceMappingURL=financial-management.js.map
