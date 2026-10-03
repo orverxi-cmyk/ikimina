@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -74,18 +74,55 @@ export default function ExpensesAdminPage() {
   const { settings } = useSettings();
   const currency = settings.currency || 'RWF';
 
+  // Role resolution with persistent cache & primary admin check
+  const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
+  const [cachedRole, setCachedRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.uid) {
+      const stored = localStorage.getItem(`ikimina_role_${user.uid}`);
+      if (stored) setCachedRole(stored);
+    }
+  }, [user?.uid]);
+
   // Subscriptions
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData } = useDoc(userRef);
-  const userRole = userData?.role || 'member';
-  const isAdmin = userRole === 'admin' || userRole === 'management';
-  const isAccountant = userRole === 'accountant' || isAdmin;
 
+  useEffect(() => {
+    if (userData?.role && user?.uid) {
+      setCachedRole(userData.role);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`ikimina_role_${user.uid}`, userData.role);
+      }
+    }
+  }, [userData?.role, user?.uid]);
+
+  const effectiveRole = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
+  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'management' || isPrimaryAdmin;
+  const isAccountant = effectiveRole === 'accountant' || isAdmin;
+
+  // Query expenses collection directly without field restrictions (ensures no documents are omitted by Firestore)
   const expensesQuery = useMemoFirebase(() => {
-    return query(collection(firestore, 'expenses'), orderBy('createdAt', 'desc'));
+    return collection(firestore, 'expenses');
   }, [firestore]);
   const { data: expensesSnap, loading } = useCollection(expensesQuery);
-  const expenses = useMemo(() => expensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [expensesSnap]);
+  const expenses = useMemo(() => {
+    if (!expensesSnap) return [];
+    return expensesSnap.docs
+      .map(d => ({ id: d.id, ...d.data() } as any))
+      .sort((a, b) => {
+        const getTime = (item: any) => {
+          if (item.createdAt?.toMillis) return item.createdAt.toMillis();
+          if (item.lodgedAt?.toMillis) return item.lodgedAt.toMillis();
+          if (item.createdAt?.toDate) return item.createdAt.toDate().getTime();
+          if (item.lodgedAt?.toDate) return item.lodgedAt.toDate().getTime();
+          if (item.expenseDate) return new Date(item.expenseDate).getTime();
+          return 0;
+        };
+        return getTime(b) - getTime(a);
+      });
+  }, [expensesSnap]);
 
   // Modals state
   const [isLodgeOpen, setIsLodgeOpen] = useState(false);
@@ -483,7 +520,7 @@ export default function ExpensesAdminPage() {
                         <TableCell>
                           <p className="font-bold text-sm text-foreground">{exp.title}</p>
                           <p className="text-[11px] text-muted-foreground">
-                            {exp.expenseDate || (exp.createdAt?.toDate ? format(exp.createdAt.toDate(), 'PPP') : 'Recent')}
+                            {exp.expenseDate || (exp.createdAt?.toDate ? format(exp.createdAt.toDate(), 'PPP') : (exp.lodgedAt?.toDate ? format(exp.lodgedAt.toDate(), 'PPP') : 'Recent'))}
                           </p>
                         </TableCell>
                         <TableCell>
@@ -584,7 +621,7 @@ export default function ExpensesAdminPage() {
                         <TableCell>
                           <p className="font-bold text-sm text-foreground">{exp.title}</p>
                           <p className="text-[11px] text-muted-foreground">
-                            {exp.expenseDate || (exp.createdAt?.toDate ? format(exp.createdAt.toDate(), 'PPP') : 'Recorded')}
+                            {exp.expenseDate || (exp.createdAt?.toDate ? format(exp.createdAt.toDate(), 'PPP') : (exp.lodgedAt?.toDate ? format(exp.lodgedAt.toDate(), 'PPP') : 'Recorded'))}
                           </p>
                           {exp.description && (
                             <p className="text-[10px] text-muted-foreground italic mt-0.5 truncate max-w-[200px]">

@@ -157,7 +157,7 @@ export default function AdminDashboard() {
   const { data: repaymentsSnap } = useCollection(repaymentsQuery);
 
   const expensesQuery = useMemoFirebase(() => {
-    return query(collection(firestore, 'expenses'), orderBy('createdAt', 'desc'));
+    return collection(firestore, 'expenses');
   }, [firestore]);
   const { data: expensesSnap } = useCollection(expensesQuery);
 

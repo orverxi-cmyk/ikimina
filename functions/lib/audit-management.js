@@ -40,20 +40,25 @@ const admin = __importStar(require("firebase-admin"));
  * General purpose secure logging for any administrative action.
  */
 exports.logAdminAction = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a, _b;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
     const userSnap = await db.collection('users').doc(request.auth.uid).get();
-    if (((_a = userSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin' && ((_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.role) !== 'management') {
-        throw new https_1.HttpsError('permission-denied', 'Administrative access required for logging.');
+    const userData = userSnap.data();
+    const userRole = userData === null || userData === void 0 ? void 0 : userData.role;
+    const isStaffRole = ['admin', 'management', 'accountant', 'reviewer', 'auditor'].includes(userRole);
+    if (!isStaffRole) {
+        throw new https_1.HttpsError('permission-denied', 'Administrative or auditor access required for logging.');
     }
     const { action, justification, details } = request.data;
     try {
         await db.collection('audit_logs').add({
             adminId: request.auth.uid,
+            performedBy: request.auth.uid,
+            performedByName: (userData === null || userData === void 0 ? void 0 : userData.name) || (userData === null || userData === void 0 ? void 0 : userData.email) || 'Staff Member',
+            performedByRole: userRole || 'staff',
             action,
-            justification,
+            justification: justification || '',
             details: details || {},
             ipAddress: request.rawRequest.ip || 'internal',
             timestamp: admin.firestore.FieldValue.serverTimestamp(),

@@ -80,6 +80,7 @@ exports.lodgeExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
         lodgedBy: callerId,
         lodgedByName: (userData === null || userData === void 0 ? void 0 : userData.name) || (userData === null || userData === void 0 ? void 0 : userData.email) || 'Accountant',
         lodgedByEmail: (userData === null || userData === void 0 ? void 0 : userData.email) || '',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         lodgedAt: admin.firestore.FieldValue.serverTimestamp(),
         approvedAt: null,
         approvedBy: null,

@@ -61,6 +61,7 @@ export const lodgeExpense = onCall({ cors: true }, async (request) => {
         lodgedBy: callerId,
         lodgedByName: userData?.name || userData?.email || 'Accountant',
         lodgedByEmail: userData?.email || '',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         lodgedAt: admin.firestore.FieldValue.serverTimestamp(),
         approvedAt: null,
         approvedBy: null,
