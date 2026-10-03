@@ -456,12 +456,12 @@ export default function ExpensesAdminPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="font-bold text-[11px] uppercase">Date &amp; Payee</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Amount</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Lodged By</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Supporting Proof</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase text-right">Actions</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Date &amp; Payee</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Category</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Amount</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Lodged By</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Supporting Proof</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -557,12 +557,12 @@ export default function ExpensesAdminPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="font-bold text-[11px] uppercase">Title &amp; Date</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Amount Deducted</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Authorized By</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Receipt Proof</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase text-right">Status</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Title &amp; Date</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Category</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Amount Deducted</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Authorized By</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Receipt Proof</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -651,12 +651,12 @@ export default function ExpensesAdminPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="font-bold text-[11px] uppercase">Title &amp; Date</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Amount</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Lodged By</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Rejection Reason</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase text-right">Status</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Title &amp; Date</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Category</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Amount</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Lodged By</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Rejection Reason</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

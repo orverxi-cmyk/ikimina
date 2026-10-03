@@ -22,7 +22,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn("[&_tr]:border-b bg-muted/30", className)}
+    className={cn("[&_tr]:border-b bg-muted/30 text-[12px]", className)}
     {...props}
   />
 ))
@@ -73,17 +73,26 @@ TableRow.displayName = "TableRow"
 const TableHead = React.forwardRef<
   HTMLTableCellElement,
   React.ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
-  <th
-    ref={ref}
-    data-typography="header"
-    className={cn(
-      "h-11 px-4 text-left align-middle text-[12px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0",
-      className
-    )}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const sanitizedClassName = className
+    ? className
+        .split(/\s+/)
+        .filter((c) => !c.match(/^text-\[(10|11|13|14|15)px\]$/) && c !== "text-xs" && c !== "text-sm")
+        .join(" ")
+    : ""
+
+  return (
+    <th
+      ref={ref}
+      data-typography="header"
+      className={cn(
+        "h-11 px-4 text-left align-middle text-[12px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        sanitizedClassName
+      )}
+      {...props}
+    />
+  )
+})
 TableHead.displayName = "TableHead"
 
 const TableCell = React.forwardRef<

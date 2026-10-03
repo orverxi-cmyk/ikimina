@@ -340,10 +340,10 @@ export default function MembersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Member Details</TableHead>
-                <TableHead className="font-bold uppercase text-[10px] tracking-widest">Role</TableHead>
-                <TableHead className="font-bold uppercase text-[10px] tracking-widest">Status</TableHead>
-                <TableHead className="text-right px-6 font-bold uppercase text-[10px] tracking-widest">Actions</TableHead>
+                <TableHead className="py-4 px-6 font-bold uppercase text-[12px] tracking-widest">Member Details</TableHead>
+                <TableHead className="font-bold uppercase text-[12px] tracking-widest">Role</TableHead>
+                <TableHead className="font-bold uppercase text-[12px] tracking-widest">Status</TableHead>
+                <TableHead className="text-right px-6 font-bold uppercase text-[12px] tracking-widest">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -574,13 +574,13 @@ function LoansPageContent() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest">Applicant / Staff</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Requested Amount</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Current Savings</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Borrowing Power ({maxLoanPercentage}%)</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Borrow Status</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Date</TableHead>
-                        <TableHead className="text-right px-5 text-[10px] font-bold uppercase tracking-widest">Action</TableHead>
+                        <TableHead className="px-5 py-3 text-[12px] font-bold uppercase tracking-widest">Applicant / Staff</TableHead>
+                        <TableHead className="text-[12px] font-bold uppercase tracking-widest">Requested Amount</TableHead>
+                        <TableHead className="text-[12px] font-bold uppercase tracking-widest">Current Savings</TableHead>
+                        <TableHead className="text-[12px] font-bold uppercase tracking-widest">Borrowing Power ({maxLoanPercentage}%)</TableHead>
+                        <TableHead className="text-[12px] font-bold uppercase tracking-widest">Borrow Status</TableHead>
+                        <TableHead className="text-[12px] font-bold uppercase tracking-widest">Date</TableHead>
+                        <TableHead className="text-right px-5 text-[12px] font-bold uppercase tracking-widest">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -728,11 +728,11 @@ function LoansPageContent() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Borrower</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Description</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Contract Amount</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Current Balance</TableHead>
-                      <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>
+                      <TableHead className="px-6 py-4 text-[12px] font-bold uppercase tracking-widest">Borrower</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Description</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Contract Amount</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Current Balance</TableHead>
+                      <TableHead className="text-right px-6 text-[12px] font-bold uppercase tracking-widest">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -774,11 +774,11 @@ function LoansPageContent() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Installment</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Due Date</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Target Amount</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
-                      <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>
+                      <TableHead className="px-6 py-4 text-[12px] font-bold uppercase tracking-widest">Installment</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Due Date</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Target Amount</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase tracking-widest">Status</TableHead>
+                      <TableHead className="text-right px-6 text-[12px] font-bold uppercase tracking-widest">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -827,12 +827,12 @@ function LoansPageContent() {
                 <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest">Purpose</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Principal</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Interest</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-widest">Balance</TableHead>
-                    <TableHead className="text-right px-6 text-[10px] font-bold uppercase tracking-widest">Actions</TableHead>
+                    <TableHead className="px-6 py-4 text-[12px] font-bold uppercase tracking-widest">Purpose</TableHead>
+                    <TableHead className="text-[12px] font-bold uppercase tracking-widest">Principal</TableHead>
+                    <TableHead className="text-[12px] font-bold uppercase tracking-widest">Interest</TableHead>
+                    <TableHead className="text-[12px] font-bold uppercase tracking-widest">Status</TableHead>
+                    <TableHead className="text-[12px] font-bold uppercase tracking-widest">Balance</TableHead>
+                    <TableHead className="text-right px-6 text-[12px] font-bold uppercase tracking-widest">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

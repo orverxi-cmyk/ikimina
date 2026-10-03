@@ -2339,10 +2339,10 @@ export default function AdminContributionsBulkUploadPage() {
                     <Table>
                       <TableHeader className="sticky top-0">
                         <TableRow>
-                          <TableHead className="text-[10px] font-bold uppercase">Staff Name</TableHead>
-                          <TableHead className="text-[10px] font-bold uppercase">Email</TableHead>
-                          <TableHead className="text-[10px] font-bold uppercase">Period</TableHead>
-                          <TableHead className="text-right text-[10px] font-bold uppercase">Amount</TableHead>
+                          <TableHead className="text-[12px] font-bold uppercase">Staff Name</TableHead>
+                          <TableHead className="text-[12px] font-bold uppercase">Email</TableHead>
+                          <TableHead className="text-[12px] font-bold uppercase">Period</TableHead>
+                          <TableHead className="text-right text-[12px] font-bold uppercase">Amount</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>

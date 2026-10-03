@@ -757,12 +757,12 @@ export default function AdminDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="font-bold text-[11px] uppercase">Borrower</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Facility / Note</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Installment</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Contract Due Date</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Days Overdue</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase text-right">Overdue Arrears</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Borrower</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Facility / Note</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Installment</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Contract Due Date</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Days Overdue</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase text-right">Overdue Arrears</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -832,12 +832,12 @@ export default function AdminDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="font-bold text-[11px] uppercase">Title / Payee</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Category</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Amount</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Date</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase">Receipt Proof</TableHead>
-                    <TableHead className="font-bold text-[11px] uppercase text-right">Status</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Title / Payee</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Category</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Amount</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Date</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Receipt Proof</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -970,9 +970,9 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="px-4 text-[11px] uppercase">Member</TableHead>
-                      <TableHead className="text-center text-[11px] uppercase">Current Role</TableHead>
-                      <TableHead className="text-right px-4 text-[11px] uppercase">Action</TableHead>
+                      <TableHead className="px-4 text-[12px] uppercase">Member</TableHead>
+                      <TableHead className="text-center text-[12px] uppercase">Current Role</TableHead>
+                      <TableHead className="text-right px-4 text-[12px] uppercase">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
