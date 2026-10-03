@@ -354,107 +354,93 @@ export default function AdminDashboard() {
       {/* 6 TOP EXECUTIVE KPI CARDS */}
       <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {/* 1. TOTAL ASSET AMOUNT (WITH EXPENSES SUBTRACTED) */}
-        <Card className="shadow-sm border-2 border-primary/30 bg-gradient-to-br from-primary/10 via-card to-background relative overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
                 Institutional Balance
               </span>
-              <CardTitle className="text-base font-bold text-foreground">
+              <CardTitle className="text-base font-bold text-white mt-0.5">
                 Total Net Assets
               </CardTitle>
             </div>
-            <div className="p-2.5 bg-primary text-primary-foreground rounded-xl shadow-md">
-              <Wallet className="h-5 w-5" />
+            <div className="p-2 bg-white/10 text-white rounded-lg">
+              <Wallet className="h-5 w-5 text-white" />
             </div>
           </CardHeader>
-          <CardContent className="pt-2">
-            <div className="text-3xl font-bold font-headline text-foreground">
+          <CardContent className="p-5 bg-white space-y-2">
+            <div className="text-3xl font-bold font-headline text-black font-mono">
               {formatCurrency(totalAssetAmount, currency)}
             </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50 text-xs">
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Gross Capital:</span>
-              <span className="font-semibold text-foreground">{formatCurrency(grossCapital, currency)}</span>
+              <span className="font-semibold text-black font-mono">{formatCurrency(grossCapital, currency)}</span>
             </div>
-            <div className="flex items-center justify-between text-xs mt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground font-medium text-[11px]">Approved Expenses:</span>
-              <span className="font-bold text-foreground">-{formatCurrency(totalApprovedExpenses, currency)}</span>
+              <span className="font-bold text-black font-mono">-{formatCurrency(totalApprovedExpenses, currency)}</span>
             </div>
           </CardContent>
         </Card>
 
         {/* 2. TOTAL LOAN AMOUNT */}
-        <Card className="shadow-sm border border-blue-500/20 bg-blue-500/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
                 Credit Facility
               </span>
-              <CardTitle className="text-base font-bold text-foreground">
+              <CardTitle className="text-base font-bold text-white mt-0.5">
                 Total Loan Portfolio
               </CardTitle>
             </div>
-            <div className="p-2.5 bg-blue-500/10 text-blue-600 rounded-xl">
-              <Landmark className="h-5 w-5" />
+            <div className="p-2 bg-white/10 text-white rounded-lg">
+              <Landmark className="h-5 w-5 text-white" />
             </div>
           </CardHeader>
-          <CardContent className="pt-2">
-            <div className="text-3xl font-bold font-headline text-blue-900 dark:text-blue-100">
+          <CardContent className="p-5 bg-white space-y-2">
+            <div className="text-3xl font-bold font-headline text-black font-mono">
               {formatCurrency(totalLoanAmountDisbursed, currency)}
             </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-blue-200/50 dark:border-blue-900/50 text-xs">
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Active Principal Outstanding:</span>
-              <span className="font-bold text-foreground">{formatCurrency(totalActivePrincipalBalance, currency)}</span>
+              <span className="font-bold text-black font-mono">{formatCurrency(totalActivePrincipalBalance, currency)}</span>
             </div>
-            <div className="flex items-center justify-between text-xs mt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Disbursed Facilities:</span>
-              <span className="font-semibold">{approvedLoans.length} Loans</span>
+              <span className="font-semibold text-black">{approvedLoans.length} Loans</span>
             </div>
           </CardContent>
         </Card>
 
         {/* 3. TOTAL ARREARS AMOUNT */}
-        <Card className={cn(
-          "shadow-sm border transition-colors",
-          totalArrearsAmount > 0 
-            ? "border-foreground/30 bg-muted/40" 
-            : "border-green-600/20 bg-green-600/5"
-        )}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
             <div>
-              <span className={cn(
-                "text-[10px] font-bold uppercase tracking-wider",
-                totalArrearsAmount > 0 ? "text-foreground" : "text-green-700 dark:text-green-400"
-              )}>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
                 Default Risk Watch
               </span>
-              <CardTitle className="text-base font-bold text-foreground">
+              <CardTitle className="text-base font-bold text-white mt-0.5">
                 Total Arrears Amount
               </CardTitle>
             </div>
-            <div className={cn(
-              "p-2.5 rounded-xl",
-              totalArrearsAmount > 0 ? "bg-muted text-foreground" : "bg-green-600/10 text-green-600"
-            )}>
-              <AlertTriangle className="h-5 w-5" />
+            <div className="p-2 bg-white/10 text-white rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-white" />
             </div>
           </CardHeader>
-          <CardContent className="pt-2">
-            <div className={cn(
-              "text-3xl font-bold font-headline",
-              totalArrearsAmount > 0 ? "text-foreground" : "text-green-700 dark:text-green-400"
-            )}>
+          <CardContent className="p-5 bg-white space-y-2">
+            <div className="text-3xl font-bold font-headline text-black font-mono">
               {formatCurrency(totalArrearsAmount, currency)}
             </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50 text-xs">
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Overdue Installments:</span>
               <Badge variant={totalArrearsAmount > 0 ? "destructive" : "outline"} className="text-[10px] font-bold h-5">
                 {arrearsList.length} Missed
               </Badge>
             </div>
-            <div className="flex items-center justify-between text-xs mt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Portfolio Risk:</span>
-              <span className="font-semibold text-[11px]">
+              <span className="font-semibold text-[11px] text-black">
                 {totalActivePrincipalBalance > 0 
                   ? `${Math.round((totalArrearsAmount / totalActivePrincipalBalance) * 100)}% of active debt` 
                   : '0%'}
@@ -464,93 +450,93 @@ export default function AdminDashboard() {
         </Card>
 
         {/* 4. TOTAL INTERESTS */}
-        <Card className="shadow-sm border border-green-600/20 bg-green-600/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-green-700 dark:text-green-400">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
                 Revenue Generation
               </span>
-              <CardTitle className="text-base font-bold text-foreground">
+              <CardTitle className="text-base font-bold text-white mt-0.5">
                 Total Group Interest
               </CardTitle>
             </div>
-            <div className="p-2.5 bg-green-600/10 text-green-600 rounded-xl">
-              <TrendingUp className="h-5 w-5" />
+            <div className="p-2 bg-white/10 text-white rounded-lg">
+              <TrendingUp className="h-5 w-5 text-white" />
             </div>
           </CardHeader>
-          <CardContent className="pt-2">
-            <div className="text-3xl font-bold font-headline text-green-700 dark:text-green-400">
+          <CardContent className="p-5 bg-white space-y-2">
+            <div className="text-3xl font-bold font-headline text-black font-mono">
               {formatCurrency(totalLoanInterests, currency)}
             </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200/50 dark:border-green-900/50 text-xs">
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Accrued to Members:</span>
-              <span className="font-semibold text-foreground">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
+              <span className="font-semibold text-black font-mono">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
             </div>
-            <div className="flex items-center justify-between text-xs mt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Policy Rate:</span>
-              <span className="font-semibold">{settings.loanInterestRate || 10}% ({settings.interestModel || 'one-off'})</span>
+              <span className="font-semibold text-black">{settings.loanInterestRate || 10}% ({settings.interestModel || 'one-off'})</span>
             </div>
           </CardContent>
         </Card>
 
         {/* 5. TOTAL MEMBERS */}
-        <Card className="shadow-sm border border-emerald-500/20 bg-emerald-500/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
                 Scheme Participation
               </span>
-              <CardTitle className="text-base font-bold text-foreground">
+              <CardTitle className="text-base font-bold text-white mt-0.5">
                 Total Members
               </CardTitle>
             </div>
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl">
-              <Users className="h-5 w-5" />
+            <div className="p-2 bg-white/10 text-white rounded-lg">
+              <Users className="h-5 w-5 text-white" />
             </div>
           </CardHeader>
-          <CardContent className="pt-2">
-            <div className="text-3xl font-bold font-headline text-emerald-900 dark:text-emerald-200">
+          <CardContent className="p-5 bg-white space-y-2">
+            <div className="text-3xl font-bold font-headline text-black font-mono">
               {totalMembersCount}
             </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-emerald-200/50 dark:border-emerald-900/50 text-xs">
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Staff Participants:</span>
-              <span className="font-semibold text-foreground">{regularMembersCount} Savers</span>
+              <span className="font-semibold text-black">{regularMembersCount} Savers</span>
             </div>
-            <div className="flex items-center justify-between text-xs mt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Administrative Officers:</span>
-              <span className="font-semibold">{staffOfficersCount} Staff</span>
+              <span className="font-semibold text-black">{staffOfficersCount} Staff</span>
             </div>
           </CardContent>
         </Card>
 
         {/* 6. OPERATING EXPENSES (DEDUCTED FROM ASSETS) */}
-        <Card className="shadow-sm border border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
                 Operational Outflows
               </span>
-              <CardTitle className="text-base font-bold text-foreground">
+              <CardTitle className="text-base font-bold text-white mt-0.5">
                 Operating Expenses
               </CardTitle>
             </div>
-            <div className="p-2.5 bg-muted rounded-xl text-muted-foreground">
-              <Receipt className="h-5 w-5" />
+            <div className="p-2 bg-white/10 text-white rounded-lg">
+              <Receipt className="h-5 w-5 text-white" />
             </div>
           </CardHeader>
-          <CardContent className="pt-2">
-            <div className="text-3xl font-bold font-headline text-foreground">
+          <CardContent className="p-5 bg-white space-y-2">
+            <div className="text-3xl font-bold font-headline text-black font-mono">
               {formatCurrency(totalApprovedExpenses, currency)}
             </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50 text-xs">
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Pending Approvals:</span>
               <Badge variant={pendingExpenses.length > 0 ? "secondary" : "outline"} className="text-[10px] font-bold">
                 {pendingExpenses.length} Pending
               </Badge>
             </div>
-            <div className="flex items-center justify-between text-xs mt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Audited Vouchers:</span>
-              <span className="font-semibold">{approvedExpenses.length} Approved</span>
+              <span className="font-semibold text-black">{approvedExpenses.length} Approved</span>
             </div>
           </CardContent>
         </Card>
@@ -589,26 +575,26 @@ export default function AdminDashboard() {
 
         {/* TAB 1: ASSET RECONCILIATION & BALANCE SHEET */}
         <TabsContent value="balance-sheet" className="space-y-6">
-          <Card className="border border-border shadow-sm">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <PieChart className="h-5 w-5 text-primary" />
+          <Card className="border border-border shadow-sm bg-white rounded-[10px] overflow-hidden">
+            <CardHeader className="bg-blue-600 text-white p-5 border-b border-blue-700/30">
+              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+                <PieChart className="h-5 w-5 text-white" />
                 Institutional Balance Sheet &amp; Capital Reconciliation
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-blue-100 text-xs mt-0.5">
                 Authoritative breakdown of group savings, interest revenues, operating expenses deductions, and net liquidity.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-6 bg-white">
               <div className="grid md:grid-cols-2 gap-8">
                 {/* Balance Sheet Ledger Table */}
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Capital Ledger Composition
                   </h4>
-                  <div className="border rounded-xl divide-y overflow-hidden text-sm">
+                  <div className="border border-border rounded-xl divide-y divide-border overflow-hidden text-sm bg-white">
                     {/* 1. Verified Savings */}
-                    <div className="p-4 flex items-center justify-between bg-card hover:bg-muted/20 transition-colors">
+                    <div className="p-4 flex items-center justify-between bg-white hover:bg-muted/10 transition-colors">
                       <div className="flex items-center gap-2.5">
                         <div className="h-7 w-7 rounded-lg bg-green-500/10 text-green-700 dark:text-green-400 flex items-center justify-center font-bold text-xs">
                           (+)
@@ -618,13 +604,13 @@ export default function AdminDashboard() {
                           <p className="text-[11px] text-muted-foreground">Total verified contributions deposited</p>
                         </div>
                       </div>
-                      <span className="font-bold text-green-700 dark:text-green-400">
+                      <span className="font-bold text-black font-mono">
                         +{formatCurrency(totalVerifiedSavings, currency)}
                       </span>
                     </div>
 
                     {/* 2. Realized Interest */}
-                    <div className="p-4 flex items-center justify-between bg-card hover:bg-muted/20 transition-colors">
+                    <div className="p-4 flex items-center justify-between bg-white hover:bg-muted/10 transition-colors">
                       <div className="flex items-center gap-2.5">
                         <div className="h-7 w-7 rounded-lg bg-green-600/10 text-green-700 dark:text-green-400 flex items-center justify-center font-bold text-xs">
                           (+)
@@ -634,13 +620,13 @@ export default function AdminDashboard() {
                           <p className="text-[11px] text-muted-foreground">Cumulative interest generated from loans</p>
                         </div>
                       </div>
-                      <span className="font-bold text-green-700 dark:text-green-400">
+                      <span className="font-bold text-black font-mono">
                         +{formatCurrency(totalLoanInterests, currency)}
                       </span>
                     </div>
 
                     {/* 3. Approved Operating Expenses (SUBTRACTED) */}
-                    <div className="p-4 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div className="p-4 flex items-center justify-between bg-white hover:bg-muted/10 transition-colors">
                       <div className="flex items-center gap-2.5">
                         <div className="h-7 w-7 rounded-lg bg-muted text-foreground flex items-center justify-center font-bold text-xs">
                           (-)
@@ -650,20 +636,20 @@ export default function AdminDashboard() {
                           <p className="text-[11px] text-muted-foreground">Lodged by Accountant &amp; approved by Admin</p>
                         </div>
                       </div>
-                      <span className="font-bold text-foreground">
+                      <span className="font-bold text-black font-mono">
                         -{formatCurrency(totalApprovedExpenses, currency)}
                       </span>
                     </div>
 
                     {/* TOTAL NET ASSET RESULT */}
-                    <div className="p-4 flex items-center justify-between bg-primary/10 font-bold border-t-2 border-primary/20">
+                    <div className="p-4 flex items-center justify-between bg-slate-50 font-bold border-t-2 border-border">
                       <div>
                         <p className="text-base font-bold text-foreground">Total Net Institutional Assets</p>
                         <p className="text-[11px] text-muted-foreground font-normal">
                           Savings + Interest - Approved Operating Expenses
                         </p>
                       </div>
-                      <span className="text-xl font-headline font-bold text-primary">
+                      <span className="text-xl font-headline font-bold text-black font-mono">
                         {formatCurrency(totalAssetAmount, currency)}
                       </span>
                     </div>
@@ -676,46 +662,46 @@ export default function AdminDashboard() {
                     Liquidity &amp; Risk Distribution
                   </h4>
                   <div className="grid gap-3">
-                    <div className="p-4 rounded-xl bg-muted/40 border border-border flex items-center justify-between">
+                    <div className="p-4 rounded-xl bg-white border border-border shadow-sm flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                           Estimated Cash in Bank / Net Liquidity
                         </span>
-                        <p className="text-xl font-bold font-headline text-foreground mt-0.5">
+                        <p className="text-xl font-bold font-headline text-black mt-0.5 font-mono">
                           {formatCurrency(liquidCashReserve, currency)}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
                           Savings + Repayments - Disbursed Loans - Expenses
                         </p>
                       </div>
-                      <Badge className="bg-primary/10 text-primary border-none text-[10px] font-bold">
+                      <Badge className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
                         Liquid
                       </Badge>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 flex items-center justify-between">
+                    <div className="p-4 rounded-xl bg-white border border-border shadow-sm flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                           Active Loan Principal Outstanding
                         </span>
-                        <p className="text-xl font-bold font-headline text-blue-900 dark:text-blue-200 mt-0.5">
+                        <p className="text-xl font-bold font-headline text-black mt-0.5 font-mono">
                           {formatCurrency(totalActivePrincipalBalance, currency)}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
                           Performing assets owed by members
                         </p>
                       </div>
-                      <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-300 border-none text-[10px] font-bold">
+                      <Badge className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
                         Earning
                       </Badge>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
+                    <div className="p-4 rounded-xl bg-white border border-border shadow-sm flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                           Borrowing Multiplier Policy
                         </span>
-                        <p className="text-xl font-bold font-headline text-foreground mt-0.5">
+                        <p className="text-xl font-bold font-headline text-black mt-0.5 font-mono">
                           {settings.maxLoanPercentage || 200}%
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
@@ -727,19 +713,19 @@ export default function AdminDashboard() {
                       </Button>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-2 border-primary/30 flex items-center justify-between">
+                    <div className="p-4 rounded-xl bg-white border border-border shadow-sm flex items-center justify-between">
                       <div className="space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
-                          <Landmark className="h-3 w-3" /> Lending Pool Ceiling ({maxLendingPoolPercentage}% of Assets)
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
+                          <Landmark className="h-3 w-3 text-blue-600" /> Lending Pool Ceiling ({maxLendingPoolPercentage}% of Assets)
                         </span>
-                        <p className="text-xl font-bold font-headline text-primary">
+                        <p className="text-xl font-bold font-headline text-black font-mono">
                           {formatCurrency(availableLendingPool, currency)}
                         </p>
                         <p className="text-[10px] text-muted-foreground">
                           {formatCurrency(totalActivePrincipalBalance, currency)} active of {formatCurrency(maxLendingPoolAllowed, currency)} max loan pool ({lendingPoolUtilizationRatio}% used)
                         </p>
                       </div>
-                      <Badge className={availableLendingPool > 0 ? "bg-primary text-primary-foreground text-[10px] font-bold" : "bg-destructive text-white text-[10px] font-bold"}>
+                      <Badge className={availableLendingPool > 0 ? "bg-green-50 text-green-700 border border-green-200 text-[10px] font-bold" : "bg-destructive text-white text-[10px] font-bold"}>
                         {availableLendingPool > 0 ? 'Liquidity Open' : 'Ceiling Reached'}
                       </Badge>
                     </div>
