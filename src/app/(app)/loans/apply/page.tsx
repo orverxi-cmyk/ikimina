@@ -66,6 +66,7 @@ function LoanApplyContent() {
   const [withdrawReason, setWithdrawReason] = useState('');
   const [isTopUpMode, setIsTopUpMode] = useState(isTopUpRequested);
   const [requestedAmount, setRequestedAmount] = useState<string>('');
+  const [showExceptionForm, setShowExceptionForm] = useState(false);
   
   // Management approval exception state
   const [managementFile, setManagementFile] = useState<File | null>(null);
@@ -74,7 +75,7 @@ function LoanApplyContent() {
   const [managementApprovalFileName, setManagementApprovalFileName] = useState<string>('');
   const [managementApprovalNotes, setManagementApprovalNotes] = useState<string>('');
   
-  // Group Liquidity & Lending Pool Ceiling State
+  // Institutional Liquidity & Lending Pool Ceiling State
   const [liquidityMetrics, setLiquidityMetrics] = useState<any>(null);
   const [loadingLiquidity, setLoadingLiquidity] = useState(false);
 
@@ -100,7 +101,6 @@ function LoanApplyContent() {
 
   const { settings, loading: settingsLoading } = useSettings();
   const currency = settings.currency || 'RWF';
-  const maxLoanAmount = settings.maxLoanAmount || 1000000;
   const minLoanAmount = settings.minLoanAmount || 5000;
   const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
 
@@ -155,10 +155,10 @@ function LoanApplyContent() {
     return Math.round((totalVerifiedContributions * maxLoanPercentage) / 100);
   }, [totalVerifiedContributions, maxLoanPercentage]);
 
-  // 5. Effective Max Limit capped by system-wide maxLoanAmount
+  // 5. Effective Max Limit determined by borrowing power
   const effectiveMaxLimit = useMemo(() => {
-    return Math.min(borrowingPower, maxLoanAmount);
-  }, [borrowingPower, maxLoanAmount]);
+    return borrowingPower;
+  }, [borrowingPower]);
 
   // 6. Loan status guards
   const pendingLoan = useMemo(() => (loans.find((l: any) => l.status === 'requested') as any), [loans]);
@@ -206,6 +206,16 @@ function LoanApplyContent() {
     return !activeLoan;
   }, [isLendingPoolCeiled, pendingLoan, isTopUpMode, activeLoan, isEligibleForTopUp]);
 
+  // Dynamic screen resolution: Only display the application form if no hard blockers exist
+  const shouldShowForm = useMemo(() => {
+    if (isLendingPoolCeiled) return false;
+    if (pendingLoan) return false;
+    if (activeLoan && !isTopUpMode) return false;
+    if (!hasSavings && !isTopUpMode && !showExceptionForm) return false;
+    if (hasSavings && !isBorrowingPowerEligible && !isTopUpMode && !showExceptionForm) return false;
+    return true;
+  }, [isLendingPoolCeiled, pendingLoan, activeLoan, isTopUpMode, hasSavings, isBorrowingPowerEligible, showExceptionForm]);
+
   const effectiveApplicationMax = isTopUpMode ? maxTopUpLimit : effectiveMaxLimit;
 
   const minRequiredSavings = useMemo(() => {
@@ -217,9 +227,7 @@ function LoanApplyContent() {
   const isAmountTooLow = numericAmount > 0 && numericAmount < minLoanAmount;
   // Exceeds standard borrowing power:
   const exceedsBorrowingPower = numericAmount > effectiveApplicationMax;
-  // Exceeds absolute system-wide cap:
-  const isAmountTooHigh = numericAmount > maxLoanAmount && maxLoanAmount > 0;
-  // Exceeds group lending pool ceiling:
+  // Exceeds available lending pool ceiling:
   const exceedsGroupPool = Boolean(availableGroupPool !== null && numericAmount > availableGroupPool);
   const hasManagementApprovalAttached = Boolean(managementApprovalUrl || managementFile);
 
@@ -311,7 +319,7 @@ function LoanApplyContent() {
       toast({
         variant: "destructive",
         title: "No Funds Available to Loan From",
-        description: `The group lending pool ceiling (${liquidityMetrics?.maxLendingPoolPercentage || 90}%) has been reached. Current available pool is ${formatCurrency(0, currency)}.`,
+        description: `The lending pool ceiling (${liquidityMetrics?.maxLendingPoolPercentage || 90}%) has been reached. Current available pool is ${formatCurrency(0, currency)}.`,
       });
       return;
     }
@@ -356,20 +364,12 @@ function LoanApplyContent() {
       return;
     }
 
-    if (amount > maxLoanAmount) {
-      toast({ 
-        variant: "destructive", 
-        title: "System Ceiling Exceeded", 
-        description: `Loan amount cannot exceed the maximum system limit of ${formatCurrency(maxLoanAmount, currency)}.` 
-      });
-      return;
-    }
 
     if (availableGroupPool !== null && amount > availableGroupPool) {
       toast({ 
         variant: "destructive", 
-        title: "Insufficient Group Liquidity", 
-        description: `Requested loan of ${formatCurrency(amount, currency)} exceeds the group's available lending pool of ${formatCurrency(availableGroupPool, currency)} (based on the ${liquidityMetrics?.maxLendingPoolPercentage || 90}% ceiling of institutional assets).` 
+        title: "Insufficient Available Liquidity", 
+        description: `Requested loan of ${formatCurrency(amount, currency)} exceeds the available lending pool of ${formatCurrency(availableGroupPool, currency)} (based on the ${liquidityMetrics?.maxLendingPoolPercentage || 90}% ceiling of institutional assets).` 
       });
       return;
     }
@@ -389,7 +389,7 @@ function LoanApplyContent() {
       toast({ 
         variant: "destructive", 
         title: "No Verified Savings", 
-        description: "You must have verified savings contributions in the group, or attach management approval." 
+        description: "You must have verified savings contributions recorded, or attach management approval." 
       });
       return;
     }
@@ -484,8 +484,8 @@ function LoanApplyContent() {
         </div>
       </div>
 
-      {/* Financial Standing Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      {/* Financial Standing Cards Grid - 3 cards without redundant System Cap */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
         {/* Verified Contributions */}
         <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
@@ -545,39 +545,188 @@ function LoanApplyContent() {
             </p>
           </div>
         )}
-
-        {/* Effective Max Ceiling */}
-        <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-            <Lock className="h-3 w-3 text-muted-foreground" /> {isTopUpMode ? 'Top-Up Ceiling' : 'System Cap'}
-          </p>
-          <p className="text-lg font-bold text-foreground">
-            {formatCurrency(effectiveApplicationMax, currency)}
-          </p>
-          <p className="text-[9px] text-muted-foreground font-medium">
-            {isTopUpMode ? 'Max top-up allowed' : 'Global maximum ceiling'}
-          </p>
-        </div>
       </div>
 
-      {/* GROUP LENDING POOL CEILED (DEPLETED) BANNER */}
+      {/* DYNAMIC CASE 1: LENDING POOL CEILING REACHED (DEPLETED) */}
       {isLendingPoolCeiled && (
-        <div className="p-4 rounded-xl bg-destructive/10 border-2 border-destructive text-destructive flex gap-3 shadow-sm animate-in fade-in">
-          <AlertOctagon className="h-6 w-6 shrink-0 mt-0.5" />
-          <div className="text-xs space-y-1">
-            <p className="font-bold text-sm">No Funds Available to Loan From</p>
-            <p className="leading-relaxed">
-              The group lending pool ceiling of <strong>{liquidityMetrics.maxLendingPoolPercentage}%</strong> of total net assets has been fully utilized. Active loans have reached <strong>{formatCurrency(liquidityMetrics.currentActiveLoanBalance, currency)}</strong> out of the <strong>{formatCurrency(liquidityMetrics.maxLendingPool, currency)}</strong> maximum capacity (Total Assets: {formatCurrency(liquidityMetrics.netTotalAssets, currency)}).
+        <Card className="border border-blue-200 dark:border-blue-900/50 shadow-sm bg-card rounded-[10px] overflow-hidden animate-in fade-in">
+          <CardHeader className="bg-blue-600 text-white p-5 border-b border-blue-700/30">
+            <div className="flex items-center gap-3 text-white">
+              <AlertCircle className="h-6 w-6 shrink-0 text-white" />
+              <div>
+                <CardTitle className="text-base sm:text-lg font-bold text-white">
+                  No Funds Available to Loan From
+                </CardTitle>
+                <CardDescription className="text-blue-100 text-xs mt-0.5">
+                  The institutional lending pool capacity has reached its statutory ceiling.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <p className="text-sm text-foreground leading-relaxed">
+              The lending pool ceiling of <strong>{liquidityMetrics?.maxLendingPoolPercentage || 90}%</strong> of total net assets has been fully utilized. Active loans have reached <strong>{formatCurrency(liquidityMetrics?.currentActiveLoanBalance || 0, currency)}</strong> out of the <strong>{formatCurrency(liquidityMetrics?.maxLendingPool || 0, currency)}</strong> maximum capacity (Total Assets: {formatCurrency(liquidityMetrics?.netTotalAssets || 0, currency)}).
             </p>
-            <p className="font-semibold pt-1">
-              New loan applications are temporarily paused until members make loan repayments or institutional assets expand.
+            <p className="text-xs text-muted-foreground font-medium">
+              New loan applications are temporarily paused until members make loan repayments or institutional assets expand. The application form is currently disabled to prevent failed requests.
             </p>
-          </div>
-        </div>
+            <div className="flex items-center gap-3 pt-2 flex-wrap">
+              <Button asChild className="rounded-[10px] font-bold text-xs">
+                <Link href="/contributions">Make a Contribution</Link>
+              </Button>
+              <Button asChild variant="outline" className="rounded-[10px] font-bold text-xs">
+                <Link href="/loans">View Loan Records</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* GROUP LENDING POOL AVAILABILITY STRIP */}
-      {liquidityMetrics && !isLendingPoolCeiled && (
+      {/* DYNAMIC CASE 2: PENDING LOAN UNDER REVIEW */}
+      {!isLendingPoolCeiled && pendingLoan && (
+        <Card className="border border-blue-200 bg-blue-50/50 shadow-sm rounded-[10px] overflow-hidden animate-in fade-in">
+          <CardHeader className="bg-blue-100/50 border-b border-blue-200 pb-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 text-blue-900">
+                <AlertCircle className="h-5 w-5 text-blue-600 shrink-0" />
+                <CardTitle className="text-base sm:text-lg font-bold">
+                  Loan Application Under Review
+                </CardTitle>
+              </div>
+              <Badge className="bg-blue-600 text-white font-bold text-[10px] uppercase">
+                Pending Audit
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <p className="text-sm text-blue-900 leading-relaxed">
+              You currently have a submitted loan request of <strong>{formatCurrency(pendingLoan.amount, currency)}</strong> undergoing management audit. Only one pending application is permitted at a time.
+            </p>
+            <div className="flex items-center gap-3 pt-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsWithdrawModalOpen(true)}
+                className="rounded-[10px] border-blue-300 hover:bg-blue-100 text-blue-900 font-bold text-xs gap-1.5"
+              >
+                <Undo2 className="h-3.5 w-3.5" /> Withdraw Application
+              </Button>
+              <Button asChild variant="ghost" size="sm" className="text-blue-900 font-bold text-xs">
+                <Link href="/loans">Back to Loans Dashboard</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* DYNAMIC CASE 3: ACTIVE LOAN OUTSTANDING (NOT IN TOP-UP MODE) */}
+      {!isLendingPoolCeiled && !pendingLoan && activeLoan && !isTopUpMode && (
+        <Card className="border border-border bg-card shadow-sm rounded-[10px] overflow-hidden animate-in fade-in">
+          <CardHeader className="bg-muted/40 border-b border-border pb-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 text-foreground">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                <CardTitle className="text-base sm:text-lg font-bold">
+                  Active Loan Outstanding
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="font-bold text-[10px] uppercase">
+                Active Loan: {formatCurrency(activeLoan.balance, currency)}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              You currently have an active loan with an outstanding balance of <strong className="text-foreground">{formatCurrency(activeLoan.balance, currency)}</strong>.
+              {isEligibleForTopUp ? (
+                <> You have repaid <strong className="text-foreground">{formatCurrency(repaidPrincipal, currency)}</strong> and are eligible to apply for a <strong className="text-foreground">Loan Top-Up</strong> without clearing the entire loan.</>
+              ) : (
+                <> System policy allows one active loan at a time. You have repaid {formatCurrency(repaidPrincipal, currency)}. Once your repaid principal reaches the minimum loan amount of {formatCurrency(minLoanAmount, currency)}, you will be eligible for a Top-Up.</>
+              )}
+            </p>
+            <div className="flex items-center gap-3 pt-2 flex-wrap">
+              {isEligibleForTopUp && (
+                <Button
+                  onClick={() => setIsTopUpMode(true)}
+                  className="rounded-[10px] font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                >
+                  <TrendingUp className="h-4 w-4" /> Apply as Top-Up ({formatCurrency(maxTopUpLimit, currency)} max)
+                </Button>
+              )}
+              <Button asChild variant="outline" className="rounded-[10px] font-bold text-xs">
+                <Link href="/loans">View Active Loan Schedule</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* DYNAMIC CASE 4: NO VERIFIED SAVINGS FOUND */}
+      {!isLendingPoolCeiled && !pendingLoan && !activeLoan && !hasSavings && !showExceptionForm && (
+        <Card className="border border-border bg-card shadow-sm rounded-[10px] overflow-hidden animate-in fade-in">
+          <CardHeader className="bg-muted/30 border-b border-border pb-4">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-primary shrink-0" />
+              <CardTitle className="text-base sm:text-lg font-bold">
+                No Verified Savings Found
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Your borrowing power is <strong className="text-foreground">{maxLoanPercentage}% of your verified contributions</strong>. Currently, you have no verified savings recorded. Please deposit a monthly contribution to establish your borrowing quota.
+            </p>
+            <div className="flex items-center gap-3 pt-2 flex-wrap">
+              <Button asChild className="rounded-[10px] font-bold text-xs">
+                <Link href="/contributions">Make a Contribution</Link>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowExceptionForm(true)}
+                className="rounded-[10px] font-bold text-xs"
+              >
+                Apply with Management Approval
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* DYNAMIC CASE 5: BORROWING POWER BELOW MINIMUM */}
+      {!isLendingPoolCeiled && !pendingLoan && !activeLoan && hasSavings && !isBorrowingPowerEligible && !showExceptionForm && (
+        <Card className="border border-border bg-card shadow-sm rounded-[10px] overflow-hidden animate-in fade-in">
+          <CardHeader className="bg-muted/30 border-b border-border pb-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+              <CardTitle className="text-base sm:text-lg font-bold">
+                Borrowing Power Below System Minimum
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Your verified contributions of <strong className="text-foreground">{formatCurrency(totalVerifiedContributions, currency)}</strong> provide a borrowing power of <strong className="text-foreground">{formatCurrency(borrowingPower, currency)} ({maxLoanPercentage}%)</strong>.
+              However, system policy sets the minimum allowed loan at <strong className="text-foreground">{formatCurrency(minLoanAmount, currency)}</strong>.
+              You need at least <strong className="text-foreground">{formatCurrency(minRequiredSavings, currency)}</strong> in verified savings to meet the standard threshold.
+            </p>
+            <div className="flex items-center gap-3 pt-2 flex-wrap">
+              <Button asChild className="rounded-[10px] font-bold text-xs">
+                <Link href="/contributions">Deposit Savings</Link>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowExceptionForm(true)}
+                className="rounded-[10px] font-bold text-xs"
+              >
+                Apply with Management Approval
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* LENDING POOL AVAILABILITY STRIP (WHEN FORM IS ELIGIBLE TO BE SHOWN) */}
+      {shouldShowForm && liquidityMetrics && !isLendingPoolCeiled && (
         <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
@@ -585,7 +734,7 @@ function LoanApplyContent() {
             </div>
             <div>
               <p className="font-bold text-foreground">
-                Group Lending Pool Availability: <span className="text-primary font-headline text-sm font-bold">{formatCurrency(liquidityMetrics.availableLendingPool, currency)}</span>
+                Lending Pool Availability: <span className="text-primary font-headline text-sm font-bold">{formatCurrency(liquidityMetrics.availableLendingPool, currency)}</span>
               </p>
               <p className="text-[11px] text-muted-foreground">
                 Ceiling: {liquidityMetrics.maxLendingPoolPercentage}% of total assets ({formatCurrency(liquidityMetrics.maxLendingPool, currency)} cap | {formatCurrency(liquidityMetrics.currentActiveLoanBalance, currency)} active)
@@ -598,113 +747,30 @@ function LoanApplyContent() {
         </div>
       )}
 
-      {/* PENDING LOAN BANNER with WITHDRAW BUTTON */}
-      {pendingLoan && (
-        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-            <div className="text-xs space-y-1">
-              <p className="font-bold">Pending Application Under Review</p>
-              <p className="text-blue-800">
-                You have a submitted loan request of <strong>{formatCurrency(pendingLoan.amount, currency)}</strong> currently awaiting management approval.
-              </p>
-            </div>
+      {/* EXCEPTION NOTICE BANNER (WHEN UNLOCKED WITH ZERO SAVINGS OR LOW POWER) */}
+      {shouldShowForm && showExceptionForm && (!hasSavings || !isBorrowingPowerEligible) && (
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
+            <span>
+              <strong>Management Exception Mode:</strong> You are submitting a loan request requiring official leadership authorization. Please ensure you attach the approval document below.
+            </span>
           </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={() => setIsWithdrawModalOpen(true)}
-            className="rounded-xl border-blue-300 hover:bg-blue-100 text-blue-900 font-bold text-xs gap-1.5 shrink-0 self-start sm:self-center"
+            onClick={() => setShowExceptionForm(false)}
+            className="h-7 text-[11px] font-bold px-2 hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 shrink-0"
           >
-            <Undo2 className="h-3.5 w-3.5" /> Withdraw Application
+            Cancel
           </Button>
         </div>
       )}
 
-      {/* TOP-UP OPPORTUNITY BANNER */}
-      {activeLoan && isEligibleForTopUp && !pendingLoan && (
-        <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-primary/5 to-transparent border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex gap-3">
-            <TrendingUp className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="text-xs space-y-1">
-              <p className="font-bold text-emerald-900 dark:text-emerald-300">
-                Loan Top-Up Available ({formatCurrency(repaidPrincipal, currency)} Repaid)
-              </p>
-              <p className="text-emerald-800 dark:text-emerald-400">
-                You have repaid <strong>{formatCurrency(repaidPrincipal, currency)}</strong> on your active loan of {formatCurrency(activeLoan.amount, currency)}. You can top-up and borrow back the repaid principal without clearing the balance!
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => setIsTopUpMode(!isTopUpMode)}
-            className={isTopUpMode 
-              ? "rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shrink-0" 
-              : "rounded-xl font-bold text-xs bg-primary text-primary-foreground shrink-0"}
-          >
-            {isTopUpMode ? "Switch to Standard View" : "Apply as Top-Up"}
-          </Button>
-        </div>
-      )}
-
-      {/* ACTIVE LOAN WARNING (when not eligible for top-up or top-up mode not active) */}
-      {activeLoan && !isTopUpMode && (
-        <div className="p-4 rounded-xl bg-muted/70 border border-border text-foreground flex gap-3">
-          <AlertTriangle className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
-          <div className="text-xs space-y-1">
-            <p className="font-bold">Active Loan Outstanding</p>
-            <p className="text-muted-foreground">
-              You currently have an active loan with an outstanding balance of <strong className="text-foreground">{formatCurrency(activeLoan.balance, currency)}</strong>.
-              {isEligibleForTopUp ? (
-                <>
-                  {' '}You are eligible for a <strong className="text-foreground">Loan Top-Up</strong> of up to <strong className="text-foreground">{formatCurrency(maxTopUpLimit, currency)}</strong>. Click the &ldquo;Apply as Top-Up&rdquo; button above to proceed.
-                </>
-              ) : (
-                <>
-                  {' '}You have repaid {formatCurrency(repaidPrincipal, currency)}. Top-up becomes available once repaid principal reaches the minimum loan amount of {formatCurrency(minLoanAmount, currency)}.
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {!hasSavings && !pendingLoan && !activeLoan && (
-        <div className="p-4 rounded-xl bg-muted/70 border border-border text-foreground flex gap-3">
-          <AlertCircle className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
-          <div className="text-xs space-y-1">
-            <p className="font-bold">No Verified Savings Found</p>
-            <p className="text-muted-foreground">
-              Your borrowing power is <strong className="text-foreground">{maxLoanPercentage}% of your verified contributions</strong>. Currently, you have no verified savings recorded. Please deposit a monthly contribution to establish your borrowing quota.
-            </p>
-            <div className="pt-2">
-              <Button asChild size="sm" variant="outline" className="h-8 text-xs font-bold border-border">
-                <Link href="/contributions">Make a Contribution</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {hasSavings && !isBorrowingPowerEligible && !pendingLoan && !activeLoan && (
-        <div className="p-4 rounded-xl bg-muted/70 border border-border text-foreground flex gap-3">
-          <AlertTriangle className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
-          <div className="text-xs space-y-1">
-            <p className="font-bold">Borrowing Power Below System Minimum</p>
-            <p className="text-muted-foreground">
-              Your verified contributions of <strong className="text-foreground">{formatCurrency(totalVerifiedContributions, currency)}</strong> provide a borrowing power of <strong className="text-foreground">{formatCurrency(borrowingPower, currency)} ({maxLoanPercentage}%)</strong>.
-              However, the group policy sets the minimum allowed loan at <strong className="text-foreground">{formatCurrency(minLoanAmount, currency)}</strong>.
-            </p>
-            <p className="text-foreground font-semibold pt-1">
-              You need at least <strong className="text-foreground">{formatCurrency(minRequiredSavings, currency)}</strong> in total verified contributions to qualify for the minimum loan.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Main Loan Application Card */}
-      <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
-        <CardHeader className="bg-primary/5 border-b border-primary/10">
+      {/* Main Loan Application Card - DYNAMICALLY RENDERED ONLY WHEN ELIGIBLE */}
+      {shouldShowForm && (
+        <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-primary/5 border-b border-primary/10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <HandCoins className="h-5 w-5 text-primary" />
@@ -721,7 +787,7 @@ function LoanApplyContent() {
           <CardDescription>
             {isTopUpMode
               ? `Top up your existing loan up to the repaid principal amount (${formatCurrency(maxTopUpLimit, currency)}).`
-              : `Request a group capital loan up to your maximum borrowing power (${maxLoanPercentage}% of verified contributions).`}
+              : `Request a capital loan up to your maximum borrowing power (${maxLoanPercentage}% of verified contributions).`}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6">
@@ -738,11 +804,7 @@ function LoanApplyContent() {
                     </span>
                     <span className="text-muted-foreground">|</span>
                     <span className="text-[10px] font-bold text-primary">
-                      POWER: <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong>
-                    </span>
-                    <span className="text-muted-foreground">|</span>
-                    <span className="text-[10px] font-bold text-primary">
-                      MAX CEILING: <strong>{formatCurrency(maxLoanAmount, currency)}</strong>
+                      BORROWING POWER: <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong>
                     </span>
                   </div>
                 </div>
@@ -754,14 +816,12 @@ function LoanApplyContent() {
                     type="number" 
                     value={requestedAmount}
                     onChange={(e) => setRequestedAmount(e.target.value)}
-                    placeholder={`Enter amount (${minLoanAmount} - ${maxLoanAmount})`}
+                    placeholder={`Enter amount (min. ${formatCurrency(minLoanAmount, currency)})`}
                     min={canApply ? minLoanAmount : undefined}
-                    max={canApply ? maxLoanAmount : undefined}
                     step="1"
                     disabled={!canApply || isSubmitting}
                     required 
                     className={`h-12 rounded-[10px] pr-14 bg-muted border-2 text-lg font-bold ${
-                      isAmountTooHigh ? 'border-black focus-visible:ring-black' :
                       isAmountTooLow ? 'border-border focus-visible:ring-border' :
                       exceedsBorrowingPower ? 'border-primary focus-visible:ring-primary' :
                       numericAmount >= minLoanAmount && numericAmount <= effectiveApplicationMax ? 'border-green-600/50' : 'border-transparent'
@@ -796,17 +856,6 @@ function LoanApplyContent() {
                         Borrowing Power: {formatCurrency(effectiveApplicationMax, currency)}
                       </Button>
                     )}
-                    {maxLoanAmount > effectiveApplicationMax && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setRequestedAmount(maxLoanAmount.toString())}
-                        className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-primary/50 text-foreground border-border"
-                      >
-                        Max Cap: {formatCurrency(maxLoanAmount, currency)} (Approval Req)
-                      </Button>
-                    )}
                   </div>
                 )}
 
@@ -827,7 +876,7 @@ function LoanApplyContent() {
                 )}
 
                 {/* Upfront interest calculation preview */}
-                {numericAmount >= minLoanAmount && !isAmountTooHigh && (() => {
+                {numericAmount >= minLoanAmount && (() => {
                   const rate = settings.loanInterestRate || 10;
                   const interestAmt = Math.round(numericAmount * (rate / 100));
                   const netReceived = Math.max(0, numericAmount - interestAmt);
@@ -870,16 +919,10 @@ function LoanApplyContent() {
                 })()}
 
                 {/* Validation helper messages */}
-                {isAmountTooHigh && (
-                  <p className="text-xs text-destructive font-bold flex items-center gap-1 pt-1">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    Amount exceeds the global maximum system limit of {formatCurrency(maxLoanAmount, currency)}.
-                  </p>
-                )}
-                {exceedsGroupPool && !isAmountTooHigh && (
+                {exceedsGroupPool && (
                   <p className="text-xs text-destructive font-bold flex items-center gap-1 pt-1">
                     <AlertOctagon className="h-3.5 w-3.5 shrink-0" />
-                    Amount exceeds the group&apos;s available lending pool of {formatCurrency(availableGroupPool || 0, currency)}. Please apply for {formatCurrency(availableGroupPool || 0, currency)} or less.
+                    Amount exceeds the available lending pool of {formatCurrency(availableGroupPool || 0, currency)}. Please apply for {formatCurrency(availableGroupPool || 0, currency)} or less.
                   </p>
                 )}
                 {isAmountTooLow && (
@@ -888,7 +931,7 @@ function LoanApplyContent() {
                     Amount is below the minimum allowed loan of {formatCurrency(minLoanAmount, currency)}.
                   </p>
                 )}
-                {exceedsBorrowingPower && !isAmountTooHigh && !exceedsGroupPool && (
+                {exceedsBorrowingPower && !exceedsGroupPool && (
                   <p className="text-xs text-primary font-bold flex items-center gap-1 pt-1">
                     <ShieldAlert className="h-3.5 w-3.5" />
                     Exceeds standard borrowing power ({formatCurrency(effectiveApplicationMax, currency)}). Management approval attachment is required.
@@ -1034,7 +1077,7 @@ function LoanApplyContent() {
                 </p>
                 {isTopUpMode && (
                   <p className="text-emerald-700 dark:text-emerald-400 font-medium">
-                    <strong>Top-Up Rule:</strong> This top-up is linked to parent loan #{activeLoan?.id?.slice(0, 8)}. Upon approval, the top-up loan will be disbursed and scheduled under standard group lending policy.
+                    <strong>Top-Up Rule:</strong> This top-up is linked to parent loan #{activeLoan?.id?.slice(0, 8)}. Upon approval, the top-up loan will be disbursed and scheduled under standard lending policy.
                   </p>
                 )}
                 {exceedsBorrowingPower && (
@@ -1049,11 +1092,9 @@ function LoanApplyContent() {
               type="submit" 
               disabled={
                 !canApply || 
-                isLendingPoolCeiled ||
                 isSubmitting || 
                 isUploadingDoc ||
                 isAmountTooLow || 
-                isAmountTooHigh || 
                 exceedsGroupPool ||
                 numericAmount <= 0 ||
                 (exceedsBorrowingPower && !hasManagementApprovalAttached)
@@ -1065,16 +1106,8 @@ function LoanApplyContent() {
                   <Loader2 className="animate-spin h-5 w-5 mr-2" />
                   {isUploadingDoc ? "Uploading Approval Document..." : "Submitting Request..."}
                 </>
-              ) : isLendingPoolCeiled ? (
-                "No Funds Available to Loan From (Ceiling Reached)"
               ) : exceedsGroupPool ? (
                 `Exceeds Available Pool (${formatCurrency(availableGroupPool || 0, currency)})`
-              ) : pendingLoan ? (
-                "Loan Request Pending Audit"
-              ) : activeLoan && !isTopUpMode ? (
-                "Active Loan Must Be Cleared (or Choose Top-Up)"
-              ) : isAmountTooHigh ? (
-                `Exceeds Maximum System Ceiling (${formatCurrency(maxLoanAmount, currency)})`
               ) : exceedsBorrowingPower && !hasManagementApprovalAttached ? (
                 "Attach Management Approval to Submit"
               ) : exceedsBorrowingPower ? (
@@ -1097,6 +1130,7 @@ function LoanApplyContent() {
           </form>
         </CardContent>
       </Card>
+      )}
 
       {/* WITHDRAW LOAN CONFIRMATION MODAL */}
       <Dialog open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen}>

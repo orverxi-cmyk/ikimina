@@ -109,9 +109,9 @@ exports.getGroupLiquidityMetrics = (0, https_1.onCall)({ cors: true }, async (re
  * Server authoritatively validates:
  * 1. Member authentication
  * 2. Positive amount
- * 3. Settings constraints: minLoanAmount and maxLoanAmount
+ * 3. Settings constraints: minLoanAmount
  * 4. Institutional Lending Pool ceiling (% of Total Assets) & Liquidity guardrail
- * 5. Member verified savings & maxLoanPercentage borrowing limit
+ * 5. Member verified savings & maxLoanPercentage borrowing limit (with exception justification)
  * 6. No existing active or pending loans
  */
 exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
@@ -129,21 +129,17 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     const settingsSnap = await db.collection('settings').doc('financials').get();
     const settings = settingsSnap.data() || {};
     const minLoanAmount = Number(settings.minLoanAmount) || 5000;
-    const maxLoanAmount = Number(settings.maxLoanAmount) || 1000000;
     const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
     if (loanAmount < minLoanAmount) {
         throw new https_1.HttpsError('failed-precondition', `Loan amount must be at least ${minLoanAmount}.`);
     }
-    if (loanAmount > maxLoanAmount) {
-        throw new https_1.HttpsError('failed-precondition', `Loan amount cannot exceed the maximum of ${maxLoanAmount}.`);
-    }
     // 2. Authoritative Institutional Liquidity & Lending Pool Ceiling Check
     const pool = await getInstitutionalLendingPool(db);
     if (pool.availableLendingPool <= 0) {
-        throw new https_1.HttpsError('failed-precondition', `No funds available to loan from. Group lending pool ceiling of ${pool.maxLendingPoolPercentage}% has been fully reached (${pool.currentActiveLoanBalance.toLocaleString()} ${pool.currency} active loans out of ${pool.maxLendingPool.toLocaleString()} ${pool.currency} limit). Applications are temporarily suspended.`);
+        throw new https_1.HttpsError('failed-precondition', `No funds available to loan from. The lending pool ceiling of ${pool.maxLendingPoolPercentage}% has been fully reached (${pool.currentActiveLoanBalance.toLocaleString()} ${pool.currency} active loans out of ${pool.maxLendingPool.toLocaleString()} ${pool.currency} limit). Applications are temporarily suspended.`);
     }
     if (loanAmount > pool.availableLendingPool) {
-        throw new https_1.HttpsError('failed-precondition', `Insufficient group liquidity: Only ${pool.availableLendingPool.toLocaleString()} ${pool.currency} is available to loan from based on the ${pool.maxLendingPoolPercentage}% group asset ceiling (${pool.netTotalAssets.toLocaleString()} ${pool.currency} total net assets). Your application of ${loanAmount.toLocaleString()} ${pool.currency} cannot be processed.`);
+        throw new https_1.HttpsError('failed-precondition', `Insufficient available liquidity: Only ${pool.availableLendingPool.toLocaleString()} ${pool.currency} is available to loan from based on the ${pool.maxLendingPoolPercentage}% asset ceiling (${pool.netTotalAssets.toLocaleString()} ${pool.currency} total net assets). Your application of ${loanAmount.toLocaleString()} ${pool.currency} cannot be processed.`);
     }
     let availableRepaidPrincipal = 0;
     // 2. Validate top-up constraints if applying for a top-up
@@ -212,7 +208,7 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     const equityLimit = Math.round((totalEquity * maxLoanPercentage) / 100);
     const completedLoansCount = existingLoansSnap.docs.filter(d => d.data().status === 'completed').length;
     const trustBonusLimit = (accruedInterest + (completedLoansCount * 10000)) * 2;
-    const effectiveLimit = Math.min(Math.max(percentageLimit, equityLimit, trustBonusLimit), maxLoanAmount);
+    const effectiveLimit = Math.max(percentageLimit, equityLimit, trustBonusLimit);
     const exceedsBorrowingPower = loanAmount > effectiveLimit;
     if (exceedsBorrowingPower) {
         if (!managementApprovalUrl || typeof managementApprovalUrl !== 'string' || !managementApprovalUrl.trim()) {
@@ -338,7 +334,7 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         // Authoritatively check institutional lending pool capacity before approving
         const pool = await getInstitutionalLendingPool(db);
         if (pool.availableLendingPool < loanData.amount) {
-            throw new https_1.HttpsError('failed-precondition', `Cannot approve loan: Insufficient group lending pool. Available pool capacity is ${pool.availableLendingPool.toLocaleString()} ${pool.currency} based on the ${pool.maxLendingPoolPercentage}% ceiling of net assets (${pool.netTotalAssets.toLocaleString()} ${pool.currency}). Approving this ${loanData.amount.toLocaleString()} ${pool.currency} facility would over-allocate funds.`);
+            throw new https_1.HttpsError('failed-precondition', `Cannot approve loan: Insufficient available lending pool. Available pool capacity is ${pool.availableLendingPool.toLocaleString()} ${pool.currency} based on the ${pool.maxLendingPoolPercentage}% ceiling of net assets (${pool.netTotalAssets.toLocaleString()} ${pool.currency}). Approving this ${loanData.amount.toLocaleString()} ${pool.currency} facility would over-allocate funds.`);
         }
         // Authoritatively fetch policy settings from Firestore
         const settingsSnap = await db.collection('settings').doc('financials').get();

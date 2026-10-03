@@ -68,13 +68,10 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-background p-6 space-y-8 rounded-[10px] shadow-sm border border-border shrink-0">
-      {/* Internal System Status */}
-      <div className="flex flex-col gap-1 px-4 py-3 border-b border-border">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-          Internal System
-        </h2>
-        <span className="text-sm font-bold text-primary">
+    <aside className="hidden md:flex flex-col w-64 bg-background rounded-[10px] shadow-sm border border-border shrink-0 overflow-hidden">
+      {/* Separate Header with Blue Background and Bottom Separator */}
+      <div className="bg-blue-600 px-5 py-3.5 border-b border-blue-700/60 flex items-center">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-white">
           {role === 'admin' 
             ? 'Administrator Console' 
             : role === 'accountant'
@@ -82,51 +79,53 @@ export function AppSidebar() {
             : role === 'management' 
             ? 'Management Console' 
             : 'Member Portal'}
-        </span>
+        </h2>
       </div>
 
-      <nav className="flex-1 space-y-1">
-        {menuItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all duration-200',
-                isActive 
-                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="flex-1 flex flex-col p-6 space-y-8 overflow-y-auto">
+        <nav className="flex-1 space-y-1">
+          {menuItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all duration-200',
+                  isActive 
+                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
-      <div className="pt-6 border-t border-border">
-        {user && (
-          <div className="px-4 py-3 bg-muted rounded-[10px] border border-border">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Session</p>
-            <div className="flex items-center gap-3">
-              <AvatarUpload
-                uid={user.uid}
-                currentPhotoURL={userData?.photoURL ?? user.photoURL}
-                displayName={userData?.name ?? user.displayName}
-                size={44}
-              />
-              <div className="min-w-0">
-                <p className="text-sm font-bold truncate text-foreground">{userData?.name || user.email}</p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />
-                  <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>
+        <div className="pt-6 border-t border-border">
+          {user && (
+            <div className="px-4 py-3 bg-muted rounded-[10px] border border-border">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Session</p>
+              <div className="flex items-center gap-3">
+                <AvatarUpload
+                  uid={user.uid}
+                  currentPhotoURL={userData?.photoURL ?? user.photoURL}
+                  displayName={userData?.name ?? user.displayName}
+                  size={44}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold truncate text-foreground">{userData?.name || user.email}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                    <span className="text-[10px] text-primary font-bold uppercase tracking-tight">{role}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </aside>
   );

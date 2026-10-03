@@ -99,7 +99,7 @@ function LoansPageContent() {
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('schedule');
 
-  // Group Liquidity & Lending Pool Ceiling State
+  // Institutional Liquidity & Lending Pool Ceiling State
   const [liquidityMetrics, setLiquidityMetrics] = useState<any>(null);
   const [loadingLiquidity, setLoadingLiquidity] = useState(false);
 
@@ -356,7 +356,7 @@ function LoansPageContent() {
       toast({
         variant: "destructive",
         title: "No Funds Available to Loan From",
-        description: `This loan of ${formatCurrency(requestedAmt, currency)} exceeds the group lending pool ceiling of ${liquidityMetrics?.maxLendingPoolPercentage ?? 90}% (${formatCurrency(availableGroupPool, currency)} currently available).`
+        description: `This loan of ${formatCurrency(requestedAmt, currency)} exceeds the lending pool ceiling of ${liquidityMetrics?.maxLendingPoolPercentage ?? 90}% (${formatCurrency(availableGroupPool, currency)} currently available).`
       });
       return;
     }
@@ -1198,7 +1198,7 @@ function LoansPageContent() {
                       </p>
                     </div>
 
-                    {/* Group Lending Pool */}
+                    {/* Lending Pool */}
                     <div className={cn(
                       "p-3.5 rounded-xl border flex flex-col justify-between transition-colors",
                       isPoolExhausted ? "bg-destructive/10 border-destructive/30" : "bg-emerald-500/10 border-emerald-500/30"
@@ -1208,7 +1208,7 @@ function LoansPageContent() {
                           "text-[10px] font-bold uppercase tracking-wider",
                           isPoolExhausted ? "text-destructive font-black" : "text-emerald-700 dark:text-emerald-400"
                         )}>
-                          Group Pool ({lendingPoolCeilingPct}%)
+                          Lending Pool ({lendingPoolCeilingPct}%)
                         </span>
                         <p className={cn(
                           "text-xl font-bold font-headline mt-1",
@@ -1223,18 +1223,18 @@ function LoansPageContent() {
                     </div>
                   </div>
 
-                  {/* Group Liquidity Pool Ceiling Alert Banner */}
+                  {/* Lending Pool Ceiling Alert Banner */}
                   {isPoolExhausted && (
                     <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 flex items-start gap-3.5 text-destructive">
                       <AlertOctagon className="h-5 w-5 shrink-0 mt-0.5" />
                       <div className="space-y-1 text-xs">
                         <p className="font-bold text-sm">
-                          No Funds Available to Loan From (Group Ceiling Exceeded)
+                          No Funds Available to Loan From (Ceiling Reached)
                         </p>
                         <p className="leading-relaxed opacity-95">
-                          The group lending pool ceiling is set at <strong>{lendingPoolCeilingPct}% of total net assets</strong> ({formatCurrency(maxLendingPool, currency)}).
-                          Distributed active loans across all members currently total <strong>{formatCurrency(currentActiveLoanBalance, currency)}</strong>, leaving only <strong>{formatCurrency(availableGroupPool, currency)}</strong> available in the group pool.
-                          This loan application of <strong>{formatCurrency(requestedAmt, currency)}</strong> cannot be approved or disbursed until active loans are repaid or group capital increases.
+                          The lending pool ceiling is set at <strong>{lendingPoolCeilingPct}% of total net assets</strong> ({formatCurrency(maxLendingPool, currency)}).
+                          Distributed active loans across all members currently total <strong>{formatCurrency(currentActiveLoanBalance, currency)}</strong>, leaving only <strong>{formatCurrency(availableGroupPool, currency)}</strong> available in the lending pool.
+                          This loan application of <strong>{formatCurrency(requestedAmt, currency)}</strong> cannot be approved or disbursed until active loans are repaid or capital increases.
                         </p>
                       </div>
                     </div>
@@ -1472,7 +1472,7 @@ function LoansPageContent() {
                       <div className="space-y-0.5">
                         <p className="font-bold">No Funds Available to Loan From</p>
                         <p className="opacity-90">
-                          Group pool ceiling ({liquidityMetrics?.maxLendingPoolPercentage ?? 90}%) has only {formatCurrency(availableGroupPool, currency)} available.
+                          Lending pool ceiling ({liquidityMetrics?.maxLendingPoolPercentage ?? 90}%) has only {formatCurrency(availableGroupPool, currency)} available.
                         </p>
                       </div>
                     </div>

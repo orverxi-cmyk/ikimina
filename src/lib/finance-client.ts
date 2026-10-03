@@ -53,7 +53,7 @@ export type SystemSettings = {
   maxLoanPercentage: number;
   maxLendingPoolPercentage?: number;
   minLoanAmount: number;
-  maxLoanAmount: number;
+  maxLoanAmount?: number;
   penaltyRate: number;
   depositBankName?: string;
   depositAccountNumber?: string;
@@ -68,7 +68,6 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   maxLoanPercentage: 200,
   maxLendingPoolPercentage: 90,
   minLoanAmount: 5000,
-  maxLoanAmount: 1000000,
   penaltyRate: 2,
   depositBankName: 'Bank of Kigali',
   depositAccountNumber: '00044-01234567-89',
@@ -140,7 +139,7 @@ export async function updateFinancialSettingsAction(data: {
   maxLoanPercentage: number, 
   maxLendingPoolPercentage?: number,
   minLoanAmount: number, 
-  maxLoanAmount: number,
+  maxLoanAmount?: number,
   penaltyRate?: number,
   depositBankName?: string,
   depositAccountNumber?: string,

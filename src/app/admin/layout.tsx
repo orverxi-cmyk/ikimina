@@ -304,34 +304,37 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       <div className="flex-1 flex overflow-hidden relative">
         <div className="flex flex-1 w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
-          <aside className="hidden md:flex flex-col w-64 bg-background p-6 space-y-8 rounded-[10px] border border-border shrink-0 shadow-sm">
-            <div className="flex flex-col gap-1 px-4 py-3 border-b border-border">
-              <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Internal System</h2>
-              <span className="text-sm font-bold text-primary flex items-center gap-2">
-                <ShieldCheck className="h-3 w-3" /> Administrator Console
-              </span>
+          <aside className="hidden md:flex flex-col w-64 bg-background rounded-[10px] border border-border shrink-0 shadow-sm overflow-hidden">
+            {/* Separate Header with Blue Background and Bottom Separator */}
+            <div className="bg-blue-600 px-5 py-3.5 border-b border-blue-700/60 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-white shrink-0" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-white">
+                Administrator Console
+              </h2>
             </div>
 
-            <nav className="flex-1 space-y-1">
-              {menuItems.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all',
-                      isActive 
-                        ? 'bg-primary text-primary-foreground shadow-lg' 
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+            <div className="flex-1 flex flex-col p-6 space-y-8 overflow-y-auto">
+              <nav className="flex-1 space-y-1">
+                {menuItems.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all',
+                        isActive 
+                          ? 'bg-primary text-primary-foreground shadow-lg' 
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
           </aside>
           
           <main className="flex-1 overflow-y-auto overflow-x-hidden rounded-[10px] relative min-w-0">

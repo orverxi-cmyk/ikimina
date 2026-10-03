@@ -708,7 +708,7 @@ export default function AdminDashboard() {
                     <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-2 border-primary/30 flex items-center justify-between">
                       <div className="space-y-1">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
-                          <Landmark className="h-3 w-3" /> Group Lending Pool Ceiling ({maxLendingPoolPercentage}% of Assets)
+                          <Landmark className="h-3 w-3" /> Lending Pool Ceiling ({maxLendingPoolPercentage}% of Assets)
                         </span>
                         <p className="text-xl font-bold font-headline text-primary">
                           {formatCurrency(availableLendingPool, currency)}

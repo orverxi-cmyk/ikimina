@@ -88,7 +88,6 @@ export default function AdminSettingsPage() {
     const maxLoanPercentage = Number(formData.get('maxLoanPercentage'));
     const maxLendingPoolPercentage = Number(formData.get('maxLendingPoolPercentage')) || 90;
     const minLoanAmount = Number(formData.get('minLoanAmount'));
-    const maxLoanAmount = Number(formData.get('maxLoanAmount'));
     const penaltyRate = Number(formData.get('penaltyRate'));
     const depositBankNameVal = (formData.get('depositBankName') as string)?.trim() ?? depositBankName;
     const depositAccountNumberVal = (formData.get('depositAccountNumber') as string)?.trim() ?? depositAccountNumber;
@@ -104,7 +103,6 @@ export default function AdminSettingsPage() {
         maxLoanPercentage, 
         maxLendingPoolPercentage,
         minLoanAmount, 
-        maxLoanAmount,
         penaltyRate,
         depositBankName: depositBankNameVal,
         depositAccountNumber: depositAccountNumberVal,
@@ -255,7 +253,7 @@ export default function AdminSettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-1 font-bold text-primary">Group Lending Pool Ceiling (% of Total Assets) <Percent className="h-3 w-3 text-primary" /></Label>
+                  <Label className="flex items-center gap-1 font-bold text-primary">Lending Pool Ceiling (% of Total Assets) <Percent className="h-3 w-3 text-primary" /></Label>
                   <Input 
                     name="maxLendingPoolPercentage" 
                     type="number" 
@@ -267,13 +265,13 @@ export default function AdminSettingsPage() {
                     className="h-11 rounded-[10px] bg-muted border-none font-bold text-primary"
                   />
                   <p className="text-[10px] text-muted-foreground leading-tight">
-                    Ceiling % of group total net assets permitted for active loans. If active loans reach this % (e.g. 90%), new loan applications and approvals are blocked with &quot;No funds available to loan from&quot;.
+                    Ceiling % of total net assets permitted for active loans. If active loans reach this % (e.g. 90%), new loan applications and approvals are blocked with &quot;No funds available to loan from&quot;.
                   </p>
                 </div>
               </div>
 
-              <div className="grid gap-6 md:grid-cols-2 pt-2">
-                <div className="space-y-2">
+              <div className="pt-2">
+                <div className="space-y-2 max-w-sm">
                   <Label>Min Loan Amount</Label>
                   <Input 
                     name="minLoanAmount" 
@@ -282,16 +280,9 @@ export default function AdminSettingsPage() {
                     required 
                     className="h-11 rounded-[10px] bg-muted border-none"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>Max Loan Amount</Label>
-                  <Input 
-                    name="maxLoanAmount" 
-                    type="number" 
-                    defaultValue={settings.maxLoanAmount || 1000000} 
-                    required 
-                    className="h-11 rounded-[10px] bg-muted border-none"
-                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Minimum threshold required per loan request. Dynamic borrowing capacity is governed by member savings ({settings.maxLoanPercentage || 200}%) with exceptional approvals for higher amounts.
+                  </p>
                 </div>
               </div>
 
@@ -319,7 +310,7 @@ export default function AdminSettingsPage() {
                 <Landmark className="h-5 w-5" /> Deposit Bank &amp; Account Details
               </CardTitle>
               <CardDescription>
-                Configure the group deposit account where members send contributions and loan repayments. This will be displayed below the amount fields across the platform.
+                Configure the deposit account where members send contributions and loan repayments. This will be displayed below the amount fields across the platform.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

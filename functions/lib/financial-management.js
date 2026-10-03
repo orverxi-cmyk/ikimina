@@ -175,7 +175,7 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
     if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
     }
-    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, maxLendingPoolPercentage, minLoanAmount, maxLoanAmount, penaltyRate, depositBankName, depositAccountNumber, justification } = request.data;
+    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, maxLendingPoolPercentage, minLoanAmount, penaltyRate, depositBankName, depositAccountNumber, justification } = request.data;
     try {
         const batch = db.batch();
         const settingsRef = db.collection('settings').doc('financials');
@@ -188,7 +188,6 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
             maxLoanPercentage: Number(maxLoanPercentage),
             maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
             minLoanAmount: Number(minLoanAmount),
-            maxLoanAmount: Number(maxLoanAmount),
             penaltyRate: Number(penaltyRate || 2),
             depositBankName: depositBankName ? String(depositBankName).trim() : '',
             depositAccountNumber: depositAccountNumber ? String(depositAccountNumber).trim() : '',
@@ -211,7 +210,6 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
                 maxLoanPercentage,
                 maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
                 minLoanAmount,
-                maxLoanAmount,
                 penaltyRate
             },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -350,7 +348,6 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
             contributionInterestRate: 50000,
             maxLoanPercentage: 200,
             minLoanAmount: 5000,
-            maxLoanAmount: 1000000,
             penaltyRate: 2,
             depositBankName: 'Bank of Kigali',
             depositAccountNumber: '00044-01234567-89',
@@ -365,7 +362,6 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
         contributionInterestRate: Number(data.contributionInterestRate) || 50000,
         maxLoanPercentage: Number(data.maxLoanPercentage) || 200,
         minLoanAmount: Number(data.minLoanAmount) || 5000,
-        maxLoanAmount: Number(data.maxLoanAmount) || 1000000,
         penaltyRate: Number(data.penaltyRate) || 2,
         depositBankName: data.depositBankName || '',
         depositAccountNumber: data.depositAccountNumber || '',

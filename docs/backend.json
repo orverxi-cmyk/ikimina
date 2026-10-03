@@ -115,7 +115,6 @@
         "contributionInterestRate": { "type": "number" },
         "maxLoanPercentage": { "type": "number" },
         "minLoanAmount": { "type": "number" },
-        "maxLoanAmount": { "type": "number" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "updatedBy": { "type": "string" }
       }

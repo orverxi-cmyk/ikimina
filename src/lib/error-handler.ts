@@ -321,7 +321,7 @@ export function parseAppError(error: unknown): AppErrorDetails {
     };
   }
 
-  if (messageLower.includes('no funds available to loan from') || messageLower.includes('insufficient group liquidity') || messageLower.includes('lending pool ceiling')) {
+  if (messageLower.includes('no funds available to loan from') || messageLower.includes('insufficient available liquidity') || messageLower.includes('insufficient group liquidity') || messageLower.includes('lending pool ceiling')) {
     return {
       title: 'No Funds Available to Loan From',
       message: rawMessage,
@@ -329,7 +329,7 @@ export function parseAppError(error: unknown): AppErrorDetails {
       severity: 'warning',
       isNetworkError: false,
       retryable: false,
-      suggestedAction: 'The group lending ceiling has been reached. Please wait for loan repayments or for the scheme capital base to grow before applying.',
+      suggestedAction: 'The lending pool ceiling has been reached. Please wait for loan repayments or for the capital base to grow before applying.',
     };
   }
 
