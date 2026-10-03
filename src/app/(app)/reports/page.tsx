@@ -553,9 +553,9 @@ export default function ReportsPage() {
         {/* Member Standings Audit Tab */}
         <TabsContent value="standings">
           <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
-            <CardHeader className="bg-muted/10 border-b">
-              <CardTitle className="text-lg">Individual Member Standings Audit</CardTitle>
-              <CardDescription>
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
+              <CardTitle className="text-lg font-bold text-white">Individual Member Standings Audit</CardTitle>
+              <CardDescription className="text-blue-100 text-xs">
                 Live snapshot of individual member contributions, pro-rata ownership weight, accumulated interest earned, and current net standing.
               </CardDescription>
             </CardHeader>
@@ -614,9 +614,9 @@ export default function ReportsPage() {
         {/* Distribution History Ledger Tab */}
         <TabsContent value="history">
           <Card className="border-none shadow-xl bg-card rounded-2xl overflow-hidden">
-            <CardHeader className="bg-muted/10 border-b">
-              <CardTitle className="text-lg">Interest Distribution Audit Ledger</CardTitle>
-              <CardDescription>
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
+              <CardTitle className="text-lg font-bold text-white">Interest Distribution Audit Ledger</CardTitle>
+              <CardDescription className="text-blue-100 text-xs">
                 Immutable chronological log of all profit allocations executed by administrators.
               </CardDescription>
             </CardHeader>

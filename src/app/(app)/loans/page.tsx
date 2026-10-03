@@ -713,11 +713,11 @@ function LoansPageContent() {
 
         <TabsContent value="schedule" className="space-y-6">
           <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl flex items-center gap-2">
-                <HandCoins className="h-5 w-5 text-primary" /> {isManagement ? 'Active Capital Book' : 'Active Repayment Windows'}
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
+              <CardTitle className="text-xl flex items-center gap-2 text-white">
+                <HandCoins className="h-5 w-5 text-white" /> {isManagement ? 'Active Capital Book' : 'Active Repayment Windows'}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-blue-100">
                 {isManagement 
                   ? 'Audit and manage the repayment cycles for all approved member loans.' 
                   : 'Upcoming installments for all your approved capital loans.'}
@@ -819,9 +819,9 @@ function LoansPageContent() {
 
         <TabsContent value="history" className="space-y-6">
           <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
-             <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl">Loan Lifecycle Audit</CardTitle>
-              <CardDescription>Comprehensive record of all requested, approved, and rejected loans.</CardDescription>
+             <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
+              <CardTitle className="text-xl text-white">Loan Lifecycle Audit</CardTitle>
+              <CardDescription className="text-blue-100">Comprehensive record of all requested, approved, and rejected loans.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
                 <Table>

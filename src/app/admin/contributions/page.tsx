@@ -1341,20 +1341,20 @@ export default function AdminContributionsBulkUploadPage() {
         {/* TAB 2: REVIEW QUEUE (Reviewer / Checker) */}
         {/* ============================================================ */}
         <TabsContent value="review" className="space-y-6">
-          <Card className="shadow-sm border border-border">
-            <CardHeader>
+          <Card className="shadow-sm border border-border rounded-xl overflow-hidden">
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg font-bold flex items-center gap-2 text-white">
+                    <UserCheck className="h-5 w-5 text-white" />
                     Reviewer Verification Queue (Step 2)
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-blue-100 text-xs">
                     Batches initiated by accountants awaiting compliance check and endorsement.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-primary/10 text-primary border-none font-bold">
+                  <Badge className="bg-white/20 text-white border-none font-bold">
                     {pendingReviewBatches.length} Awaiting Review
                   </Badge>
                   {pendingReviewBatches.length > 0 && (
@@ -1362,7 +1362,7 @@ export default function AdminContributionsBulkUploadPage() {
                       variant="outline"
                       size="sm"
                       onClick={toggleSelectAllReviewBatches}
-                      className="rounded-xl text-xs h-8 gap-1.5"
+                      className="rounded-xl text-xs h-8 gap-1.5 border-white/30 text-white hover:bg-white/20 bg-transparent"
                     >
                       <CheckSquare className="h-3.5 w-3.5" />
                       {selectedReviewBatchIds.length === pendingReviewBatches.length ? 'Deselect All' : 'Select All'}
@@ -1528,20 +1528,20 @@ export default function AdminContributionsBulkUploadPage() {
         {/* TAB 3: SUPER ADMIN APPROVAL (Super Admin / Approver) */}
         {/* ============================================================ */}
         <TabsContent value="superadmin" className="space-y-6">
-          <Card className="shadow-sm border border-border">
-            <CardHeader>
+          <Card className="shadow-sm border border-border rounded-xl overflow-hidden">
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <ShieldCheck className="h-5 w-5 text-green-600" />
+                  <CardTitle className="text-lg font-bold flex items-center gap-2 text-white">
+                    <ShieldCheck className="h-5 w-5 text-white" />
                     Super Admin Final Approval Queue (Step 3)
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-blue-100 text-xs">
                     Batches endorsed by the Reviewer, awaiting final sign-off to be committed to the official ledger.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-none font-bold">
+                  <Badge className="bg-white/20 text-white border-none font-bold">
                     {pendingApprovalBatches.length} Ready for Approval
                   </Badge>
                   {pendingApprovalBatches.length > 0 && (
@@ -1549,7 +1549,7 @@ export default function AdminContributionsBulkUploadPage() {
                       variant="outline"
                       size="sm"
                       onClick={toggleSelectAllApprovalBatches}
-                      className="rounded-xl text-xs h-8 gap-1.5"
+                      className="rounded-xl text-xs h-8 gap-1.5 border-white/30 text-white hover:bg-white/20 bg-transparent"
                     >
                       <CheckSquare className="h-3.5 w-3.5" />
                       {selectedApprovalBatchIds.length === pendingApprovalBatches.length ? 'Deselect All' : 'Select All'}

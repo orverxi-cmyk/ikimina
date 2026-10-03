@@ -19,25 +19,13 @@ Table.displayName = "Table"
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => {
-  const sanitizedClassName = className
-    ? className
-        .split(/\s+/)
-        .filter((c) => !c.startsWith("bg-muted") && !c.startsWith("bg-destructive") && !c.startsWith("bg-slate"))
-        .join(" ")
-    : ""
-
-  return (
-    <thead
-      ref={ref}
-      className={cn(
-        "bg-blue-600 text-white [&_tr]:border-b [&_tr]:border-blue-700/50 [&_tr]:hover:bg-blue-600 [&_th]:!text-white [&_th]:font-semibold",
-        sanitizedClassName
-      )}
-      {...props}
-    />
-  )
-})
+>(({ className, ...props }, ref) => (
+  <thead
+    ref={ref}
+    className={cn("[&_tr]:border-b bg-muted/30", className)}
+    {...props}
+  />
+))
 TableHeader.displayName = "TableHeader"
 
 const TableBody = React.forwardRef<
@@ -85,26 +73,17 @@ TableRow.displayName = "TableRow"
 const TableHead = React.forwardRef<
   HTMLTableCellElement,
   React.ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => {
-  const sanitizedClassName = className
-    ? className
-        .split(/\s+/)
-        .filter((c) => !c.startsWith("text-muted-foreground") && !c.startsWith("text-foreground"))
-        .join(" ")
-    : ""
-
-  return (
-    <th
-      ref={ref}
-      data-typography="header"
-      className={cn(
-        "h-11 px-4 text-left align-middle text-[13px] font-bold text-white whitespace-nowrap [&:has([role=checkbox])]:pr-0",
-        sanitizedClassName
-      )}
-      {...props}
-    />
-  )
-})
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    data-typography="header"
+    className={cn(
+      "h-11 px-4 text-left align-middle text-[12px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+      className
+    )}
+    {...props}
+  />
+))
 TableHead.displayName = "TableHead"
 
 const TableCell = React.forwardRef<

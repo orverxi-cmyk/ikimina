@@ -445,10 +445,10 @@ export default function ExpensesAdminPage() {
 
         {/* 1. Pending Approvals Tab */}
         <TabsContent value="pending" className="space-y-4">
-          <Card className="border border-border shadow-sm">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-lg font-bold">Expenses Awaiting Administrator Sign-Off</CardTitle>
-              <CardDescription>
+          <Card className="border border-border shadow-sm rounded-xl overflow-hidden">
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
+              <CardTitle className="text-lg font-bold text-white">Expenses Awaiting Administrator Sign-Off</CardTitle>
+              <CardDescription className="text-blue-100 text-xs">
                 Expenses lodged by the Accountant. Inspect the attached supporting documents before committing to the institutional asset deduction.
               </CardDescription>
             </CardHeader>
@@ -539,16 +539,16 @@ export default function ExpensesAdminPage() {
 
         {/* 2. Approved Expenses Tab */}
         <TabsContent value="approved" className="space-y-4">
-          <Card className="border border-border shadow-sm">
-            <CardHeader className="bg-muted/30 border-b">
+          <Card className="border border-border shadow-sm rounded-xl overflow-hidden">
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-lg font-bold">Approved Institutional Outflows</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-lg font-bold text-white">Approved Institutional Outflows</CardTitle>
+                  <CardDescription className="text-blue-100 text-xs">
                     Audited expenses subtracted from total institutional assets.
                   </CardDescription>
                 </div>
-                <Badge className="bg-green-600 text-white font-mono text-xs font-bold px-3 py-1">
+                <Badge className="bg-white/20 text-white font-mono text-xs font-bold px-3 py-1 border-none">
                   Total Deducted: {formatCurrency(totalApprovedAmount, currency)}
                 </Badge>
               </div>
@@ -640,10 +640,10 @@ export default function ExpensesAdminPage() {
 
         {/* 3. Rejected Expenses Tab */}
         <TabsContent value="rejected" className="space-y-4">
-          <Card className="border border-border shadow-sm">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-lg font-bold">Rejected Operational Expenses</CardTitle>
-              <CardDescription>
+          <Card className="border border-border shadow-sm rounded-xl overflow-hidden">
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
+              <CardTitle className="text-lg font-bold text-white">Rejected Operational Expenses</CardTitle>
+              <CardDescription className="text-blue-100 text-xs">
                 Expenses turned down by Administrators during audit review. Not deducted from assets.
               </CardDescription>
             </CardHeader>

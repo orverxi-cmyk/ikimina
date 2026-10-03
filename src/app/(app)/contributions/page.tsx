@@ -596,11 +596,11 @@ export default function ContributionsPage() {
             </div>
 
             <Card className="border border-border shadow-md bg-card rounded-2xl overflow-hidden w-full min-w-0 max-w-full">
-              <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/5 p-3.5 sm:p-5">
-                <CardTitle className="flex items-center gap-2 text-[13px] font-bold">
-                   <History className="h-4 w-4" /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Record
+              <CardHeader className="flex flex-row items-center justify-between border-b border-blue-700/30 bg-blue-600 text-white p-3.5 sm:p-5">
+                <CardTitle className="flex items-center gap-2 text-[13px] font-bold text-white">
+                   <History className="h-4 w-4 text-white" /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Record
                 </CardTitle>
-                <span className="text-[10px] text-muted-foreground sm:hidden font-medium">
+                <span className="text-[10px] text-blue-100 sm:hidden font-medium">
                   Swipe table &rarr;
                 </span>
               </CardHeader>
