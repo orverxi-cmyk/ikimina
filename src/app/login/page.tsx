@@ -7,7 +7,8 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink,
   updatePassword,
-  sendSignInLinkToEmail
+  sendSignInLinkToEmail,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { 
   collection, 
@@ -24,7 +25,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, Loader2, LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { Wallet, Loader2, LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
@@ -38,6 +47,11 @@ export default function LoginPage() {
   const [step, setStep] = useState<'email' | 'password' | 'pending-activation' | 'set-password'>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [memberDocId, setMemberDocId] = useState<string | null>(null);
+
+  // Forgot Password State
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const auth = useAuth();
   const firestore = useFirestore();
@@ -245,6 +259,45 @@ export default function LoginPage() {
     }
   };
 
+  const handleSendPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetEmail = resetEmail.trim().toLowerCase();
+    if (!targetEmail) {
+      return toast({
+        variant: 'destructive',
+        title: 'Email Required',
+        description: 'Please enter your registered email address.',
+      });
+    }
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'Cannot send password reset email while offline. Please connect to the internet.',
+      });
+    }
+
+    setIsSendingReset(true);
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      toast({
+        title: 'Password Reset Email Sent',
+        description: `We've sent a password reset link to ${targetEmail}. Please check your inbox or spam folder.`,
+      });
+      setIsResetDialogOpen(false);
+    } catch (error: any) {
+      const parsed = parseAppError(error);
+      toast({ 
+        variant: 'destructive', 
+        title: parsed.title || 'Reset Failed', 
+        description: parsed.message 
+      });
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl border-primary/10">
@@ -285,6 +338,18 @@ export default function LoginPage() {
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
                 Continue
               </Button>
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(email.trim());
+                    setIsResetDialogOpen(true);
+                  }}
+                  className="text-xs text-muted-foreground hover:text-primary font-medium transition-colors hover:underline focus:outline-none"
+                >
+                  Forgot your password?
+                </button>
+              </div>
             </form>
           )}
 
@@ -295,7 +360,19 @@ export default function LoginPage() {
                 <Input value={email} disabled className="bg-muted h-11 rounded-xl" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetEmail(email.trim());
+                      setIsResetDialogOpen(true);
+                    }}
+                    className="text-xs text-primary font-medium hover:underline focus:outline-none"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -321,6 +398,18 @@ export default function LoginPage() {
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
                 Sign In
               </Button>
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPassword('');
+                    setStep('email');
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+                >
+                  Use a different email
+                </button>
+              </div>
             </form>
           )}
 
@@ -405,6 +494,66 @@ export default function LoginPage() {
           </p>
         </CardFooter>
       </Card>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader className="space-y-2">
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-1 border border-primary/20">
+              <KeyRound className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-center text-xl font-bold">Reset Your Password</DialogTitle>
+            <DialogDescription className="text-center text-xs text-muted-foreground">
+              Enter your registered email address and we will send you a secure link to reset your account password.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSendPasswordReset} className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="name@example.com"
+                  className="pl-10 h-11 rounded-xl"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-1/2 h-11 rounded-xl"
+                onClick={() => setIsResetDialogOpen(false)}
+                disabled={isSendingReset}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="w-full sm:w-1/2 h-11 rounded-xl font-bold"
+                disabled={isSendingReset}
+              >
+                {isSendingReset ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  'Send Reset Link'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

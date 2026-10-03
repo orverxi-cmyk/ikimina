@@ -39,13 +39,21 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useUser } from '@/firebase/auth/use-user';
 import { useAuth, useFirestore } from '@/firebase/provider';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { SettingsProvider } from '@/context/settings-context';
@@ -63,6 +71,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Admin Forgot Password state
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   // Fetch Firestore user doc
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
@@ -124,6 +137,45 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
   };
 
+  const handleAdminPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetEmail = resetEmail.trim().toLowerCase();
+    if (!targetEmail) {
+      return toast({
+        variant: "destructive",
+        title: "Email Required",
+        description: "Please enter your administrator email address.",
+      });
+    }
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "Cannot send password reset email while offline. Please connect to the internet.",
+      });
+    }
+
+    setIsSendingReset(true);
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      toast({
+        title: "Password Reset Email Sent",
+        description: `We've sent a password reset link to ${targetEmail}. Please check your inbox or spam folder.`,
+      });
+      setIsResetDialogOpen(false);
+    } catch (error: any) {
+      const parsed = parseAppError(error);
+      toast({
+        variant: "destructive",
+        title: parsed.title || "Reset Failed",
+        description: parsed.message,
+      });
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
   // Loading state: only block if we have no cached role and no authoritative role yet
   if (userLoading || (user && docLoading && !cachedRole && !isPrimaryAdmin)) {
     return (
@@ -169,7 +221,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="adminPassword">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="adminPassword">Password</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetEmail(adminEmail.trim());
+                      setIsResetDialogOpen(true);
+                    }}
+                    className="text-xs text-primary font-medium hover:underline focus:outline-none"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -213,6 +277,66 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </Link>
           </CardFooter>
         </Card>
+
+        {/* Admin Password Reset Dialog */}
+        <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+          <DialogContent className="sm:max-w-md rounded-2xl">
+            <DialogHeader className="space-y-2">
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-1 border border-primary/20">
+                <ShieldCheck className="w-6 h-6 text-primary" />
+              </div>
+              <DialogTitle className="text-center text-xl font-bold">Reset Administrator Password</DialogTitle>
+              <DialogDescription className="text-center text-xs text-muted-foreground">
+                Enter your administrator email address below. We'll send you a secure link to reset your account password.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleAdminPasswordReset} className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="admin-reset-email">Administrator Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="admin-reset-email"
+                    type="email"
+                    placeholder="admin@example.com"
+                    className="pl-10 h-11 rounded-xl"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-1/2 h-11 rounded-xl"
+                  onClick={() => setIsResetDialogOpen(false)}
+                  disabled={isSendingReset}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="w-full sm:w-1/2 h-11 rounded-xl font-bold"
+                  disabled={isSendingReset}
+                >
+                  {isSendingReset ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Reset Link'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
