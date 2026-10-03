@@ -46,7 +46,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { allocateInterestAction, resetFinancialDataAction } from '@/lib/finance-client';
+import { resetFinancialDataAction } from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
 import { isWithinInterval, getYear, startOfYear, endOfYear, format } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
@@ -62,11 +62,6 @@ export default function ReportsPage() {
 
   const { settings } = useSettings();
   const currency = settings.currency;
-
-  const [isAllocating, setIsAllocating] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [distributeAmountInput, setDistributeAmountInput] = useState<string>('');
-  const [justificationInput, setJustificationInput] = useState<string>('');
 
   // Super Admin Reset State
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -246,71 +241,7 @@ export default function ReportsPage() {
     };
   }, [members, contributions, loans, auditLogs, periodFilter]);
 
-  // Pre-Distribution Simulator calculations
-  const parsedDistributeAmount = Number(distributeAmountInput) || 0;
-  const isAmountValid = parsedDistributeAmount > 0 && parsedDistributeAmount <= reportData.availableUndistributedInterest;
-  const isAmountExceeded = parsedDistributeAmount > reportData.availableUndistributedInterest;
 
-  const simulationPreview = useMemo(() => {
-    if (parsedDistributeAmount <= 0 || reportData.totalContributed <= 0) return [];
-
-    return reportData.memberSummaries
-      .filter(m => m.totalContributed > 0)
-      .map(m => {
-        const shareFraction = m.totalContributed / reportData.totalContributed;
-        const incomingShare = Math.round(shareFraction * parsedDistributeAmount);
-        const projectedTotalInterest = m.accruedInterest + incomingShare;
-
-        return {
-          id: m.id,
-          name: m.name,
-          totalContributed: m.totalContributed,
-          percentage: (shareFraction * 100).toFixed(1),
-          currentInterest: m.accruedInterest,
-          incomingShare,
-          projectedTotalInterest
-        };
-      });
-  }, [parsedDistributeAmount, reportData.totalContributed, reportData.memberSummaries]);
-
-  const handleAllocateInterest = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!isAdmin || !user) return;
-    
-    if (parsedDistributeAmount <= 0) {
-      toast({ variant: "destructive", title: "Invalid Amount", description: "Distribution amount must be greater than zero." });
-      return;
-    }
-
-    if (parsedDistributeAmount > reportData.availableUndistributedInterest) {
-      toast({ 
-        variant: "destructive", 
-        title: "Amount Exceeds Available Pool", 
-        description: `You cannot distribute more than ${formatCurrency(reportData.availableUndistributedInterest, currency)} of unallocated interest.` 
-      });
-      return;
-    }
-
-    setIsAllocating(true);
-
-    try {
-      await allocateInterestAction(user.uid, { 
-        totalInterestToDistribute: parsedDistributeAmount, 
-        justification: justificationInput 
-      });
-      toast({ 
-        title: "Distribution Successful", 
-        description: `Successfully distributed ${formatCurrency(parsedDistributeAmount, currency)} pro-rata to all active savers.` 
-      });
-      setIsDialogOpen(false);
-      setDistributeAmountInput('');
-      setJustificationInput('');
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Allocation Failed", description: error.message });
-    } finally {
-      setIsAllocating(false);
-    }
-  };
 
   const handleResetFinancialData = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -410,19 +341,7 @@ export default function ReportsPage() {
               <ShieldCheck className="mr-2 h-4 w-4" /> Audit Trail &amp; PDF
             </Link>
           </Button>
-          {isAdmin && (
-            <Button 
-              size="sm" 
-              onClick={() => {
-                setDistributeAmountInput('');
-                setJustificationInput('');
-                setIsDialogOpen(true);
-              }} 
-              className="rounded-xl h-9 shadow-md bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-            >
-              <TrendingUp className="mr-2 h-4 w-4" /> Distribute Profit
-            </Button>
-          )}
+
           {isSuperAdmin && (
             <Button 
               size="sm" 
@@ -470,13 +389,12 @@ export default function ReportsPage() {
               <Button 
                 size="sm" 
                 variant="outline" 
-                className="border-white/40 text-white hover:bg-white/20 h-9 bg-transparent"
-                onClick={() => {
-                  setDistributeAmountInput(reportData.availableUndistributedInterest.toString());
-                  setIsDialogOpen(true);
-                }}
+                asChild
+                className="border-white/40 text-white hover:bg-white/20 h-9 bg-transparent font-bold"
               >
-                Distribute Now
+                <Link href="/admin/distribute-interest">
+                  Distribute Interest &rarr;
+                </Link>
               </Button>
             )}
           </div>
@@ -711,173 +629,7 @@ export default function ReportsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Smart Distribute Profit Dialog with Live Breakdown Simulator */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <form onSubmit={handleAllocateInterest}>
-            <DialogHeader>
-              <DialogTitle className="text-xl flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Distribute Realized Interest Profits
-              </DialogTitle>
-              <DialogDescription>
-                Allocate accumulated group interest pro-rata according to each member&apos;s active savings balance.
-              </DialogDescription>
-            </DialogHeader>
 
-            <div className="space-y-5 py-4">
-              {/* Pool Status Information Box */}
-              <div className="bg-muted/40 rounded-xl p-4 border space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Available Undistributed Pool:
-                  </span>
-                  <span className="text-base font-bold text-emerald-600">
-                    {formatCurrency(reportData.availableUndistributedInterest, currency)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Total Realized from Loans:</span>
-                  <span>{formatCurrency(reportData.lifetimeRealizedInterest, currency)}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Already Distributed to Members:</span>
-                  <span>{formatCurrency(reportData.lifetimeDistributedInterest, currency)}</span>
-                </div>
-              </div>
-
-              {/* Amount Input with Quick Fill */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="amount" className="font-semibold">Total Amount to Distribute ({currency})</Label>
-                  {reportData.availableUndistributedInterest > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setDistributeAmountInput(reportData.availableUndistributedInterest.toString())}
-                      className="text-xs text-primary hover:underline font-medium"
-                    >
-                      Fill Max Available ({formatCurrency(reportData.availableUndistributedInterest, currency)})
-                    </button>
-                  )}
-                </div>
-                <Input 
-                  id="amount" 
-                  name="amount" 
-                  type="number" 
-                  min="1"
-                  max={reportData.availableUndistributedInterest}
-                  required 
-                  placeholder="e.g. 2000"
-                  value={distributeAmountInput}
-                  onChange={(e) => setDistributeAmountInput(e.target.value)}
-                  className={`text-lg font-semibold ${isAmountExceeded ? 'border-destructive focus-visible:ring-destructive' : ''}`}
-                />
-                
-                {isAmountExceeded && (
-                  <div className="flex items-center gap-1.5 text-xs text-destructive font-medium mt-1">
-                    <AlertTriangle className="h-4 w-4" />
-                    Cannot distribute more than available undistributed interest ({formatCurrency(reportData.availableUndistributedInterest, currency)}).
-                  </div>
-                )}
-                
-                {reportData.availableUndistributedInterest <= 0 && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-                    <Info className="h-4 w-4" />
-                    All earned loan interest has already been distributed.
-                  </div>
-                )}
-              </div>
-
-              {/* Justification Textarea */}
-              <div className="space-y-2">
-                <Label htmlFor="justification" className="font-semibold">Audit Justification & Notes</Label>
-                <Textarea 
-                  id="justification" 
-                  name="justification" 
-                  required 
-                  placeholder="e.g. Q3 2026 interest dividend distribution from fully repaid loans." 
-                  value={justificationInput}
-                  onChange={(e) => setJustificationInput(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              {/* Live Pre-Distribution Simulation Table */}
-              {isAmountValid && simulationPreview.length > 0 && (
-                <div className="space-y-2 pt-2 border-t">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Pre-Distribution Calculation Breakdown
-                    </h4>
-                    <span className="text-xs text-muted-foreground">
-                      Formula: Current Interest + New Share = Projected Total
-                    </span>
-                  </div>
-                  
-                  <div className="rounded-xl border border-muted overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="text-xs">
-                          <TableHead className="py-2.5">Member</TableHead>
-                          <TableHead className="text-right">Share %</TableHead>
-                          <TableHead className="text-right">Current Accrued</TableHead>
-                          <TableHead className="text-right font-bold">+ New Share</TableHead>
-                          <TableHead className="text-right font-extrabold pr-4">= Projected Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {simulationPreview.map(item => (
-                          <TableRow key={item.id} className="text-xs">
-                            <TableCell className="py-2 font-medium">{item.name}</TableCell>
-                            <TableCell className="text-right font-mono">{item.percentage}%</TableCell>
-                            <TableCell className="text-right text-muted-foreground font-medium">
-                              {formatCurrency(item.currentInterest, currency)}
-                            </TableCell>
-                            <TableCell className="text-right text-emerald-600 font-bold">
-                              +{formatCurrency(item.incomingShare, currency)}
-                            </TableCell>
-                            <TableCell className="text-right font-extrabold text-foreground pr-4">
-                              {formatCurrency(item.projectedTotalInterest, currency)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setIsDialogOpen(false)}
-                disabled={isAllocating}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={isAllocating || !isAmountValid || reportData.availableUndistributedInterest <= 0}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-              >
-                {isAllocating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Executing Distribution...
-                  </>
-                ) : (
-                  <>
-                    <TrendingUp className="mr-2 h-4 w-4" />
-                    Confirm & Distribute {isAmountValid ? formatCurrency(parsedDistributeAmount, currency) : ''}
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Super Admin Reset Confirmation Dialog */}
       <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>

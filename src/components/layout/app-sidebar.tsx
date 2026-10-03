@@ -13,7 +13,8 @@ import {
   Landmark,
   FileSpreadsheet,
   Receipt,
-  ShieldCheck
+  ShieldCheck,
+  TrendingUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -58,6 +59,7 @@ export function AppSidebar() {
 
   if (role === 'admin') {
     menuItems.push({ href: '/admin/contributions', label: 'Batch Approvals', icon: FileSpreadsheet });
+    menuItems.push({ href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp });
     menuItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     menuItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
     menuItems.push({ href: '/members', label: 'Members', icon: Users });

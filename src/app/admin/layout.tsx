@@ -19,7 +19,8 @@ import {
   ShieldAlert,
   Eye,
   EyeOff,
-  Receipt
+  Receipt,
+  TrendingUp
 } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -242,6 +243,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       { href: '/admin/contributions', label: batchLabel, icon: Wallet },
       ...(isSuperAdmin || isAccountant ? [
         { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
+      ] : []),
+      ...(isSuperAdmin ? [
+        { href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp },
       ] : []),
       { href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck },
       ...(isSuperAdmin ? [
