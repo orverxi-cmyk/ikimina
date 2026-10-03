@@ -77,7 +77,7 @@ function LoanApplyContent() {
   
   // Institutional Liquidity & Lending Pool Ceiling State
   const [liquidityMetrics, setLiquidityMetrics] = useState<any>(null);
-  const [loadingLiquidity, setLoadingLiquidity] = useState(false);
+  const [loadingLiquidity, setLoadingLiquidity] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -150,15 +150,26 @@ function LoanApplyContent() {
   const { data: repaymentsSnap, loading: repaymentsLoading } = useCollection(repaymentsQuery);
   const verifiedRepayments = useMemo(() => repaymentsSnap?.docs.map(d => d.data()) || [], [repaymentsSnap]);
 
-  // 4. Compute Borrowing Power: configured percentage (e.g. 200%) of verified contributions
-  const borrowingPower = useMemo(() => {
+  // Lending Pool Ceiling Validation
+  const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : null;
+  const isLendingPoolCeiled = Boolean(
+    liquidityMetrics && (Number(liquidityMetrics.availableLendingPool) < minLoanAmount)
+  );
+
+  // 4. Compute Personal Borrowing Power: configured percentage (e.g. 200%) of verified contributions
+  const personalBorrowingPower = useMemo(() => {
     return Math.round((totalVerifiedContributions * maxLoanPercentage) / 100);
   }, [totalVerifiedContributions, maxLoanPercentage]);
+  const borrowingPower = personalBorrowingPower;
 
-  // 5. Effective Max Limit determined by borrowing power
+  // 5. Effective Max Limit: strictly capped by the cooperative's available lending pool
+  // "A member should not be able to lend money above the lending pool value"
   const effectiveMaxLimit = useMemo(() => {
-    return borrowingPower;
-  }, [borrowingPower]);
+    if (availableGroupPool !== null) {
+      return Math.min(personalBorrowingPower, Math.max(0, availableGroupPool));
+    }
+    return personalBorrowingPower;
+  }, [personalBorrowingPower, availableGroupPool]);
 
   // 6. Loan status guards
   const pendingLoan = useMemo(() => (loans.find((l: any) => l.status === 'requested') as any), [loans]);
@@ -173,13 +184,17 @@ function LoanApplyContent() {
     return Math.min(Number(activeLoan.amount) || 0, loanRepaymentsTotal);
   }, [activeLoan, verifiedRepayments]);
 
-  // Effective Top-Up Cap: limited by repaid principal and borrowing power
+  // Effective Top-Up Cap: limited by repaid principal, personal borrowing power, and available lending pool
   const maxTopUpLimit = useMemo(() => {
-    return Math.min(repaidPrincipal, effectiveMaxLimit);
-  }, [repaidPrincipal, effectiveMaxLimit]);
+    const personalCap = Math.min(repaidPrincipal, personalBorrowingPower);
+    if (availableGroupPool !== null) {
+      return Math.min(personalCap, Math.max(0, availableGroupPool));
+    }
+    return personalCap;
+  }, [repaidPrincipal, personalBorrowingPower, availableGroupPool]);
 
   const isEligibleForTopUp = Boolean(
-    activeLoan && repaidPrincipal >= minLoanAmount && maxTopUpLimit >= minLoanAmount && !pendingLoan
+    activeLoan && repaidPrincipal >= minLoanAmount && maxTopUpLimit >= minLoanAmount && !pendingLoan && !isLendingPoolCeiled
   );
 
   // Auto-switch to top-up mode if requested via URL or active loan is present with repaid principal
@@ -191,10 +206,6 @@ function LoanApplyContent() {
 
   const hasSavings = totalVerifiedContributions > 0;
   const isBorrowingPowerEligible = effectiveMaxLimit >= minLoanAmount;
-
-  // Lending Pool Ceiling Validation
-  const isLendingPoolCeiled = Boolean(liquidityMetrics && liquidityMetrics.availableLendingPool <= 0);
-  const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : null;
 
   // Determination of canApply based on standard mode vs top-up mode + pool ceiling
   const canApply = useMemo(() => {
@@ -225,10 +236,10 @@ function LoanApplyContent() {
 
   const numericAmount = Number(requestedAmount) || 0;
   const isAmountTooLow = numericAmount > 0 && numericAmount < minLoanAmount;
-  // Exceeds standard borrowing power:
-  const exceedsBorrowingPower = numericAmount > effectiveApplicationMax;
-  // Exceeds available lending pool ceiling:
+  // Exceeds available lending pool ceiling (absolute hard blocker):
   const exceedsGroupPool = Boolean(availableGroupPool !== null && numericAmount > availableGroupPool);
+  // Exceeds personal standard quota (can attach management exception only if within available pool):
+  const exceedsBorrowingPower = numericAmount > effectiveApplicationMax && !exceedsGroupPool;
   const hasManagementApprovalAttached = Boolean(managementApprovalUrl || managementFile);
 
   // File Upload Handlers
@@ -448,7 +459,7 @@ function LoanApplyContent() {
     }
   };
 
-  const isLoading = userDataLoading || loansLoading || contributionsLoading || repaymentsLoading || settingsLoading;
+  const isLoading = userDataLoading || loansLoading || contributionsLoading || repaymentsLoading || settingsLoading || loadingLiquidity;
 
   if (isLoading) {
     return (
@@ -501,21 +512,29 @@ function LoanApplyContent() {
           )}
         </div>
 
-        {/* Borrowing Power */}
+        {/* Borrowing Power - Capped by Lending Pool */}
         <div className="p-4 bg-primary/5 rounded-[10px] border border-primary/20 space-y-1 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3 text-primary" /> Borrowing Power
+              <ShieldCheck className="h-3 w-3 text-primary" /> Borrowing Limit
             </p>
-            <Badge variant="outline" className="text-[8px] font-bold px-1.5 py-0 border-primary/30 text-primary">
-              {maxLoanPercentage}%
-            </Badge>
+            {availableGroupPool !== null && personalBorrowingPower > availableGroupPool ? (
+              <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-none text-[8px] font-bold px-1.5 py-0">
+                Pool Capped
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[8px] font-bold px-1.5 py-0 border-primary/30 text-primary">
+                {maxLoanPercentage}%
+              </Badge>
+            )}
           </div>
           <p className="text-lg font-bold text-primary">
-            {formatCurrency(borrowingPower, currency)}
+            {formatCurrency(effectiveMaxLimit, currency)}
           </p>
           <p className="text-[9px] text-muted-foreground font-medium">
-            {maxLoanPercentage}% of verified savings
+            {availableGroupPool !== null && personalBorrowingPower > availableGroupPool
+              ? `Savings power: ${formatCurrency(personalBorrowingPower, currency)} (Pool ceiling: ${formatCurrency(availableGroupPool, currency)})`
+              : `${maxLoanPercentage}% of verified savings`}
           </p>
         </div>
 
@@ -801,7 +820,7 @@ function LoanApplyContent() {
                     </span>
                     <span className="text-muted-foreground">|</span>
                     <span className="text-[10px] font-bold text-primary">
-                      BORROWING POWER: <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong>
+                      MAX AVAILABLE: <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong>
                     </span>
                   </div>
                 </div>
@@ -813,13 +832,15 @@ function LoanApplyContent() {
                     type="number" 
                     value={requestedAmount}
                     onChange={(e) => setRequestedAmount(e.target.value)}
-                    placeholder={`Enter amount (min. ${formatCurrency(minLoanAmount, currency)})`}
+                    placeholder={`Enter amount (${formatCurrency(minLoanAmount, currency)} - ${formatCurrency(effectiveApplicationMax, currency)})`}
                     min={canApply ? minLoanAmount : undefined}
+                    max={effectiveApplicationMax > 0 ? effectiveApplicationMax : undefined}
                     step="1"
                     disabled={!canApply || isSubmitting}
                     required 
                     className={`h-12 rounded-[10px] pr-14 bg-muted border-2 text-lg font-bold ${
                       isAmountTooLow ? 'border-border focus-visible:ring-border' :
+                      exceedsGroupPool ? 'border-destructive text-destructive focus-visible:ring-destructive' :
                       exceedsBorrowingPower ? 'border-primary focus-visible:ring-primary' :
                       numericAmount >= minLoanAmount && numericAmount <= effectiveApplicationMax ? 'border-green-600/50' : 'border-transparent'
                     }`} 
@@ -850,7 +871,7 @@ function LoanApplyContent() {
                         onClick={() => setRequestedAmount(effectiveApplicationMax.toString())}
                         className="h-7 text-[11px] rounded-lg px-2.5 font-bold hover:border-primary/50 text-primary border-primary/30"
                       >
-                        Borrowing Power: {formatCurrency(effectiveApplicationMax, currency)}
+                        Max Available: {formatCurrency(effectiveApplicationMax, currency)}
                       </Button>
                     )}
                   </div>
@@ -917,10 +938,15 @@ function LoanApplyContent() {
 
                 {/* Validation helper messages */}
                 {exceedsGroupPool && (
-                  <p className="text-xs text-destructive font-bold flex items-center gap-1 pt-1">
-                    <AlertOctagon className="h-3.5 w-3.5 shrink-0" />
-                    Amount exceeds the available lending pool of {formatCurrency(availableGroupPool || 0, currency)}. Please apply for {formatCurrency(availableGroupPool || 0, currency)} or less.
-                  </p>
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-xs text-destructive font-bold flex items-start gap-2 pt-2">
+                    <AlertOctagon className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p>Amount exceeds the available lending pool of {formatCurrency(availableGroupPool || 0, currency)}.</p>
+                      <p className="text-[11px] font-normal opacity-90 mt-0.5">
+                        A member cannot borrow more than the cooperative&apos;s available lending pool. Please enter {formatCurrency(availableGroupPool || 0, currency)} or less.
+                      </p>
+                    </div>
+                  </div>
                 )}
                 {isAmountTooLow && (
                   <p className="text-xs text-foreground font-bold flex items-center gap-1 pt-1">
@@ -928,10 +954,10 @@ function LoanApplyContent() {
                     Amount is below the minimum allowed loan of {formatCurrency(minLoanAmount, currency)}.
                   </p>
                 )}
-                {exceedsBorrowingPower && !exceedsGroupPool && (
+                {exceedsBorrowingPower && (
                   <p className="text-xs text-primary font-bold flex items-center gap-1 pt-1">
                     <ShieldAlert className="h-3.5 w-3.5" />
-                    Exceeds standard borrowing power ({formatCurrency(effectiveApplicationMax, currency)}). Management approval attachment is required.
+                    Exceeds standard personal quota ({formatCurrency(personalBorrowingPower, currency)}). Management approval attachment is required.
                   </p>
                 )}
               </div>
@@ -1104,7 +1130,7 @@ function LoanApplyContent() {
                   {isUploadingDoc ? "Uploading Approval Document..." : "Submitting Request..."}
                 </>
               ) : exceedsGroupPool ? (
-                `Exceeds Available Pool (${formatCurrency(availableGroupPool || 0, currency)})`
+                `Exceeds Available Pool (Max: ${formatCurrency(availableGroupPool || 0, currency)})`
               ) : exceedsBorrowingPower && !hasManagementApprovalAttached ? (
                 "Attach Management Approval to Submit"
               ) : exceedsBorrowingPower ? (

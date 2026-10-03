@@ -119,17 +119,17 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
 
     // 2. Authoritative Institutional Liquidity & Lending Pool Ceiling Check
     const pool = await getInstitutionalLendingPool(db);
-    if (pool.availableLendingPool <= 0) {
+    if (pool.availableLendingPool < minLoanAmount) {
         throw new HttpsError(
             'failed-precondition',
-            `No funds available to loan from. The lending pool ceiling of ${pool.maxLendingPoolPercentage}% has been fully reached (${pool.currentActiveLoanBalance.toLocaleString()} ${pool.currency} active loans out of ${pool.maxLendingPool.toLocaleString()} ${pool.currency} limit). Applications are temporarily suspended.`
+            `No funds available to loan from. The available lending pool (${pool.availableLendingPool.toLocaleString()} ${pool.currency}) is below the minimum loan threshold of ${minLoanAmount.toLocaleString()} ${pool.currency}. Applications are temporarily suspended.`
         );
     }
 
     if (loanAmount > pool.availableLendingPool) {
         throw new HttpsError(
             'failed-precondition',
-            `Insufficient available liquidity: Only ${pool.availableLendingPool.toLocaleString()} ${pool.currency} is available to loan from based on the ${pool.maxLendingPoolPercentage}% asset ceiling (${pool.netTotalAssets.toLocaleString()} ${pool.currency} total net assets). Your application of ${loanAmount.toLocaleString()} ${pool.currency} cannot be processed.`
+            `Insufficient available liquidity: Requested loan of ${loanAmount.toLocaleString()} ${pool.currency} exceeds the cooperative's available lending pool of ${pool.availableLendingPool.toLocaleString()} ${pool.currency}. A member cannot borrow above the lending pool value.`
         );
     }
 
