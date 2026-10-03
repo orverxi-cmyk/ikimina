@@ -56,7 +56,7 @@ import { doc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { SettingsProvider } from '@/context/settings-context';
+import { useSettings } from '@/context/settings-context';
 import { AppFooter } from '@/components/layout/app-footer';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
@@ -82,9 +82,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: docLoading } = useDoc(userRef);
 
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), [firestore]);
-  const { data: settingsData } = useDoc(settingsRef);
-  const infrastructureBranding = settingsData?.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
+  const { settings } = useSettings();
+  const infrastructureBranding = settings.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
 
   // Cached role logic to prevent role loss or flicker during page navigation
   const [cachedRole, setCachedRole] = useState<string | null>(null);
@@ -560,12 +559,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </aside>
           
           <main className="flex-1 overflow-y-auto overflow-x-hidden rounded-[10px] relative min-w-0 flex flex-col">
-            <SettingsProvider>
-              <div className="flex-1 min-w-0 w-full">
-                {children}
-              </div>
-              <AppFooter />
-            </SettingsProvider>
+            <div className="flex-1 min-w-0 w-full">
+              {children}
+            </div>
+            <AppFooter />
           </main>
         </div>
       </div>

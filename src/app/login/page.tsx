@@ -20,7 +20,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase/provider';
-import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
+import { useSettings } from '@/context/settings-context';
 import { activateMemberAccountAction } from '@/lib/finance-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,10 +58,8 @@ export default function LoginPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-
-  const settingsRef = useMemoFirebase(() => doc(firestore, 'settings', 'financials'), [firestore]);
-  const { data: settingsData } = useDoc(settingsRef);
-  const infrastructureBranding = settingsData?.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
+  const { settings } = useSettings();
+  const infrastructureBranding = settings.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
 
   useEffect(() => {
     const handleAuthLink = async () => {

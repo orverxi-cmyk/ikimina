@@ -65,8 +65,8 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // System financial policy and platform branding settings
-    match /settings/financials {
+    // System financial policy, footer and platform branding settings (Public read for unauthenticated views)
+    match /settings/{docId} {
       allow read: true;
       allow write: if false;
     }

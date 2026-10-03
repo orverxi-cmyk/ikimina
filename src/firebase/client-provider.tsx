@@ -2,6 +2,7 @@
 import { FirebaseProvider } from './provider';
 import { initializeFirebase } from '.';
 import { useMemo } from 'react';
+import { SettingsProvider } from '@/context/settings-context';
 
 import type { ReactNode } from 'react';
 
@@ -13,7 +14,9 @@ export function FirebaseClientProvider({ children }: { children: ReactNode }) {
   const firebase = useMemo(() => initializeFirebase(), []);
   return (
     <FirebaseProvider app={firebase.app} auth={firebase.auth} firestore={firebase.firestore}>
-      {children}
+      <SettingsProvider>
+        {children}
+      </SettingsProvider>
     </FirebaseProvider>
   );
 }
