@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -20,7 +20,12 @@ import {
   Eye,
   EyeOff,
   Receipt,
-  TrendingUp
+  TrendingUp,
+  LayoutDashboard,
+  Landmark,
+  HandCoins,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -63,6 +68,28 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: docLoading } = useDoc(userRef);
 
+  // Cached role logic to prevent role loss or flicker during page navigation
+  const [cachedRole, setCachedRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.uid) {
+      const stored = localStorage.getItem(`ikimina_role_${user.uid}`);
+      if (stored) setCachedRole(stored);
+    }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (userData?.role && user?.uid) {
+      setCachedRole(userData.role);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`ikimina_role_${user.uid}`, userData.role);
+      }
+    }
+  }, [userData?.role, user?.uid]);
+
+  const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
+  const effectiveRole = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
+
   const handleLogout = async () => {
     await signOut(auth);
   };
@@ -97,8 +124,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
   };
 
-  // Loading state
-  if (userLoading || (user && docLoading)) {
+  // Loading state: only block if we have no cached role and no authoritative role yet
+  if (userLoading || (user && docLoading && !cachedRole && !isPrimaryAdmin)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -191,7 +218,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   // 2. Authenticated but NOT an Admin, Reviewer, Accountant, or Auditor: Access Denied Screen
-  const hasAccess = userData?.role === 'admin' || userData?.role === 'accountant' || userData?.role === 'reviewer' || userData?.role === 'management' || userData?.role === 'auditor';
+  const hasAccess = isPrimaryAdmin || effectiveRole === 'admin' || effectiveRole === 'accountant' || effectiveRole === 'reviewer' || effectiveRole === 'management' || effectiveRole === 'auditor';
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -226,7 +253,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   // 3. Authenticated: Console Layout
-  const userRole = userData?.role || 'member';
+  const userRole = effectiveRole;
   const isSuperAdmin = userRole === 'admin';
   const isAccountant = userRole === 'accountant';
   const isReviewer = userRole === 'reviewer' || userRole === 'management';
@@ -234,28 +261,35 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const batchLabel = isSuperAdmin ? 'Batch Approvals' : isAccountant ? 'Batch Upload' : 'Review Batches';
 
-  const menuItems = [
-    { href: '/admin', label: 'Main Dashboard', icon: Home },
+  const adminMenuItems = [
+    { href: '/admin', label: 'Executive Console', icon: Home },
     ...(isAuditor ? [
       { href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck },
-      { href: '/reports', label: 'Financial Reports', icon: Flag },
+      { href: '/reports', label: 'Financial Reports', icon: FileText },
     ] : [
-      { href: '/admin/contributions', label: batchLabel, icon: Wallet },
+      { href: '/admin/contributions', label: batchLabel, icon: FileSpreadsheet },
       ...(isSuperAdmin || isAccountant ? [
         { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
       ] : []),
       ...(isSuperAdmin ? [
         { href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp },
       ] : []),
-      { href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck },
+      { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck },
       ...(isSuperAdmin ? [
-        { href: '/members', label: 'Members', icon: Users },
-        { href: '/reports', label: 'Reports', icon: Flag },
+        { href: '/members', label: 'Members Directory', icon: Users },
+        { href: '/reports', label: 'Financial Reports', icon: FileText },
         { href: '/admin/settings', label: 'Settings', icon: Settings },
       ] : [
-        { href: '/reports', label: 'Reports', icon: Flag },
+        { href: '/reports', label: 'Financial Reports', icon: FileText },
       ])
     ])
+  ];
+
+  const memberMenuItems = [
+    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/contributions', label: 'Contributions', icon: Wallet },
+    { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
+    { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
   ];
 
   const isRootLevel = pathname === '/admin';
@@ -338,26 +372,57 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </h2>
             </div>
 
-            <div className="flex-1 flex flex-col p-6 space-y-8 overflow-y-auto">
-              <nav className="flex-1 space-y-1">
-                {menuItems.map((item) => {
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        'flex items-center gap-3 rounded-[10px] px-4 py-3 text-sm font-bold transition-all',
-                        isActive 
-                          ? 'bg-primary text-primary-foreground shadow-lg' 
-                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
+            <div className="flex-1 flex flex-col p-4 sm:p-5 space-y-6 overflow-y-auto">
+              <nav className="flex-1 space-y-4">
+                {/* Administrative Tools Group */}
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">
+                    {isSuperAdmin ? 'Management & Controls' : 'Administrative Tools'}
+                  </p>
+                  {adminMenuItems.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          'flex items-center gap-3 rounded-[10px] px-3.5 py-2 text-xs font-bold transition-all duration-200',
+                          isActive 
+                            ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.01]' 
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                {/* Member Services Group */}
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5 pt-2 border-t border-border/60">
+                    Member Services
+                  </p>
+                  {memberMenuItems.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          'flex items-center gap-3 rounded-[10px] px-3.5 py-2 text-xs font-bold transition-all duration-200',
+                          isActive 
+                            ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.01]' 
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </nav>
             </div>
           </aside>

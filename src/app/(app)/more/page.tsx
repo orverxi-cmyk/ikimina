@@ -1,7 +1,20 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Wallet, FileText, Users, ShieldCheck, ChevronRight, Settings, ChartBar } from 'lucide-react';
+import { 
+  Wallet, 
+  FileText, 
+  Users, 
+  ShieldCheck, 
+  ChevronRight, 
+  Settings, 
+  ChartBar, 
+  Home, 
+  TrendingUp, 
+  Receipt,
+  FileSpreadsheet 
+} from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
@@ -14,9 +27,28 @@ export default function MorePage() {
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData } = useDoc(userRef);
 
-  const role = userData?.role || 'member';
+  const [cachedRole, setCachedRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.uid) {
+      const stored = localStorage.getItem(`ikimina_role_${user.uid}`);
+      if (stored) setCachedRole(stored);
+    }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (userData?.role && user?.uid) {
+      setCachedRole(userData.role);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`ikimina_role_${user.uid}`, userData.role);
+      }
+    }
+  }, [userData?.role, user?.uid]);
+
+  const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
+  const role = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
   const isAdmin = role === 'admin';
-  const isManagement = role === 'admin' || role === 'management';
+  const isManagement = role === 'admin' || role === 'management' || role === 'accountant' || role === 'auditor';
 
   const sections = [
     {
@@ -31,6 +63,13 @@ export default function MorePage() {
     sections.push({
       title: 'Management Tools',
       items: [
+        ...(isAdmin ? [
+          { href: '/admin', label: 'Executive Console', icon: Home, description: 'Balance sheet and metrics' },
+          { href: '/admin/contributions', label: 'Batch Approvals', icon: FileSpreadsheet, description: 'Approve pending batches' },
+          { href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp, description: 'Allocate profits pro-rata' },
+          { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt, description: 'Manage operational costs' },
+        ] : []),
+        { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck, description: 'Immutable action logs' },
         { href: '/reports', label: 'Financial Reports', icon: ChartBar, description: 'Audits and yearly standing' },
         ...(isAdmin ? [
           { href: '/members', label: 'Member Directory', icon: Users, description: 'Manage system access' },
