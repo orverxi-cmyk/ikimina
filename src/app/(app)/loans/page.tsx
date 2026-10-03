@@ -78,9 +78,9 @@ function LoansPageContent() {
 
   const { settings } = useSettings();
   const currency = settings.currency;
-  const globalRate = settings.loanInterestRate;
-  const globalPenaltyRate = settings.penaltyRate;
-  const globalInterestType = settings.interestType;
+  const globalRate = settings.loanInterestRate || 10;
+  const globalPenaltyRate = settings.penaltyRate || 2;
+  const globalInterestType = settings.interestType || 'immediate';
   const minLoanAmount = settings.minLoanAmount || 5000;
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1081,10 +1081,11 @@ function LoansPageContent() {
             const isEligible = borrowingPower >= requestedAmt && borrowingPower > 0;
             const coveragePercent = borrowingPower > 0 ? Math.round((requestedAmt / borrowingPower) * 100) : 0;
             const loanInterest = Math.round(requestedAmt * (globalRate / 100));
-            // One-off interest is deducted from approved loan amount:
-            // Amount received = loan amount - interest (e.g. 1,000,000 - 100,000 = 900,000)
-            // Payment schedule applies to the total amount (1,000,000)
-            const isImmediate = globalInterestType !== 'afterward';
+            // In accordance with upfront interest policy:
+            // One-off interest is deducted from the approved loan at disbursement:
+            // Amount received (disbursed) = loan amount - interest (e.g. 300,000 - 30,000 = 270,000)
+            // Total repayable over the term = loan amount (300,000) since interest is paid upfront
+            const isImmediate = (globalInterestType || 'immediate') !== 'afterward';
             const totalPayable = isImmediate ? requestedAmt : (requestedAmt + loanInterest);
             const amountReceived = isImmediate ? Math.max(0, requestedAmt - loanInterest) : requestedAmt;
             const loanDuration = Number(selectedLoan.durationMonths) || 12;
@@ -1313,8 +1314,8 @@ function LoansPageContent() {
                       <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
                         Financial Schedule Projection
                       </p>
-                      <Badge className="bg-emerald-600 text-white font-bold text-[9px] uppercase w-fit">
-                        Upfront Interest Deduction
+                      <Badge className={cn("text-white font-bold text-[9px] uppercase w-fit", isImmediate ? "bg-emerald-600" : "bg-blue-600")}>
+                        {isImmediate ? "Upfront Interest Deduction" : "Interest Added to Principal"}
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
@@ -1353,7 +1354,11 @@ function LoansPageContent() {
                       </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                      * Interest of {formatCurrency(loanInterest, currency)} is deducted from the approved loan. Borrower receives {formatCurrency(amountReceived, currency)} and repays the full {formatCurrency(totalPayable, currency)} over {loanDuration} months.
+                      {isImmediate ? (
+                        <>* Interest of {formatCurrency(loanInterest, currency)} is deducted upfront from the approved loan. Borrower receives {formatCurrency(amountReceived, currency)} and repays {formatCurrency(totalPayable, currency)} over {loanDuration} months ({formatCurrency(monthlyPayment, currency)}/mo).</>
+                      ) : (
+                        <>* Interest of {formatCurrency(loanInterest, currency)} is added to the principal. Borrower receives {formatCurrency(amountReceived, currency)} and repays {formatCurrency(totalPayable, currency)} over {loanDuration} months ({formatCurrency(monthlyPayment, currency)}/mo).</>
+                      )}
                     </p>
                   </div>
 
