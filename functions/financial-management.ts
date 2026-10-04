@@ -734,7 +734,10 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
         const loansSnap = await db.collection('loans').get();
         const repaymentsSnap = await db.collection('repayments').get();
         const distributionsSnap = await db.collection('interest_distributions').get();
-        const auditSnap = await db.collection('audit_logs').where('action', '==', 'ALLOCATE_INTEREST').get();
+        const expensesSnap = await db.collection('expenses').get();
+        const batchesSnap = await db.collection('contribution_batches').get();
+        const interestRequestsSnap = await db.collection('interest_distribution_requests').get();
+        const auditSnap = await db.collection('audit_logs').where('action', 'in', ['ALLOCATE_INTEREST', 'LODGE_EXPENSE', 'APPROVE_EXPENSE', 'REJECT_EXPENSE']).get();
         const usersSnap = await db.collection('users').get();
 
         let batch = db.batch();
@@ -772,6 +775,24 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
             await commitBatchIfNeeded();
         }
 
+        for (const doc of expensesSnap.docs) {
+            batch.delete(doc.ref);
+            opCount++;
+            await commitBatchIfNeeded();
+        }
+
+        for (const doc of batchesSnap.docs) {
+            batch.delete(doc.ref);
+            opCount++;
+            await commitBatchIfNeeded();
+        }
+
+        for (const doc of interestRequestsSnap.docs) {
+            batch.delete(doc.ref);
+            opCount++;
+            await commitBatchIfNeeded();
+        }
+
         for (const doc of auditSnap.docs) {
             batch.delete(doc.ref);
             opCount++;
@@ -800,6 +821,9 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
                 loansDeleted: loansSnap.size,
                 repaymentsDeleted: repaymentsSnap.size,
                 distributionsDeleted: distributionsSnap.size,
+                expensesDeleted: expensesSnap.size,
+                batchesDeleted: batchesSnap.size,
+                interestRequestsDeleted: interestRequestsSnap.size,
                 usersReset: usersSnap.size
             }
         });
@@ -816,6 +840,9 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
                 loansDeleted: loansSnap.size,
                 repaymentsDeleted: repaymentsSnap.size,
                 distributionsDeleted: distributionsSnap.size,
+                expensesDeleted: expensesSnap.size,
+                batchesDeleted: batchesSnap.size,
+                interestRequestsDeleted: interestRequestsSnap.size,
                 usersReset: usersSnap.size
             }
         };

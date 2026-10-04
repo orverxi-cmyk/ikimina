@@ -278,7 +278,7 @@ export default function ReportsPage() {
 
       toast({ 
         title: "Financial Ledger Reset to 0", 
-        description: `Successfully wiped ${result?.summary?.contributionsDeleted || 0} contributions, ${result?.summary?.loansDeleted || 0} loans, and reset all member savings and interest balances to 0.` 
+        description: `Successfully wiped ${result?.summary?.contributionsDeleted || 0} contributions, ${result?.summary?.loansDeleted || 0} loans, ${result?.summary?.expensesDeleted || 0} operating expenses, and reset all member savings and interest balances to 0.` 
       });
 
       setIsResetDialogOpen(false);
