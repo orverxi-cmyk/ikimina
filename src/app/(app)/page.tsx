@@ -170,20 +170,11 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-36 sm:pb-16">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div className="space-y-0.5">
           <h1 className="text-[13px] font-bold font-headline text-foreground">Financial Portfolio</h1>
           <p className="text-[12px] font-bold text-muted-foreground">Welcome back, {userData?.name || 'Member'}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-           {!isManagement && (
-             <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-md shadow-green-200 bg-green-600 hover:bg-green-700 flex-1 sm:flex-none">
-               <Link href="/contributions">
-                 <Wallet className="mr-2 h-4 w-4" /> Submit Savings
-               </Link>
-             </Button>
-           )}
         </div>
       </div>
 
@@ -417,6 +408,20 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bottom Submit Savings Action - Floating on Mobile, Integrated on Desktop */}
+      {!isManagement && (
+        <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-4 sm:flex sm:justify-end">
+          <Button 
+            asChild 
+            className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 border border-green-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
+          >
+            <Link href="/contributions">
+              <Wallet className="h-4 w-4" /> Submit Savings
+            </Link>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
