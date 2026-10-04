@@ -358,7 +358,7 @@ export default function ContributionsPage() {
   );
 
   return (
-    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24 w-full min-w-0 overflow-x-hidden">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-36 sm:pb-24 w-full min-w-0 overflow-x-hidden">
       {/* Header & Global Action CTAs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4">
         <div>
@@ -531,10 +531,20 @@ export default function ContributionsPage() {
                       </p>
                     </div>
                   </div>
-                  <Button className="w-full h-11 rounded-xl font-bold shadow-lg" type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Submit for Verification
-                  </Button>
+                  <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-2">
+                    <Button 
+                      className="w-full h-12 sm:h-11 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 border border-primary/40 backdrop-blur-md active:scale-[0.98] transition-all" 
+                      type="submit" 
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4" />
+                      )}
+                      Submit for Verification
+                    </Button>
+                  </div>
                 </form>
               </CardContent>
             </Card>
