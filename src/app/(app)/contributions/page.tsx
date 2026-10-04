@@ -277,7 +277,6 @@ export default function ContributionsPage() {
         <TableHeader>
           <TableRow>
             {isManagement && <TableHead className="px-4 py-3 whitespace-nowrap">Member</TableHead>}
-            <TableHead className={cn(!isManagement && "px-4", "py-3 whitespace-nowrap")}>Period</TableHead>
             <TableHead className="px-4 py-3 whitespace-nowrap">Date</TableHead>
             <TableHead className="px-4 py-3 whitespace-nowrap">Status</TableHead>
             <TableHead className="text-right px-4 py-3 whitespace-nowrap">Amount</TableHead>
@@ -286,13 +285,13 @@ export default function ContributionsPage() {
         <TableBody>
           {loadingContributions ? (
             <TableRow>
-              <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center">
+              <TableCell colSpan={isManagement ? 4 : 3} className="h-24 text-center">
                 <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
               </TableCell>
             </TableRow>
           ) : data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={isManagement ? 5 : 4} className="h-24 text-center text-muted-foreground italic">
+              <TableCell colSpan={isManagement ? 4 : 3} className="h-24 text-center text-muted-foreground italic">
                 No transactions found in this view.
               </TableCell>
             </TableRow>
@@ -304,11 +303,8 @@ export default function ContributionsPage() {
                     {getMemberName(h.memberId)}
                   </TableCell>
                 )}
-                <TableCell className={cn("font-medium px-4 py-3 whitespace-nowrap text-[12px]", !isManagement && "px-4")}>
-                  {h.period}
-                </TableCell>
-                <TableCell className="text-[10px] text-muted-foreground px-4 py-3 whitespace-nowrap">
-                  {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : 'Processing...'}
+                <TableCell className="font-medium text-foreground px-4 py-3 whitespace-nowrap text-[13px]">
+                  {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : h.date ? format(new Date(h.date), 'MMM d, yyyy') : h.period || 'Processing...'}
                 </TableCell>
                 <TableCell className="px-4 py-3 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 flex-nowrap">

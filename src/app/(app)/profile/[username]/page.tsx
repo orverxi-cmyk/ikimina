@@ -196,20 +196,18 @@ export default function ProfilePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Period</TableHead>
                     <TableHead>Date Recorded</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {contributions.length === 0 ? (
-                    <TableRow><TableCell colSpan={3} className="text-center h-24 text-muted-foreground">No payments found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={2} className="text-center h-24 text-muted-foreground">No payments found.</TableCell></TableRow>
                   ) : (
                     contributions.map((c: any) => (
                       <TableRow key={c.id}>
-                        <TableCell className="font-bold">{c.period}</TableCell>
-                        <TableCell className="text-[10px] text-muted-foreground">
-                          {c.date ? format(c.date.toDate(), 'MMM d, yyyy') : '...'}
+                        <TableCell className="font-semibold text-sm">
+                          {c.date ? (c.date.toDate ? format(c.date.toDate(), 'MMM d, yyyy') : format(new Date(c.date), 'MMM d, yyyy')) : c.period || '...'}
                         </TableCell>
                         <TableCell className="text-right font-bold">{formatCurrency(c.amount, currency)}</TableCell>
                       </TableRow>
