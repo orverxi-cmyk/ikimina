@@ -565,7 +565,7 @@ export default function DistributeInterestPage() {
             </div>
           </CardHeader>
           <CardContent className="p-5 pt-0">
-            <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <div className="text-base sm:text-lg font-bold text-white tracking-tight">
               {formatCurrency(poolMetrics.availableUndistributedInterest, currency)}
             </div>
             <p className="text-[11px] text-blue-100 mt-1 font-medium">
@@ -582,7 +582,7 @@ export default function DistributeInterestPage() {
             </p>
           </div>
           <CardContent className="p-5">
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-base sm:text-lg font-bold text-foreground">
               {formatCurrency(poolMetrics.totalRealizedInterest, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">
@@ -599,7 +599,7 @@ export default function DistributeInterestPage() {
             </p>
           </div>
           <CardContent className="p-5">
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-base sm:text-lg font-bold text-foreground">
               {formatCurrency(poolMetrics.lifetimeDistributedInterest, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">
@@ -616,7 +616,7 @@ export default function DistributeInterestPage() {
             </p>
           </div>
           <CardContent className="p-5">
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-base sm:text-lg font-bold text-foreground">
               {formatCurrency(poolMetrics.totalVerifiedSavings, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">

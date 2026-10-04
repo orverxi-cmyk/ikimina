@@ -386,7 +386,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
+            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalAssetAmount, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
@@ -416,7 +416,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
+            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalLoanAmountDisbursed, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
@@ -446,7 +446,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
+            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalArrearsAmount, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
@@ -482,7 +482,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
+            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalLoanInterests, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
@@ -512,7 +512,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
+            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
               {totalMembersCount}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
@@ -542,7 +542,7 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight text-foreground">
+            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
               {formatCurrency(totalApprovedExpenses, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">

@@ -382,7 +382,7 @@ export default function ExpensesAdminPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-headline text-foreground">
+            <div className="text-base sm:text-lg font-bold font-headline text-foreground">
               -{formatCurrency(totalApprovedAmount, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 font-medium">
@@ -402,7 +402,7 @@ export default function ExpensesAdminPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-headline text-primary">
+            <div className="text-base sm:text-lg font-bold font-headline text-primary">
               {formatCurrency(totalPendingAmount, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 font-medium">
@@ -422,7 +422,7 @@ export default function ExpensesAdminPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-headline text-foreground">
+            <div className="text-base sm:text-lg font-bold font-headline text-foreground">
               {expenses.length}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">

@@ -307,7 +307,7 @@ export default function ReportsPage() {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <ShieldAlert className="h-12 w-12 text-destructive" />
-        <h2 className="text-2xl font-bold font-headline">Access Restricted</h2>
+        <h2 className="text-base sm:text-lg font-bold font-headline">Access Restricted</h2>
         <p className="text-muted-foreground">Only administrators, auditors, and management can view financial reports.</p>
       </div>
     );
@@ -410,7 +410,7 @@ export default function ReportsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-base sm:text-lg font-bold text-green-600">
               +{formatCurrency(reportData.filteredInterestIn, currency)}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Earnings from approved & repaid loans</p>
@@ -424,7 +424,7 @@ export default function ReportsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-base sm:text-lg font-bold text-foreground">
               -{formatCurrency(reportData.filteredInterestOut, currency)}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Credited to member interest balances</p>
@@ -438,7 +438,7 @@ export default function ReportsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-base sm:text-lg font-bold text-foreground">
               {formatCurrency(reportData.totalContributed, currency)}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Active cumulative savings base</p>
@@ -452,7 +452,7 @@ export default function ReportsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-base sm:text-lg font-bold text-foreground">
               {formatCurrency(reportData.outstandingLoansBalance, currency)}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">

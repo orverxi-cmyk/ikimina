@@ -308,7 +308,7 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div data-stat-value="true" className="text-2xl font-bold">{stat.value}</div>
+              <div data-stat-value="true" className="text-base sm:text-lg font-bold text-foreground">{stat.value}</div>
             </CardContent>
           </Card>
         ))}

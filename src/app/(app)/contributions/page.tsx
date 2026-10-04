@@ -412,7 +412,7 @@ export default function ContributionsPage() {
             </Badge>
           </CardHeader>
           <CardContent className="p-4 sm:p-5 pt-0">
-            <div data-stat-value="true" className="text-xl sm:text-2xl font-bold font-headline text-foreground tracking-tight whitespace-nowrap">
+            <div data-stat-value="true" className="text-base sm:text-lg font-bold font-headline text-foreground tracking-tight whitespace-nowrap">
               {formatCurrency(totalVerifiedBalance, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 font-normal">
@@ -441,7 +441,7 @@ export default function ContributionsPage() {
             )}
           </CardHeader>
           <CardContent className="p-4 sm:p-5 pt-0">
-            <div data-stat-value="true" className="text-xl sm:text-2xl font-bold font-headline text-foreground whitespace-nowrap">
+            <div data-stat-value="true" className="text-base sm:text-lg font-bold font-headline text-foreground whitespace-nowrap">
               {formatCurrency(
                 pendingContributions.reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0),
                 currency
@@ -467,7 +467,7 @@ export default function ContributionsPage() {
             </Badge>
           </CardHeader>
           <CardContent className="p-4 sm:p-5 pt-0">
-            <div data-stat-value="true" className="text-xl sm:text-2xl font-bold font-headline text-foreground">
+            <div data-stat-value="true" className="text-base sm:text-lg font-bold font-headline text-foreground">
               {contributions.length}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 font-normal">
