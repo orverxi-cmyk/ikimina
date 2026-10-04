@@ -19,22 +19,26 @@ import {
   Search, 
   Download, 
   FileText, 
-  Calendar, 
-  Filter, 
   RotateCcw, 
   Eye, 
   ShieldAlert, 
   Loader2, 
   Clock, 
-  UserCheck, 
   CheckCircle2, 
-  ArrowLeft,
-  Lock,
-  Receipt,
-  Wallet,
-  Landmark,
-  UserCog,
-  Database
+  Lock, 
+  Receipt, 
+  Wallet, 
+  Landmark, 
+  UserCog, 
+  Database,
+  Layers,
+  Coins,
+  CreditCard,
+  Users,
+  SlidersHorizontal,
+  ChevronRight,
+  TrendingUp,
+  Tag
 } from "lucide-react";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc, Timestamp } from 'firebase/firestore';
@@ -46,6 +50,17 @@ import { format, isToday, isWithinInterval, subDays, startOfYear, endOfYear } fr
 import Link from 'next/link';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+// Action Category Tabs Definition
+export const ACTION_CATEGORIES = [
+  { id: 'all', label: 'All Actions', icon: Layers, description: 'Complete system audit ledger' },
+  { id: 'loans', label: 'Loans & Repayments', icon: CreditCard, description: 'Disbursements, repayments & verifications' },
+  { id: 'interest', label: 'Interest & Dividends', icon: Coins, description: 'Interest distributions & payout campaigns' },
+  { id: 'contributions', label: 'Contributions & Batches', icon: Wallet, description: 'Savings deposits, batch reviews & approvals' },
+  { id: 'expenses', label: 'Operating Expenses', icon: Receipt, description: 'Voucher lodges, approvals & rejections' },
+  { id: 'members', label: 'Members & Roles', icon: Users, description: 'Registrations, status changes & role assignments' },
+  { id: 'finance', label: 'Policy & System', icon: Landmark, description: 'Financial rules, configurations & resets' },
+] as const;
 
 // Friendly action labels and categorization
 const ACTION_CONFIG: Record<string, { label: string; category: string; badgeColor: string }> = {
@@ -75,10 +90,17 @@ const ACTION_CONFIG: Record<string, { label: string; category: string; badgeColo
   'REJECT_LOAN': { label: 'Reject Loan Facility', category: 'loans', badgeColor: 'bg-rose-500/10 text-rose-700 dark:text-rose-400' },
   'RECORD_REPAYMENT': { label: 'Record Loan Repayment', category: 'loans', badgeColor: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
   'VERIFY_REPAYMENT': { label: 'Verify Loan Repayment', category: 'loans', badgeColor: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+  'RECORD_LOAN_DISBURSEMENT': { label: 'Disburse Loan Facility', category: 'loans', badgeColor: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400' },
 
-  // Financial Policy & Distributions
+  // Interest & Dividends
+  'ALLOCATE_INTEREST': { label: 'Distribute Interest Profit', category: 'interest', badgeColor: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+  'INITIATE_INTEREST_DISTRIBUTION': { label: 'Initiate Interest Distribution', category: 'interest', badgeColor: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
+  'APPROVE_INTEREST_DISTRIBUTION': { label: 'Approve Interest Distribution', category: 'interest', badgeColor: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+  'REJECT_INTEREST_DISTRIBUTION': { label: 'Reject Interest Distribution', category: 'interest', badgeColor: 'bg-rose-500/10 text-rose-700 dark:text-rose-400' },
+  'OPEN_INTEREST_PAYOUT_CAMPAIGN': { label: 'Open Interest Payout Campaign', category: 'interest', badgeColor: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400' },
+
+  // System Policy & Data
   'UPDATE_FINANCIAL_SETTINGS': { label: 'Update Financial Policy', category: 'finance', badgeColor: 'bg-violet-500/10 text-violet-700 dark:text-violet-400' },
-  'ALLOCATE_INTEREST': { label: 'Distribute Interest Profit', category: 'finance', badgeColor: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
   'RESET_FINANCIAL_DATA': { label: 'Institutional Database Reset', category: 'finance', badgeColor: 'bg-red-500/10 text-red-700 dark:text-red-400' },
 };
 
@@ -95,9 +117,10 @@ export default function AuditLogsPage() {
   const isAuthorized = ['admin', 'auditor', 'reviewer', 'management', 'accountant'].includes(role);
 
   // Filter States
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');
+  const [selectedActionFilter, setSelectedActionFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -144,16 +167,17 @@ export default function AuditLogsPage() {
         dateObj = new Date(data.timestamp);
       }
 
-      const config = ACTION_CONFIG[data.action] || {
-        label: data.action?.replace(/_/g, ' ') || 'System Action',
-        category: 'other',
+      const actionKey = data.action || '';
+      const config = ACTION_CONFIG[actionKey] || {
+        label: actionKey ? actionKey.replace(/_/g, ' ') : 'System Action',
+        category: 'finance',
         badgeColor: 'bg-muted text-muted-foreground'
       };
 
       return {
         id: d.id,
         raw: data,
-        action: data.action,
+        action: actionKey,
         actionLabel: config.label,
         category: config.category,
         badgeColor: config.badgeColor,
@@ -172,11 +196,70 @@ export default function AuditLogsPage() {
     });
   }, [auditLogsSnap, userMap]);
 
+  // Compute category counts for tab badges
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: logs.length,
+      loans: 0,
+      interest: 0,
+      contributions: 0,
+      expenses: 0,
+      members: 0,
+      finance: 0
+    };
+
+    logs.forEach(log => {
+      if (counts[log.category] !== undefined) {
+        counts[log.category] += 1;
+      }
+    });
+
+    return counts;
+  }, [logs]);
+
+  // Unique actions for the current category context (for action pills/sub-filters)
+  const availableActionsForTab = useMemo(() => {
+    const relevantLogs = activeCategoryTab === 'all' 
+      ? logs 
+      : logs.filter(l => l.category === activeCategoryTab);
+
+    const actionMap = new Map<string, { action: string; label: string; count: number }>();
+
+    relevantLogs.forEach(l => {
+      const existing = actionMap.get(l.action);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        actionMap.set(l.action, {
+          action: l.action,
+          label: l.actionLabel,
+          count: 1
+        });
+      }
+    });
+
+    return Array.from(actionMap.values()).sort((a, b) => b.count - a.count);
+  }, [logs, activeCategoryTab]);
+
   // Filtered Logs
   const filteredLogs = useMemo(() => {
     const now = new Date();
     return logs.filter(log => {
-      // 1. Text Search
+      // 1. Primary Action Category Tab Filter
+      if (activeCategoryTab !== 'all') {
+        if (log.category !== activeCategoryTab) {
+          return false;
+        }
+      }
+
+      // 2. Specific Action Filter
+      if (selectedActionFilter !== 'all') {
+        if (log.action !== selectedActionFilter) {
+          return false;
+        }
+      }
+
+      // 3. Text Search
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
         const matchesAction = log.actionLabel.toLowerCase().includes(term) || log.action?.toLowerCase().includes(term);
@@ -188,21 +271,14 @@ export default function AuditLogsPage() {
         }
       }
 
-      // 2. Role Filter
+      // 4. Role Filter
       if (selectedRole !== 'all') {
         if (log.actorRole?.toLowerCase() !== selectedRole.toLowerCase()) {
           return false;
         }
       }
 
-      // 3. Category Filter
-      if (selectedCategory !== 'all') {
-        if (log.category !== selectedCategory) {
-          return false;
-        }
-      }
-
-      // 4. Period Filter
+      // 5. Period Filter
       if (selectedPeriod !== 'all' && log.dateObj) {
         if (selectedPeriod === 'today') {
           if (!isToday(log.dateObj)) return false;
@@ -218,15 +294,15 @@ export default function AuditLogsPage() {
 
       return true;
     });
-  }, [logs, searchTerm, selectedRole, selectedCategory, selectedPeriod]);
+  }, [logs, activeCategoryTab, selectedActionFilter, searchTerm, selectedRole, selectedPeriod]);
 
   // KPI Computations
   const stats = useMemo(() => {
     const total = logs.length;
     const adminDirectives = logs.filter(l => ['UPDATE_USER_ROLE', 'UPDATE_FINANCIAL_SETTINGS', 'ALLOCATE_INTEREST', 'RESET_FINANCIAL_DATA', 'REGISTER_MEMBER'].includes(l.action)).length;
     const expenses = logs.filter(l => l.category === 'expenses').length;
-    const contributionsAndLoans = logs.filter(l => l.category === 'contributions' || l.category === 'loans').length;
-    return { total, adminDirectives, expenses, contributionsAndLoans };
+    const loansAndRepayments = logs.filter(l => l.category === 'loans').length;
+    return { total, adminDirectives, expenses, loansAndRepayments };
   }, [logs]);
 
   // Extract a readable summary string from the `details` object
@@ -234,31 +310,65 @@ export default function AuditLogsPage() {
     const d = log.details;
     if (!d || Object.keys(d).length === 0) return 'Standard system execution';
     
+    if (log.action === 'VERIFY_REPAYMENT' || log.action === 'RECORD_REPAYMENT') {
+      const parts: string[] = [];
+      if (d.amount !== undefined) parts.push(`Amount: ${formatCurrency(d.amount, currency)}`);
+      if (d.remainingBalance !== undefined) parts.push(`Remaining: ${formatCurrency(d.remainingBalance, currency)}`);
+      if (d.loanId) parts.push(`Loan: ${String(d.loanId).slice(0, 10)}...`);
+      if (d.repaymentId) parts.push(`Repayment: ${String(d.repaymentId).slice(0, 10)}...`);
+      return parts.length > 0 ? parts.join(' | ') : 'Loan repayment verified';
+    }
+
     if (log.action === 'LODGE_EXPENSE' || log.action === 'APPROVE_EXPENSE' || log.action === 'REJECT_EXPENSE') {
       const amount = d.amount ? formatCurrency(d.amount, currency) : '';
       return `${d.title || d.expenseId || 'Expense'} ${amount ? `(${amount})` : ''} - ${d.category || ''}`;
     }
+
     if (log.action === 'UPDATE_USER_ROLE') {
       return `Target Member: ${d.targetUserId?.slice(0, 8)}... → New Role: ${d.role?.toUpperCase()}`;
     }
-    if (log.action === 'ALLOCATE_INTEREST') {
-      return `Total Profit Distributed: ${formatCurrency(d.totalDistributed || 0, currency)} to ${d.memberDistributions?.length || 'all'} members`;
+
+    if (log.action === 'ALLOCATE_INTEREST' || log.action === 'APPROVE_INTEREST_DISTRIBUTION') {
+      const total = d.totalDistributed || d.totalInterestToDistribute || d.amount;
+      return `Total Profit Distributed: ${total ? formatCurrency(total, currency) : 'N/A'} to ${d.memberDistributions?.length || d.memberCount || 'all'} members`;
     }
-    if (log.action === 'APPROVE_LOAN' || log.action === 'REJECT_LOAN') {
-      return `Loan: ${d.loanId || 'Facility'} ${d.amount ? `(${formatCurrency(d.amount, currency)})` : ''}`;
+
+    if (log.action === 'INITIATE_INTEREST_DISTRIBUTION') {
+      const total = d.totalInterestToDistribute || d.amount;
+      return `Proposed Interest Distribution: ${total ? formatCurrency(total, currency) : 'N/A'}`;
     }
+
+    if (log.action === 'OPEN_INTEREST_PAYOUT_CAMPAIGN') {
+      return `${d.announcement || 'Payout Campaign'} | Target: ${d.targetAmount ? formatCurrency(d.targetAmount, currency) : 'N/A'}`;
+    }
+
+    if (log.action === 'APPROVE_LOAN' || log.action === 'REJECT_LOAN' || log.action === 'RECORD_LOAN_DISBURSEMENT') {
+      return `Loan: ${d.loanId?.slice(0, 10) || 'Facility'} ${d.amount ? `(${formatCurrency(d.amount, currency)})` : ''}`;
+    }
+
     if (log.action?.includes('BATCH')) {
       return `Batch: ${d.batchId || d.id || 'Upload'} ${d.count ? `(${d.count} records)` : ''}`;
     }
+
     if (log.action === 'REGISTER_MEMBER') {
       return `New Member: ${d.email || d.memberId || 'Registered'}`;
     }
+
     if (log.action === 'BULK_REGISTER_MEMBERS') {
       return `Bulk Created: ${d.count || 0} participants`;
     }
 
+    if (log.action === 'VERIFY_CONTRIBUTION' || log.action === 'RECORD_CONTRIBUTION') {
+      return `Contribution: ${d.amount ? formatCurrency(d.amount, currency) : ''} | Member: ${d.memberId?.slice(0, 8) || 'Member'}`;
+    }
+
     // Default: key-values
-    const entries = Object.entries(d).slice(0, 3).map(([k, v]) => `${k}: ${typeof v === 'object' ? '...' : String(v)}`);
+    const entries = Object.entries(d).slice(0, 3).map(([k, v]) => {
+      if (typeof v === 'number' && (k.toLowerCase().includes('amount') || k.toLowerCase().includes('balance'))) {
+        return `${k}: ${formatCurrency(v, currency)}`;
+      }
+      return `${k}: ${typeof v === 'object' ? '...' : String(v)}`;
+    });
     return entries.join(' | ');
   };
 
@@ -298,85 +408,58 @@ export default function AuditLogsPage() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.text(`Generated At: ${format(new Date(), 'EEEE, MMMM d, yyyy HH:mm:ss')}`, 14, 38);
-      doc.text(`Auditor / Generated By: ${userData?.name || user?.email || 'Authorized Auditor'} (Role: ${role.toUpperCase()})`, 14, 43);
-      doc.text(`Active Filter Scope: Role: ${selectedRole.toUpperCase()} | Category: ${selectedCategory.toUpperCase()} | Period: ${selectedPeriod.toUpperCase()}`, 14, 48);
+      doc.text(`Generated By: ${user?.displayName || user?.email || 'Authorized Administrator'} (${role.toUpperCase()})`, 14, 43);
+      doc.text(`Active Action Filter: ${activeCategoryTab.toUpperCase()} | Specific Action: ${selectedActionFilter.toUpperCase()}`, 14, 48);
+      doc.text(`Records Exported: ${filteredLogs.length} verified operations`, 14, 53);
 
-      // Summary KPI Box
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(175, 28, 108, 23, 2, 2, 'FD');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.text("AUDIT LEDGER RECONCILIATION SUMMARY", 179, 34);
-
-      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Total Ledger Entries in Query: ${filteredLogs.length} of ${logs.length}`, 179, 40);
-      doc.text(`Administrative Directives: ${stats.adminDirectives} | Expense Vouchers: ${stats.expenses}`, 179, 44);
-      doc.text(`Data Integrity: 100% Immutable (Client Mutations Prohibited)`, 179, 48);
-
-      // Table Data Construction
-      const tableData = filteredLogs.map((log, index) => [
-        (index + 1).toString(),
-        log.timestampFormatted,
-        `${log.actorName}\n(${log.actorRole.toUpperCase()})`,
-        log.actionLabel,
-        formatDetailsSummary(log),
-        log.justification
+      // Table Header and Body
+      const head = [['Timestamp', 'Actor & Role', 'Action Executed', 'Operation Scope / Target', 'Audit Justification / Note', 'IP Address']];
+      const data = filteredLogs.map(l => [
+        l.timestampFormatted,
+        `${l.actorName}\n(${l.actorRole.toUpperCase()})`,
+        l.actionLabel,
+        formatDetailsSummary(l),
+        l.justification,
+        l.ipAddress
       ]);
 
       autoTable(doc, {
-        startY: 55,
-        head: [['#', 'Timestamp', 'Actor & Role', 'Action Executed', 'Operation Details / Scope', 'Audit Justification']],
-        body: tableData,
-        theme: 'grid',
+        head: head,
+        body: data,
+        startY: 58,
+        theme: 'striped',
         headStyles: {
-          fillColor: [37, 99, 235],
+          fillColor: primaryColor,
           textColor: [255, 255, 255],
+          fontSize: 8,
           fontStyle: 'bold',
-          fontSize: 8.5,
-          halign: 'left',
-          valign: 'middle'
+          halign: 'left'
         },
         bodyStyles: {
           fontSize: 7.5,
-          textColor: [30, 41, 59],
-          valign: 'top',
+          textColor: darkColor,
           cellPadding: 2.5
-        },
-        columnStyles: {
-          0: { cellWidth: 10, halign: 'center' },
-          1: { cellWidth: 36 },
-          2: { cellWidth: 42 },
-          3: { cellWidth: 45 },
-          4: { cellWidth: 70 },
-          5: { cellWidth: 66 }
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252]
         },
-        margin: { left: 14, right: 14, bottom: 20 },
-        didDrawPage: (data) => {
-          // Footer
-          const pageCount = (doc as any).internal.getNumberOfPages();
-          doc.setFontSize(7.5);
-          doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-          doc.text(
-            `CONFIDENTIAL & PROPRIETARY — Official regulatory audit document generated from immutable server logs. Page ${data.pageNumber} of ${pageCount}`,
-            14,
-            202
-          );
+        columnStyles: {
+          0: { cellWidth: 38 },
+          1: { cellWidth: 42 },
+          2: { cellWidth: 42 },
+          3: { cellWidth: 65 },
+          4: { cellWidth: 60 },
+          5: { cellWidth: 22 }
+        },
+        styles: {
+          overflow: 'linebreak',
+          cellWidth: 'wrap'
         }
       });
 
-      const fileName = `ikimina_audit_report_${format(new Date(), 'yyyy-MM-dd_HHmm')}.pdf`;
-      doc.save(fileName);
-    } catch (err: any) {
-      console.error('Error generating PDF:', err);
-      alert('Failed to generate audit report PDF. Please try again.');
+      doc.save(`Ikimina_Official_Audit_Ledger_${format(new Date(), 'yyyy-MM-dd_HHmm')}.pdf`);
+    } catch (e) {
+      console.error("Failed to export PDF audit trail:", e);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -467,13 +550,13 @@ export default function AuditLogsPage() {
         <Card className="rounded-xl shadow-sm border border-border overflow-hidden">
           <CardHeader className="bg-blue-600 text-white px-4 py-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-100">Admin Directives</span>
-              <UserCog className="h-4 w-4 text-blue-100" />
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-100">Loan Operations</span>
+              <CreditCard className="h-4 w-4 text-blue-100" />
             </div>
           </CardHeader>
           <CardContent className="p-4">
-            <div className="text-2xl font-extrabold text-foreground">{stats.adminDirectives}</div>
-            <p className="text-[11px] text-muted-foreground mt-1">Roles, policies, &amp; profit splits</p>
+            <div className="text-2xl font-extrabold text-foreground">{stats.loansAndRepayments}</div>
+            <p className="text-[11px] text-muted-foreground mt-1">Disbursements, loans, &amp; repayments</p>
           </CardContent>
         </Card>
 
@@ -506,14 +589,105 @@ export default function AuditLogsPage() {
         </Card>
       </div>
 
+      {/* ACTION EXECUTED TABBED FILTER BAR */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-1 rounded-md bg-blue-500/10 text-blue-600">
+              <SlidersHorizontal className="h-4 w-4" />
+            </span>
+            <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+              Filter by Action Executed
+            </span>
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">
+            {filteredLogs.length} matching events
+          </span>
+        </div>
+
+        {/* Primary Action Category Tabs */}
+        <div className="p-1.5 bg-blue-600 rounded-2xl shadow-md border border-blue-700/40 overflow-x-auto scrollbar-none flex items-center gap-1.5">
+          {ACTION_CATEGORIES.map((cat) => {
+            const Icon = cat.icon;
+            const count = categoryCounts[cat.id] ?? 0;
+            const isActive = activeCategoryTab === cat.id;
+
+            return (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setActiveCategoryTab(cat.id);
+                  setSelectedActionFilter('all'); // reset specific action sub-filter
+                }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                  isActive
+                    ? 'bg-white text-blue-600 shadow-md font-extrabold scale-[1.02]'
+                    : 'text-white/85 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Icon className={`h-4 w-4 ${isActive ? 'text-blue-600' : 'text-white/80'}`} />
+                <span>{cat.label}</span>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                    isActive
+                      ? 'bg-blue-600/10 text-blue-700'
+                      : 'bg-white/20 text-white'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Granular Action Executed Filter Pills (Dynamic based on records present in current tab) */}
+        {availableActionsForTab.length > 1 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+              <Tag className="h-3 w-3" /> Action:
+            </span>
+            <button
+              onClick={() => setSelectedActionFilter('all')}
+              className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all shrink-0 ${
+                selectedActionFilter === 'all'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              All in Tab ({availableActionsForTab.reduce((sum, a) => sum + a.count, 0)})
+            </button>
+            {availableActionsForTab.map((actionItem) => {
+              const isSelected = selectedActionFilter === actionItem.action;
+              return (
+                <button
+                  key={actionItem.action}
+                  onClick={() => setSelectedActionFilter(actionItem.action)}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-sm font-bold'
+                      : 'bg-muted/70 text-foreground hover:bg-muted hover:text-foreground border border-border/50'
+                  }`}
+                >
+                  <span>{actionItem.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${isSelected ? 'bg-white/25 text-white' : 'bg-background text-muted-foreground'}`}>
+                    {actionItem.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Filter and Search Bar */}
       <Card className="rounded-xl shadow-sm border border-border p-4 bg-card">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-3">
           {/* Search Box */}
           <div className="relative md:col-span-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search actor, action, reason, details..."
+              placeholder="Search actor, reason, details..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-10 rounded-xl bg-muted/50 border-border text-xs"
@@ -526,27 +700,12 @@ export default function AuditLogsPage() {
               <SelectValue placeholder="Actor Role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
+              <SelectItem value="all">All Actor Roles</SelectItem>
               <SelectItem value="admin">Administrator</SelectItem>
               <SelectItem value="auditor">Auditor</SelectItem>
               <SelectItem value="accountant">Accountant</SelectItem>
               <SelectItem value="reviewer">Reviewer</SelectItem>
               <SelectItem value="management">Management</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Category Filter */}
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="h-10 rounded-xl bg-muted/50 border-border text-xs font-medium">
-              <SelectValue placeholder="Action Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Action Categories</SelectItem>
-              <SelectItem value="members">Members &amp; Roles</SelectItem>
-              <SelectItem value="expenses">Operating Expenses</SelectItem>
-              <SelectItem value="contributions">Contributions &amp; Batches</SelectItem>
-              <SelectItem value="loans">Loans &amp; Repayments</SelectItem>
-              <SelectItem value="finance">System Policy &amp; Profits</SelectItem>
             </SelectContent>
           </Select>
 
@@ -566,7 +725,7 @@ export default function AuditLogsPage() {
         </div>
 
         {/* Active Filters Bar */}
-        {(searchTerm || selectedRole !== 'all' || selectedCategory !== 'all' || selectedPeriod !== 'all') && (
+        {(searchTerm || selectedRole !== 'all' || activeCategoryTab !== 'all' || selectedActionFilter !== 'all' || selectedPeriod !== 'all') && (
           <div className="flex items-center justify-between pt-3 mt-3 border-t border-border text-xs text-muted-foreground">
             <span>
               Showing <strong>{filteredLogs.length}</strong> matching events of {logs.length} total.
@@ -577,12 +736,13 @@ export default function AuditLogsPage() {
               onClick={() => {
                 setSearchTerm('');
                 setSelectedRole('all');
-                setSelectedCategory('all');
+                setActiveCategoryTab('all');
+                setSelectedActionFilter('all');
                 setSelectedPeriod('all');
               }}
               className="h-7 text-xs text-primary font-bold hover:bg-primary/10 gap-1"
             >
-              <RotateCcw className="h-3 w-3" /> Reset Filters
+              <RotateCcw className="h-3 w-3" /> Reset All Filters
             </Button>
           </div>
         )}
@@ -622,7 +782,7 @@ export default function AuditLogsPage() {
                 {filteredLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-44 text-center text-muted-foreground italic">
-                      No audit log records found matching the active search or filter criteria.
+                      No audit log records found matching the active action tab or filter criteria.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -738,26 +898,20 @@ export default function AuditLogsPage() {
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Network Origin / IP</span>
-                    <span className="font-mono text-muted-foreground">{selectedLog.ipAddress}</span>
+                    <span className="font-mono text-foreground">{selectedLog.ipAddress}</span>
                   </div>
                 </div>
 
-                {/* Justification Box */}
-                <div className="p-3.5 bg-muted/30 rounded-xl border space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    Recorded Audit Justification
-                  </span>
-                  <p className="text-xs text-foreground font-medium italic leading-relaxed">
-                    &ldquo;{selectedLog.justification}&rdquo;
-                  </p>
+                {/* Justification & Regulatory Reason */}
+                <div className="p-3.5 bg-background rounded-xl border space-y-1 text-xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Permanent Audit Justification</span>
+                  <p className="text-foreground font-medium italic">&ldquo;{selectedLog.justification}&rdquo;</p>
                 </div>
 
-                {/* Operation Scope / Details JSON */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    Payload Metadata (JSON)
-                  </span>
-                  <pre className="p-3.5 rounded-xl bg-slate-950 text-slate-100 font-mono text-[11px] overflow-x-auto leading-relaxed border border-slate-800">
+                {/* Raw Machine Payload */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Cryptographic State &amp; Target Payload</span>
+                  <pre className="p-3.5 bg-muted/60 dark:bg-muted/20 rounded-xl text-[11px] font-mono overflow-x-auto max-h-56 text-foreground border">
                     {JSON.stringify(selectedLog.details, null, 2)}
                   </pre>
                 </div>
