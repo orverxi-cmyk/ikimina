@@ -392,7 +392,7 @@ export default function ReportsPage() {
                 asChild
                 className="border-white/40 text-white hover:bg-white/20 h-9 bg-transparent font-bold"
               >
-                <Link href="/admin/distribute-interest">
+                <Link href="/admin/approvals">
                   Distribute Interest &rarr;
                 </Link>
               </Button>

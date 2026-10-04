@@ -34,10 +34,17 @@ import {
   Ban, 
   RotateCcw,
   Check,
-  X
+  X,
+  TrendingUp,
+  Scale,
+  Coins,
+  History,
+  PiggyBank,
+  Banknote,
+  Users
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, query, orderBy, doc, limit, where } from 'firebase/firestore';
+import { collection, query, orderBy, doc, limit, where, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
@@ -66,7 +73,9 @@ import {
   approveLoanAction,
   rejectLoanAction,
   approveExpenseAction,
-  rejectExpenseAction
+  rejectExpenseAction,
+  approveInterestDistributionAction,
+  rejectInterestDistributionAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { safeFormatDate } from '@/lib/loan-utils';
@@ -98,8 +107,9 @@ export default function ApprovalsHubPage() {
   const isReviewer = userRole === 'reviewer' || userRole === 'management' || userRole === 'admin';
   const isAccountant = userRole === 'accountant' || userRole === 'admin';
 
-  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'upload'>('batches');
+  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'upload'>('batches');
   const [batchSubTab, setBatchSubTab] = useState<'pending' | 'all'>('pending');
+  const [interestSubTab, setInterestSubTab] = useState<'pending' | 'all'>('pending');
 
   // New Batch Upload States (Accountant / Admin)
   const [batchTitle, setBatchTitle] = useState<string>('Staff Contributions Population');
@@ -139,6 +149,12 @@ export default function ApprovalsHubPage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [expenseNotes, setExpenseNotes] = useState('');
 
+  // Interest Distribution Proposal Details Modal
+  const [inspectInterest, setInspectInterest] = useState<any | null>(null);
+  const [isInterestModalOpen, setIsInterestModalOpen] = useState(false);
+  const [interestApprovalNotes, setInterestApprovalNotes] = useState('');
+  const [interestMemberFilter, setInterestMemberFilter] = useState('');
+
   // Firestore Data Subscriptions
   const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
   const { data: membersSnap } = useCollection(membersQuery);
@@ -154,6 +170,19 @@ export default function ApprovalsHubPage() {
 
   const pendingExpensesQuery = useMemoFirebase(() => query(collection(firestore, 'expenses'), where('status', '==', 'pending'), limit(50)), [firestore]);
   const { data: pendingExpensesSnap, loading: loadingExpenses } = useCollection(pendingExpensesQuery);
+
+  const interestRequestsQuery = useMemoFirebase(() => query(collection(firestore, 'interest_distribution_requests'), orderBy('createdAt', 'desc'), limit(50)), [firestore]);
+  const { data: interestRequestsSnap, loading: loadingInterestRequests } = useCollection(interestRequestsQuery);
+
+  // Queries for Financial Metric Cards
+  const allLoansQuery = useMemoFirebase(() => query(collection(firestore, 'loans')), [firestore]);
+  const { data: allLoansSnap } = useCollection(allLoansQuery);
+
+  const allContributionsQuery = useMemoFirebase(() => query(collection(firestore, 'contributions')), [firestore]);
+  const { data: allContributionsSnap } = useCollection(allContributionsQuery);
+
+  const allAuditLogsQuery = useMemoFirebase(() => query(collection(firestore, 'audit_logs'), orderBy('timestamp', 'desc')), [firestore]);
+  const { data: allAuditLogsSnap } = useCollection(allAuditLogsQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const memberMap = useMemo(() => new Map(members.map((m: any) => [m.id, m])), [members]);
@@ -175,7 +204,53 @@ export default function ApprovalsHubPage() {
   const pendingLoans = useMemo(() => pendingLoansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [pendingLoansSnap]);
   const pendingExpenses = useMemo(() => pendingExpensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [pendingExpensesSnap]);
 
-  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingExpenses.length;
+  const allInterestRequests = useMemo(() => interestRequestsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [interestRequestsSnap]);
+  const pendingInterestRequests = useMemo(() => allInterestRequests.filter((r: any) => r.status === 'pending'), [allInterestRequests]);
+
+  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingExpenses.length + pendingInterestRequests.length;
+
+  // -------------------------------------------------------------
+  // FINANCIAL KPI METRICS (SCREENSHOT 1)
+  // -------------------------------------------------------------
+  const poolMetrics = useMemo(() => {
+    const rawLoans = allLoansSnap?.docs.map(d => d.data()) || [];
+    const rawContributions = allContributionsSnap?.docs.map(d => d.data()) || [];
+    const rawLogs = allAuditLogsSnap?.docs.map(d => d.data()) || [];
+
+    const totalRealizedInterest = rawLoans.reduce((acc, l: any) => {
+      if (l.status === 'completed' || l.status === 'approved') {
+        return acc + (Number(l.interestAmount) || 0);
+      }
+      return acc;
+    }, 0);
+
+    const lifetimeDistributedInterest = rawLogs.reduce((acc, log: any) => {
+      if (log.action === 'ALLOCATE_INTEREST') {
+        return acc + (Number(log.details?.totalDistributed) || 0);
+      }
+      return acc;
+    }, 0);
+
+    const availableUndistributedInterest = Math.max(0, totalRealizedInterest - lifetimeDistributedInterest);
+
+    let totalVerifiedSavings = 0;
+    const saverSet = new Set<string>();
+    rawContributions.forEach((c: any) => {
+      if (c.status === 'verified') {
+        const amt = Number(c.amount) || 0;
+        totalVerifiedSavings += amt;
+        if (c.memberId) saverSet.add(c.memberId);
+      }
+    });
+
+    return {
+      totalRealizedInterest,
+      lifetimeDistributedInterest,
+      availableUndistributedInterest,
+      totalVerifiedSavings,
+      activeSaversCount: saverSet.size
+    };
+  }, [allLoansSnap, allContributionsSnap, allAuditLogsSnap]);
 
   const getMemberName = (id: string) => {
     if (!id) return 'Unknown Member';
@@ -185,12 +260,12 @@ export default function ApprovalsHubPage() {
 
   // -------------------------------------------------------------
   // SEGREGATION OF DUTIES HELPERS (DUAL-CONTROL RULE)
-  // "If an admin initiates a process, the same admin should never be able to approve it"
   // -------------------------------------------------------------
   const isBatchInitiatedByCurrentUser = (batch: any) => Boolean(user && batch && batch.initiatedBy === user.uid);
   const isSlipInitiatedByCurrentUser = (slip: any) => Boolean(user && slip && (slip.memberId === user.uid || slip.recordedBy === user.uid));
   const isLoanInitiatedByCurrentUser = (loan: any) => Boolean(user && loan && loan.memberId === user.uid);
   const isExpenseInitiatedByCurrentUser = (exp: any) => Boolean(user && exp && (exp.recordedBy === user.uid || exp.createdBy === user.uid));
+  const isInterestInitiatedByCurrentUser = (req: any) => Boolean(user && req && req.initiatedBy === user.uid);
 
   // -------------------------------------------------------------
   // Excel File Parsing Handlers
@@ -471,6 +546,62 @@ export default function ApprovalsHubPage() {
     }
   };
 
+  // -------------------------------------------------------------
+  // Interest Distribution Proposal Approval Action
+  // -------------------------------------------------------------
+  const handleActionInterest = async (decision: 'approve' | 'reject') => {
+    if (!inspectInterest || !user) return;
+    if (isInterestInitiatedByCurrentUser(inspectInterest)) {
+      return toast({
+        variant: "destructive",
+        title: "Segregation of Duties Violation",
+        description: "You initiated this distribution proposal. Another Super Administrator must approve it."
+      });
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (decision === 'approve') {
+        await approveInterestDistributionAction({
+          requestId: inspectInterest.id,
+          approvalNotes: interestApprovalNotes.trim() || undefined
+        });
+        toast({
+          title: "Interest Distribution Approved & Committed",
+          description: `Successfully allocated ${formatCurrency(inspectInterest.totalInterestToDistribute, currency)} to ${inspectInterest.recipientsCount || 0} active savers.`,
+        });
+      } else {
+        await rejectInterestDistributionAction({
+          requestId: inspectInterest.id,
+          rejectionReason: interestApprovalNotes.trim() || 'Rejected during Super Administrator audit'
+        });
+        toast({
+          title: "Distribution Proposal Rejected",
+          description: "Interest distribution proposal has been rejected."
+        });
+      }
+      setIsInterestModalOpen(false);
+      setInspectInterest(null);
+      setInterestApprovalNotes('');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({ variant: "destructive", title: parsed.title, description: parsed.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Filtered preview savers in the Interest Proposal Modal
+  const modalFilteredBreakdown = useMemo(() => {
+    if (!inspectInterest || !Array.isArray(inspectInterest.breakdown)) return [];
+    if (!interestMemberFilter.trim()) return inspectInterest.breakdown;
+    const term = interestMemberFilter.toLowerCase();
+    return inspectInterest.breakdown.filter((item: any) => 
+      (item.memberName && item.memberName.toLowerCase().includes(term)) ||
+      (item.memberEmail && item.memberEmail.toLowerCase().includes(term))
+    );
+  }, [inspectInterest, interestMemberFilter]);
+
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-24 w-full min-w-0">
       {/* Header & Dual Control Security Badge */}
@@ -491,7 +622,7 @@ export default function ApprovalsHubPage() {
           </div>
           <h1 className="text-[13px] font-bold font-headline text-foreground">Approvals Hub</h1>
           <p className="text-[12px] font-bold text-muted-foreground mt-0.5">
-            Audit, inspect, and approve pending batches, member deposits, loan requests, and operational expenses.
+            Audit, inspect, and approve pending batches, member deposits, loan requests, interest distributions, and operational expenses.
           </p>
         </div>
 
@@ -516,18 +647,21 @@ export default function ApprovalsHubPage() {
       {/* Main Approvals Tabs */}
       <Tabs value={mainTab} onValueChange={(val: any) => setMainTab(val)} className="w-full space-y-4">
         <div className="w-full overflow-x-auto no-scrollbar pb-1">
-          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-5 h-11">
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-6 h-11">
             <TabsTrigger value="batches" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
-              <Layers className="h-3.5 w-3.5" /> Contribution Batches {pendingBatches.length > 0 && `(${pendingBatches.length})`}
+              <Layers className="h-3.5 w-3.5" /> Batches {pendingBatches.length > 0 && `(${pendingBatches.length})`}
             </TabsTrigger>
             <TabsTrigger value="deposits" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
-              <Wallet className="h-3.5 w-3.5" /> Member Deposits {pendingSlips.length > 0 && `(${pendingSlips.length})`}
+              <Wallet className="h-3.5 w-3.5" /> Deposits {pendingSlips.length > 0 && `(${pendingSlips.length})`}
             </TabsTrigger>
             <TabsTrigger value="loans" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
-              <HandCoins className="h-3.5 w-3.5" /> Loan Requests {pendingLoans.length > 0 && `(${pendingLoans.length})`}
+              <HandCoins className="h-3.5 w-3.5" /> Loans {pendingLoans.length > 0 && `(${pendingLoans.length})`}
             </TabsTrigger>
             <TabsTrigger value="expenses" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Receipt className="h-3.5 w-3.5" /> Expenses {pendingExpenses.length > 0 && `(${pendingExpenses.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="interest" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5" /> Interest {pendingInterestRequests.length > 0 && `(${pendingInterestRequests.length})`}
             </TabsTrigger>
             <TabsTrigger value="upload" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Upload className="h-3.5 w-3.5" /> Upload Excel
@@ -850,7 +984,189 @@ export default function ApprovalsHubPage() {
           </Card>
         </TabsContent>
 
-        {/* 5. NEW BATCH UPLOAD TAB */}
+        {/* 5. INTEREST DISTRIBUTION TAB (SCREENSHOTS 1 & 2) */}
+        <TabsContent value="interest" className="space-y-6">
+          {/* Subtitle intro */}
+          <p className="text-xs text-muted-foreground font-medium">
+            Allocate realized group loan interest pro-rata according to each member&apos;s verified savings weight. All allocations are audited and reconciled permanently in the financial ledger.
+          </p>
+
+          {/* 4 Financial KPI Cards (Screenshot 1) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: UNDISTRIBUTED POOL */}
+            <Card className="border-none shadow-md bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl overflow-hidden relative">
+              <div className="absolute -right-4 -bottom-4 opacity-15">
+                <Scale className="h-32 w-32" />
+              </div>
+              <CardHeader className="pb-2 p-5">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-[11px] font-bold text-blue-100 uppercase tracking-widest flex items-center gap-1.5">
+                    <Scale className="h-3.5 w-3.5" /> Undistributed Pool
+                  </CardTitle>
+                  <Badge className="bg-white/20 text-white border-none text-[9px] font-extrabold px-2 py-0.5">
+                    {poolMetrics.availableUndistributedInterest > 0 ? "Ready to Share" : "Allocated"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-5 pt-0">
+                <div className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  {formatCurrency(poolMetrics.availableUndistributedInterest, currency)}
+                </div>
+                <p className="text-[11px] text-blue-100 mt-1 font-medium">
+                  Net safe unallocated profit available
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Card 2: REALIZED LOAN INTEREST */}
+            <Card className="border border-border/60 shadow-sm bg-card rounded-2xl overflow-hidden">
+              <div className="bg-blue-600 px-4 py-2 border-b border-blue-700/60">
+                <p className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
+                  <Coins className="h-3.5 w-3.5 text-white" /> Realized Loan Interest
+                </p>
+              </div>
+              <CardContent className="p-5">
+                <div className="text-base sm:text-lg font-bold text-foreground">
+                  {formatCurrency(poolMetrics.totalRealizedInterest, currency)}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Cumulative lifetime earnings from loans
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Card 3: DISTRIBUTED TO DATE */}
+            <Card className="border border-border/60 shadow-sm bg-card rounded-2xl overflow-hidden">
+              <div className="bg-blue-600 px-4 py-2 border-b border-blue-700/60">
+                <p className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
+                  <History className="h-3.5 w-3.5 text-white" /> Distributed to Date
+                </p>
+              </div>
+              <CardContent className="p-5">
+                <div className="text-base sm:text-lg font-bold text-foreground">
+                  {formatCurrency(poolMetrics.lifetimeDistributedInterest, currency)}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Historical payouts credited to savers
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Card 4: VERIFIED CAPITAL BASE */}
+            <Card className="border border-border/60 shadow-sm bg-card rounded-2xl overflow-hidden">
+              <div className="bg-blue-600 px-4 py-2 border-b border-blue-700/60">
+                <p className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
+                  <Wallet className="h-3.5 w-3.5 text-white" /> Verified Capital Base
+                </p>
+              </div>
+              <CardContent className="p-5">
+                <div className="text-base sm:text-lg font-bold text-foreground">
+                  {formatCurrency(poolMetrics.totalVerifiedSavings, currency)}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Across {poolMetrics.activeSaversCount} active eligible savers
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Staged Interest Distribution Proposals Table */}
+          <Card className="border border-border shadow-md rounded-2xl overflow-hidden bg-card">
+            <CardHeader className="bg-blue-600 text-white p-4 sm:p-5 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-white" />
+                <CardTitle className="text-[13px] font-bold text-white">Interest Distribution Proposals</CardTitle>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="secondary" 
+                  onClick={() => setInterestSubTab(interestSubTab === 'pending' ? 'all' : 'pending')}
+                  className="h-7 text-xs font-bold rounded-lg bg-white/20 text-white hover:bg-white/30 border-none"
+                >
+                  {interestSubTab === 'pending' ? 'Show All History' : 'Show Pending Only'}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto no-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b hover:bg-transparent">
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Proposal Ref / Date</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Initiator (Accountant)</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Justification</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Proposed Amount</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Status</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingInterestRequests ? (
+                      <TableRow><TableCell colSpan={6} className="h-28 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                    ) : (interestSubTab === 'pending' ? pendingInterestRequests : allInterestRequests).length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="h-28 text-center text-muted-foreground italic">No interest distribution proposals in this view.</TableCell></TableRow>
+                    ) : (
+                      (interestSubTab === 'pending' ? pendingInterestRequests : allInterestRequests).map((req: any) => {
+                        const isInitiatedByMe = isInterestInitiatedByCurrentUser(req);
+                        return (
+                          <TableRow key={req.id} className="hover:bg-muted/30">
+                            <TableCell className="px-4 py-3 font-bold text-sm">
+                              <div>Proposal #{req.id.slice(0, 10)}</div>
+                              <div className="text-[11px] font-medium text-muted-foreground">
+                                {safeFormatDate(req.createdAt, 'MMM d, yyyy')}
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs">
+                              <div className="font-semibold text-foreground">{req.initiatedByName || 'Accountant'}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Badge variant="secondary" className="text-[8px] uppercase font-bold">{req.initiatedByRole || 'Accountant'}</Badge>
+                                {isInitiatedByMe && (
+                                  <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[8px] font-bold">
+                                    Initiated by you
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs text-muted-foreground max-w-xs truncate">
+                              {req.justification || 'Pro-rata dividend allocation'}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right text-xs">
+                              <div className="font-bold text-sm text-primary">{formatCurrency(req.totalInterestToDistribute || 0, currency)}</div>
+                              <div className="text-[11px] text-muted-foreground">{req.recipientsCount || req.breakdown?.length || 0} active savers</div>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-center">
+                              <Badge className={cn(
+                                "text-[9px] uppercase font-bold border-none",
+                                req.status === 'pending' && "bg-amber-500/10 text-amber-700",
+                                req.status === 'approved' && "bg-green-600/10 text-green-700",
+                                req.status === 'rejected' && "bg-destructive/10 text-destructive"
+                              )}>
+                                {req.status === 'pending' ? 'Pending Approval' : req.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => { setInspectInterest(req); setIsInterestModalOpen(true); }}
+                                className="h-8 rounded-xl font-bold text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Details
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 6. NEW BATCH UPLOAD TAB */}
         <TabsContent value="upload" className="space-y-4">
           <Card className="border border-border shadow-sm rounded-2xl bg-card">
             <CardHeader className="border-b p-4 sm:p-6">
@@ -1000,7 +1316,7 @@ export default function ApprovalsHubPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-xs font-bold">Member Name</TableHead>
+                      <TableHead className="text-xs font-bold">Staff Member</TableHead>
                       <TableHead className="text-xs font-bold">Period</TableHead>
                       <TableHead className="text-xs font-bold text-right">Amount</TableHead>
                       <TableHead className="text-xs font-bold">Notes</TableHead>
@@ -1008,98 +1324,88 @@ export default function ApprovalsHubPage() {
                   </TableHeader>
                   <TableBody>
                     {(inspectBatch?.items || [])
-                      .filter((i: any) => !inspectSearchTerm || (i.staffName && i.staffName.toLowerCase().includes(inspectSearchTerm.toLowerCase())) || (i.memberId && i.memberId.includes(inspectSearchTerm)))
-                      .map((item: any, idx: number) => (
-                        <TableRow key={idx}>
-                          <TableCell className="text-xs font-semibold">{item.staffName || getMemberName(item.memberId)}</TableCell>
-                          <TableCell className="text-xs">{item.period || inspectBatch?.defaultPeriod}</TableCell>
-                          <TableCell className="text-xs text-right font-bold text-foreground">{formatCurrency(item.amount, currency)}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{item.notes || '-'}</TableCell>
+                      .filter((it: any) => !inspectSearchTerm || (it.staffName && it.staffName.toLowerCase().includes(inspectSearchTerm.toLowerCase())) || (it.memberId && it.memberId.toLowerCase().includes(inspectSearchTerm.toLowerCase())))
+                      .map((it: any, idx: number) => (
+                        <TableRow key={idx} className="text-xs">
+                          <TableCell className="font-semibold">{it.staffName || it.memberId}</TableCell>
+                          <TableCell>{it.period}</TableCell>
+                          <TableCell className="text-right font-bold text-foreground">{formatCurrency(it.amount, currency)}</TableCell>
+                          <TableCell className="text-muted-foreground">{it.notes || '-'}</TableCell>
                         </TableRow>
-                    ))}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
             </div>
 
-            {/* Actions / Decision Section */}
-            {!isBatchInitiatedByCurrentUser(inspectBatch) && (inspectBatch?.status === 'pending_review' || inspectBatch?.status === 'pending_approval' || inspectBatch?.status === 'revision_requested') && (
-              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
-                <Label className="text-xs font-bold uppercase tracking-wider">
-                  {inspectBatch.status === 'pending_review' || inspectBatch.status === 'revision_requested' ? 'Reviewer Endorsement Notes' : 'Super Administrator Approval Notes'} *
-                </Label>
-                <Textarea 
-                  value={inspectBatch.status === 'pending_review' || inspectBatch.status === 'revision_requested' ? reviewNotes : approvalNotes}
-                  onChange={e => inspectBatch.status === 'pending_review' || inspectBatch.status === 'revision_requested' ? setReviewNotes(e.target.value) : setApprovalNotes(e.target.value)}
-                  placeholder="Enter audit justification and notes..."
-                  className="rounded-xl bg-background text-xs min-h-[70px]"
-                />
+            {/* Review & Approval Controls */}
+            {!isBatchInitiatedByCurrentUser(inspectBatch) && (
+              <div className="space-y-4 pt-4 border-t">
+                {isReviewer && (inspectBatch?.status === 'pending_review' || inspectBatch?.status === 'revision_requested') && (
+                  <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 dark:border-blue-900/50 space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Reviewer Endorsement</p>
+                    <Textarea 
+                      value={reviewNotes} 
+                      onChange={e => setReviewNotes(e.target.value)} 
+                      placeholder="Enter audit review findings, reconciliation notes, or change requirements..." 
+                      className="text-xs rounded-xl bg-background"
+                      rows={2}
+                    />
+                    <div className="flex items-center gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => handleReviewBatch('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">
+                        Request Changes
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleReviewBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">
+                        Reject Batch
+                      </Button>
+                      <Button size="sm" onClick={() => handleReviewBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                        Endorse for Final Approval
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {isSuperAdmin && (
+                  <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-900/50 space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 2: Super Administrator Final Sign-Off</p>
+                    <Textarea 
+                      value={approvalNotes} 
+                      onChange={e => setApprovalNotes(e.target.value)} 
+                      placeholder="Enter final executive ratification justification to commit all contributions to official ledger..." 
+                      className="text-xs rounded-xl bg-background"
+                      rows={2}
+                    />
+                    <div className="flex items-center gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => handleApproveBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">
+                        Reject
+                      </Button>
+                      <Button size="sm" onClick={() => handleApproveBatch('approve')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+                        Approve & Commit to Ledger
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          <DialogFooter className="p-4 bg-muted/30 border-t flex items-center justify-between shrink-0 flex-wrap gap-2">
-            <Button variant="ghost" onClick={() => setIsBatchModalOpen(false)} className="rounded-xl font-bold text-xs">
+          <DialogFooter className="p-4 bg-muted/20 border-t shrink-0">
+            <Button variant="outline" onClick={() => setIsBatchModalOpen(false)} className="rounded-xl text-xs font-bold">
               Close
             </Button>
-
-            <div className="flex items-center gap-2">
-              {isBatchInitiatedByCurrentUser(inspectBatch) ? (
-                <Badge variant="outline" className="text-xs font-bold text-amber-600 border-amber-500/30 p-2">
-                  <Lock className="h-3.5 w-3.5 mr-1" /> Awaiting Another Administrator's Approval
-                </Badge>
-              ) : inspectBatch?.status === 'pending_review' || inspectBatch?.status === 'revision_requested' ? (
-                <>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleReviewBatch('reject')} 
-                    disabled={isSubmitting}
-                    className="rounded-xl font-bold text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
-                  >
-                    Reject
-                  </Button>
-                  <Button 
-                    onClick={() => handleReviewBatch('endorse')} 
-                    disabled={isSubmitting}
-                    className="rounded-xl font-bold text-xs bg-primary text-primary-foreground"
-                  >
-                    {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <ShieldCheck className="h-3.5 w-3.5 mr-1" />}
-                    Endorse Batch
-                  </Button>
-                </>
-              ) : inspectBatch?.status === 'pending_approval' && isSuperAdmin ? (
-                <>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleApproveBatch('reject')} 
-                    disabled={isSubmitting}
-                    className="rounded-xl font-bold text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
-                  >
-                    Reject Batch
-                  </Button>
-                  <Button 
-                    onClick={() => handleApproveBatch('approve')} 
-                    disabled={isSubmitting}
-                    className="rounded-xl font-bold text-xs bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
-                    Approve &amp; Commit to Ledger
-                  </Button>
-                </>
-              ) : null}
-            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ------------------------------------------------------------- */}
-      {/* 2. DEPOSIT SLIP DETAILS MODAL */}
+      {/* 2. INDIVIDUAL DEPOSIT SLIP MODAL */}
       {/* ------------------------------------------------------------- */}
       <Dialog open={isSlipModalOpen} onOpenChange={setIsSlipModalOpen}>
         <DialogContent className="max-w-md rounded-2xl bg-card border border-border shadow-2xl p-6 space-y-4">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center justify-between">
-              <span>Member Deposit Details</span>
+              <span>Deposit Verification</span>
               <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase font-bold">
                 Pending Verification
               </Badge>
@@ -1109,7 +1415,7 @@ export default function ApprovalsHubPage() {
           {isSlipInitiatedByCurrentUser(inspectSlip) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>You submitted this deposit slip. Dual-control policy requires another admin to verify it.</span>
+              <span>You cannot verify your own deposit submission. Another administrator must verify it.</span>
             </div>
           )}
 
@@ -1128,20 +1434,18 @@ export default function ApprovalsHubPage() {
             </div>
             {inspectSlip?.proofUrl && (
               <div className="pt-2">
-                <Button asChild variant="outline" className="w-full rounded-xl font-bold text-xs gap-1.5">
-                  <a href={inspectSlip.proofUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 text-primary" /> Inspect Uploaded Proof Document
-                  </a>
-                </Button>
+                <a href={inspectSlip.proofUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary font-bold inline-flex items-center gap-1 hover:underline">
+                  <ExternalLink className="h-3.5 w-3.5" /> View Uploaded Deposit Slip
+                </a>
               </div>
             )}
             {!isSlipInitiatedByCurrentUser(inspectSlip) && (
               <div className="space-y-2 pt-2">
-                <Label className="text-xs font-bold uppercase tracking-wider">Verification Justification *</Label>
+                <Label className="text-xs font-bold uppercase tracking-wider">Audit Justification *</Label>
                 <Input 
                   value={slipJustification} 
                   onChange={e => setSlipJustification(e.target.value)} 
-                  placeholder="e.g. Bank slip confirmed against institutional account"
+                  placeholder="e.g. Bank slip reference matched statement"
                   className="rounded-xl text-xs h-10"
                 />
               </div>
@@ -1168,7 +1472,7 @@ export default function ApprovalsHubPage() {
                   className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white"
                 >
                   {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                  Verify &amp; Commit
+                  Verify & Credit
                 </Button>
               </div>
             )}
@@ -1177,15 +1481,15 @@ export default function ApprovalsHubPage() {
       </Dialog>
 
       {/* ------------------------------------------------------------- */}
-      {/* 3. LOAN DETAILS MODAL */}
+      {/* 3. LOAN APPLICATION MODAL */}
       {/* ------------------------------------------------------------- */}
       <Dialog open={isLoanModalOpen} onOpenChange={setIsLoanModalOpen}>
         <DialogContent className="max-w-md rounded-2xl bg-card border border-border shadow-2xl p-6 space-y-4">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center justify-between">
-              <span>Loan Facility Details</span>
+              <span>Loan Facility Approval</span>
               <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase font-bold">
-                Requested
+                {inspectLoan?.isTopUp ? 'Top-Up Request' : 'Standard Loan'}
               </Badge>
             </DialogTitle>
           </DialogHeader>
@@ -1193,7 +1497,7 @@ export default function ApprovalsHubPage() {
           {isLoanInitiatedByCurrentUser(inspectLoan) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>You cannot approve your own loan application. Another administrator must approve it.</span>
+              <span>You cannot approve your own loan application. Another administrator must audit it.</span>
             </div>
           )}
 
@@ -1323,6 +1627,206 @@ export default function ApprovalsHubPage() {
                 >
                   {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
                   Approve Expense
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 5. INTEREST DISTRIBUTION PROPOSAL MODAL (SCREENSHOT 2) */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog open={isInterestModalOpen} onOpenChange={setIsInterestModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 rounded-2xl overflow-hidden bg-card border border-border shadow-2xl">
+          <DialogHeader className="p-5 bg-blue-600 text-white border-b border-blue-700/30 shrink-0">
+            <DialogTitle className="text-base font-bold text-white flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-white" />
+                Interest Distribution Proposal #{inspectInterest?.id?.slice(0, 10)}
+              </span>
+              <Badge className="bg-white/20 text-white border-none text-[10px] font-bold uppercase">
+                {inspectInterest?.status}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-blue-100 text-xs mt-1">
+              Initiated by <strong>{inspectInterest?.initiatedByName || 'Accountant'}</strong> on {safeFormatDate(inspectInterest?.createdAt, 'PPP')} &bull; Total Amount: <strong>{formatCurrency(inspectInterest?.totalInterestToDistribute || 0, currency)}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-5 overflow-y-auto space-y-5 flex-1">
+            {/* DUAL CONTROL RESTRICTION ALERT */}
+            {isInterestInitiatedByCurrentUser(inspectInterest) && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-3 shadow-sm">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold">Dual-Control Governance Restriction</p>
+                  <p className="leading-relaxed">
+                    You initiated this interest distribution proposal (<strong>{inspectInterest?.initiatedByName}</strong>). Under the cooperative dual-control rule, only another Super Administrator can review, approve, and execute the distribution.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Proposal Metrics Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div className="p-3 bg-muted/40 rounded-xl border">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Proposed Profit</p>
+                <p className="text-base font-bold text-primary mt-0.5">{formatCurrency(inspectInterest?.totalInterestToDistribute || 0, currency)}</p>
+              </div>
+              <div className="p-3 bg-muted/40 rounded-xl border">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Active Savers</p>
+                <p className="text-base font-bold text-foreground mt-0.5">{inspectInterest?.recipientsCount || inspectInterest?.breakdown?.length || 0} Members</p>
+              </div>
+              <div className="p-3 bg-muted/40 rounded-xl border">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">To Total Savings</p>
+                <p className="text-base font-bold text-emerald-600 mt-0.5">{formatCurrency(inspectInterest?.totalCapitalizedToContributions || 0, currency)}</p>
+              </div>
+              <div className="p-3 bg-muted/40 rounded-xl border">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Cash Payouts</p>
+                <p className="text-base font-bold text-blue-600 mt-0.5">{formatCurrency(inspectInterest?.totalCashPayout || 0, currency)}</p>
+              </div>
+            </div>
+
+            {/* Justification note */}
+            <div className="p-3 bg-muted/30 rounded-xl border text-xs space-y-1">
+              <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Audit Justification &amp; Resolution:</span>
+              <p className="text-foreground italic">{inspectInterest?.justification || 'Pro-rata dividend allocation'}</p>
+            </div>
+
+            {/* Dividend Allocation Preview Table (Screenshot 2) */}
+            <Card className="border border-border/80 shadow-md rounded-2xl overflow-hidden">
+              <CardHeader className="bg-blue-600 text-white p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+                      <Users className="h-4 w-4" /> Dividend Allocation Preview
+                    </CardTitle>
+                    <CardDescription className="text-blue-100 text-xs mt-0.5">
+                      Exact pro-rata dividend credit computed for each active saver based on their verified capital weight.
+                    </CardDescription>
+                  </div>
+                  <Badge className="bg-white/20 text-white border-none text-[10px] font-bold self-start sm:self-auto">
+                    Total: {formatCurrency(inspectInterest?.totalInterestToDistribute || 0, currency)}
+                  </Badge>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                <div className="p-3 border-b bg-muted/20 flex items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input 
+                    placeholder="Filter members in preview..." 
+                    value={interestMemberFilter}
+                    onChange={e => setInterestMemberFilter(e.target.value)}
+                    className="pl-8 h-8 rounded-lg text-xs bg-background"
+                  />
+                </div>
+                <div className="text-[11px] font-medium text-muted-foreground">
+                  Showing {modalFilteredBreakdown.length} of {inspectInterest?.breakdown?.length || 0} savers
+                </div>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-blue-600/90 text-white">
+                    <TableRow className="border-none hover:bg-transparent">
+                      <TableHead className="text-white font-bold text-xs py-3 px-4 uppercase">Member Saver</TableHead>
+                      <TableHead className="text-white font-bold text-xs text-right uppercase">Savings</TableHead>
+                      <TableHead className="text-white font-bold text-xs text-right uppercase">Share %</TableHead>
+                      <TableHead className="text-white font-bold text-xs text-right text-emerald-200 uppercase">+ Dividend</TableHead>
+                      <TableHead className="text-white font-bold text-xs text-center uppercase">Payout Election</TableHead>
+                      <TableHead className="text-white font-bold text-xs text-right pr-4 uppercase">Projected Position</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {modalFilteredBreakdown.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-28 text-center text-muted-foreground italic text-xs">
+                          No savers match the search filter.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      modalFilteredBreakdown.map((saver: any) => (
+                        <TableRow key={saver.memberId} className="hover:bg-muted/30 text-xs">
+                          <TableCell className="py-3 px-4 font-semibold">
+                            <div>{saver.memberName}</div>
+                            {saver.memberEmail && (
+                              <div className="text-[10px] text-muted-foreground font-normal">{saver.memberEmail}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(saver.contributions, currency)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-primary font-bold">
+                            {saver.sharePercentage || (saver.shareRatio ? (saver.shareRatio * 100).toFixed(2) : '0.00')}%
+                          </TableCell>
+                          <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                            +{formatCurrency(saver.distributedShare, currency)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className={cn(
+                              "text-[9px] uppercase font-bold",
+                              saver.payoutType === 'add_to_contribution' 
+                                ? "border-emerald-500/30 text-emerald-700 bg-emerald-500/5" 
+                                : "border-blue-500/30 text-blue-700 bg-blue-500/5"
+                            )}>
+                              {saver.payoutType === 'add_to_contribution' ? 'To Savings' : 'Cash Payout'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right pr-4 font-medium text-foreground">
+                            {saver.payoutType === 'add_to_contribution' 
+                              ? `Savings: ${formatCurrency(saver.projectedSavings || (saver.contributions + saver.distributedShare), currency)}`
+                              : `Accrued: ${formatCurrency(saver.projectedAccruedInterest || (saver.previousAccruedInterest + saver.distributedShare), currency)}`}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+            </Card>
+
+            {/* Approval Controls */}
+            {!isInterestInitiatedByCurrentUser(inspectInterest) && isSuperAdmin && inspectInterest?.status === 'pending' && (
+              <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-900/50 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
+                  Super Administrator Ratification &amp; Ledger Execution
+                </p>
+                <Textarea 
+                  value={interestApprovalNotes} 
+                  onChange={e => setInterestApprovalNotes(e.target.value)} 
+                  placeholder="Enter final executive ratification justification to distribute profits and credit member accounts..." 
+                  className="text-xs rounded-xl bg-background"
+                  rows={2}
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-4 bg-muted/20 border-t shrink-0 flex items-center justify-between gap-2">
+            <Button variant="outline" onClick={() => setIsInterestModalOpen(false)} className="rounded-xl text-xs font-bold">
+              Close
+            </Button>
+            {!isInterestInitiatedByCurrentUser(inspectInterest) && isSuperAdmin && inspectInterest?.status === 'pending' && (
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleActionInterest('reject')} 
+                  disabled={isSubmitting}
+                  className="rounded-xl text-xs font-bold border-destructive/30 text-destructive hover:bg-destructive/10"
+                >
+                  Reject Proposal
+                </Button>
+                <Button 
+                  onClick={() => handleActionInterest('approve')} 
+                  disabled={isSubmitting}
+                  className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white gap-1.5 shadow-md"
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+                  Approve &amp; Distribute {formatCurrency(inspectInterest?.totalInterestToDistribute || 0, currency)}
                 </Button>
               </div>
             )}

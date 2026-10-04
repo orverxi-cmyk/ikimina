@@ -134,6 +134,73 @@ export async function allocateInterestAction(uid: string, data: {
 }
 
 /**
+ * Initiates an Interest Distribution proposal in Cloud Functions (Accountant / Admin).
+ */
+export async function initiateInterestDistributionAction(data: {
+  totalInterestToDistribute: number;
+  justification: string;
+}) {
+  const functions = getFinanceFunctions();
+  const initFn = httpsCallable(functions, 'initiateInterestDistribution');
+  try {
+    const result = await initFn(data);
+    return result.data as {
+      success: boolean;
+      requestId: string;
+      totalInterestToDistribute: number;
+      recipientsCount: number;
+      capitalizedCount: number;
+      cashPayoutCount: number;
+      totalCapitalizedToContributions: number;
+      totalCashPayout: number;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to initiate interest distribution.');
+  }
+}
+
+/**
+ * Super Administrator approves and commits an interest distribution proposal to official ledgers.
+ * Strictly enforces dual-control segregation of duties.
+ */
+export async function approveInterestDistributionAction(data: {
+  requestId: string;
+  approvalNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const appFn = httpsCallable(functions, 'approveInterestDistribution');
+  try {
+    const result = await appFn(data);
+    return result.data as {
+      success: boolean;
+      distributionId: string;
+      requestId: string;
+      amountDistributed: number;
+      recipientsCount: number;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to approve interest distribution.');
+  }
+}
+
+/**
+ * Rejects an interest distribution proposal in Cloud Functions.
+ */
+export async function rejectInterestDistributionAction(data: {
+  requestId: string;
+  rejectionReason: string;
+}) {
+  const functions = getFinanceFunctions();
+  const rejFn = httpsCallable(functions, 'rejectInterestDistribution');
+  try {
+    const result = await rejFn(data);
+    return result.data as { success: boolean; requestId: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to reject interest distribution.');
+  }
+}
+
+/**
  * Opens an active member interest payout election campaign.
  */
 export async function openInterestPayoutCampaignAction(data: {

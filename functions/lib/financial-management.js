@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setMemberPayoutPreference = exports.closeInterestPayoutCampaign = exports.openInterestPayoutCampaign = exports.getSystemSettings = exports.resetFinancialData = exports.updateFinancialSettings = exports.allocateInterest = void 0;
+exports.setMemberPayoutPreference = exports.closeInterestPayoutCampaign = exports.openInterestPayoutCampaign = exports.getSystemSettings = exports.resetFinancialData = exports.updateFinancialSettings = exports.rejectInterestDistribution = exports.approveInterestDistribution = exports.initiateInterestDistribution = exports.allocateInterest = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -229,6 +229,359 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
     catch (error) {
         throw new https_1.HttpsError('internal', error.message);
     }
+});
+/**
+ * Step 1: Accountant or Authorized Officer initiates an Interest Distribution Proposal.
+ * Computes pro-rata breakdown, checks available pool guardrails, and stages request in pending state.
+ */
+exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const callerUid = request.auth.uid;
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(callerUid).get();
+    const callerData = callerSnap.data();
+    if ((callerData === null || callerData === void 0 ? void 0 : callerData.role) !== 'admin' && (callerData === null || callerData === void 0 ? void 0 : callerData.role) !== 'accountant') {
+        throw new https_1.HttpsError('permission-denied', 'Only an accountant or administrator can initiate an interest distribution.');
+    }
+    const { totalInterestToDistribute, justification } = request.data || {};
+    const parsedAmount = Number(totalInterestToDistribute);
+    if (!parsedAmount || parsedAmount <= 0) {
+        throw new https_1.HttpsError('invalid-argument', 'A positive interest distribution amount is required.');
+    }
+    if (!justification || typeof justification !== 'string' || !justification.trim()) {
+        throw new https_1.HttpsError('invalid-argument', 'Audit justification and resolution notes are required.');
+    }
+    try {
+        // 1. Calculate Realized Group Interest from Loans
+        const loansSnap = await db.collection('loans').get();
+        let totalRealizedInterest = 0;
+        loansSnap.forEach(doc => {
+            const loan = doc.data();
+            if (loan.status === 'completed' || loan.status === 'approved') {
+                totalRealizedInterest += Number(loan.interestAmount) || 0;
+            }
+        });
+        // 2. Calculate Previously Distributed Group Interest
+        const auditSnap = await db.collection('audit_logs').where('action', '==', 'ALLOCATE_INTEREST').get();
+        let previouslyDistributed = 0;
+        auditSnap.forEach(doc => {
+            var _a, _b;
+            previouslyDistributed += Number((_b = (_a = doc.data()) === null || _a === void 0 ? void 0 : _a.details) === null || _b === void 0 ? void 0 : _b.totalDistributed) || 0;
+        });
+        // 3. Available Undistributed Profit Guardrail
+        const availableToDistribute = Math.max(0, totalRealizedInterest - previouslyDistributed);
+        if (parsedAmount > availableToDistribute) {
+            throw new https_1.HttpsError('failed-precondition', `Cannot distribute ${parsedAmount}. Available undistributed profit is ${availableToDistribute} (Total Earned: ${totalRealizedInterest}, Already Distributed: ${previouslyDistributed}).`);
+        }
+        // 4. Calculate Member Contribution Totals
+        const contribsSnap = await db.collection('contributions').get();
+        const memberTotals = {};
+        let totalPool = 0;
+        contribsSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.status === 'verified') {
+                const amount = Number(data.amount) || 0;
+                const memberId = data.memberId;
+                memberTotals[memberId] = (memberTotals[memberId] || 0) + amount;
+                totalPool += amount;
+            }
+        });
+        if (totalPool === 0)
+            throw new https_1.HttpsError('failed-precondition', 'Total contribution pool is empty.');
+        const membersSnap = await db.collection('users').get();
+        let recipientsCount = 0;
+        let capitalizedCount = 0;
+        let cashPayoutCount = 0;
+        let totalCapitalizedToContributions = 0;
+        let totalCashPayout = 0;
+        const breakdown = [];
+        membersSnap.forEach(memberDoc => {
+            const memberId = memberDoc.id;
+            const memberData = memberDoc.data();
+            const memberTotal = memberTotals[memberId] || 0;
+            const previousAccruedInterest = Number(memberData.accruedInterest) || 0;
+            const preference = memberData.interestPayoutPreference || memberData.payoutPreference || 'receive_payout';
+            if (memberTotal > 0) {
+                const shareRatio = memberTotal / totalPool;
+                const memberShare = Math.floor(parsedAmount * shareRatio);
+                if (memberShare > 0) {
+                    if (preference === 'add_to_contribution') {
+                        totalCapitalizedToContributions += memberShare;
+                        capitalizedCount++;
+                        breakdown.push({
+                            memberId,
+                            memberName: memberData.name || 'Unknown',
+                            memberEmail: memberData.email || '',
+                            contributions: memberTotal,
+                            shareRatio,
+                            sharePercentage: ((shareRatio * 100).toFixed(2)),
+                            distributedShare: memberShare,
+                            payoutType: 'add_to_contribution',
+                            outcome: 'Added to Total Contribution Savings',
+                            previousAccruedInterest,
+                            projectedSavings: memberTotal + memberShare,
+                            projectedAccruedInterest: previousAccruedInterest
+                        });
+                    }
+                    else {
+                        totalCashPayout += memberShare;
+                        cashPayoutCount++;
+                        breakdown.push({
+                            memberId,
+                            memberName: memberData.name || 'Unknown',
+                            memberEmail: memberData.email || '',
+                            contributions: memberTotal,
+                            shareRatio,
+                            sharePercentage: ((shareRatio * 100).toFixed(2)),
+                            distributedShare: memberShare,
+                            payoutType: 'receive_payout',
+                            outcome: 'Accrued for Liquid Cash Payout',
+                            previousAccruedInterest,
+                            projectedSavings: memberTotal,
+                            projectedAccruedInterest: previousAccruedInterest + memberShare
+                        });
+                    }
+                    recipientsCount++;
+                }
+            }
+        });
+        const reqRef = db.collection('interest_distribution_requests').doc();
+        const requestPayload = {
+            id: reqRef.id,
+            status: 'pending',
+            totalInterestToDistribute: parsedAmount,
+            totalPool,
+            totalRealizedInterest,
+            previouslyDistributed,
+            availableBeforeDistribution: availableToDistribute,
+            justification: justification.trim(),
+            recipientsCount,
+            capitalizedCount,
+            cashPayoutCount,
+            totalCapitalizedToContributions,
+            totalCashPayout,
+            breakdown,
+            initiatedBy: callerUid,
+            initiatedByName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Initiator',
+            initiatedByEmail: (callerData === null || callerData === void 0 ? void 0 : callerData.email) || request.auth.token.email || '',
+            initiatedByRole: (callerData === null || callerData === void 0 ? void 0 : callerData.role) || 'accountant',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+        const batch = db.batch();
+        batch.set(reqRef, requestPayload);
+        // Audit Log
+        const logRef = db.collection('audit_logs').doc();
+        batch.set(logRef, {
+            adminId: callerUid,
+            action: 'INITIATE_INTEREST_DISTRIBUTION',
+            justification: justification.trim(),
+            details: {
+                requestId: reqRef.id,
+                totalInterestToDistribute: parsedAmount,
+                recipientsCount,
+                totalPool
+            },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        return {
+            success: true,
+            requestId: reqRef.id,
+            totalInterestToDistribute: parsedAmount,
+            recipientsCount,
+            capitalizedCount,
+            cashPayoutCount,
+            totalCapitalizedToContributions,
+            totalCashPayout
+        };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Step 2: Super Administrator Approves and Commits the Interest Distribution.
+ * Dual-Control Rule strictly enforced: The initiator CANNOT approve their own distribution request.
+ */
+exports.approveInterestDistribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const approverUid = request.auth.uid;
+    const db = admin.firestore();
+    const approverSnap = await db.collection('users').doc(approverUid).get();
+    const approverData = approverSnap.data();
+    if ((approverData === null || approverData === void 0 ? void 0 : approverData.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only a verified Administrator can approve interest distribution.');
+    }
+    const { requestId, approvalNotes } = request.data || {};
+    if (!requestId) {
+        throw new https_1.HttpsError('invalid-argument', 'Distribution request ID is required.');
+    }
+    const reqRef = db.collection('interest_distribution_requests').doc(requestId);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Interest distribution request not found.');
+    }
+    const reqData = reqSnap.data();
+    if (reqData.status !== 'pending') {
+        throw new https_1.HttpsError('failed-precondition', `This request has already been ${reqData.status}.`);
+    }
+    // SEGREGATION OF DUTIES (4-EYES / DUAL-CONTROL PRINCIPLE)
+    if (reqData.initiatedBy === approverUid) {
+        throw new https_1.HttpsError('permission-denied', 'Segregation of Duties Violation: You initiated this distribution proposal. A different Super Administrator must review and approve it.');
+    }
+    try {
+        const batch = db.batch();
+        const distRef = db.collection('interest_distributions').doc();
+        const currentPeriod = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        // Apply breakdown mutations
+        const breakdown = reqData.breakdown || [];
+        for (const item of breakdown) {
+            const memberRef = db.collection('users').doc(item.memberId);
+            if (item.payoutType === 'add_to_contribution') {
+                const contribRef = db.collection('contributions').doc();
+                batch.set(contribRef, {
+                    memberId: item.memberId,
+                    amount: item.distributedShare,
+                    period: currentPeriod,
+                    date: admin.firestore.FieldValue.serverTimestamp(),
+                    proofUrl: '',
+                    status: 'verified',
+                    verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    verifiedBy: approverUid,
+                    justification: `Interest profit capitalized into total savings (Distribution ${distRef.id})`,
+                    type: 'interest_reinvestment'
+                });
+            }
+            else {
+                batch.update(memberRef, {
+                    accruedInterest: admin.firestore.FieldValue.increment(item.distributedShare)
+                });
+            }
+        }
+        // Ledger Entry
+        batch.set(distRef, {
+            distributedAt: admin.firestore.FieldValue.serverTimestamp(),
+            adminId: approverUid,
+            adminName: (approverData === null || approverData === void 0 ? void 0 : approverData.name) || (approverData === null || approverData === void 0 ? void 0 : approverData.email) || 'Admin',
+            initiatedBy: reqData.initiatedBy,
+            initiatedByName: reqData.initiatedByName,
+            requestId: reqRef.id,
+            amountDistributed: reqData.totalInterestToDistribute,
+            totalPool: reqData.totalPool,
+            totalRealizedInterest: reqData.totalRealizedInterest,
+            previouslyDistributed: reqData.previouslyDistributed,
+            availableBeforeDistribution: reqData.availableBeforeDistribution,
+            availableAfterDistribution: (reqData.availableBeforeDistribution || 0) - (reqData.totalInterestToDistribute || 0),
+            justification: reqData.justification,
+            approvalNotes: approvalNotes ? String(approvalNotes).trim() : 'Approved and committed to official ledger',
+            recipientsCount: reqData.recipientsCount,
+            capitalizedCount: reqData.capitalizedCount,
+            cashPayoutCount: reqData.cashPayoutCount,
+            totalCapitalizedToContributions: reqData.totalCapitalizedToContributions,
+            totalCashPayout: reqData.totalCashPayout,
+            breakdown: reqData.breakdown
+        });
+        // Update Request Doc
+        batch.update(reqRef, {
+            status: 'approved',
+            distributionId: distRef.id,
+            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            approvedBy: approverUid,
+            approvedByName: (approverData === null || approverData === void 0 ? void 0 : approverData.name) || (approverData === null || approverData === void 0 ? void 0 : approverData.email) || 'Admin',
+            approvedByEmail: (approverData === null || approverData === void 0 ? void 0 : approverData.email) || request.auth.token.email || '',
+            approvalNotes: approvalNotes ? String(approvalNotes).trim() : 'Approved and committed to ledger'
+        });
+        // Audit Log
+        const logRef = db.collection('audit_logs').doc();
+        batch.set(logRef, {
+            adminId: approverUid,
+            action: 'ALLOCATE_INTEREST',
+            justification: reqData.justification,
+            details: {
+                distributionId: distRef.id,
+                requestId: reqRef.id,
+                totalDistributed: reqData.totalInterestToDistribute,
+                totalPool: reqData.totalPool,
+                recipientsCount: reqData.recipientsCount,
+                capitalizedCount: reqData.capitalizedCount,
+                cashPayoutCount: reqData.cashPayoutCount,
+                totalCapitalizedToContributions: reqData.totalCapitalizedToContributions,
+                totalCashPayout: reqData.totalCashPayout,
+                initiatedBy: reqData.initiatedBy,
+                approvedBy: approverUid,
+                approvalNotes: approvalNotes || ''
+            },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        // Close payout campaign in settings if open
+        const settingsRef = db.collection('settings').doc('financials');
+        batch.set(settingsRef, {
+            payoutCampaign: {
+                status: 'closed',
+                closedAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastDistributionId: distRef.id,
+                lastDistributionAmount: reqData.totalInterestToDistribute
+            }
+        }, { merge: true });
+        await batch.commit();
+        return {
+            success: true,
+            distributionId: distRef.id,
+            requestId: reqRef.id,
+            amountDistributed: reqData.totalInterestToDistribute,
+            recipientsCount: reqData.recipientsCount
+        };
+    }
+    catch (error) {
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+/**
+ * Rejects a pending interest distribution request.
+ */
+exports.rejectInterestDistribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const callerUid = request.auth.uid;
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(callerUid).get();
+    const callerData = callerSnap.data();
+    if ((callerData === null || callerData === void 0 ? void 0 : callerData.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only an administrator can reject interest distribution requests.');
+    }
+    const { requestId, rejectionReason } = request.data || {};
+    if (!requestId)
+        throw new https_1.HttpsError('invalid-argument', 'Request ID is required.');
+    const reqRef = db.collection('interest_distribution_requests').doc(requestId);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists)
+        throw new https_1.HttpsError('not-found', 'Request not found.');
+    const reqData = reqSnap.data();
+    if (reqData.status !== 'pending') {
+        throw new https_1.HttpsError('failed-precondition', `Request has already been ${reqData.status}.`);
+    }
+    if (reqData.initiatedBy === callerUid) {
+        throw new https_1.HttpsError('permission-denied', 'You cannot reject your own proposal. Another administrator must review.');
+    }
+    await reqRef.update({
+        status: 'rejected',
+        rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        rejectedBy: callerUid,
+        rejectedByName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Admin',
+        rejectionReason: rejectionReason ? String(rejectionReason).trim() : 'Rejected during administrative audit review'
+    });
+    const logRef = db.collection('audit_logs').doc();
+    await logRef.set({
+        adminId: callerUid,
+        action: 'REJECT_INTEREST_DISTRIBUTION',
+        justification: rejectionReason || 'Proposal rejected during audit',
+        details: { requestId, totalInterestToDistribute: reqData.totalInterestToDistribute },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true, requestId };
 });
 /**
  * Updates global financial settings like default interest rates and borrowing limits.

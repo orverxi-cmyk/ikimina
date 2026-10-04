@@ -338,14 +338,6 @@ export default function AdminDashboard() {
             </Link>
           </Button>
 
-          {isSuperAdmin && (
-            <Button asChild variant="outline" className="rounded-xl font-bold text-[12px] gap-2 h-10 px-3.5 shadow-sm border-primary/20 hover:bg-primary/5 flex-1 sm:flex-none">
-              <Link href="/admin/distribute-interest">
-                <TrendingUp className="h-4 w-4 text-primary" /> Distribute Interest
-              </Link>
-            </Button>
-          )}
-
           {isAccountant ? (
             <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
               <Link href="/admin/approvals">

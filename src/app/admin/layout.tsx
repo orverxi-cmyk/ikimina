@@ -402,9 +402,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       ...(isSuperAdmin || isAccountant ? [
         { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
       ] : []),
-      ...(isSuperAdmin ? [
-        { href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp },
-      ] : []),
       { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck },
       ...(isSuperAdmin ? [
         { href: '/members', label: 'Members Directory', icon: Users },
