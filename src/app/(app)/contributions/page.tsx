@@ -54,6 +54,7 @@ export default function ContributionsPage() {
   const [selectedContribution, setSelectedContribution] = useState<any>(null);
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('history');
 
   const role = userData?.role || 'member';
@@ -178,6 +179,7 @@ export default function ContributionsPage() {
 
       toast({ title: "Submitted", description: "Your contribution has been submitted for verification." });
       (e.target as HTMLFormElement).reset();
+      setIsSubmitOpen(false);
     } catch (error: any) {
       const parsed = parseAppError(error);
       toast({ variant: "destructive", title: parsed.title || "Submission Failed", description: parsed.message });
@@ -374,7 +376,15 @@ export default function ContributionsPage() {
         </div>
 
         {/* Global Action CTAs */}
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {!isManagement && (
+            <Button 
+              onClick={() => setIsSubmitOpen(true)} 
+              className="rounded-xl h-10 px-4 font-bold text-xs shadow-sm bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" /> Submit Contribution
+            </Button>
+          )}
           {isAccountantOrAdmin && (
             <Button asChild variant="outline" className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-primary/30 text-primary hover:bg-primary/10 shadow-sm justify-center">
               <Link href="/admin/contributions">
@@ -477,78 +487,9 @@ export default function ContributionsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
-        <div className="lg:col-span-1 space-y-6 w-full min-w-0 max-w-full">
-          {!isManagement ? (
-            <Card className="border-primary/20 bg-primary/5 h-fit sticky top-24">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-primary">
-                  <Upload className="h-5 w-5" /> Submit Savings
-                </CardTitle>
-                <CardDescription>Upload proof of your monthly deposit</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmitContribution} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="period">Target Month</Label>
-                    <Select name="period" defaultValue={selectedPeriod}>
-                      <SelectTrigger className="h-11 rounded-xl bg-background border-primary/10"><SelectValue placeholder="Select Month" /></SelectTrigger>
-                      <SelectContent>
-                        {periods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Contribution Amount</Label>
-                    <div className="relative">
-                      <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14 bg-background border-primary/10 font-bold" />
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">
-                        {currency}
-                      </div>
-                    </div>
-                    {/* Deposit bank details displayed below amount */}
-                    {(settings.depositBankName || settings.depositAccountNumber) && (
-                      <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-xs flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 text-primary min-w-0">
-                          <Landmark className="h-3.5 w-3.5 shrink-0" />
-                          <span className="font-medium text-[11px] text-muted-foreground">Deposit Bank:</span>
-                          <strong className="text-foreground truncate">{settings.depositBankName || 'Designated Bank'}</strong>
-                        </div>
-                        {settings.depositAccountNumber && (
-                          <div className="font-mono font-bold text-xs text-foreground bg-background px-2 py-0.5 rounded border border-border shrink-0">
-                            {settings.depositAccountNumber}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="proofFile">Proof of Payment</Label>
-                    <div className="flex flex-col gap-2">
-                      <Input name="proofFile" type="file" required className="rounded-xl h-11 py-2 bg-background border-primary/10" />
-                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Info className="h-3 w-3" /> Upload screenshot or bank receipt
-                      </p>
-                    </div>
-                  </div>
-                  <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-2">
-                    <Button 
-                      className="w-full h-12 sm:h-11 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 border border-primary/40 backdrop-blur-md active:scale-[0.98] transition-all" 
-                      type="submit" 
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="h-4 w-4" />
-                      )}
-                      Submit for Verification
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          ) : (
+      {isManagement ? (
+        <div className="grid gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
+          <div className="lg:col-span-1 space-y-6 w-full min-w-0 max-w-full">
             <Card className="border-none shadow-lg h-fit sticky top-24">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -586,10 +527,9 @@ export default function ContributionsPage() {
                 )}
               </CardContent>
             </Card>
-          )}
-        </div>
+          </div>
 
-        <div className="space-y-4 sm:space-y-6 lg:col-span-2 w-full min-w-0 max-w-full">
+          <div className="space-y-4 sm:space-y-6 lg:col-span-2 w-full min-w-0 max-w-full">
           <Tabs defaultValue="history" onValueChange={setActiveTab} className="w-full min-w-0 max-w-full">
             <div className="w-full overflow-x-auto no-scrollbar pb-1">
               <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-5 h-11 mb-4 sm:mb-6">
@@ -619,6 +559,121 @@ export default function ContributionsPage() {
           </Tabs>
         </div>
       </div>
+      ) : (
+        <div className="space-y-4 sm:space-y-6 w-full min-w-0 max-w-full">
+          <Tabs defaultValue="history" onValueChange={setActiveTab} className="w-full min-w-0 max-w-full">
+            <div className="w-full overflow-x-auto no-scrollbar pb-1">
+              <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-5 h-11 mb-4 sm:mb-6">
+                <TabsTrigger value="history" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">History</TabsTrigger>
+                <TabsTrigger value="pending" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">Pending</TabsTrigger>
+                <TabsTrigger value="verified" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">Verified</TabsTrigger>
+                <TabsTrigger value="reversed" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">Reversed</TabsTrigger>
+                <TabsTrigger value="rejected" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap">Rejected</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <Card className="border border-border shadow-md bg-card rounded-2xl overflow-hidden w-full min-w-0 max-w-full">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-blue-700/30 bg-blue-600 text-white p-3.5 sm:p-5">
+                <CardTitle className="flex items-center gap-2 text-[13px] font-bold text-white">
+                   <History className="h-4 w-4 text-white" /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Record
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 w-full min-w-0 max-w-full overflow-hidden">
+                <TabsContent value="history" className="m-0 w-full min-w-0">{renderTable(contributions)}</TabsContent>
+                <TabsContent value="pending" className="m-0 w-full min-w-0">{renderTable(pendingContributions)}</TabsContent>
+                <TabsContent value="verified" className="m-0 w-full min-w-0">{renderTable(verifiedContributions)}</TabsContent>
+                <TabsContent value="reversed" className="m-0 w-full min-w-0">{renderTable(reversedContributions)}</TabsContent>
+                <TabsContent value="rejected" className="m-0 w-full min-w-0">{renderTable(rejectedContributions)}</TabsContent>
+              </CardContent>
+            </Card>
+          </Tabs>
+        </div>
+      )}
+
+      {/* Floating Bottom Sticky Button on Mobile */}
+      {!isManagement && (
+        <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:hidden">
+          <Button 
+            onClick={() => setIsSubmitOpen(true)} 
+            className="w-full h-12 rounded-xl font-bold text-sm shadow-xl bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 border border-green-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
+          >
+            <Upload className="h-4 w-4" /> Submit Contribution
+          </Button>
+        </div>
+      )}
+
+      {/* Submit Contribution Modal Dialog (Members) */}
+      <Dialog open={isSubmitOpen} onOpenChange={setIsSubmitOpen}>
+        <DialogContent className="rounded-2xl max-w-md p-6 bg-card border border-border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Upload className="h-5 w-5 text-primary" /> Submit Savings Deposit
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Upload bank deposit slip or transaction screenshot for monthly verification.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitContribution} className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="period" className="text-xs font-semibold">Target Month</Label>
+              <Select name="period" defaultValue={selectedPeriod}>
+                <SelectTrigger className="h-11 rounded-xl bg-muted border-none"><SelectValue placeholder="Select Month" /></SelectTrigger>
+                <SelectContent>
+                  {periods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="amount" className="text-xs font-semibold">Contribution Amount</Label>
+              <div className="relative">
+                <Input name="amount" type="number" defaultValue={defaultAmount} required className="h-11 rounded-xl pr-14 bg-muted border-none font-bold text-sm" />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">
+                  {currency}
+                </div>
+              </div>
+              {/* Deposit bank details displayed below amount */}
+              {(settings.depositBankName || settings.depositAccountNumber) && (
+                <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-primary min-w-0">
+                    <Landmark className="h-4 w-4 shrink-0" />
+                    <span className="font-medium text-[11px] text-muted-foreground">Deposit Bank:</span>
+                    <strong className="text-foreground truncate">{settings.depositBankName || 'Designated Bank'}</strong>
+                  </div>
+                  {settings.depositAccountNumber && (
+                    <div className="font-mono font-bold text-xs text-foreground bg-background px-2 py-0.5 rounded border border-border shrink-0">
+                      {settings.depositAccountNumber}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="proofFile" className="text-xs font-semibold">Proof of Payment</Label>
+              <div className="flex flex-col gap-1.5">
+                <Input name="proofFile" type="file" required className="rounded-xl h-11 py-2 bg-muted border-none file:font-semibold file:text-xs" />
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Info className="h-3 w-3" /> Upload screenshot or bank receipt
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="pt-2">
+              <Button 
+                className="w-full h-11 rounded-xl font-bold text-sm shadow-md bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2" 
+                type="submit" 
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                Submit for Verification
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Manual Entry Dialog (Management) */}
       <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
