@@ -77,7 +77,7 @@ export default function MorePage() {
       title: 'Management Tools',
       items: [
         ...(isAdmin ? [
-          { href: '/admin', label: 'Executive Console', icon: Home, description: 'Balance sheet and metrics' },
+          { href: '/admin', label: 'Dashboard', icon: Home, description: 'Balance sheet and metrics' },
           { href: '/admin/contributions', label: 'Batch Approvals', icon: FileSpreadsheet, description: 'Approve pending batches' },
           { href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp, description: 'Allocate profits pro-rata' },
           { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt, description: 'Manage operational costs' },

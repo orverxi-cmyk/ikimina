@@ -393,7 +393,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const batchLabel = isSuperAdmin ? 'Batch Approvals' : isAccountant ? 'Batch Upload' : 'Review Batches';
 
   const adminMenuItems = [
-    { href: '/admin', label: 'Executive Console', icon: Home },
+    { href: '/admin', label: 'Dashboard', icon: Home },
     ...(isAuditor ? [
       { href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck },
       { href: '/reports', label: 'Financial Reports', icon: FileText },
@@ -417,7 +417,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   ];
 
   const memberMenuItems = [
-    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/', label: 'My Account', icon: LayoutDashboard },
     { href: '/contributions', label: 'Contributions', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },

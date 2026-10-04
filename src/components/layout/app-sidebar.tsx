@@ -87,7 +87,7 @@ export function AppSidebar() {
 
   // 1. Member Services Navigation (Available to all authenticated members & staff)
   const memberItems = [
-    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/', label: 'My Account', icon: LayoutDashboard },
     { href: '/contributions', label: 'Contributions', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
@@ -97,7 +97,7 @@ export function AppSidebar() {
   const adminItems: { href: string; label: string; icon: any }[] = [];
 
   if (isSuperAdmin) {
-    adminItems.push({ href: '/admin', label: 'Executive Console', icon: Home });
+    adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
     adminItems.push({ href: '/admin/contributions', label: 'Batch Approvals', icon: FileSpreadsheet });
     adminItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
     adminItems.push({ href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp });

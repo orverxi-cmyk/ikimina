@@ -316,7 +316,7 @@ export default function AdminDashboard() {
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-wider">
-              Executive Institutional Console
+              Dashboard
             </Badge>
             {pendingExpenses.length > 0 && (
               <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] font-bold">
