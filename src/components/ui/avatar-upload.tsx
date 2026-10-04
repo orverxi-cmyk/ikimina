@@ -7,6 +7,7 @@ import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { updateMemberProfileAction } from '@/lib/finance-client';
 import { Camera, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface AvatarUploadProps {
   uid: string;
@@ -25,6 +26,7 @@ export function AvatarUpload({
   size = 80,
   onUploadSuccess,
 }: AvatarUploadProps) {
+  const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -45,13 +47,25 @@ export function AvatarUpload({
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setErrorMsg('Please select an image file.');
+      const msg = 'Please select a valid image file.';
+      setErrorMsg(msg);
       setStatus('error');
+      toast({
+        variant: "destructive",
+        title: "Invalid file",
+        description: msg,
+      });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setErrorMsg('Image must be smaller than 5 MB.');
+      const msg = 'Image must be smaller than 5 MB.';
+      setErrorMsg(msg);
       setStatus('error');
+      toast({
+        variant: "destructive",
+        title: "File too large",
+        description: msg,
+      });
       return;
     }
 
@@ -60,6 +74,11 @@ export function AvatarUpload({
     setErrorMsg(null);
     setStatus('uploading');
     setProgress(0);
+
+    toast({
+      title: "Saving avatar...",
+      description: "Uploading and updating your profile picture.",
+    });
 
     const { app } = initializeFirebase();
     const storage = getStorage(app);
@@ -72,9 +91,15 @@ export function AvatarUpload({
         setProgress(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
       },
       (error) => {
-        setErrorMsg(error.message || 'Upload failed.');
+        const msg = error.message || 'Upload failed.';
+        setErrorMsg(msg);
         setStatus('error');
         setProgress(null);
+        toast({
+          variant: "destructive",
+          title: "Upload Failed",
+          description: msg,
+        });
       },
       () => {
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
@@ -114,10 +139,22 @@ export function AvatarUpload({
               setPreview(downloadURL);
               setStatus('done');
               onUploadSuccess?.(downloadURL);
+              
+              toast({
+                title: "Avatar saved!",
+                description: "Your new profile picture has been saved successfully.",
+              });
+
               setTimeout(() => setStatus('idle'), 2500);
             } catch (err: any) {
-              setErrorMsg(err.message || 'Failed to save avatar.');
+              const msg = err.message || 'Failed to save avatar.';
+              setErrorMsg(msg);
               setStatus('error');
+              toast({
+                variant: "destructive",
+                title: "Save Failed",
+                description: msg,
+              });
             }
           });
         });
@@ -126,9 +163,9 @@ export function AvatarUpload({
   }
 
   const ringColor =
-    status === 'done' ? 'ring-green-600' :
-    status === 'error' ? 'ring-black' :
-    isBusy ? 'ring-primary' :
+    status === 'done' ? 'ring-emerald-500 ring-offset-2' :
+    status === 'error' ? 'ring-destructive' :
+    isBusy ? 'ring-primary animate-pulse' :
     'ring-border hover:ring-primary/60';
 
   return (
@@ -173,9 +210,33 @@ export function AvatarUpload({
         )}
 
         {/* Dark overlay on hover (only when idle) */}
-        {!isBusy && (
+        {!isBusy && status !== 'done' && (
           <span className="absolute inset-0 bg-black/0 hover:bg-black/40 flex items-center justify-center transition-colors duration-200 rounded-full">
             <Camera className="text-white opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: size * 0.3, height: size * 0.3 }} />
+          </span>
+        )}
+
+        {/* Active Feedback Overlay (during upload & saving) */}
+        {isBusy && (
+          <span className="absolute inset-0 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white z-10 transition-all rounded-full p-1">
+            <Loader2 className="animate-spin text-white mb-0.5" style={{ width: Math.max(16, size * 0.3), height: Math.max(16, size * 0.3) }} />
+            {size >= 60 && (
+              <span className="text-[10px] font-bold text-white tracking-tight leading-tight">
+                {status === 'saving' ? 'Saving...' : progress !== null ? `${progress}%` : 'Uploading...'}
+              </span>
+            )}
+          </span>
+        )}
+
+        {/* Done / Success Overlay */}
+        {status === 'done' && (
+          <span className="absolute inset-0 bg-emerald-600/90 backdrop-blur-[2px] flex flex-col items-center justify-center text-white z-10 transition-all rounded-full p-1 animate-in fade-in zoom-in-95 duration-200">
+            <CheckCircle className="text-white mb-0.5" style={{ width: Math.max(16, size * 0.32), height: Math.max(16, size * 0.32) }} />
+            {size >= 60 && (
+              <span className="text-[10px] font-extrabold text-white tracking-tight leading-tight">
+                Saved!
+              </span>
+            )}
           </span>
         )}
       </button>
