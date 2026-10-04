@@ -882,21 +882,44 @@ export default function DistributeInterestPage() {
               </Card>
 
               {/* Informative Guidance Box */}
-              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-2.5">
+              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
                   <HelpCircle className="h-4 w-4" /> Two Payout Channels
                 </div>
-                <ul className="text-xs text-muted-foreground space-y-2 list-disc pl-4">
-                  <li>
-                    <strong>Add to Total Contribution (Reinvestment):</strong> Excluded from cash payouts. Directly creates a verified contribution savings record, boosting the member's savings and future loan qualification multiplier.
-                  </li>
-                  <li>
-                    <strong>Receive Cash Payout:</strong> Directly credits the member's liquid <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono text-foreground">accruedInterest</code> balance for cash disbursement.
-                  </li>
-                  <li>
-                    Formula: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono text-foreground">Member Share = (Member Savings / Total Savings) &times; Total Dividend</code>
-                  </li>
-                </ul>
+                
+                <div className="space-y-2.5 text-xs text-muted-foreground">
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                    <div>
+                      <strong className="text-foreground font-semibold">Add to Total Contribution (Reinvestment):</strong>{' '}
+                      Excluded from cash payouts. Directly creates a verified contribution savings record, boosting the member's savings and future loan qualification multiplier.
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                    <div>
+                      <strong className="text-foreground font-semibold">Receive Cash Payout:</strong>{' '}
+                      Directly credits the member's liquid accrued interest balance for cash disbursement.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-primary/10 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-primary uppercase tracking-wider">
+                    Calculation Formula
+                  </div>
+                  <div className="bg-background border border-border/80 rounded-xl p-3 shadow-xs">
+                    <div className="text-xs font-mono font-medium text-foreground flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                      <span className="text-primary font-semibold">Member Share</span>
+                      <span className="text-muted-foreground">=</span>
+                      <span className="bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md font-medium">
+                        (Member Savings &divide; Total Savings)
+                      </span>
+                      <span className="text-muted-foreground">&times;</span>
+                      <span className="font-semibold text-foreground">Total Dividend</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
