@@ -78,7 +78,7 @@ export default function MorePage() {
       items: [
         ...(isAdmin ? [
           { href: '/admin', label: 'Dashboard', icon: Home, description: 'Balance sheet and metrics' },
-          { href: '/admin/contributions', label: 'Batch Approvals', icon: FileSpreadsheet, description: 'Approve pending batches' },
+          { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck, description: 'Audit and approve pending requests' },
           { href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp, description: 'Allocate profits pro-rata' },
           { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt, description: 'Manage operational costs' },
         ] : []),

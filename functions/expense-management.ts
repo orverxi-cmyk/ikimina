@@ -128,6 +128,9 @@ export const approveExpense = onCall({ cors: true }, async (request) => {
     }
 
     const expense = expenseSnap.data()!;
+    if (expense.recordedBy === callerId || expense.createdBy === callerId) {
+        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve an expense you initiated. Another administrator must approve it.');
+    }
     if (expense.status !== 'pending') {
         throw new HttpsError('failed-precondition', `Cannot approve expense with status '${expense.status}'. Only pending expenses can be approved.`);
     }

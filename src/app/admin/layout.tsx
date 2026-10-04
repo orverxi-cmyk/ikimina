@@ -394,11 +394,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const adminMenuItems = [
     { href: '/admin', label: 'Dashboard', icon: Home },
+    { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck },
     ...(isAuditor ? [
       { href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck },
       { href: '/reports', label: 'Financial Reports', icon: FileText },
     ] : [
-      { href: '/admin/contributions', label: batchLabel, icon: FileSpreadsheet },
       ...(isSuperAdmin || isAccountant ? [
         { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
       ] : []),

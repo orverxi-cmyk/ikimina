@@ -328,6 +328,9 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         if (!loanSnap.exists)
             throw new https_1.HttpsError('not-found', 'Loan record not found.');
         const loanData = loanSnap.data();
+        if (loanData.memberId === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve your own loan application. Another administrator must approve it.');
+        }
         if (loanData.status !== 'requested') {
             throw new https_1.HttpsError('failed-precondition', `Loan is currently in '${loanData.status}' status, cannot be approved.`);
         }

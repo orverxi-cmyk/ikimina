@@ -348,20 +348,14 @@ export default function AdminDashboard() {
 
           {isAccountant ? (
             <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
-              <Link href="/admin/contributions">
+              <Link href="/admin/approvals">
                 <Upload className="h-4 w-4" /> Upload in Batches
-              </Link>
-            </Button>
-          ) : isSuperAdmin ? (
-            <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
-              <Link href="/admin/contributions">
-                <ShieldCheck className="h-4 w-4" /> Batch Approvals &amp; Ledger
               </Link>
             </Button>
           ) : (
             <Button asChild className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none">
-              <Link href="/admin/contributions">
-                <FileSpreadsheet className="h-4 w-4" /> Batch Review Queue
+              <Link href="/admin/approvals">
+                <ShieldCheck className="h-4 w-4" /> Approvals Hub
               </Link>
             </Button>
           )}

@@ -138,6 +138,9 @@ exports.approveExpense = (0, https_1.onCall)({ cors: true }, async (request) => 
         throw new https_1.HttpsError('not-found', 'Expense record not found.');
     }
     const expense = expenseSnap.data();
+    if (expense.recordedBy === callerId || expense.createdBy === callerId) {
+        throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve an expense you initiated. Another administrator must approve it.');
+    }
     if (expense.status !== 'pending') {
         throw new https_1.HttpsError('failed-precondition', `Cannot approve expense with status '${expense.status}'. Only pending expenses can be approved.`);
     }

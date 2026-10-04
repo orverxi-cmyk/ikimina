@@ -116,9 +116,17 @@ export const verifyContribution = onCall({ cors: true }, async (request) => {
     }
 
     try {
-        const batch = db.batch();
         const contributionRef = db.collection('contributions').doc(contributionId);
-        
+        const contribSnap = await contributionRef.get();
+        if (!contribSnap.exists) {
+            throw new HttpsError('not-found', 'Contribution not found.');
+        }
+        const contribData = contribSnap.data()!;
+        if (contribData.memberId === request.auth.uid || contribData.recordedBy === request.auth.uid) {
+            throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot verify your own deposit submission or a transaction you recorded.');
+        }
+
+        const batch = db.batch();
         batch.update(contributionRef, {
             status: 'verified',
             verifiedBy: request.auth.uid,
@@ -469,6 +477,9 @@ export const reviewContributionBatch = onCall({ cors: true }, async (request) =>
     }
 
     const batchData = batchSnap.data()!;
+    if (batchData.initiatedBy === request.auth.uid) {
+        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a batch you initiated. Another authorized officer must conduct the review.');
+    }
     if (batchData.status !== 'pending_review' && batchData.status !== 'revision_requested') {
         throw new HttpsError('failed-precondition', `Cannot review batch with status '${batchData.status}'. Must be 'pending_review'.`);
     }
@@ -564,6 +575,9 @@ export const approveContributionBatch = onCall({ cors: true }, async (request) =
     }
 
     const batchData = batchSnap.data()!;
+    if (batchData.initiatedBy === request.auth.uid) {
+        throw new HttpsError('permission-denied', 'Segregation of duties violation: The initiator of a batch cannot approve it. Another Super Administrator must approve and commit it.');
+    }
     if (batchData.status !== 'pending_approval') {
         throw new HttpsError('failed-precondition', `Cannot approve batch with status '${batchData.status}'. Must be 'pending_approval'.`);
     }
@@ -745,6 +759,10 @@ export const bulkReviewContributionBatches = onCall({ cors: true }, async (reque
             }
 
             const batchData = batchSnap.data()!;
+            if (batchData.initiatedBy === request.auth.uid) {
+                errors.push(`Batch ${batchId}: Cannot review your own initiated batch (Segregation of duties).`);
+                continue;
+            }
             if (batchData.status !== 'pending_review' && batchData.status !== 'revision_requested') {
                 errors.push(`Batch ${batchId} is in status '${batchData.status}', not pending review.`);
                 continue;
@@ -836,6 +854,10 @@ export const bulkApproveContributionBatches = onCall({ cors: true }, async (requ
             }
 
             const batchData = batchSnap.data()!;
+            if (batchData.initiatedBy === request.auth.uid) {
+                errors.push(`Batch ${batchId}: Cannot approve your own initiated batch (Segregation of duties).`);
+                continue;
+            }
             if (batchData.status !== 'pending_approval') {
                 errors.push(`Batch ${batchId} has status '${batchData.status}', not pending approval.`);
                 continue;

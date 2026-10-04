@@ -98,7 +98,7 @@ export function AppSidebar() {
 
   if (isSuperAdmin) {
     adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
-    adminItems.push({ href: '/admin/contributions', label: 'Batch Approvals', icon: FileSpreadsheet });
+    adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
     adminItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
     adminItems.push({ href: '/admin/distribute-interest', label: 'Distribute Interest', icon: TrendingUp });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
@@ -106,15 +106,16 @@ export function AppSidebar() {
     adminItems.push({ href: '/members', label: 'Members Directory', icon: Users });
     adminItems.push({ href: '/admin/settings', label: 'Settings', icon: Settings });
   } else if (isAuditor) {
+    adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (isAccountant) {
-    adminItems.push({ href: '/admin/contributions', label: 'Batch Upload', icon: FileSpreadsheet });
+    adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
     adminItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (isReviewer) {
-    adminItems.push({ href: '/admin/contributions', label: 'Review Batches', icon: FileSpreadsheet });
+    adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   }

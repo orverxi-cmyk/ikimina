@@ -379,14 +379,14 @@ export default function ContributionsPage() {
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {isAccountantOrAdmin && (
             <Button asChild variant="outline" className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-primary/30 text-primary hover:bg-primary/10 shadow-sm justify-center">
-              <Link href="/admin/contributions">
+              <Link href="/admin/approvals">
                 {role === 'accountant' ? (
                   <>
                     <FileSpreadsheet className="mr-1.5 h-4 w-4 shrink-0" /> Upload in Batches
                   </>
                 ) : (
                   <>
-                    <ShieldCheck className="mr-1.5 h-4 w-4 shrink-0" /> Batch Approvals
+                    <ShieldCheck className="mr-1.5 h-4 w-4 shrink-0" /> Approvals
                   </>
                 )}
               </Link>
