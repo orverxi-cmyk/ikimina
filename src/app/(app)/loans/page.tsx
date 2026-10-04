@@ -490,32 +490,20 @@ function LoansPageContent() {
   };
 
   return (
-    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-36 sm:pb-24 w-full min-w-0 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div>
           <h1 className="text-[13px] font-bold font-headline text-foreground">Lending & Capital</h1>
           <p className="text-[12px] font-bold text-muted-foreground">Manage borrowing cycles and repayment schedules</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-           {isManagement ? (
+           {isManagement && (
              <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm">
                <Link href="/loans/apply">
                  <Plus className="mr-2 h-4 w-4" /> Apply for Loan
                </Link>
              </Button>
-           ) : canTopUp ? (
-             <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500/40">
-               <Link href={`/loans/apply?topup=true&parentLoanId=${myActive?.id}`}>
-                 <TrendingUp className="mr-2 h-4 w-4" /> Apply for Top-Up
-               </Link>
-             </Button>
-           ) : !myActive && !myPending ? (
-             <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm">
-               <Link href="/loans/apply">
-                 <Plus className="mr-2 h-4 w-4" /> Apply for Loan
-               </Link>
-             </Button>
-           ) : null}
+           )}
            <div className="grid grid-cols-2 sm:flex gap-1.5 sm:gap-2 w-full sm:w-auto">
               {!isManagement && (
                 <div className="bg-primary/5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-primary/20 text-center flex-1 sm:min-w-[120px]">
@@ -605,15 +593,7 @@ function LoansPageContent() {
                     </p>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  asChild
-                  className="rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shrink-0 gap-1.5"
-                >
-                  <Link href={`/loans/apply?topup=true&parentLoanId=${myActive.id}`}>
-                    <TrendingUp className="h-3.5 w-3.5" /> Apply for Top-Up
-                  </Link>
-                </Button>
+                
               </div>
             )}
         </div>
@@ -1099,6 +1079,31 @@ function LoansPageContent() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Bottom Loan Action CTA - Floating on Mobile, Integrated on Desktop (Harmonized with Savings) */}
+      {!isManagement && (
+        <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-4 sm:flex sm:justify-end">
+          {canTopUp ? (
+            <Button 
+              asChild 
+              className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 border border-emerald-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
+            >
+              <Link href={`/loans/apply?topup=true&parentLoanId=${myActive?.id}`}>
+                <TrendingUp className="h-4 w-4" /> Apply for Top-Up
+              </Link>
+            </Button>
+          ) : !myActive && !myPending ? (
+            <Button 
+              asChild 
+              className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-primary text-primary-foreground flex items-center justify-center gap-2 backdrop-blur-md active:scale-[0.98] transition-all"
+            >
+              <Link href="/loans/apply">
+                <Plus className="h-4 w-4" /> Apply for Loan
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      )}
 
       {/* VIEW LOAN SCHEDULE DIALOG (Management Only) */}
       <Dialog open={isViewScheduleOpen} onOpenChange={setIsViewScheduleOpen}>
