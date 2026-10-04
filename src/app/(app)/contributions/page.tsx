@@ -272,14 +272,14 @@ export default function ContributionsPage() {
   ];
 
   const renderTable = (data: any[]) => (
-    <div className="w-full max-w-full overflow-x-auto touch-pan-x overscroll-x-contain">
-      <Table className="min-w-[620px] w-full">
+    <div className="w-full overflow-x-auto no-scrollbar">
+      <Table className="w-full">
         <TableHeader>
-          <TableRow>
-            {isManagement && <TableHead className="px-4 py-3 whitespace-nowrap">Member</TableHead>}
-            <TableHead className="px-4 py-3 whitespace-nowrap">Date</TableHead>
-            <TableHead className="px-4 py-3 whitespace-nowrap">Status</TableHead>
-            <TableHead className="text-right px-4 py-3 whitespace-nowrap">Amount</TableHead>
+          <TableRow className="border-b border-border/80 hover:bg-transparent">
+            {isManagement && <TableHead className="px-4 sm:px-6 py-3.5 whitespace-nowrap text-xs font-bold uppercase">Member</TableHead>}
+            <TableHead className="px-4 sm:px-6 py-3.5 whitespace-nowrap text-xs font-bold uppercase">Date</TableHead>
+            <TableHead className="px-4 sm:px-6 py-3.5 whitespace-nowrap text-xs font-bold uppercase">Status</TableHead>
+            <TableHead className="text-right px-4 sm:px-6 py-3.5 whitespace-nowrap text-xs font-bold uppercase">Amount</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -303,10 +303,10 @@ export default function ContributionsPage() {
                     {getMemberName(h.memberId)}
                   </TableCell>
                 )}
-                <TableCell className="font-medium text-foreground px-4 py-3 whitespace-nowrap text-[13px]">
+                <TableCell className="font-semibold text-foreground px-4 sm:px-6 py-3.5 whitespace-nowrap text-sm">
                   {h.date?.seconds ? format(new Date(h.date.seconds * 1000), 'MMM d, yyyy') : h.date ? format(new Date(h.date), 'MMM d, yyyy') : h.period || 'Processing...'}
                 </TableCell>
-                <TableCell className="px-4 py-3 whitespace-nowrap">
+                <TableCell className="px-4 sm:px-6 py-3.5 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 flex-nowrap">
                     <Badge 
                       variant={h.status === 'pending' ? 'secondary' : h.status === 'rejected' ? 'destructive' : h.status === 'reversed' ? 'outline' : 'default'} 
@@ -348,7 +348,7 @@ export default function ContributionsPage() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-right px-4 py-3 font-bold whitespace-nowrap text-[12px]">{formatCurrency(h.amount, currency)}</TableCell>
+                <TableCell className="text-right px-4 sm:px-6 py-3.5 font-bold whitespace-nowrap text-sm">{formatCurrency(h.amount, currency)}</TableCell>
               </TableRow>
             ))
           )}
@@ -596,9 +596,7 @@ export default function ContributionsPage() {
                 <CardTitle className="flex items-center gap-2 text-[13px] font-bold text-white">
                    <History className="h-4 w-4 text-white" /> {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Record
                 </CardTitle>
-                <span className="text-[10px] text-blue-100 sm:hidden font-medium">
-                  Swipe table &rarr;
-                </span>
+                
               </CardHeader>
               <CardContent className="p-0 w-full min-w-0 max-w-full overflow-hidden">
                 <TabsContent value="history" className="m-0 w-full min-w-0">{renderTable(contributions)}</TabsContent>
