@@ -377,14 +377,6 @@ export default function ContributionsPage() {
 
         {/* Global Action CTAs */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {!isManagement && (
-            <Button 
-              onClick={() => setIsSubmitOpen(true)} 
-              className="rounded-xl h-10 px-4 font-bold text-xs shadow-sm bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
-            >
-              <Upload className="h-4 w-4" /> Submit Contribution
-            </Button>
-          )}
           {isAccountantOrAdmin && (
             <Button asChild variant="outline" className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-primary/30 text-primary hover:bg-primary/10 shadow-sm justify-center">
               <Link href="/admin/contributions">
@@ -590,12 +582,12 @@ export default function ContributionsPage() {
         </div>
       )}
 
-      {/* Floating Bottom Sticky Button on Mobile */}
+      {/* Bottom Submit Contribution Action - Floating on Mobile, Integrated on Desktop */}
       {!isManagement && (
-        <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:hidden">
+        <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-4 sm:flex sm:justify-end">
           <Button 
             onClick={() => setIsSubmitOpen(true)} 
-            className="w-full h-12 rounded-xl font-bold text-sm shadow-xl bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 border border-green-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
+            className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 border border-green-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
           >
             <Upload className="h-4 w-4" /> Submit Contribution
           </Button>
