@@ -232,19 +232,21 @@ export default function AdminSettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-        <TabsList className="bg-muted p-1 rounded-xl h-11 border border-border/60">
-          <TabsTrigger id="tab-financials" value="financials" className="rounded-lg font-bold text-xs gap-2 px-5 data-[state=active]:bg-background">
-            <Wallet className="h-4 w-4 text-primary" /> Financials
-          </TabsTrigger>
-          <TabsTrigger id="tab-identity" value="identity" className="rounded-lg font-bold text-xs gap-2 px-5 data-[state=active]:bg-background">
-            <ShieldCheck className="h-4 w-4 text-primary" /> Identity
-          </TabsTrigger>
-          {isSuperAdmin && (
-            <TabsTrigger id="tab-reset" value="reset" className="rounded-lg font-bold text-xs gap-2 px-5 data-[state=active]:bg-background data-[state=active]:text-destructive">
-              <RotateCcw className="h-4 w-4" /> Reset
+        <div className="w-full overflow-x-auto no-scrollbar pb-1">
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-3 bg-muted p-1 rounded-xl h-11 border border-border/60 gap-1">
+            <TabsTrigger id="tab-financials" value="financials" className="rounded-lg font-bold text-xs gap-2 px-4 sm:px-5 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Wallet className="h-4 w-4 text-primary" /> Financials
             </TabsTrigger>
-          )}
-        </TabsList>
+            <TabsTrigger id="tab-identity" value="identity" className="rounded-lg font-bold text-xs gap-2 px-4 sm:px-5 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <ShieldCheck className="h-4 w-4 text-primary" /> Identity
+            </TabsTrigger>
+            {isSuperAdmin && (
+              <TabsTrigger id="tab-reset" value="reset" className="rounded-lg font-bold text-xs gap-2 px-4 sm:px-5 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:text-destructive data-[state=active]:shadow-sm">
+                <RotateCcw className="h-4 w-4" /> Reset
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
 
       <form onSubmit={handleUpdateSettings}>
         <div className="grid gap-4 sm:gap-6">

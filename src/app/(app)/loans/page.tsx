@@ -738,25 +738,27 @@ function LoansPageContent() {
       )}
 
       <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-14 p-1.5 mb-8">
-          <TabsTrigger value="schedule" className="gap-2 uppercase tracking-wider text-[11px]">
-            <Calendar className="h-4 w-4" /> {isManagement ? 'Active Loans' : 'My Schedule'}
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-2 uppercase tracking-wider text-[11px]">
-            <HistoryIcon className="h-4 w-4" /> History
-          </TabsTrigger>
-          <TabsTrigger value="interest" className="gap-2 uppercase tracking-wider text-[11px]">
-            <Landmark className="h-4 w-4" /> Interest
-          </TabsTrigger>
-          <TabsTrigger value="arrears" className="gap-2 uppercase tracking-wider text-[11px] relative">
-            <AlertTriangle className="h-4 w-4" /> Arrears
-            {missedInstallments.length > 0 && (
-              <span className="ml-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
-                {missedInstallments.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto no-scrollbar pb-1 mb-6">
+          <TabsList className="inline-flex w-full min-w-max md:min-w-0 md:grid md:grid-cols-4 h-12 p-1 bg-muted rounded-xl border border-border/60">
+            <TabsTrigger value="schedule" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
+              <Calendar className="h-4 w-4 shrink-0" /> {isManagement ? 'Active Loans' : 'My Schedule'}
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
+              <HistoryIcon className="h-4 w-4 shrink-0" /> History
+            </TabsTrigger>
+            <TabsTrigger value="interest" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
+              <Landmark className="h-4 w-4 shrink-0" /> Interest
+            </TabsTrigger>
+            <TabsTrigger value="arrears" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4 relative">
+              <AlertTriangle className="h-4 w-4 shrink-0" /> Arrears
+              {missedInstallments.length > 0 && (
+                <span className="ml-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
+                  {missedInstallments.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="schedule" className="space-y-6">
           <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">

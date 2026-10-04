@@ -906,66 +906,66 @@ export default function AdminContributionsBulkUploadPage() {
 
       {/* Main Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className={cn(
-          "grid h-12 rounded-xl bg-blue-600 p-1 border border-blue-700/40 shadow-sm",
-          isSuperAdmin 
-            ? "grid-cols-2 md:grid-cols-5" 
-            : isAccountant 
-            ? "grid-cols-2 md:grid-cols-3" 
-            : "grid-cols-2 md:grid-cols-3"
-        )}>
-          {(isAccountant || isSuperAdmin) && (
-            <TabsTrigger 
-              value="initiate" 
-              className="rounded-lg text-xs font-bold gap-1.5 text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all"
-            >
-              <Upload className="h-4 w-4" /> 1. Initiate Upload
-            </TabsTrigger>
-          )}
-          {(isReviewer || isSuperAdmin) && (
-            <TabsTrigger 
-              value="review" 
-              className="rounded-lg text-xs font-bold gap-1.5 relative text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all group"
-            >
-              <UserCheck className="h-4 w-4" /> 2. Review Queue
-              {pendingReviewBatches.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white group-data-[state=active]:bg-blue-100 group-data-[state=active]:text-blue-700">
-                  {pendingReviewBatches.length}
-                </span>
-              )}
-            </TabsTrigger>
-          )}
-          {isSuperAdmin && (
-            <TabsTrigger 
-              value="superadmin" 
-              className="rounded-lg text-xs font-bold gap-1.5 relative text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all group"
-            >
-              <ShieldCheck className="h-4 w-4" /> 3. Super Admin
-              {pendingApprovalBatches.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500 text-white group-data-[state=active]:bg-green-600 group-data-[state=active]:text-white">
-                  {pendingApprovalBatches.length}
-                </span>
-              )}
-            </TabsTrigger>
-          )}
-          <TabsTrigger 
-            value="slips" 
-            className="rounded-lg text-xs font-bold gap-1.5 relative text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all group"
-          >
-            <Receipt className="h-4 w-4" /> {isSuperAdmin ? '4. Member Slips' : 'Member Slips'}
-            {pendingSlips.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white group-data-[state=active]:bg-blue-100 group-data-[state=active]:text-blue-700">
-                {pendingSlips.length}
-              </span>
+        <div className="w-full overflow-x-auto no-scrollbar pb-1">
+          <TabsList className={cn(
+            "inline-flex w-full min-w-max h-12 rounded-xl bg-blue-600 p-1 border border-blue-700/40 shadow-sm gap-1",
+            isSuperAdmin 
+              ? "lg:grid lg:grid-cols-5 lg:min-w-0" 
+              : "lg:grid lg:grid-cols-3 lg:min-w-0"
+          )}>
+            {(isAccountant || isSuperAdmin) && (
+              <TabsTrigger 
+                value="initiate" 
+                className="rounded-lg text-xs font-bold gap-1.5 px-3 sm:px-4 whitespace-nowrap shrink-0 text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all"
+              >
+                <Upload className="h-4 w-4" /> 1. Initiate Upload
+              </TabsTrigger>
             )}
-          </TabsTrigger>
-          <TabsTrigger 
-            value="history" 
-            className="rounded-lg text-xs font-bold gap-1.5 text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all"
-          >
-            <History className="h-4 w-4" /> {isSuperAdmin ? '5. Committed Batches' : 'Committed Batches'} ({approvedBatches.length})
-          </TabsTrigger>
-        </TabsList>
+            {(isReviewer || isSuperAdmin) && (
+              <TabsTrigger 
+                value="review" 
+                className="rounded-lg text-xs font-bold gap-1.5 px-3 sm:px-4 whitespace-nowrap shrink-0 relative text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all group"
+              >
+                <UserCheck className="h-4 w-4" /> 2. Review Queue
+                {pendingReviewBatches.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white group-data-[state=active]:bg-blue-100 group-data-[state=active]:text-blue-700">
+                    {pendingReviewBatches.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
+            {isSuperAdmin && (
+              <TabsTrigger 
+                value="superadmin" 
+                className="rounded-lg text-xs font-bold gap-1.5 px-3 sm:px-4 whitespace-nowrap shrink-0 relative text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all group"
+              >
+                <ShieldCheck className="h-4 w-4" /> 3. Super Admin
+                {pendingApprovalBatches.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500 text-white group-data-[state=active]:bg-green-600 group-data-[state=active]:text-white">
+                    {pendingApprovalBatches.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
+            <TabsTrigger 
+              value="slips" 
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 sm:px-4 whitespace-nowrap shrink-0 relative text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all group"
+            >
+              <Receipt className="h-4 w-4" /> {isSuperAdmin ? '4. Member Slips' : 'Member Slips'}
+              {pendingSlips.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white group-data-[state=active]:bg-blue-100 group-data-[state=active]:text-blue-700">
+                  {pendingSlips.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="history" 
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 sm:px-4 whitespace-nowrap shrink-0 text-white/80 hover:text-white hover:bg-white/10 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all"
+            >
+              <History className="h-4 w-4" /> {isSuperAdmin ? '5. Committed Batches' : 'Committed Batches'} ({approvedBatches.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ============================================================ */}
         {/* TAB 1: INITIATE BATCH (Accountant / Maker) */}

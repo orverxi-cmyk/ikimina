@@ -130,11 +130,13 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="w-full md:w-fit grid grid-cols-3 h-12">
-          <TabsTrigger value="overview"><Landmark className="mr-2 h-4 w-4" /> Summary</TabsTrigger>
-          <TabsTrigger value="contributions"><Wallet className="mr-2 h-4 w-4" /> Contributions</TabsTrigger>
-          <TabsTrigger value="loans"><HandCoins className="mr-2 h-4 w-4" /> Loans</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto no-scrollbar pb-1">
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:w-fit grid grid-cols-3 h-12 p-1 bg-muted rounded-xl border border-border/60 gap-1">
+            <TabsTrigger value="overview" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><Landmark className="mr-1.5 sm:mr-2 h-4 w-4" /> Summary</TabsTrigger>
+            <TabsTrigger value="contributions" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><Wallet className="mr-1.5 sm:mr-2 h-4 w-4" /> Contributions</TabsTrigger>
+            <TabsTrigger value="loans" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><HandCoins className="mr-1.5 sm:mr-2 h-4 w-4" /> Loans</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview">
           <div className="grid gap-6 md:grid-cols-2">

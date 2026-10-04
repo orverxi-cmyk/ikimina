@@ -70,17 +70,19 @@ export function LegalPolicyModal({ isOpen, onOpenChange, initialTab = 'about' }:
 
         <div className="p-6">
           <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="space-y-4">
-            <TabsList className="grid grid-cols-3 w-full h-11 p-1 bg-muted/60 rounded-xl">
-              <TabsTrigger value="about" className="rounded-lg text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <Info className="h-3.5 w-3.5" /> About Us
-              </TabsTrigger>
-              <TabsTrigger value="terms" className="rounded-lg text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <FileText className="h-3.5 w-3.5" /> Terms of Service
-              </TabsTrigger>
-              <TabsTrigger value="privacy" className="rounded-lg text-xs font-bold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <Lock className="h-3.5 w-3.5" /> Privacy Policy
-              </TabsTrigger>
-            </TabsList>
+            <div className="w-full overflow-x-auto no-scrollbar pb-1">
+              <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-3 h-11 p-1 bg-muted/60 rounded-xl gap-1">
+                <TabsTrigger value="about" className="rounded-lg text-xs font-bold gap-1.5 px-3 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <Info className="h-3.5 w-3.5" /> About Us
+                </TabsTrigger>
+                <TabsTrigger value="terms" className="rounded-lg text-xs font-bold gap-1.5 px-3 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <FileText className="h-3.5 w-3.5" /> Terms of Service
+                </TabsTrigger>
+                <TabsTrigger value="privacy" className="rounded-lg text-xs font-bold gap-1.5 px-3 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <Lock className="h-3.5 w-3.5" /> Privacy Policy
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* Tab 1: About */}
             <TabsContent value="about" className="space-y-4 mt-2">

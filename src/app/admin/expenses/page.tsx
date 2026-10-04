@@ -454,31 +454,33 @@ export default function ExpensesAdminPage() {
 
       {/* Tabs Hub: Pending, Approved, Rejected */}
       <Tabs defaultValue="pending" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="pending" className="gap-2">
-            <Clock className="h-3.5 w-3.5" />
-            Pending Approval
-            {pendingExpenses.length > 0 && (
-              <Badge className="bg-white/20 text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
-                {pendingExpenses.length}
+        <div className="w-full overflow-x-auto no-scrollbar pb-1">
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-3 h-11 p-1 bg-muted rounded-xl border border-border/60 gap-1">
+            <TabsTrigger value="pending" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Clock className="h-3.5 w-3.5" />
+              Pending Approval
+              {pendingExpenses.length > 0 && (
+                <Badge className="bg-primary/20 text-primary font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
+                  {pendingExpenses.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="approved" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Approved Expenses
+              <Badge className="bg-primary/20 text-primary font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
+                {approvedExpenses.length}
               </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="approved" className="gap-2">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Approved Expenses
-            <Badge className="bg-white/20 text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
-              {approvedExpenses.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="rejected" className="gap-2">
-            <XCircle className="h-3.5 w-3.5" />
-            Rejected
-            <Badge className="bg-white/20 text-white font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
-              {rejectedExpenses.length}
-            </Badge>
-          </TabsTrigger>
-        </TabsList>
+            </TabsTrigger>
+            <TabsTrigger value="rejected" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <XCircle className="h-3.5 w-3.5" />
+              Rejected
+              <Badge className="bg-destructive/20 text-destructive font-mono text-[10px] h-4 min-w-4 px-1 rounded-full border-none">
+                {rejectedExpenses.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* 1. Pending Approvals Tab */}
         <TabsContent value="pending" className="space-y-4">

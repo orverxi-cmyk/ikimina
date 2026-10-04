@@ -628,14 +628,16 @@ export default function DistributeInterestPage() {
 
       {/* Main Tabs: Distribution Execution Console vs Historical Ledger */}
       <Tabs defaultValue="execute" className="w-full space-y-6">
-        <TabsList className="bg-muted p-1 rounded-xl h-11 border border-border/60">
-          <TabsTrigger value="execute" className="rounded-lg font-bold text-xs gap-2 px-5 data-[state=active]:bg-background">
-            <TrendingUp className="h-4 w-4 text-primary" /> Execute New Distribution
-          </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-lg font-bold text-xs gap-2 px-5 data-[state=active]:bg-background">
-            <History className="h-4 w-4 text-primary" /> Distribution Audit Ledger ({combinedLedger.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto no-scrollbar pb-1">
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-2 bg-muted p-1 rounded-xl h-11 border border-border/60 gap-1">
+            <TabsTrigger value="execute" className="rounded-lg font-bold text-xs gap-2 px-4 sm:px-5 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <TrendingUp className="h-4 w-4 text-primary" /> Execute New Distribution
+            </TabsTrigger>
+            <TabsTrigger value="history" className="rounded-lg font-bold text-xs gap-2 px-4 sm:px-5 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <History className="h-4 w-4 text-primary" /> Distribution Audit Ledger ({combinedLedger.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Tab 1: Execution & Allocation Preview */}
         <TabsContent value="execute" className="space-y-6">

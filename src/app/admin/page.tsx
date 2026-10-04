@@ -561,34 +561,36 @@ export default function AdminDashboard() {
 
       {/* DETAILED INTERACTIVE MODULE TABS */}
       <Tabs defaultValue="balance-sheet" className="space-y-6">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="balance-sheet" className="gap-2">
-            <PieChart className="h-3.5 w-3.5" />
-            Asset Reconciliation
-          </TabsTrigger>
-          <TabsTrigger value="arrears-watchlist" className="gap-2">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Arrears Watchlist
-            {arrearsList.length > 0 && (
-              <Badge className="bg-destructive text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
-                {arrearsList.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="expenses-ledger" className="gap-2">
-            <Receipt className="h-3.5 w-3.5" />
-            Operating Expenses
-            {pendingExpenses.length > 0 && (
-              <Badge className="bg-white/20 text-white font-bold text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
-                {pendingExpenses.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="source-deductions" className="gap-2">
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            Payroll Batches
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto no-scrollbar pb-1">
+          <TabsList className="inline-flex w-full min-w-max md:min-w-0 md:grid md:grid-cols-4 h-11 p-1 bg-muted rounded-xl border border-border/60 gap-1">
+            <TabsTrigger value="balance-sheet" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <PieChart className="h-3.5 w-3.5" />
+              Asset Reconciliation
+            </TabsTrigger>
+            <TabsTrigger value="arrears-watchlist" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Arrears Watchlist
+              {arrearsList.length > 0 && (
+                <Badge className="bg-destructive text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
+                  {arrearsList.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="expenses-ledger" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Receipt className="h-3.5 w-3.5" />
+              Operating Expenses
+              {pendingExpenses.length > 0 && (
+                <Badge className="bg-primary/20 text-primary font-bold text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
+                  {pendingExpenses.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="source-deductions" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Payroll Batches
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* TAB 1: ASSET RECONCILIATION & BALANCE SHEET */}
         <TabsContent value="balance-sheet" className="space-y-6">
