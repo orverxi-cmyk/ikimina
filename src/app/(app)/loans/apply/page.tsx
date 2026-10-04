@@ -495,77 +495,6 @@ function LoanApplyContent() {
         </div>
       </div>
 
-      {/* Financial Standing Cards Grid - 3 cards without redundant System Cap */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-        {/* Verified Contributions */}
-        <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-            <Wallet className="h-3 w-3 text-green-600" /> My Verified Savings
-          </p>
-          <p className="text-lg font-bold text-foreground">
-            {formatCurrency(totalVerifiedContributions, currency)}
-          </p>
-          {totalPendingContributions > 0 && (
-            <p className="text-[9px] font-bold text-muted-foreground">
-              +{formatCurrency(totalPendingContributions, currency)} pending audit
-            </p>
-          )}
-        </div>
-
-        {/* Borrowing Power - Capped by Lending Pool */}
-        <div className="p-4 bg-primary/5 rounded-[10px] border border-primary/20 space-y-1 shadow-sm">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3 text-primary" /> Borrowing Limit
-            </p>
-            {availableGroupPool !== null && personalBorrowingPower > availableGroupPool ? (
-              <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-none text-[8px] font-bold px-1.5 py-0">
-                Pool Capped
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-[8px] font-bold px-1.5 py-0 border-primary/30 text-primary">
-                {maxLoanPercentage}%
-              </Badge>
-            )}
-          </div>
-          <p className="text-lg font-bold text-primary">
-            {formatCurrency(effectiveMaxLimit, currency)}
-          </p>
-          <p className="text-[9px] text-muted-foreground font-medium">
-            {availableGroupPool !== null && personalBorrowingPower > availableGroupPool
-              ? `Savings power: ${formatCurrency(personalBorrowingPower, currency)} (Pool ceiling: ${formatCurrency(availableGroupPool, currency)})`
-              : `${maxLoanPercentage}% of verified savings`}
-          </p>
-        </div>
-
-        {/* Repaid Principal (if active loan) OR Minimum Loan */}
-        {activeLoan ? (
-          <div className="p-4 bg-green-500/5 rounded-[10px] border border-green-500/20 space-y-1 shadow-sm">
-            <p className="text-[10px] font-bold text-green-700 dark:text-green-400 uppercase tracking-widest flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-green-600" /> Repaid Principal
-            </p>
-            <p className="text-lg font-bold text-green-700 dark:text-green-400">
-              {formatCurrency(repaidPrincipal, currency)}
-            </p>
-            <p className="text-[9px] text-muted-foreground font-medium">
-              Available to Top-Up
-            </p>
-          </div>
-        ) : (
-          <div className="p-4 bg-card rounded-[10px] border border-border space-y-1 shadow-sm">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-              <HandCoins className="h-3 w-3 text-blue-600" /> Minimum Loan
-            </p>
-            <p className="text-lg font-bold text-blue-600">
-              {formatCurrency(minLoanAmount, currency)}
-            </p>
-            <p className="text-[9px] text-muted-foreground font-medium">
-              Required minimum per request
-            </p>
-          </div>
-        )}
-      </div>
-
       {/* DYNAMIC CASE 1: LENDING POOL CEILING REACHED (DEPLETED) */}
       {isLendingPoolCeiled && (
         <Card className="border border-blue-200 dark:border-blue-900/50 shadow-sm bg-card rounded-[10px] overflow-hidden animate-in fade-in">
@@ -741,27 +670,7 @@ function LoanApplyContent() {
         </Card>
       )}
 
-      {/* LENDING POOL AVAILABILITY STRIP (WHEN FORM IS ELIGIBLE TO BE SHOWN) */}
-      {shouldShowForm && liquidityMetrics && !isLendingPoolCeiled && (
-        <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
-              <Landmark className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="font-bold text-foreground">
-                Lending Pool Availability: <span className="text-primary font-headline text-sm font-bold">{formatCurrency(liquidityMetrics.availableLendingPool, currency)}</span>
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                Ceiling: {liquidityMetrics.maxLendingPoolPercentage}% of total assets ({formatCurrency(liquidityMetrics.maxLendingPool, currency)} cap | {formatCurrency(liquidityMetrics.currentActiveLoanBalance, currency)} active)
-              </p>
-            </div>
-          </div>
-          <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold self-start sm:self-auto">
-            Liquidity Available
-          </Badge>
-        </div>
-      )}
+      
 
       {/* EXCEPTION NOTICE BANNER (WHEN UNLOCKED WITH ZERO SAVINGS OR LOW POWER) */}
       {shouldShowForm && showExceptionForm && (!hasSavings || !isBorrowingPowerEligible) && (
@@ -1092,24 +1001,7 @@ function LoanApplyContent() {
               </div>
             </div>
 
-            <div className="bg-muted p-4 rounded-xl border border-border flex gap-3">
-              <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <div className="text-[11px] text-muted-foreground leading-relaxed space-y-1">
-                <p>
-                  <strong>Terms & Governance:</strong> All capital loans are subject to audit and ratification by Management. Once approved, the authoritative repayment schedule is generated at the system policy rate (<strong>{settings.loanInterestRate}%</strong>, <strong>{settings.interestModel}</strong> model).
-                </p>
-                {isTopUpMode && (
-                  <p className="text-emerald-700 dark:text-emerald-400 font-medium">
-                    <strong>Top-Up Rule:</strong> This top-up is linked to parent loan #{activeLoan?.id?.slice(0, 8)}. Upon approval, the top-up loan will be disbursed and scheduled under standard lending policy.
-                  </p>
-                )}
-                {exceedsBorrowingPower && (
-                  <p className="text-primary font-medium">
-                    <strong>Exception Policy:</strong> Applications exceeding standard borrowing power are routed to the Credit Committee with the attached management authorization for formal underwriting.
-                  </p>
-                )}
-              </div>
-            </div>
+            
 
             <Button 
               type="submit" 
