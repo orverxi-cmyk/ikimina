@@ -77,6 +77,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Interest distribution proposals: Managed via Cloud Functions, readable by staff
+    match /interest_distribution_requests/{requestId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
     // Operating expenses: Managed exclusively via Cloud Functions
     match /expenses/{expenseId} {
       allow read: if isSignedIn();

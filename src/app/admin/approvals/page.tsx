@@ -156,32 +156,32 @@ export default function ApprovalsHubPage() {
   const [interestMemberFilter, setInterestMemberFilter] = useState('');
 
   // Firestore Data Subscriptions
-  const membersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name', 'asc')), [firestore]);
+  const membersQuery = useMemoFirebase(() => user ? query(collection(firestore, 'users'), orderBy('name', 'asc')) : null, [firestore, user]);
   const { data: membersSnap } = useCollection(membersQuery);
 
-  const batchesQuery = useMemoFirebase(() => query(collection(firestore, 'contribution_batches'), orderBy('initiatedAt', 'desc'), limit(100)), [firestore]);
+  const batchesQuery = useMemoFirebase(() => user ? query(collection(firestore, 'contribution_batches'), orderBy('initiatedAt', 'desc'), limit(100)) : null, [firestore, user]);
   const { data: batchesSnap, loading: loadingBatches } = useCollection(batchesQuery);
 
-  const pendingSlipsQuery = useMemoFirebase(() => query(collection(firestore, 'contributions'), where('status', '==', 'pending'), limit(100)), [firestore]);
+  const pendingSlipsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'contributions'), where('status', '==', 'pending'), limit(100)) : null, [firestore, user]);
   const { data: pendingSlipsSnap, loading: loadingSlips } = useCollection(pendingSlipsQuery);
 
-  const pendingLoansQuery = useMemoFirebase(() => query(collection(firestore, 'loans'), where('status', '==', 'requested'), limit(50)), [firestore]);
+  const pendingLoansQuery = useMemoFirebase(() => user ? query(collection(firestore, 'loans'), where('status', '==', 'requested'), limit(50)) : null, [firestore, user]);
   const { data: pendingLoansSnap, loading: loadingLoans } = useCollection(pendingLoansQuery);
 
-  const pendingExpensesQuery = useMemoFirebase(() => query(collection(firestore, 'expenses'), where('status', '==', 'pending'), limit(50)), [firestore]);
+  const pendingExpensesQuery = useMemoFirebase(() => user ? query(collection(firestore, 'expenses'), where('status', '==', 'pending'), limit(50)) : null, [firestore, user]);
   const { data: pendingExpensesSnap, loading: loadingExpenses } = useCollection(pendingExpensesQuery);
 
-  const interestRequestsQuery = useMemoFirebase(() => query(collection(firestore, 'interest_distribution_requests'), orderBy('createdAt', 'desc'), limit(50)), [firestore]);
+  const interestRequestsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'interest_distribution_requests'), orderBy('createdAt', 'desc'), limit(50)) : null, [firestore, user]);
   const { data: interestRequestsSnap, loading: loadingInterestRequests } = useCollection(interestRequestsQuery);
 
   // Queries for Financial Metric Cards
-  const allLoansQuery = useMemoFirebase(() => query(collection(firestore, 'loans')), [firestore]);
+  const allLoansQuery = useMemoFirebase(() => user ? query(collection(firestore, 'loans')) : null, [firestore, user]);
   const { data: allLoansSnap } = useCollection(allLoansQuery);
 
-  const allContributionsQuery = useMemoFirebase(() => query(collection(firestore, 'contributions')), [firestore]);
+  const allContributionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'contributions')) : null, [firestore, user]);
   const { data: allContributionsSnap } = useCollection(allContributionsQuery);
 
-  const allAuditLogsQuery = useMemoFirebase(() => query(collection(firestore, 'audit_logs'), orderBy('timestamp', 'desc')), [firestore]);
+  const allAuditLogsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'audit_logs'), orderBy('timestamp', 'desc')) : null, [firestore, user]);
   const { data: allAuditLogsSnap } = useCollection(allAuditLogsQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
