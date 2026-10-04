@@ -149,7 +149,12 @@ export default function DashboardPage() {
     let nextInst = null;
     if (totalDebt > 0 && userData?.amortizationSchedule) {
       nextInst = userData.amortizationSchedule
-        .filter((s: any) => s.status !== 'paid')
+        .filter((s: any) => {
+          const target = Number(s.amount) || 0;
+          const paid = Number(s.paidAmount) || (s.status === 'paid' ? target : 0);
+          const rem = s.remainingAmount !== undefined ? Number(s.remainingAmount) : Math.max(0, target - paid);
+          return s.status !== 'paid' && rem > 0;
+        })
         .sort((a: any, b: any) => {
           const da = a.dueDate instanceof Timestamp ? a.dueDate.toDate() : new Date(a.dueDate);
           const db = b.dueDate instanceof Timestamp ? b.dueDate.toDate() : new Date(b.dueDate);
@@ -379,12 +384,28 @@ export default function DashboardPage() {
                     <HandCoins className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-bold truncate">Repayment Installment #{myParticipation.nextPayment.installmentNumber}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[12px] font-bold truncate">Repayment Installment #{myParticipation.nextPayment.installmentNumber}</p>
+                      {Number(myParticipation.nextPayment.paidAmount) > 0 && (
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                          Partial
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[12px] font-normal text-muted-foreground">
                       Due: {format(myParticipation.nextPayment.dueDate instanceof Timestamp ? myParticipation.nextPayment.dueDate.toDate() : new Date(myParticipation.nextPayment.dueDate), 'MMM d, yyyy')}
                     </p>
                   </div>
-                  <span data-stat-value="true" className="text-sm sm:text-base font-bold whitespace-nowrap">{formatCurrency(myParticipation.nextPayment.amount, currency)}</span>
+                  <div className="text-right">
+                    <span data-stat-value="true" className="text-sm sm:text-base font-bold whitespace-nowrap block">
+                      {formatCurrency(myParticipation.nextPayment.remainingAmount ?? myParticipation.nextPayment.amount, currency)}
+                    </span>
+                    {Number(myParticipation.nextPayment.paidAmount) > 0 && (
+                      <span className="text-[10px] text-muted-foreground block">
+                        of {formatCurrency(myParticipation.nextPayment.amount, currency)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (

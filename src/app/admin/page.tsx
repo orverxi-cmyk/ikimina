@@ -241,9 +241,13 @@ export default function AdminDashboard() {
       if (loan.status === 'approved' && Array.isArray(loan.amortization)) {
         loan.amortization.forEach((inst: any) => {
           const rawDate = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
-          if (inst.status === 'pending' && isPast(rawDate)) {
-            const instAmount = Number(inst.amount) || 0;
-            arrearsSum += instAmount;
+          const target = Number(inst.amount) || 0;
+          const paid = Number(inst.paidAmount) || (inst.status === 'paid' ? target : 0);
+          const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
+          const isFullyPaid = inst.status === 'paid' || remaining <= 0;
+
+          if (!isFullyPaid && isPast(rawDate)) {
+            arrearsSum += remaining;
             const daysOverdue = differenceInDays(new Date(), rawDate);
             list.push({
               loanId: loan.id,
@@ -253,7 +257,11 @@ export default function AdminDashboard() {
               installmentNumber: inst.installmentNumber,
               dueDate: rawDate,
               daysOverdue,
-              amount: instAmount,
+              targetAmount: target,
+              paidAmount: paid,
+              remainingAmount: remaining,
+              status: inst.status,
+              amount: remaining,
               loanDescription: loan.description
             });
           }
@@ -768,15 +776,17 @@ export default function AdminDashboard() {
                     <TableHead className="font-bold text-[12px] uppercase">Borrower</TableHead>
                     <TableHead className="font-bold text-[12px] uppercase">Facility / Note</TableHead>
                     <TableHead className="font-bold text-[12px] uppercase">Installment</TableHead>
-                    <TableHead className="font-bold text-[12px] uppercase">Contract Due Date</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Due Date</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Target</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Paid</TableHead>
                     <TableHead className="font-bold text-[12px] uppercase">Days Overdue</TableHead>
-                    <TableHead className="font-bold text-[12px] uppercase text-right">Overdue Arrears</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase text-right">Overdue Balance</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {arrearsList.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-40 text-center text-muted-foreground italic font-medium">
+                      <TableCell colSpan={8} className="h-40 text-center text-muted-foreground italic font-medium">
                         <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2 opacity-80" />
                         Exceptional portfolio performance! There are currently zero installments in arrears.
                       </TableCell>
@@ -800,13 +810,19 @@ export default function AdminDashboard() {
                         <TableCell className="text-xs font-semibold text-destructive">
                           {format(item.dueDate, 'MMM d, yyyy')}
                         </TableCell>
+                        <TableCell className="font-semibold text-xs text-foreground">
+                          {formatCurrency(item.targetAmount, currency)}
+                        </TableCell>
+                        <TableCell className="font-medium text-xs text-emerald-600">
+                          {item.paidAmount > 0 ? `+${formatCurrency(item.paidAmount, currency)}` : '-'}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="destructive" className="text-[10px] font-bold">
                             {item.daysOverdue} days late
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-bold text-sm text-destructive">
-                          {formatCurrency(item.amount, currency)}
+                          {formatCurrency(item.remainingAmount, currency)}
                         </TableCell>
                       </TableRow>
                     ))

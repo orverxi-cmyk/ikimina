@@ -96,6 +96,7 @@ function LoansPageContent() {
   const [withdrawReason, setWithdrawReason] = useState('');
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
+  const [selectedInstallment, setSelectedInstallment] = useState<any>(null);
   const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('schedule');
 
@@ -243,8 +244,21 @@ function LoansPageContent() {
       if (loan.status === 'approved' && loan.amortization) {
         loan.amortization.forEach((inst: any) => {
           const dueDate = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
-          if (inst.status === 'pending' && isPast(dueDate)) {
-            missed.push({ ...inst, loanId: loan.id, description: loan.description, memberId: loan.memberId });
+          const target = Number(inst.amount) || 0;
+          const paid = Number(inst.paidAmount) || (inst.status === 'paid' ? target : 0);
+          const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
+          const isFullyPaid = inst.status === 'paid' || remaining <= 0;
+
+          if (!isFullyPaid && isPast(dueDate)) {
+            missed.push({ 
+              ...inst, 
+              amount: target,
+              paidAmount: paid,
+              remainingAmount: remaining,
+              loanId: loan.id, 
+              description: loan.description, 
+              memberId: loan.memberId 
+            });
           }
         });
       }
@@ -417,11 +431,42 @@ function LoansPageContent() {
     }
   };
 
-  const getStatusBadge = (dueDate: any, status: string) => {
+  const getStatusBadge = (dueDate: any, status: string, paidAmount: number = 0, targetAmount: number = 0, remainingAmount?: number) => {
     const d = dueDate instanceof Timestamp ? dueDate.toDate() : new Date(dueDate);
-    if (status === 'paid') return <Badge variant="default" className="bg-green-600 border-none px-3 font-bold uppercase text-[9px]">Paid</Badge>;
-    if (isPast(d)) return <Badge variant="destructive" className="animate-pulse px-3 font-bold uppercase text-[9px]">Arrears</Badge>;
-    return <Badge variant="secondary" className="px-3 font-bold uppercase text-[9px]">Pending</Badge>;
+    const rem = remainingAmount !== undefined ? remainingAmount : Math.max(0, targetAmount - paidAmount);
+    
+    if (status === 'paid' || (targetAmount > 0 && rem <= 0)) {
+      return (
+        <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600 border-none px-2.5 py-0.5 font-bold uppercase text-[9px] text-white">
+          Paid
+        </Badge>
+      );
+    }
+    
+    if (status === 'partially_paid' || paidAmount > 0) {
+      if (isPast(d)) {
+        return (
+          <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 px-2.5 py-0.5 font-bold uppercase text-[9px]">
+            Partial (Overdue)
+          </Badge>
+        );
+      }
+      return (
+        <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 px-2.5 py-0.5 font-bold uppercase text-[9px]">
+          Partial
+        </Badge>
+      );
+    }
+    
+    if (isPast(d)) {
+      return (
+        <Badge variant="destructive" className="animate-pulse px-2.5 py-0.5 font-bold uppercase text-[9px]">
+          Arrears
+        </Badge>
+      );
+    }
+    
+    return <Badge variant="secondary" className="px-2.5 py-0.5 font-bold uppercase text-[9px]">Pending</Badge>;
   };
 
   return (
@@ -776,38 +821,61 @@ function LoansPageContent() {
                     <TableRow>
                       <TableHead className="px-6 text-[12px] font-bold uppercase">Installment</TableHead>
                       <TableHead className="text-[12px] font-bold uppercase">Due Date</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase">Target Amount</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Target</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Paid</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Outstanding</TableHead>
                       <TableHead className="text-[12px] font-bold uppercase">Status</TableHead>
                       <TableHead className="text-right px-6 text-[12px] font-bold uppercase">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingLoans ? (
-                      <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                     ) : activeLoans.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic font-medium">No active repayment schedules found.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="h-48 text-center text-muted-foreground italic font-medium">No active repayment schedules found.</TableCell></TableRow>
                     ) : (
                       activeLoans.flatMap((loan: any) => (
-                        loan.amortization?.map((inst: any) => (
-                          <TableRow key={`${loan.id}-${inst.installmentNumber}`} className="hover:bg-muted/30 transition-colors">
-                            <TableCell className="px-6 py-4">
-                              <div className="font-bold text-sm">#{inst.installmentNumber}</div>
-                              <div className="text-[10px] text-muted-foreground truncate max-w-[150px] font-medium">{loan.description || 'Personal Loan'}</div>
-                            </TableCell>
-                            <TableCell className="text-sm font-medium">
-                              {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
-                            </TableCell>
-                            <TableCell className="font-bold text-primary">{formatCurrency(inst.amount, currency)}</TableCell>
-                            <TableCell>{getStatusBadge(inst.dueDate, inst.status)}</TableCell>
-                            <TableCell className="text-right px-6">
-                              {inst.status === 'pending' && (
-                                <Button size="sm" className="h-8 rounded-[10px] font-bold" onClick={() => { setSelectedLoan(loan); setIsRepayOpen(true); }}>
-                                  <CreditCard className="mr-2 h-3.5 w-3.5" /> Pay Now
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
+                        loan.amortization?.map((inst: any) => {
+                          const target = Number(inst.amount) || 0;
+                          const paid = Number(inst.paidAmount) || (inst.status === 'paid' ? target : 0);
+                          const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
+                          const isFullyPaid = inst.status === 'paid' || remaining <= 0;
+
+                          return (
+                            <TableRow key={`${loan.id}-${inst.installmentNumber}`} className="hover:bg-muted/30 transition-colors">
+                              <TableCell className="px-6 py-4">
+                                <div className="font-bold text-sm">#{inst.installmentNumber}</div>
+                                <div className="text-[10px] text-muted-foreground truncate max-w-[150px] font-medium">{loan.description || 'Personal Loan'}</div>
+                              </TableCell>
+                              <TableCell className="text-sm font-medium">
+                                {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                              </TableCell>
+                              <TableCell className="font-semibold text-foreground text-sm">{formatCurrency(target, currency)}</TableCell>
+                              <TableCell className="font-medium text-emerald-600 text-sm">
+                                {paid > 0 ? `+${formatCurrency(paid, currency)}` : '-'}
+                              </TableCell>
+                              <TableCell className="font-bold text-primary text-sm">
+                                {formatCurrency(remaining, currency)}
+                              </TableCell>
+                              <TableCell>{getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}</TableCell>
+                              <TableCell className="text-right px-6">
+                                {!isFullyPaid && (
+                                  <Button 
+                                    size="sm" 
+                                    className="h-8 rounded-[10px] font-bold shadow-xs" 
+                                    onClick={() => { 
+                                      setSelectedLoan(loan); 
+                                      setSelectedInstallment(inst);
+                                      setIsRepayOpen(true); 
+                                    }}
+                                  >
+                                    <CreditCard className="mr-1.5 h-3.5 w-3.5" /> Pay Now
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
                       ))
                     )}
                   </TableBody>
@@ -969,30 +1037,42 @@ function LoansPageContent() {
                 </TableHeader>
                 <TableBody>
                   {missedInstallments.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic font-medium">Great news! You have no arrears.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic font-medium">Great news! You have no arrears.</TableCell></TableRow>
                   ) : (
-                    missedInstallments.map((inst: any, idx: number) => (
-                      <TableRow key={idx} className="bg-destructive/5 hover:bg-destructive/10 transition-colors border-destructive/5">
-                        <TableCell className="px-6 py-4 font-bold text-destructive text-sm">
-                           {inst.description || 'Personal Loan'}
-                        </TableCell>
-                        <TableCell className="text-sm font-bold text-destructive">
-                           {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
-                        </TableCell>
-                        <TableCell className="font-bold text-destructive">{formatCurrency(inst.amount, currency)}</TableCell>
-                        {!isManagement && (
-                          <TableCell className="text-right px-6">
-                             <Button size="sm" variant="destructive" className="h-8 rounded-[10px] font-bold shadow-lg" onClick={() => { 
-                               const loan = loans.find(l => l.id === inst.loanId);
-                               setSelectedLoan(loan); 
-                               setIsRepayOpen(true); 
-                             }}>
-                                Clear Arrears
-                             </Button>
+                    missedInstallments.map((inst: any, idx: number) => {
+                      const target = Number(inst.amount) || 0;
+                      const paid = Number(inst.paidAmount) || 0;
+                      const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
+
+                      return (
+                        <TableRow key={idx} className="bg-destructive/5 hover:bg-destructive/10 transition-colors border-destructive/5">
+                          <TableCell className="px-6 py-4 font-bold text-destructive text-sm">
+                             <div>{inst.description || 'Personal Loan'}</div>
+                             <div className="text-xs font-normal text-muted-foreground">Installment #{inst.installmentNumber}</div>
                           </TableCell>
-                        )}
-                      </TableRow>
-                    ))
+                          <TableCell className="text-sm font-bold text-destructive">
+                             {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell className="font-semibold text-sm">{formatCurrency(target, currency)}</TableCell>
+                          <TableCell className="font-medium text-emerald-600 text-sm">
+                            {paid > 0 ? `+${formatCurrency(paid, currency)}` : '-'}
+                          </TableCell>
+                          <TableCell className="font-bold text-destructive">{formatCurrency(remaining, currency)}</TableCell>
+                          {!isManagement && (
+                            <TableCell className="text-right px-6">
+                               <Button size="sm" variant="destructive" className="h-8 rounded-[10px] font-bold shadow-lg" onClick={() => { 
+                                 const loan = loans.find(l => l.id === inst.loanId);
+                                 setSelectedLoan(loan); 
+                                 setSelectedInstallment(inst);
+                                 setIsRepayOpen(true); 
+                               }}>
+                                  Clear Arrears
+                               </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1040,23 +1120,37 @@ function LoansPageContent() {
                     <TableRow className="border-b border-blue-700/50 hover:bg-transparent">
                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Installment</TableHead>
                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Due Date</TableHead>
-                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Amount</TableHead>
+                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Target</TableHead>
+                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Paid</TableHead>
+                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Outstanding</TableHead>
                       <TableHead className="text-[11px] font-bold uppercase text-white text-right py-3 px-4">Status</TableHead>
                     </TableRow>
                  </TableHeader>
                  <TableBody>
-                   {selectedLoan?.amortization?.map((inst: any) => (
-                     <TableRow key={inst.installmentNumber}>
-                       <TableCell className="font-bold text-sm">#{inst.installmentNumber}</TableCell>
-                       <TableCell className="text-sm font-medium">
-                         {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
-                       </TableCell>
-                       <TableCell className="font-bold text-sm">{formatCurrency(inst.amount, currency)}</TableCell>
-                       <TableCell className="text-right">
-                          {getStatusBadge(inst.dueDate, inst.status)}
-                       </TableCell>
-                     </TableRow>
-                   ))}
+                   {selectedLoan?.amortization?.map((inst: any) => {
+                     const target = Number(inst.amount) || 0;
+                     const paid = Number(inst.paidAmount) || (inst.status === 'paid' ? target : 0);
+                     const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
+
+                     return (
+                       <TableRow key={inst.installmentNumber}>
+                         <TableCell className="font-bold text-sm">#{inst.installmentNumber}</TableCell>
+                         <TableCell className="text-sm font-medium">
+                           {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                         </TableCell>
+                         <TableCell className="font-semibold text-foreground text-sm">{formatCurrency(target, currency)}</TableCell>
+                         <TableCell className="font-medium text-emerald-600 text-sm">
+                           {paid > 0 ? `+${formatCurrency(paid, currency)}` : '-'}
+                         </TableCell>
+                         <TableCell className="font-bold text-primary text-sm">
+                           {formatCurrency(remaining, currency)}
+                         </TableCell>
+                         <TableCell className="text-right">
+                            {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
+                         </TableCell>
+                       </TableRow>
+                     );
+                   })}
                  </TableBody>
                </Table>
              </div>
@@ -1613,41 +1707,75 @@ function LoansPageContent() {
                 <Input name="justification" placeholder="e.g. Bank Transfer #12345" className="h-11 rounded-[10px] bg-muted border-none" required />
               </div>
 
-              <div className="p-4 bg-muted rounded-[10px] border border-border">
-                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1 tracking-widest">Outstanding Balance</p>
-                 <p className="text-2xl font-bold text-primary">{formatCurrency(selectedLoan?.balance || 0, currency)}</p>
-              </div>
+              {/* Installment Breakdown Summary */}
+              {(() => {
+                const targetInst = selectedInstallment || selectedLoan?.amortization?.find((i: any) => {
+                  const target = Number(i.amount) || 0;
+                  const paid = Number(i.paidAmount) || (i.status === 'paid' ? target : 0);
+                  const rem = i.remainingAmount !== undefined ? Number(i.remainingAmount) : Math.max(0, target - paid);
+                  return i.status !== 'paid' && rem > 0;
+                });
+                const targetAmount = targetInst ? Number(targetInst.amount) || 0 : 0;
+                const paidAmount = targetInst ? Number(targetInst.paidAmount) || (targetInst.status === 'paid' ? targetAmount : 0) : 0;
+                const remainingInst = targetInst ? (targetInst.remainingAmount !== undefined ? Number(targetInst.remainingAmount) : Math.max(0, targetAmount - paidAmount)) : (selectedLoan?.balance || 0);
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Regular Installment</Label>
-                  <div className="h-11 rounded-[10px] bg-muted px-3 flex items-center font-bold text-sm text-foreground/80 border border-border/50">
-                    {formatCurrency(selectedLoan?.amortization?.find((i: any) => i.status === 'pending')?.amount || 0, currency)}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Payment Amount</Label>
-                  <div className="relative">
-                    <Input name="repayAmount" type="number" max={selectedLoan?.balance} required className="h-11 rounded-[10px] pr-12 bg-muted border-none font-bold" />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">{currency}</div>
-                  </div>
-                  {/* Deposit bank details displayed below amount */}
-                  {(settings.depositBankName || settings.depositAccountNumber) && (
-                    <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-xs flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-primary min-w-0">
-                        <Landmark className="h-3.5 w-3.5 shrink-0" />
-                        <span className="font-medium text-[11px] text-muted-foreground">Deposit Bank:</span>
-                        <strong className="text-foreground truncate">{settings.depositBankName || 'Designated Bank'}</strong>
-                      </div>
-                      {settings.depositAccountNumber && (
-                        <div className="font-mono font-bold text-xs text-foreground bg-background px-2 py-0.5 rounded border border-border shrink-0">
-                          {settings.depositAccountNumber}
-                        </div>
-                      )}
+                return (
+                  <>
+                    <div className="p-4 bg-muted rounded-[10px] border border-border space-y-2">
+                       <div className="flex items-center justify-between">
+                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total Loan Balance</span>
+                         <span className="text-lg font-bold text-primary">{formatCurrency(selectedLoan?.balance || 0, currency)}</span>
+                       </div>
+                       {targetInst && (
+                         <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
+                           <div>
+                             <span className="font-semibold text-foreground">Installment #{targetInst.installmentNumber}</span>
+                             {paidAmount > 0 && (
+                               <span className="text-muted-foreground ml-1.5 text-[11px]">(Paid: {formatCurrency(paidAmount, currency)})</span>
+                             )}
+                           </div>
+                           <div className="text-right">
+                             <span className="text-[10px] text-muted-foreground block uppercase">Installment Due</span>
+                             <span className="font-bold text-foreground">{formatCurrency(remainingInst, currency)}</span>
+                           </div>
+                         </div>
+                       )}
                     </div>
-                  )}
-                </div>
-              </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Payment Amount</Label>
+                        {targetInst && remainingInst < (selectedLoan?.balance || 0) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const input = document.querySelector('input[name="repayAmount"]') as HTMLInputElement;
+                              if (input) input.value = String(remainingInst);
+                            }}
+                            className="text-[11px] text-primary font-semibold hover:underline"
+                          >
+                            Pay Installment Due ({formatCurrency(remainingInst, currency)})
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <Input 
+                          name="repayAmount" 
+                          type="number" 
+                          defaultValue={remainingInst > 0 ? remainingInst : undefined}
+                          max={selectedLoan?.balance} 
+                          required 
+                          className="h-11 rounded-[10px] pr-12 bg-muted border-none font-bold" 
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">{currency}</div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        You can pay in full or make a partial installment repayment.
+                      </p>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase tracking-widest">Proof of Transfer</Label>

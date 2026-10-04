@@ -510,8 +510,63 @@ export const verifyRepayment = onCall({ cors: true }, async (request) => {
         if (!loanSnap.exists) throw new HttpsError('not-found', 'Associated loan not found.');
         const loanData = loanSnap.data()!;
 
-        const newBalance = Math.max(0, loanData.balance - repayData.amount);
+        const newBalance = Math.max(0, (Number(loanData.balance) || 0) - Number(repayData.amount));
         const batch = db.batch();
+
+        // Retrieve existing schedule or calculate if missing
+        let schedule: any[] = Array.isArray(loanData.amortization) && loanData.amortization.length > 0
+            ? JSON.parse(JSON.stringify(loanData.amortization))
+            : calculateAmortizationSchedule(
+                loanData.amount, 
+                loanData.interestType === 'afterward' ? (loanData.interestAmount || 0) : 0, 
+                Number(loanData.durationMonths) || 12, 
+                loanData.startDate ? (loanData.startDate.toDate ? loanData.startDate.toDate() : new Date(loanData.startDate)) : new Date()
+              );
+
+        // Sort installments sequentially
+        schedule.sort((a: any, b: any) => (Number(a.installmentNumber) || 0) - (Number(b.installmentNumber) || 0));
+
+        let paymentToDistribute = Number(repayData.amount);
+
+        for (const inst of schedule) {
+            if (paymentToDistribute <= 0) break;
+
+            const instTarget = Number(inst.amount) || 0;
+            const currentPaid = Number(inst.paidAmount) || (inst.status === 'paid' ? instTarget : 0);
+            const needed = Math.max(0, instTarget - currentPaid);
+
+            if (needed <= 0) {
+                inst.paidAmount = instTarget;
+                inst.remainingAmount = 0;
+                inst.status = 'paid';
+                continue;
+            }
+
+            if (paymentToDistribute >= needed) {
+                inst.paidAmount = instTarget;
+                inst.remainingAmount = 0;
+                inst.status = 'paid';
+                inst.paidAt = admin.firestore.FieldValue.serverTimestamp();
+                paymentToDistribute -= needed;
+            } else {
+                const updatedPaid = currentPaid + paymentToDistribute;
+                inst.paidAmount = updatedPaid;
+                inst.remainingAmount = Math.max(0, instTarget - updatedPaid);
+                inst.status = 'partially_paid';
+                inst.lastPaymentAt = admin.firestore.FieldValue.serverTimestamp();
+                paymentToDistribute = 0;
+            }
+        }
+
+        // If entire loan balance is settled, mark all installments paid
+        if (newBalance <= 0) {
+            schedule = schedule.map((inst: any) => ({
+                ...inst,
+                paidAmount: Number(inst.amount) || 0,
+                remainingAmount: 0,
+                status: 'paid'
+            }));
+        }
 
         batch.update(repayRef, {
             status: 'verified',
@@ -523,23 +578,13 @@ export const verifyRepayment = onCall({ cors: true }, async (request) => {
         batch.update(loanRef, {
             balance: newBalance,
             lastPaymentAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: newBalance <= 0 ? 'completed' : 'approved'
+            status: newBalance <= 0 ? 'completed' : 'approved',
+            amortization: schedule
         });
 
-        // Update the member's amortization schedule if the loan is fully repaid
-        if (newBalance <= 0) {
-            const userRef = db.collection('users').doc(loanData.memberId);
-            const userSnap = await userRef.get();
-            const userData = userSnap.data();
-            
-            if (userData?.amortizationSchedule) {
-                const updatedSchedule = userData.amortizationSchedule.map((inst: any) => ({
-                    ...inst,
-                    status: 'paid'
-                }));
-                batch.update(userRef, { amortizationSchedule: updatedSchedule });
-            }
-        }
+        // Sync with member's user document schedule
+        const userRef = db.collection('users').doc(loanData.memberId);
+        batch.update(userRef, { amortizationSchedule: schedule });
 
         batch.set(db.collection('audit_logs').doc(), {
             adminId: request.auth.uid,

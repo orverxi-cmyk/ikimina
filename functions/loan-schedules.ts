@@ -27,6 +27,8 @@ export function calculateAmortizationSchedule(
       installmentNumber: i,
       dueDate: admin.firestore.Timestamp.fromDate(addMonths(startDate, i)),
       amount: monthlyInstallment,
+      paidAmount: 0,
+      remainingAmount: monthlyInstallment,
       status: 'pending'
     });
   }

@@ -3,11 +3,14 @@ import { addMonths, format } from 'date-fns';
 
 export interface AmortizationEntry {
   installmentNumber: number;
-  dueDate: Date;
+  dueDate: Date | any;
   amount: number;
-  status: 'pending' | 'paid' | 'overdue';
+  paidAmount?: number;
+  remainingAmount?: number;
+  status: 'pending' | 'partially_paid' | 'paid' | 'overdue';
   proofUrl?: string;
-  paidAt?: Date;
+  paidAt?: Date | any;
+  lastPaymentAt?: Date | any;
 }
 
 /**
@@ -35,6 +38,8 @@ export function generateAmortizationSchedule(
       installmentNumber: i,
       dueDate: addMonths(startDate, i),
       amount: monthlyInstallment,
+      paidAmount: 0,
+      remainingAmount: monthlyInstallment,
       status: 'pending'
     });
   }
