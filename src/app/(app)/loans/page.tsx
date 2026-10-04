@@ -63,6 +63,7 @@ import {
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { formatCurrency } from '@/lib/currency';
+import { parseSafeDate, safeFormatDate } from '@/lib/loan-utils';
 import Link from 'next/link';
 import { useSettings } from '@/context/settings-context';
 
@@ -243,15 +244,16 @@ function LoansPageContent() {
     loans.forEach((loan: any) => {
       if (loan.status === 'approved' && loan.amortization) {
         loan.amortization.forEach((inst: any) => {
-          const dueDate = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
+          const dueDate = parseSafeDate(inst.dueDate);
           const target = Number(inst.amount) || 0;
           const paid = Number(inst.paidAmount) || (inst.status === 'paid' ? target : 0);
           const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
           const isFullyPaid = inst.status === 'paid' || remaining <= 0;
 
-          if (!isFullyPaid && isPast(dueDate)) {
+          if (!isFullyPaid && dueDate && isPast(dueDate)) {
             missed.push({ 
               ...inst, 
+              dueDate,
               amount: target,
               paidAmount: paid,
               remainingAmount: remaining,
@@ -432,7 +434,7 @@ function LoansPageContent() {
   };
 
   const getStatusBadge = (dueDate: any, status: string, paidAmount: number = 0, targetAmount: number = 0, remainingAmount?: number) => {
-    const d = dueDate instanceof Timestamp ? dueDate.toDate() : new Date(dueDate);
+    const d = parseSafeDate(dueDate) || new Date();
     const rem = remainingAmount !== undefined ? remainingAmount : Math.max(0, targetAmount - paidAmount);
     
     if (status === 'paid' || (targetAmount > 0 && rem <= 0)) {
@@ -848,7 +850,7 @@ function LoansPageContent() {
                                 <div className="text-[10px] text-muted-foreground truncate max-w-[150px] font-medium">{loan.description || 'Personal Loan'}</div>
                               </TableCell>
                               <TableCell className="text-sm font-medium">
-                                {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                                {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
                               </TableCell>
                               <TableCell className="font-semibold text-foreground text-sm">{formatCurrency(target, currency)}</TableCell>
                               <TableCell className="font-medium text-emerald-600 text-sm">
@@ -1051,7 +1053,7 @@ function LoansPageContent() {
                              <div className="text-xs font-normal text-muted-foreground">Installment #{inst.installmentNumber}</div>
                           </TableCell>
                           <TableCell className="text-sm font-bold text-destructive">
-                             {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                             {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell className="font-semibold text-sm">{formatCurrency(target, currency)}</TableCell>
                           <TableCell className="font-medium text-emerald-600 text-sm">
@@ -1136,7 +1138,7 @@ function LoansPageContent() {
                        <TableRow key={inst.installmentNumber}>
                          <TableCell className="font-bold text-sm">#{inst.installmentNumber}</TableCell>
                          <TableCell className="text-sm font-medium">
-                           {format(inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate), 'MMM d, yyyy')}
+                           {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
                          </TableCell>
                          <TableCell className="font-semibold text-foreground text-sm">{formatCurrency(target, currency)}</TableCell>
                          <TableCell className="font-medium text-emerald-600 text-sm">

@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 
+import { parseSafeDate, safeFormatDate } from '@/lib/loan-utils';
+
 export default function MessagesPage() {
   const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
@@ -26,12 +28,16 @@ export default function MessagesPage() {
     userData.amortizationSchedule.forEach((inst: any) => {
       if (inst.status === 'paid') return;
 
-      const dueDate = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
+      const dueDate = parseSafeDate(inst.dueDate);
+      if (!dueDate) return;
+
       const isOverdue = isPast(dueDate);
       const isUpcoming = isWithinInterval(dueDate, {
         start: startOfDay(now),
         end: endOfDay(addDays(now, 2))
       });
+
+      const dateStr = safeFormatDate(dueDate, 'MMM d, yyyy');
 
       if (isOverdue) {
         alerts.push({
@@ -47,7 +53,7 @@ export default function MessagesPage() {
           id: `upcoming-${inst.installmentNumber}`,
           type: 'upcoming',
           title: 'Upcoming Due Date',
-          message: `Your loan is due on ${format(dueDate, 'MMM d, yyyy')}, pay before ${format(dueDate, 'MMM d, yyyy')} to avoid bad credit record.`,
+          message: `Your loan is due on ${dateStr}, pay before ${dateStr} to avoid bad credit record.`,
           variant: 'default',
           className: 'border-primary/30 bg-primary/5',
           icon: Bell

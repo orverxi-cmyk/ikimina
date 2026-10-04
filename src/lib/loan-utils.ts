@@ -46,3 +46,42 @@ export function generateAmortizationSchedule(
   
   return schedule;
 }
+
+/**
+ * Safely parses any date representation (Date, Firestore Timestamp, serialized Timestamp {seconds, nanoseconds}, ISO string, number) into a valid JS Date.
+ */
+export function parseSafeDate(val: any): Date | null {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  if (typeof val.toDate === 'function') {
+    try {
+      const d = val.toDate();
+      return isNaN(d.getTime()) ? null : d;
+    } catch {
+      // fallback
+    }
+  }
+  if (typeof val.seconds === 'number') {
+    const d = new Date(val.seconds * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof val._seconds === 'number') {
+    const d = new Date(val._seconds * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Formats any date safely without throwing RangeError: Invalid time value.
+ */
+export function safeFormatDate(val: any, formatStr: string = 'MMM d, yyyy', fallback: string = '-'): string {
+  const d = parseSafeDate(val);
+  if (!d) return fallback;
+  try {
+    return format(d, formatStr);
+  } catch {
+    return fallback;
+  }
+}

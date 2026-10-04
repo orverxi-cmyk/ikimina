@@ -9,8 +9,8 @@ import { collection, doc, query, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Timestamp } from 'firebase/firestore';
 import { formatCurrency } from '@/lib/currency';
+import { parseSafeDate, safeFormatDate } from '@/lib/loan-utils';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -156,9 +156,9 @@ export default function DashboardPage() {
           return s.status !== 'paid' && rem > 0;
         })
         .sort((a: any, b: any) => {
-          const da = a.dueDate instanceof Timestamp ? a.dueDate.toDate() : new Date(a.dueDate);
-          const db = b.dueDate instanceof Timestamp ? b.dueDate.toDate() : new Date(b.dueDate);
-          return da.getTime() - db.getTime();
+          const da = parseSafeDate(a.dueDate)?.getTime() || 0;
+          const db = parseSafeDate(b.dueDate)?.getTime() || 0;
+          return da - db;
         })[0];
     }
 
@@ -393,7 +393,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                     <p className="text-[12px] font-normal text-muted-foreground">
-                      Due: {format(myParticipation.nextPayment.dueDate instanceof Timestamp ? myParticipation.nextPayment.dueDate.toDate() : new Date(myParticipation.nextPayment.dueDate), 'MMM d, yyyy')}
+                      Due: {safeFormatDate(myParticipation.nextPayment.dueDate, 'MMM d, yyyy')}
                     </p>
                   </div>
                   <div className="text-right">

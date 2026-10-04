@@ -40,6 +40,7 @@ import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useSettings } from '@/context/settings-context';
 import { formatCurrency } from '@/lib/currency';
+import { parseSafeDate, safeFormatDate } from '@/lib/loan-utils';
 import { downloadStaffContributionTemplate } from '@/lib/excel-template';
 import { cn } from '@/lib/utils';
 import { format, isPast, differenceInDays } from 'date-fns';
@@ -240,13 +241,13 @@ export default function AdminDashboard() {
     loans.forEach((loan: any) => {
       if (loan.status === 'approved' && Array.isArray(loan.amortization)) {
         loan.amortization.forEach((inst: any) => {
-          const rawDate = inst.dueDate instanceof Timestamp ? inst.dueDate.toDate() : new Date(inst.dueDate);
+          const rawDate = parseSafeDate(inst.dueDate);
           const target = Number(inst.amount) || 0;
           const paid = Number(inst.paidAmount) || (inst.status === 'paid' ? target : 0);
           const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
           const isFullyPaid = inst.status === 'paid' || remaining <= 0;
 
-          if (!isFullyPaid && isPast(rawDate)) {
+          if (!isFullyPaid && rawDate && isPast(rawDate)) {
             arrearsSum += remaining;
             const daysOverdue = differenceInDays(new Date(), rawDate);
             list.push({
@@ -808,7 +809,7 @@ export default function AdminDashboard() {
                           #{item.installmentNumber}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-destructive">
-                          {format(item.dueDate, 'MMM d, yyyy')}
+                          {safeFormatDate(item.dueDate, 'MMM d, yyyy')}
                         </TableCell>
                         <TableCell className="font-semibold text-xs text-foreground">
                           {formatCurrency(item.targetAmount, currency)}
