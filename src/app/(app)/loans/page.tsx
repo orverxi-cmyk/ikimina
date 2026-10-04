@@ -205,6 +205,24 @@ function LoansPageContent() {
   }, [memberVerifiedSavings, maxLoanPercentage]);
 
   const pendingRequests = useMemo(() => loans.filter((l: any) => l.status === 'requested'), [loans]);
+  const myPending = useMemo(() => {
+    if (!user) return null;
+    return (loans.find((l: any) => l.memberId === user.uid && l.status === 'requested') as any) || null;
+  }, [loans, user]);
+
+  const myActive = useMemo(() => {
+    if (!user) return null;
+    return (loans.find((l: any) => l.memberId === user.uid && l.status === 'approved' && (Number(l.balance) || 0) > 0) as any) || null;
+  }, [loans, user]);
+
+  const myRepaid = useMemo(() => {
+    if (!myActive) return 0;
+    return getLoanRepaidPrincipal(myActive.id, myActive.amount);
+  }, [myActive, allVerifiedRepayments]);
+
+  const canTopUp = useMemo(() => {
+    return Boolean(myActive && myRepaid >= minLoanAmount && !myPending);
+  }, [myActive, myRepaid, minLoanAmount, myPending]);
   const activeLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved'), [loans]);
   const historyLoans = useMemo(() => loans.filter((l: any) => ['approved', 'rejected', 'completed', 'requested', 'withdrawn'].includes(l.status)), [loans]);
 
@@ -479,11 +497,25 @@ function LoansPageContent() {
           <p className="text-[12px] font-bold text-muted-foreground">Manage borrowing cycles and repayment schedules</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-           <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm">
-             <Link href="/loans/apply">
-               <Plus className="mr-2 h-4 w-4" /> Apply for Loan
-             </Link>
-           </Button>
+           {isManagement ? (
+             <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm">
+               <Link href="/loans/apply">
+                 <Plus className="mr-2 h-4 w-4" /> Apply for Loan
+               </Link>
+             </Button>
+           ) : canTopUp ? (
+             <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500/40">
+               <Link href={`/loans/apply?topup=true&parentLoanId=${myActive?.id}`}>
+                 <TrendingUp className="mr-2 h-4 w-4" /> Apply for Top-Up
+               </Link>
+             </Button>
+           ) : !myActive && !myPending ? (
+             <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm">
+               <Link href="/loans/apply">
+                 <Plus className="mr-2 h-4 w-4" /> Apply for Loan
+               </Link>
+             </Button>
+           ) : null}
            <div className="grid grid-cols-2 sm:flex gap-1.5 sm:gap-2 w-full sm:w-auto">
               {!isManagement && (
                 <div className="bg-primary/5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-primary/20 text-center flex-1 sm:min-w-[120px]">
@@ -522,14 +554,8 @@ function LoansPageContent() {
       </div>
 
       {/* Member Alerts: Pending Loan Withdrawal & Top-Up Opportunities */}
-      {!isManagement && (() => {
-        const myPending = loans.find((l: any) => l.memberId === user?.uid && l.status === 'requested') as any;
-        const myActive = loans.find((l: any) => l.memberId === user?.uid && l.status === 'approved' && (Number(l.balance) || 0) > 0) as any;
-        const myRepaid = myActive ? getLoanRepaidPrincipal(myActive.id, myActive.amount) : 0;
-        const canTopUp = myActive && myRepaid >= minLoanAmount && !myPending;
-
-        return (
-          <div className="space-y-4">
+      {!isManagement && (
+        <div className="space-y-4">
             {myPending && (
               <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -590,9 +616,8 @@ function LoansPageContent() {
                 </Button>
               </div>
             )}
-          </div>
-        );
-      })()}
+        </div>
+      )}
 
       {isManagement && (pendingRepayments.length > 0 || pendingRequests.length > 0) && (
         <Card className="border-primary/20 bg-primary/5 shadow-inner">
