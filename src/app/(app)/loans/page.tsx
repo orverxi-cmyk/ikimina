@@ -741,7 +741,7 @@ function LoansPageContent() {
         <div className="w-full overflow-x-auto no-scrollbar pb-1 mb-6">
           <TabsList className="inline-flex w-full min-w-max md:min-w-0 md:grid md:grid-cols-4 h-12 p-1 bg-muted rounded-xl border border-border/60">
             <TabsTrigger value="schedule" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
-              <Calendar className="h-4 w-4 shrink-0" /> {isManagement ? 'Active Loans' : 'Repayment Schedule'}
+              <Calendar className="h-4 w-4 shrink-0" /> {isManagement ? 'Active Loans' : 'Schedule'}
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
               <HistoryIcon className="h-4 w-4 shrink-0" /> History
@@ -764,7 +764,7 @@ function LoansPageContent() {
           <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
             <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 px-5 py-4">
             <CardTitle className="text-lg font-bold flex items-center gap-2 text-white">
-              <HandCoins className="h-5 w-5 text-white" /> Repayment Schedule
+              <HandCoins className="h-5 w-5 text-white" /> Schedule
             </CardTitle>
           </CardHeader>
             <CardContent className="p-0">
