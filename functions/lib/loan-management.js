@@ -486,7 +486,7 @@ exports.verifyRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
                 inst.paidAmount = instTarget;
                 inst.remainingAmount = 0;
                 inst.status = 'paid';
-                inst.paidAt = admin.firestore.FieldValue.serverTimestamp();
+                inst.paidAt = admin.firestore.Timestamp.now();
                 paymentToDistribute -= needed;
             }
             else {
@@ -494,7 +494,7 @@ exports.verifyRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
                 inst.paidAmount = updatedPaid;
                 inst.remainingAmount = Math.max(0, instTarget - updatedPaid);
                 inst.status = 'partially_paid';
-                inst.lastPaymentAt = admin.firestore.FieldValue.serverTimestamp();
+                inst.lastPaymentAt = admin.firestore.Timestamp.now();
                 paymentToDistribute = 0;
             }
         }
