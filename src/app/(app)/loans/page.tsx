@@ -762,16 +762,11 @@ function LoansPageContent() {
 
         <TabsContent value="schedule" className="space-y-6">
           <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
-            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
-              <CardTitle className="text-xl flex items-center gap-2 text-white">
-                <HandCoins className="h-5 w-5 text-white" /> Repayment Schedule
-              </CardTitle>
-              <CardDescription className="text-blue-100">
-                {isManagement 
-                  ? 'Audit and manage the repayment cycles for all approved member loans.' 
-                  : 'Upcoming installments and repayment status for all your approved capital loans.'}
-              </CardDescription>
-            </CardHeader>
+            <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 px-5 py-4">
+            <CardTitle className="text-lg font-bold flex items-center gap-2 text-white">
+              <HandCoins className="h-5 w-5 text-white" /> Repayment Schedule
+            </CardTitle>
+          </CardHeader>
             <CardContent className="p-0">
               {isManagement ? (
                 <Table>
@@ -848,19 +843,11 @@ function LoansPageContent() {
                                 <div className="font-bold text-sm text-foreground">
                                   {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
                                 </div>
-                                <div className="text-[11px] text-muted-foreground font-medium truncate max-w-[200px]">
-                                  #{inst.installmentNumber} • {loan.description || 'Personal Loan'}
-                                </div>
                               </TableCell>
                               <TableCell className="py-3.5">
                                 <div className="font-semibold text-foreground text-sm">
                                   {formatCurrency(target, currency)}
                                 </div>
-                                {paid > 0 && !isFullyPaid && (
-                                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                                    Paid: {formatCurrency(paid, currency)} (Rem: {formatCurrency(remaining, currency)})
-                                  </div>
-                                )}
                               </TableCell>
                               <TableCell className="py-3.5">
                                 {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
@@ -1143,19 +1130,11 @@ function LoansPageContent() {
                             <div className="font-bold text-sm text-foreground">
                               {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
                             </div>
-                            <div className="text-[11px] text-muted-foreground font-medium">
-                              Installment #{inst.installmentNumber}
-                            </div>
                           </TableCell>
                           <TableCell className="py-3 px-4">
                             <div className="font-semibold text-foreground text-sm">
                               {formatCurrency(target, currency)}
                             </div>
-                            {paid > 0 && !isFullyPaid && (
-                              <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                                Paid: {formatCurrency(paid, currency)} (Rem: {formatCurrency(remaining, currency)})
-                              </div>
-                            )}
                           </TableCell>
                           <TableCell className="text-right py-3 px-4">
                              {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
