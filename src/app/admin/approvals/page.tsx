@@ -41,7 +41,8 @@ import {
   History,
   PiggyBank,
   Banknote,
-  Users
+  Users,
+  ShieldAlert
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc, limit, where, Timestamp } from 'firebase/firestore';
@@ -103,6 +104,7 @@ export default function ApprovalsHubPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const userRole = userData?.role || 'member';
+  const isAuthorized = Boolean(user && !userDataLoading && ['admin', 'management', 'accountant', 'reviewer', 'auditor'].includes(userRole));
   const isSuperAdmin = userRole === 'admin';
   const isReviewer = userRole === 'reviewer' || userRole === 'management' || userRole === 'admin';
   const isAccountant = userRole === 'accountant' || userRole === 'admin';
@@ -155,33 +157,33 @@ export default function ApprovalsHubPage() {
   const [interestApprovalNotes, setInterestApprovalNotes] = useState('');
   const [interestMemberFilter, setInterestMemberFilter] = useState('');
 
-  // Firestore Data Subscriptions
-  const membersQuery = useMemoFirebase(() => user ? query(collection(firestore, 'users'), orderBy('name', 'asc')) : null, [firestore, user]);
+  // Firestore Data Subscriptions - strictly mounted only when authorized
+  const membersQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'users'), orderBy('name', 'asc')) : null, [firestore, isAuthorized]);
   const { data: membersSnap } = useCollection(membersQuery);
 
-  const batchesQuery = useMemoFirebase(() => user ? query(collection(firestore, 'contribution_batches'), orderBy('initiatedAt', 'desc'), limit(100)) : null, [firestore, user]);
+  const batchesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'contribution_batches'), orderBy('initiatedAt', 'desc'), limit(100)) : null, [firestore, isAuthorized]);
   const { data: batchesSnap, loading: loadingBatches } = useCollection(batchesQuery);
 
-  const pendingSlipsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'contributions'), where('status', '==', 'pending'), limit(100)) : null, [firestore, user]);
+  const pendingSlipsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'contributions'), where('status', '==', 'pending'), limit(100)) : null, [firestore, isAuthorized]);
   const { data: pendingSlipsSnap, loading: loadingSlips } = useCollection(pendingSlipsQuery);
 
-  const pendingLoansQuery = useMemoFirebase(() => user ? query(collection(firestore, 'loans'), where('status', '==', 'requested'), limit(50)) : null, [firestore, user]);
+  const pendingLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans'), where('status', '==', 'requested'), limit(50)) : null, [firestore, isAuthorized]);
   const { data: pendingLoansSnap, loading: loadingLoans } = useCollection(pendingLoansQuery);
 
-  const pendingExpensesQuery = useMemoFirebase(() => user ? query(collection(firestore, 'expenses'), where('status', '==', 'pending'), limit(50)) : null, [firestore, user]);
+  const pendingExpensesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'expenses'), where('status', '==', 'pending'), limit(50)) : null, [firestore, isAuthorized]);
   const { data: pendingExpensesSnap, loading: loadingExpenses } = useCollection(pendingExpensesQuery);
 
-  const interestRequestsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'interest_distribution_requests'), orderBy('createdAt', 'desc'), limit(50)) : null, [firestore, user]);
+  const interestRequestsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'interest_distribution_requests'), orderBy('createdAt', 'desc'), limit(50)) : null, [firestore, isAuthorized]);
   const { data: interestRequestsSnap, loading: loadingInterestRequests } = useCollection(interestRequestsQuery);
 
   // Queries for Financial Metric Cards
-  const allLoansQuery = useMemoFirebase(() => user ? query(collection(firestore, 'loans')) : null, [firestore, user]);
+  const allLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans')) : null, [firestore, isAuthorized]);
   const { data: allLoansSnap } = useCollection(allLoansQuery);
 
-  const allContributionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'contributions')) : null, [firestore, user]);
+  const allContributionsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'contributions')) : null, [firestore, isAuthorized]);
   const { data: allContributionsSnap } = useCollection(allContributionsQuery);
 
-  const allAuditLogsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'audit_logs'), orderBy('timestamp', 'desc')) : null, [firestore, user]);
+  const allAuditLogsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'audit_logs'), orderBy('timestamp', 'desc')) : null, [firestore, isAuthorized]);
   const { data: allAuditLogsSnap } = useCollection(allAuditLogsQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
@@ -601,6 +603,32 @@ export default function ApprovalsHubPage() {
       (item.memberEmail && item.memberEmail.toLowerCase().includes(term))
     );
   }, [inspectInterest, interestMemberFilter]);
+
+  if (userDataLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <p className="text-sm font-bold text-muted-foreground">Loading Institutional Approvals Hub...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user && !isAuthorized) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <ShieldAlert className="h-14 w-14 text-destructive" />
+        <h2 className="text-2xl font-bold font-headline text-foreground">Access Restricted</h2>
+        <p className="text-muted-foreground text-center max-w-md text-xs sm:text-sm">
+          Only administrators, designated reviewers, accountants, and management have permission to access institutional approvals.
+        </p>
+        <Button asChild variant="outline" className="rounded-xl">
+          <Link href="/">Return to Member Portal</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-24 w-full min-w-0">

@@ -41,7 +41,7 @@ service cloud.firestore {
 
     // Contribution upload batches (Three-tier migration & payroll batches)
     match /contribution_batches/{batchId} {
-      allow read: if isStaff();
+      allow read: if isSignedIn();
       allow write: if false; // Managed exclusively via Cloud Functions
     }
 
@@ -61,7 +61,7 @@ service cloud.firestore {
 
     // Audit logs: Strictly immutable and created exclusively by Cloud Functions
     match /audit_logs/{logId} {
-      allow read: if isStaff();
+      allow read: if isSignedIn();
       allow write: if false;
     }
 
@@ -73,13 +73,13 @@ service cloud.firestore {
 
     // Ledger entries: Strictly immutable and server-controlled
     match /interest_distributions/{distId} {
-      allow read: if isStaff();
+      allow read: if isSignedIn();
       allow write: if false;
     }
 
-    // Interest distribution proposals: Managed via Cloud Functions, readable by staff
+    // Interest distribution proposals: Managed via Cloud Functions, readable by signed-in users
     match /interest_distribution_requests/{requestId} {
-      allow read: if isStaff();
+      allow read: if isSignedIn();
       allow write: if false;
     }
 
