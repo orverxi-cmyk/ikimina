@@ -741,7 +741,7 @@ function LoansPageContent() {
         <div className="w-full overflow-x-auto no-scrollbar pb-1 mb-6">
           <TabsList className="inline-flex w-full min-w-max md:min-w-0 md:grid md:grid-cols-4 h-12 p-1 bg-muted rounded-xl border border-border/60">
             <TabsTrigger value="schedule" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
-              <Calendar className="h-4 w-4 shrink-0" /> {isManagement ? 'Active Loans' : 'My Schedule'}
+              <Calendar className="h-4 w-4 shrink-0" /> {isManagement ? 'Active Loans' : 'Repayment Schedule'}
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
               <HistoryIcon className="h-4 w-4 shrink-0" /> History
@@ -764,12 +764,12 @@ function LoansPageContent() {
           <Card className="border border-border shadow-sm bg-card rounded-[10px] overflow-hidden">
             <CardHeader className="bg-blue-600 text-white border-b border-blue-700/30 p-5">
               <CardTitle className="text-xl flex items-center gap-2 text-white">
-                <HandCoins className="h-5 w-5 text-white" /> {isManagement ? 'Active Capital Book' : 'Active Repayment Windows'}
+                <HandCoins className="h-5 w-5 text-white" /> Repayment Schedule
               </CardTitle>
               <CardDescription className="text-blue-100">
                 {isManagement 
                   ? 'Audit and manage the repayment cycles for all approved member loans.' 
-                  : 'Upcoming installments for all your approved capital loans.'}
+                  : 'Upcoming installments and repayment status for all your approved capital loans.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -823,20 +823,17 @@ function LoansPageContent() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="px-6 text-[12px] font-bold uppercase">Installment</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase">Due Date</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase">Target</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase">Paid</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase">Outstanding</TableHead>
+                      <TableHead className="px-6 text-[12px] font-bold uppercase">Due Date</TableHead>
+                      <TableHead className="text-[12px] font-bold uppercase">Amount</TableHead>
                       <TableHead className="text-[12px] font-bold uppercase">Status</TableHead>
                       <TableHead className="text-right px-6 text-[12px] font-bold uppercase">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingLoans ? (
-                      <TableRow><TableCell colSpan={7} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                     ) : activeLoans.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="h-48 text-center text-muted-foreground italic font-medium">No active repayment schedules found.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic font-medium">No active repayment schedules found.</TableCell></TableRow>
                     ) : (
                       activeLoans.flatMap((loan: any) => (
                         loan.amortization?.map((inst: any) => {
@@ -847,33 +844,39 @@ function LoansPageContent() {
 
                           return (
                             <TableRow key={`${loan.id}-${inst.installmentNumber}`} className="hover:bg-muted/30 transition-colors">
-                              <TableCell className="px-6 py-4">
-                                <div className="font-bold text-sm">#{inst.installmentNumber}</div>
-                                <div className="text-[10px] text-muted-foreground truncate max-w-[150px] font-medium">{loan.description || 'Personal Loan'}</div>
+                              <TableCell className="px-6 py-3.5">
+                                <div className="font-bold text-sm text-foreground">
+                                  {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground font-medium truncate max-w-[200px]">
+                                  #{inst.installmentNumber} • {loan.description || 'Personal Loan'}
+                                </div>
                               </TableCell>
-                              <TableCell className="text-sm font-medium">
-                                {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
+                              <TableCell className="py-3.5">
+                                <div className="font-semibold text-foreground text-sm">
+                                  {formatCurrency(target, currency)}
+                                </div>
+                                {paid > 0 && !isFullyPaid && (
+                                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                    Paid: {formatCurrency(paid, currency)} (Rem: {formatCurrency(remaining, currency)})
+                                  </div>
+                                )}
                               </TableCell>
-                              <TableCell className="font-semibold text-foreground text-sm">{formatCurrency(target, currency)}</TableCell>
-                              <TableCell className="font-medium text-emerald-600 text-sm">
-                                {paid > 0 ? `+${formatCurrency(paid, currency)}` : '-'}
+                              <TableCell className="py-3.5">
+                                {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
                               </TableCell>
-                              <TableCell className="font-bold text-primary text-sm">
-                                {formatCurrency(remaining, currency)}
-                              </TableCell>
-                              <TableCell>{getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}</TableCell>
-                              <TableCell className="text-right px-6">
+                              <TableCell className="text-right px-6 py-3.5">
                                 {!isFullyPaid && (
                                   <Button 
                                     size="sm" 
-                                    className="h-8 rounded-[10px] font-bold shadow-xs" 
+                                    className="h-8 rounded-[10px] font-bold shadow-xs px-4" 
                                     onClick={() => { 
                                       setSelectedLoan(loan); 
                                       setSelectedInstallment(inst);
                                       setIsRepayOpen(true); 
                                     }}
                                   >
-                                    <CreditCard className="mr-1.5 h-3.5 w-3.5" /> Pay Now
+                                    Pay Now
                                   </Button>
                                 )}
                               </TableCell>
@@ -1120,43 +1123,48 @@ function LoansPageContent() {
 
              <div className="max-h-[400px] overflow-auto border rounded-xl">
                <Table>
-                 <TableHeader className="sticky top-0 bg-blue-600 z-10 shadow-sm">
-                    <TableRow className="border-b border-blue-700/50 hover:bg-transparent">
-                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Installment</TableHead>
-                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Due Date</TableHead>
-                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Target</TableHead>
-                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Paid</TableHead>
-                      <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Outstanding</TableHead>
-                      <TableHead className="text-[11px] font-bold uppercase text-white text-right py-3 px-4">Status</TableHead>
-                    </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                   {selectedLoan?.amortization?.map((inst: any) => {
-                     const target = Number(inst.amount) || 0;
-                     const paid = Number(inst.paidAmount) || (inst.status === 'paid' ? target : 0);
-                     const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
+                  <TableHeader className="sticky top-0 bg-blue-600 z-10 shadow-sm">
+                     <TableRow className="border-b border-blue-700/50 hover:bg-transparent">
+                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Due Date</TableHead>
+                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Amount</TableHead>
+                       <TableHead className="text-[11px] font-bold uppercase text-white text-right py-3 px-4">Status</TableHead>
+                     </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedLoan?.amortization?.map((inst: any) => {
+                      const target = Number(inst.amount) || 0;
+                      const paid = Number(inst.paidAmount) || (inst.status === 'paid' ? target : 0);
+                      const remaining = inst.remainingAmount !== undefined ? Number(inst.remainingAmount) : Math.max(0, target - paid);
+                      const isFullyPaid = inst.status === 'paid' || remaining <= 0;
 
-                     return (
-                       <TableRow key={inst.installmentNumber}>
-                         <TableCell className="font-bold text-sm">#{inst.installmentNumber}</TableCell>
-                         <TableCell className="text-sm font-medium">
-                           {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
-                         </TableCell>
-                         <TableCell className="font-semibold text-foreground text-sm">{formatCurrency(target, currency)}</TableCell>
-                         <TableCell className="font-medium text-emerald-600 text-sm">
-                           {paid > 0 ? `+${formatCurrency(paid, currency)}` : '-'}
-                         </TableCell>
-                         <TableCell className="font-bold text-primary text-sm">
-                           {formatCurrency(remaining, currency)}
-                         </TableCell>
-                         <TableCell className="text-right">
-                            {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
-                         </TableCell>
-                       </TableRow>
-                     );
-                   })}
-                 </TableBody>
-               </Table>
+                      return (
+                        <TableRow key={inst.installmentNumber}>
+                          <TableCell className="py-3 px-4">
+                            <div className="font-bold text-sm text-foreground">
+                              {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground font-medium">
+                              Installment #{inst.installmentNumber}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 px-4">
+                            <div className="font-semibold text-foreground text-sm">
+                              {formatCurrency(target, currency)}
+                            </div>
+                            {paid > 0 && !isFullyPaid && (
+                              <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                Paid: {formatCurrency(paid, currency)} (Rem: {formatCurrency(remaining, currency)})
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right py-3 px-4">
+                             {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
              </div>
           </div>
           <DialogFooter className="p-4 bg-muted/10 border-t">
