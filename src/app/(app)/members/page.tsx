@@ -4,7 +4,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2, Mail } from 'lucide-react';
+import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2, Mail, CheckCircle2, Clock, UserCheck, Ban, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -44,7 +44,8 @@ import {
   updateUserRoleAction,
   updateMemberProfileAction,
   deleteMemberAction,
-  sendMemberActivationEmailAction
+  adminActivateMemberAction,
+  adminDeactivateMemberAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
@@ -63,6 +64,8 @@ export default function MembersPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activatingMemberId, setActivatingMemberId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active'>('all');
 
   // Super Admin Direct Deletion Dialog States
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -81,11 +84,74 @@ export default function MembersPage() {
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
 
-  const filteredMembers = useMemo(() => members.filter((m: any) => 
-    m.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.phone?.includes(searchTerm)
-  ), [members, searchTerm]);
+  const pendingMembers = useMemo(() => members.filter((m: any) => m.status === 'pending'), [members]);
+  const pendingCount = pendingMembers.length;
+
+  const filteredMembers = useMemo(() => members.filter((m: any) => {
+    const matchesSearch = 
+      m.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.phone?.includes(searchTerm);
+    
+    if (!matchesSearch) return false;
+    if (statusFilter === 'pending') return m.status === 'pending';
+    if (statusFilter === 'active') return m.status === 'active';
+    return true;
+  }), [members, searchTerm, statusFilter]);
+
+  const handleActivateMember = async (targetMember: any) => {
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'You are currently offline. Please reconnect before activating accounts.',
+      });
+    }
+
+    setActivatingMemberId(targetMember.id);
+    try {
+      await adminActivateMemberAction({
+        memberId: targetMember.id,
+        justification: 'Approved and activated by Administrator'
+      });
+      toast({
+        title: 'Membership Activated!',
+        description: `${targetMember.name || targetMember.email}'s account is now active and ready to log in.`,
+      });
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({ variant: 'destructive', title: parsed.title || 'Activation Failed', description: parsed.message });
+    } finally {
+      setActivatingMemberId(null);
+    }
+  };
+
+  const handleDeactivateMember = async (targetMember: any) => {
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'You are currently offline. Please reconnect before modifying accounts.',
+      });
+    }
+
+    setActivatingMemberId(targetMember.id);
+    try {
+      await adminDeactivateMemberAction({
+        memberId: targetMember.id,
+        justification: 'Account suspended by Administrator'
+      });
+      toast({
+        title: 'Membership Suspended',
+        description: `${targetMember.name || targetMember.email}'s login access has been suspended.`,
+      });
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({ variant: 'destructive', title: parsed.title || 'Action Failed', description: parsed.message });
+    } finally {
+      setActivatingMemberId(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -144,37 +210,6 @@ export default function MembersPage() {
     }
   };
 
-  const handleResendActivation = async (targetMember: any) => {
-    if (isBrowserOffline()) {
-      return toast({
-        variant: 'destructive',
-        title: 'Connection Offline',
-        description: 'You are currently offline. Please reconnect before sending emails.',
-      });
-    }
-
-    try {
-      const res = await sendMemberActivationEmailAction({
-        email: targetMember.email,
-        memberId: targetMember.id,
-        appUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
-      });
-
-      toast({
-        title: res.emailSent ? "Activation Email Dispatched" : "Activation Link Generated",
-        description: res.emailSent 
-          ? `A secure activation link was dispatched to ${targetMember.email}.`
-          : `Activation link generated: ${res.message}`,
-      });
-    } catch (err: any) {
-      const parsed = parseAppError(err);
-      toast({ 
-        variant: "destructive", 
-        title: parsed.title || "Dispatch Failed", 
-        description: parsed.message 
-      });
-    }
-  };
 
   const handleDownloadTemplate = () => {
     const headers = ['name', 'email', 'phone', 'role'];
@@ -409,11 +444,65 @@ export default function MembersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Pending Activations Alert Banner */}
+      {pendingCount > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+              <Clock className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-foreground">
+                {pendingCount} Member{pendingCount > 1 ? 's' : ''} Awaiting Administrator Activation
+              </p>
+              <p className="text-xs text-muted-foreground">
+                These users have entered their email and set their password. Activate them below to grant system access.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant={statusFilter === 'pending' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
+              className="rounded-xl font-bold text-xs h-9 bg-white border-amber-300 text-amber-800 hover:bg-amber-50 shadow-sm"
+            >
+              {statusFilter === 'pending' ? 'View All Members' : 'Filter Pending Only'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card">
-        <CardHeader className="bg-muted/20 pb-6 border-b">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search participants by name, email or phone..." className="pl-10 h-12 rounded-xl bg-white shadow-inner" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <CardHeader className="bg-muted/20 pb-4 border-b space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search participants by name, email or phone..." className="pl-10 h-11 rounded-xl bg-white shadow-inner" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-1 p-1 bg-muted rounded-xl text-xs font-semibold shrink-0">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={cn("px-3 py-1.5 rounded-lg transition-all", statusFilter === 'all' ? "bg-white shadow text-foreground font-bold" : "text-muted-foreground hover:text-foreground")}
+              >
+                All ({members.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('pending')}
+                className={cn("px-3 py-1.5 rounded-lg transition-all flex items-center gap-1", statusFilter === 'pending' ? "bg-white shadow text-amber-700 font-bold" : "text-muted-foreground hover:text-foreground")}
+              >
+                Pending ({pendingCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('active')}
+                className={cn("px-3 py-1.5 rounded-lg transition-all", statusFilter === 'active' ? "bg-white shadow text-emerald-700 font-bold" : "text-muted-foreground hover:text-foreground")}
+              >
+                Active ({members.length - pendingCount})
+              </button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -422,7 +511,7 @@ export default function MembersPage() {
               <TableRow>
                 <TableHead className="py-4 px-6 font-bold uppercase text-[12px] tracking-widest">Member Details</TableHead>
                 <TableHead className="font-bold uppercase text-[12px] tracking-widest">Role</TableHead>
-                <TableHead className="font-bold uppercase text-[12px] tracking-widest">Status</TableHead>
+                <TableHead className="font-bold uppercase text-[12px] tracking-widest">Status & Access</TableHead>
                 <TableHead className="text-right px-6 font-bold uppercase text-[12px] tracking-widest">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -460,9 +549,32 @@ export default function MembersPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={member.status === 'active' ? 'default' : 'secondary'} className="uppercase text-[9px] font-bold px-3">
-                        {member.status || 'pending'}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {member.status === 'active' ? (
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 uppercase text-[9px] font-bold px-2.5 py-0.5 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Active
+                          </Badge>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 uppercase text-[9px] font-bold px-2.5 py-0.5 flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> Pending
+                            </Badge>
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleActivateMember(member)}
+                              disabled={activatingMemberId === member.id}
+                              className="h-7 px-2.5 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1"
+                            >
+                              {activatingMemberId === member.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <UserCheck className="h-3 w-3" />
+                              )}
+                              Activate
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right px-6">
                        <DropdownMenu>
@@ -471,12 +583,21 @@ export default function MembersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl w-52 shadow-xl">
                           <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
-                          {member.status !== 'active' && (
+                          {member.status !== 'active' ? (
                             <DropdownMenuItem 
-                              className="font-bold text-primary flex items-center gap-1.5 focus:text-primary focus:bg-primary/10" 
-                              onClick={() => handleResendActivation(member)}
+                              className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
+                              onClick={() => handleActivateMember(member)}
+                              disabled={activatingMemberId === member.id}
                             >
-                              <Mail className="h-4 w-4" /> Send Activation Email
+                              <UserCheck className="h-4 w-4" /> Activate Membership
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem 
+                              className="font-bold text-amber-600 flex items-center gap-1.5 focus:text-amber-600 focus:bg-amber-50 dark:focus:bg-amber-950/20 cursor-pointer" 
+                              onClick={() => handleDeactivateMember(member)}
+                              disabled={activatingMemberId === member.id}
+                            >
+                              <Ban className="h-4 w-4" /> Suspend Access
                             </DropdownMenuItem>
                           )}
                           {member.deletionRequested && (

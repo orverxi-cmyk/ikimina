@@ -4,10 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   signInWithEmailAndPassword, 
-  isSignInWithEmailLink,
-  signInWithEmailLink,
-  updatePassword,
-  sendSignInLinkToEmail,
+  signOut,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { 
@@ -16,13 +13,16 @@ import {
   where, 
   getDocs, 
   getDoc,
-  doc,
+  doc, 
   limit
 } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useSettings } from '@/context/settings-context';
-import { activateMemberAccountAction, sendMemberActivationEmailAction } from '@/lib/finance-client';
+import { 
+  setMemberInitialPasswordAction,
+  registerMemberSelfAction
+} from '@/lib/finance-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,7 +36,24 @@ import {
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog';
-import { Wallet, Loader2, LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2, Eye, EyeOff, KeyRound, Copy, Check, ExternalLink } from 'lucide-react';
+import { 
+  Wallet, 
+  Loader2, 
+  LogIn, 
+  Mail, 
+  Lock, 
+  ArrowRight, 
+  ShieldCheck, 
+  CheckCircle2, 
+  Eye, 
+  EyeOff, 
+  KeyRound, 
+  Clock, 
+  UserPlus, 
+  RefreshCw, 
+  User, 
+  Phone 
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
@@ -46,16 +63,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const [step, setStep] = useState<'email' | 'password' | 'pending-activation' | 'set-password'>('email');
+  const [step, setStep] = useState<'email' | 'password' | 'set-password' | 'register' | 'pending-activation'>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [memberDocId, setMemberDocId] = useState<string | null>(null);
-  const [activationSent, setActivationSent] = useState(false);
-  const [activationMessage, setActivationMessage] = useState<string | null>(null);
-  const [devActivationLink, setDevActivationLink] = useState<string | null>(null);
-  const [hasCopiedLink, setHasCopiedLink] = useState(false);
+  const [existingMemberName, setExistingMemberName] = useState<string | null>(null);
 
   // Forgot Password State
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -70,72 +86,33 @@ export default function LoginPage() {
   const { settings } = useSettings();
   const infrastructureBranding = settings.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
 
-  // If already authenticated and not in an activation link flow, seamlessly navigate to the member dashboard
+  // If already authenticated with an active account, navigate to dashboard
   useEffect(() => {
-    if (!userLoading && currentUser && step === 'email' && typeof window !== 'undefined' && !isSignInWithEmailLink(auth, window.location.href)) {
-      router.replace('/dashboard');
-    }
-  }, [currentUser, userLoading, step, router, auth]);
-
-  useEffect(() => {
-    const handleAuthLink = async () => {
-      if (isSignInWithEmailLink(auth, window.location.href)) {
-        let emailForLink = window.localStorage.getItem('emailForSignIn');
-        if (!emailForLink) {
-          emailForLink = window.prompt('Please provide your email for confirmation');
-        }
-
-        if (emailForLink) {
-          setIsLoading(true);
-          try {
-            const result = await signInWithEmailLink(auth, emailForLink.toLowerCase(), window.location.href);
-            window.localStorage.removeItem('emailForSignIn');
-            
-            // 1. Check if user already has a doc matching their UID
-            const userDocByUid = await getDoc(doc(firestore, 'users', result.user.uid));
-            
-            if (userDocByUid.exists()) {
-              setMemberDocId(result.user.uid);
-              if (userDocByUid.data().status === 'pending') {
-                setStep('set-password');
-              } else {
-                router.push('/dashboard');
-              }
-            } else {
-              // 2. Lookup by email to find the invitation doc (which has a random ID)
-              const q = query(
-                collection(firestore, 'users'), 
-                where('email', '==', emailForLink.toLowerCase()), 
-                limit(1)
-              );
-              const snap = await getDocs(q);
-              if (!snap.empty) {
-                setMemberDocId(snap.docs[0].id);
-                setStep('set-password');
-              } else {
-                toast({ title: "Profile Missing", description: "You are logged in, but we couldn't find your member profile." });
-                router.push('/dashboard');
-              }
+    let isCancelled = false;
+    const verifyActiveSession = async () => {
+      if (!userLoading && currentUser && step === 'email') {
+        try {
+          const userDocSnap = await getDoc(doc(firestore, 'users', currentUser.uid));
+          if (!isCancelled) {
+            if (userDocSnap.exists() && userDocSnap.data().status === 'active') {
+              router.replace('/dashboard');
+            } else if (userDocSnap.exists() && userDocSnap.data().status !== 'active') {
+              await signOut(auth);
+              setEmail(currentUser.email || '');
+              setStep('pending-activation');
             }
-          } catch (error: any) {
-            const parsed = parseAppError(error);
-            toast({ 
-              variant: 'destructive', 
-              title: parsed.title || 'Activation Error', 
-              description: parsed.message 
-            });
-          } finally {
-            setIsLoading(false);
           }
+        } catch (e) {
+          console.warn('Session verification check:', e);
         }
       }
     };
+    verifyActiveSession();
+    return () => { isCancelled = true; };
+  }, [currentUser, userLoading, step, router, auth, firestore]);
 
-    handleAuthLink();
-  }, [auth, firestore, router, toast]);
-
-  const handleCheckEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCheckEmail = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!email) return;
     
     if (isBrowserOffline()) {
@@ -157,20 +134,35 @@ export default function LoginPage() {
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        if (isBrowserOffline()) {
-          throw new Error('Connection lost while reaching the database. Please check your internet connection.');
-        }
-        throw new Error('This email address is not registered in our system. Please check your spelling or contact your scheme administrator.');
+        setEmail(normalizedEmail);
+        setStep('register');
+        toast({ 
+          title: "New Member Registration", 
+          description: "No registered profile found for this email. Please fill in your details below." 
+        });
+        return;
       }
 
-      const memberData = querySnapshot.docs[0].data();
-      setMemberDocId(querySnapshot.docs[0].id);
+      const memberDoc = querySnapshot.docs[0];
+      const memberData = memberDoc.data();
+      setMemberDocId(memberDoc.id);
       setEmail(normalizedEmail);
+      if (memberData.name) {
+        setExistingMemberName(memberData.name);
+      }
 
       if (memberData.status === 'active') {
         setStep('password');
       } else {
-        setStep('pending-activation');
+        if (!memberData.passwordSet) {
+          setStep('set-password');
+          toast({ 
+            title: "Welcome!", 
+            description: "Your membership profile was created by the administrator. Please set your account password." 
+          });
+        } else {
+          setStep('pending-activation');
+        }
       }
     } catch (error: any) {
       const parsed = parseAppError(error);
@@ -184,42 +176,46 @@ export default function LoginPage() {
     }
   };
 
-  const handleSendActivationLink = async () => {
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 6) {
+      return toast({ variant: 'destructive', title: 'Error', description: 'Password must be at least 6 characters.' });
+    }
+    if (password !== confirmPassword) {
+      return toast({ variant: 'destructive', title: 'Error', description: 'Passwords do not match.' });
+    }
+
     if (isBrowserOffline()) {
       return toast({
         variant: 'destructive',
         title: 'Connection Offline',
-        description: 'Cannot send activation email while offline. Please connect to the internet.',
+        description: 'Cannot set password while offline. Please connect to the internet.',
       });
     }
+
     setIsLoading(true);
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      window.localStorage.setItem('emailForSignIn', normalizedEmail);
-
-      const result = await sendMemberActivationEmailAction({
-        email: normalizedEmail,
-        memberId: memberDocId || undefined,
-        appUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+      const res = await setMemberInitialPasswordAction({
+        email: email.trim().toLowerCase(),
+        password,
+        memberDocId: memberDocId || undefined
       });
 
-      setActivationSent(true);
-      setActivationMessage(result.message);
-      if (result.activationLink) {
-        setDevActivationLink(result.activationLink);
+      if (res.isActive) {
+        toast({ title: 'Password Configured', description: 'Your password is set and your account is active. Please sign in.' });
+        setStep('password');
+      } else {
+        toast({ 
+          title: 'Password Configured', 
+          description: 'Your password is saved. Your membership is now awaiting administrator activation.' 
+        });
+        setStep('pending-activation');
       }
-
-      toast({ 
-        title: result.emailSent ? "Activation Email Dispatched" : "Activation Link Generated", 
-        description: result.emailSent 
-          ? `A secure activation link has been sent to ${normalizedEmail}. Please check your inbox and spam folder.`
-          : result.message
-      });
     } catch (error: any) {
       const parsed = parseAppError(error);
       toast({ 
         variant: 'destructive', 
-        title: parsed.title || 'Delivery Failed', 
+        title: parsed.title || 'Failed to Set Password', 
         description: parsed.message 
       });
     } finally {
@@ -227,35 +223,45 @@ export default function LoginPage() {
     }
   };
 
-  const handleSetPassword = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fullName.trim()) {
+      return toast({ variant: 'destructive', title: 'Name Required', description: 'Please enter your full name.' });
+    }
     if (password.length < 6) {
-      return toast({ variant: 'destructive', title: 'Error', description: 'Password must be 6+ characters.' });
+      return toast({ variant: 'destructive', title: 'Error', description: 'Password must be at least 6 characters.' });
     }
     if (password !== confirmPassword) {
       return toast({ variant: 'destructive', title: 'Error', description: 'Passwords do not match.' });
     }
-    if (!auth.currentUser || !memberDocId) return;
 
     if (isBrowserOffline()) {
       return toast({
         variant: 'destructive',
         title: 'Connection Offline',
-        description: 'Cannot activate password while offline. Please connect to the internet.',
+        description: 'Cannot register while offline. Please connect to the internet.',
       });
     }
 
     setIsLoading(true);
     try {
-      await updatePassword(auth.currentUser, password);
-      await activateMemberAccountAction(memberDocId);
-      toast({ title: 'Success', description: 'Account activated successfully.' });
-      router.push('/dashboard');
+      await registerMemberSelfAction({
+        name: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        password,
+      });
+
+      toast({ 
+        title: 'Registration Submitted', 
+        description: 'Your account has been created. A scheme administrator will activate your membership shortly.' 
+      });
+      setStep('pending-activation');
     } catch (error: any) {
       const parsed = parseAppError(error);
       toast({ 
         variant: 'destructive', 
-        title: parsed.title || 'Activation Failed', 
+        title: parsed.title || 'Registration Failed', 
         description: parsed.message 
       });
     } finally {
@@ -275,7 +281,24 @@ export default function LoginPage() {
     setIsLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     try {
-      await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      
+      // Verify account activation status in Firestore
+      const userDocSnap = await getDoc(doc(firestore, 'users', cred.user.uid));
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        if (userData.status !== 'active') {
+          await signOut(auth);
+          setStep('pending-activation');
+          toast({
+            variant: 'destructive',
+            title: 'Account Pending Activation',
+            description: 'Your password is verified, but your membership is awaiting administrator activation.',
+          });
+          return;
+        }
+      }
+      
       router.push('/dashboard');
     } catch (error: any) {
       const parsed = parseAppError(error);
@@ -339,14 +362,16 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-3xl font-headline font-bold">{appName}</CardTitle>
           <CardDescription>
-            {step === 'email' && "Verify your member email"}
+            {step === 'email' && "Enter your email to sign in or register"}
             {step === 'password' && "Enter your password to sign in"}
-            {step === 'pending-activation' && "Secure Account Activation"}
-            {step === 'set-password' && "Set your final account password"}
+            {step === 'set-password' && `Welcome ${existingMemberName || ''}! Set your account password`}
+            {step === 'register' && "Create your new membership account"}
+            {step === 'pending-activation' && "Account Pending Administrator Activation"}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {/* STEP 1: EMAIL LOOKUP */}
           {step === 'email' && (
             <form onSubmit={handleCheckEmail} className="space-y-4">
               <div className="space-y-2">
@@ -361,6 +386,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoFocus
                   />
                 </div>
               </div>
@@ -383,6 +409,7 @@ export default function LoginPage() {
             </form>
           )}
 
+          {/* STEP 2: PASSWORD SIGN IN */}
           {step === 'password' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
@@ -443,124 +470,27 @@ export default function LoginPage() {
             </form>
           )}
 
-          {step === 'pending-activation' && (
-            <div className="space-y-4">
-              {!activationSent ? (
-                <>
-                  <div className="bg-primary/10 border border-primary/20 p-4 rounded-xl flex gap-3 items-start text-left">
-                    <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground">One Last Step</p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Your member account is registered but awaiting activation. Request an activation link to verify your identity and set your password.
-                      </p>
-                    </div>
-                  </div>
-                  <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold" onClick={handleSendActivationLink} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Mail className="mr-2 h-5 w-5" />}
-                    Request Activation Link
-                  </Button>
-                </>
-              ) : (
-                <div className="space-y-4 text-left">
-                  <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl flex gap-3 items-start">
-                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground">Activation Link Dispatched</p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        A secure activation link was dispatched to <strong className="text-foreground">{email}</strong>. Please check your inbox and spam folder.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Fallback / Direct Testing Link */}
-                  {devActivationLink && (
-                    <div className="p-3.5 bg-muted/60 rounded-xl border border-border/80 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Direct Activation Link
-                        </span>
-                        <Badge variant="outline" className="text-[9px] font-bold">Quick Access</Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        You can open the activation link directly or copy it:
-                      </p>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="flex-1 h-9 rounded-lg text-xs font-bold gap-1.5"
-                          onClick={() => {
-                            if (devActivationLink) {
-                              navigator.clipboard.writeText(devActivationLink);
-                              setHasCopiedLink(true);
-                              toast({ title: 'Link Copied', description: 'Activation link copied to clipboard.' });
-                              setTimeout(() => setHasCopiedLink(false), 2500);
-                            }
-                          }}
-                        >
-                          {hasCopiedLink ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-                          {hasCopiedLink ? 'Copied' : 'Copy Link'}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="flex-1 h-9 rounded-lg text-xs font-bold gap-1.5"
-                          onClick={() => {
-                            if (devActivationLink) {
-                              window.location.href = devActivationLink;
-                            }
-                          }}
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Activate Now
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  <Button 
-                    variant="outline" 
-                    className="w-full h-10 rounded-xl text-xs font-bold" 
-                    onClick={handleSendActivationLink} 
-                    disabled={isLoading}
-                  >
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-                    Resend Activation Link
-                  </Button>
-                </div>
-              )}
-
-              <div className="text-center pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActivationSent(false);
-                    setDevActivationLink(null);
-                    setStep('email');
-                  }}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
-                >
-                  Use a different email
-                </button>
-              </div>
-            </div>
-          )}
-
+          {/* STEP 3: SET PASSWORD FOR PRE-REGISTERED MEMBER */}
           {step === 'set-password' && (
             <form onSubmit={handleSetPassword} className="space-y-4">
-              <div className="bg-green-500/10 border border-green-500/20 p-3 rounded-xl flex gap-2 items-center">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <p className="text-xs text-green-800 font-medium text-left">Verification successful. Set your password.</p>
+              <div className="bg-primary/10 border border-primary/20 p-3 rounded-xl flex gap-2.5 items-start text-left">
+                <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-foreground">Welcome to the scheme!</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Your member profile has been registered. Choose a secure password to complete your account setup.
+                  </p>
+                </div>
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
+                <Label htmlFor="set-new-password">Choose Password</Label>
                 <div className="relative">
                   <Input
-                    id="new-password"
+                    id="set-new-password"
                     type={showPassword ? "text" : "password"}
                     className="pr-10 h-11 rounded-xl"
+                    placeholder="Minimum 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -576,13 +506,15 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Label htmlFor="set-confirm-password">Confirm Password</Label>
                 <div className="relative">
                   <Input
-                    id="confirm-password"
+                    id="set-confirm-password"
                     type={showConfirmPassword ? "text" : "password"}
                     className="pr-10 h-11 rounded-xl"
+                    placeholder="Re-type password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
@@ -597,11 +529,199 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-              <Button className="w-full h-11 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold" type="submit" disabled={isLoading}>
+
+              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold" type="submit" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Lock className="mr-2 h-5 w-5" />}
-                Activate My Account
+                Save Password & Continue
               </Button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPassword('');
+                    setConfirmPassword('');
+                    setStep('email');
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+                >
+                  Back to email
+                </button>
+              </div>
             </form>
+          )}
+
+          {/* STEP 4: SELF-REGISTRATION FOR NEW MEMBER */}
+          {step === 'register' && (
+            <form onSubmit={handleRegister} className="space-y-3.5">
+              <div className="bg-primary/10 border border-primary/20 p-3 rounded-xl flex gap-2.5 items-start text-left">
+                <UserPlus className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-foreground">Create Membership Account</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Fill in your details below. Once submitted, your administrator will activate your account.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="full-name" className="text-xs font-bold">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="full-name"
+                    placeholder="First and Last Name"
+                    className="pl-10 h-10 rounded-xl text-xs"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-email" className="text-xs font-bold">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="reg-email"
+                    type="email"
+                    className="pl-10 h-10 rounded-xl text-xs bg-muted"
+                    value={email}
+                    disabled
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="phone" className="text-xs font-bold">Phone Number (Optional)</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    placeholder="+250..."
+                    className="pl-10 h-10 rounded-xl text-xs"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-password" className="text-xs font-bold">Desired Password</Label>
+                <div className="relative">
+                  <Input
+                    id="reg-password"
+                    type={showPassword ? "text" : "password"}
+                    className="pr-10 h-10 rounded-xl text-xs"
+                    placeholder="Min 6 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-confirm-password" className="text-xs font-bold">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="reg-confirm-password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    className="pr-10 h-10 rounded-xl text-xs"
+                    placeholder="Confirm password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold" type="submit" disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserPlus className="mr-2 h-5 w-5" />}
+                Register & Submit for Activation
+              </Button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPassword('');
+                    setConfirmPassword('');
+                    setStep('email');
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+                >
+                  Use a different email
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* STEP 5: PENDING ADMINISTRATOR ACTIVATION SCREEN */}
+          {step === 'pending-activation' && (
+            <div className="space-y-5 text-left">
+              <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-2xl flex gap-3.5 items-start">
+                <Clock className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-foreground">Awaiting Administrator Activation</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Your account credentials for <strong className="text-foreground">{email}</strong> are successfully configured. 
+                    Your membership is awaiting administrator approval before login access is granted.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted/60 rounded-2xl border border-border/80 space-y-2.5 text-xs">
+                <div className="flex items-center gap-2 font-bold text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  What happens next?
+                </div>
+                <ul className="text-[11px] text-muted-foreground space-y-1.5 list-disc list-inside">
+                  <li>Your scheme administrator activates new member profiles from the admin panel.</li>
+                  <li>Zero email links are required—once activated by the admin, you can log in immediately.</li>
+                  <li>Click <strong>&quot;Check Activation Status&quot;</strong> below anytime to verify your status.</li>
+                </ul>
+              </div>
+
+              <Button 
+                className="w-full h-11 rounded-xl font-bold" 
+                onClick={() => handleCheckEmail()} 
+                disabled={isLoading}
+              >
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Check Activation Status
+              </Button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPassword('');
+                    setConfirmPassword('');
+                    setStep('email');
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+                >
+                  Sign in with a different email
+                </button>
+              </div>
+            </div>
           )}
         </CardContent>
 

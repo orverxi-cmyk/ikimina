@@ -735,3 +735,291 @@ export const rejectAccountDeletion = onCall({ cors: true }, async (request) => {
         throw new HttpsError('internal', error.message);
     }
 });
+
+/**
+ * Sets a member's initial password securely using the Firebase Admin SDK.
+ * Links pre-registered member profiles with their Firebase Auth UID.
+ * Membership remains in 'pending' status awaiting Administrator activation.
+ */
+export const setMemberInitialPassword = onCall({ cors: true }, async (request) => {
+    const { email, password, memberDocId } = request.data || {};
+    if (!email || typeof email !== 'string' || !password || typeof password !== 'string' || password.length < 6) {
+        throw new HttpsError('invalid-argument', 'Valid email address and password of at least 6 characters are required.');
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const db = admin.firestore();
+
+    // 1. Locate member document in Firestore
+    let userDocRef: admin.firestore.DocumentReference | null = null;
+    let userData: any = null;
+
+    if (memberDocId) {
+        const snap = await db.collection('users').doc(memberDocId).get();
+        if (snap.exists) {
+            userDocRef = snap.ref;
+            userData = snap.data();
+        }
+    }
+
+    if (!userData) {
+        const q = await db.collection('users').where('email', '==', cleanEmail).limit(1).get();
+        if (q.empty) {
+            throw new HttpsError('not-found', 'No member profile found for this email address. Please register or contact your administrator.');
+        }
+        userDocRef = q.docs[0].ref;
+        userData = q.docs[0].data();
+    }
+
+    try {
+        // 2. Authoritatively create or update user in Firebase Auth
+        let authUser: admin.auth.UserRecord;
+        try {
+            authUser = await admin.auth().getUserByEmail(cleanEmail);
+            await admin.auth().updateUser(authUser.uid, {
+                password,
+                displayName: userData.name || undefined
+            });
+        } catch (authErr: any) {
+            if (authErr.code === 'auth/user-not-found') {
+                authUser = await admin.auth().createUser({
+                    email: cleanEmail,
+                    password,
+                    displayName: userData.name || undefined
+                });
+            } else {
+                throw new HttpsError('internal', authErr.message);
+            }
+        }
+
+        // 3. Atomically synchronize Firestore document ID with Firebase Auth UID
+        const currentDocId = userDocRef!.id;
+        const currentStatus = userData.status || 'pending';
+        const batch = db.batch();
+
+        if (currentDocId !== authUser.uid) {
+            batch.set(db.collection('users').doc(authUser.uid), {
+                ...userData,
+                email: cleanEmail,
+                status: currentStatus,
+                passwordSet: true,
+                passwordSetAt: admin.firestore.FieldValue.serverTimestamp(),
+                authUid: authUser.uid
+            }, { merge: true });
+
+            batch.delete(userDocRef!);
+
+            // Re-point associated records if created under temporary doc ID
+            const contribs = await db.collection('contributions').where('memberId', '==', currentDocId).get();
+            contribs.forEach(c => batch.update(c.ref, { memberId: authUser.uid }));
+
+            const loans = await db.collection('loans').where('memberId', '==', currentDocId).get();
+            loans.forEach(l => batch.update(l.ref, { memberId: authUser.uid }));
+        } else {
+            batch.update(userDocRef!, {
+                passwordSet: true,
+                passwordSetAt: admin.firestore.FieldValue.serverTimestamp(),
+                authUid: authUser.uid
+            });
+        }
+
+        // Audit trail
+        const logRef = db.collection('audit_logs').doc();
+        batch.set(logRef, {
+            adminId: authUser.uid,
+            action: 'SET_INITIAL_PASSWORD',
+            justification: 'Member configured account password (awaiting admin activation)',
+            details: { email: cleanEmail, memberId: authUser.uid, status: currentStatus },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await batch.commit();
+
+        return {
+            success: true,
+            uid: authUser.uid,
+            status: currentStatus,
+            isActive: currentStatus === 'active'
+        };
+    } catch (error: any) {
+        console.error('Error setting initial password:', error);
+        throw new HttpsError('internal', error.message || 'Failed to configure password.');
+    }
+});
+
+/**
+ * Self-registration for new members.
+ * Creates Firebase Auth credentials and pending Firestore profile awaiting Administrator activation.
+ */
+export const registerMemberSelf = onCall({ cors: true }, async (request) => {
+    const { name, email, phone, password } = request.data || {};
+    if (!email || !password || password.length < 6 || !name) {
+        throw new HttpsError('invalid-argument', 'Full name, valid email, and a password of 6+ characters are required.');
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+    const cleanPhone = (phone || '').trim();
+    const db = admin.firestore();
+
+    const existing = await db.collection('users').where('email', '==', cleanEmail).limit(1).get();
+    if (!existing.empty) {
+        throw new HttpsError('already-exists', 'An account with this email address already exists. Please sign in or set your password.');
+    }
+
+    try {
+        let authUser: admin.auth.UserRecord;
+        try {
+            authUser = await admin.auth().getUserByEmail(cleanEmail);
+            await admin.auth().updateUser(authUser.uid, {
+                password,
+                displayName: cleanName
+            });
+        } catch (e: any) {
+            if (e.code === 'auth/user-not-found') {
+                authUser = await admin.auth().createUser({
+                    email: cleanEmail,
+                    password,
+                    displayName: cleanName
+                });
+            } else {
+                throw new HttpsError('internal', e.message);
+            }
+        }
+
+        // Create profile in 'pending' status awaiting administrator approval
+        await db.collection('users').doc(authUser.uid).set({
+            name: cleanName,
+            email: cleanEmail,
+            phone: cleanPhone,
+            role: 'member',
+            status: 'pending',
+            passwordSet: true,
+            selfRegistered: true,
+            joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+            authUid: authUser.uid
+        });
+
+        await db.collection('audit_logs').add({
+            adminId: authUser.uid,
+            action: 'SELF_REGISTER_MEMBER',
+            justification: 'New member registered (pending administrator activation)',
+            details: { email: cleanEmail, memberId: authUser.uid, name: cleanName },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return {
+            success: true,
+            uid: authUser.uid,
+            status: 'pending'
+        };
+    } catch (error: any) {
+        console.error('Error in self-registration:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * Administrator Action: Activates a member's account.
+ * Immediately grants login access to the platform.
+ */
+export const adminActivateMember = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (adminSnap.data()?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Only administrators can activate member accounts.');
+    }
+
+    const { memberId, justification } = request.data || {};
+    if (!memberId) throw new HttpsError('invalid-argument', 'Member ID is required.');
+
+    const memberRef = db.collection('users').doc(memberId);
+    const memberSnap = await memberRef.get();
+    if (!memberSnap.exists) {
+        throw new HttpsError('not-found', 'Member profile not found.');
+    }
+
+    const memberData = memberSnap.data()!;
+
+    try {
+        await memberRef.update({
+            status: 'active',
+            activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            activatedBy: request.auth.uid,
+            activatedByName: adminSnap.data()?.name || 'Administrator'
+        });
+
+        // Audit log
+        await db.collection('audit_logs').add({
+            adminId: request.auth.uid,
+            action: 'ADMIN_ACTIVATE_MEMBER',
+            justification: justification || 'Administrator approved and activated member account',
+            details: {
+                memberId,
+                memberName: memberData.name || 'Member',
+                memberEmail: memberData.email || '',
+                previousStatus: memberData.status || 'pending'
+            },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return { success: true, memberId, status: 'active' };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * Administrator Action: Deactivates or suspends a member's account.
+ */
+export const adminDeactivateMember = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (adminSnap.data()?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Only administrators can deactivate member accounts.');
+    }
+
+    const { memberId, justification } = request.data || {};
+    if (!memberId) throw new HttpsError('invalid-argument', 'Member ID is required.');
+    if (memberId === request.auth.uid) {
+        throw new HttpsError('failed-precondition', 'Administrators cannot deactivate their own account.');
+    }
+
+    const memberRef = db.collection('users').doc(memberId);
+    const memberSnap = await memberRef.get();
+    if (!memberSnap.exists) {
+        throw new HttpsError('not-found', 'Member profile not found.');
+    }
+
+    const memberData = memberSnap.data()!;
+
+    try {
+        await memberRef.update({
+            status: 'suspended',
+            suspendedAt: admin.firestore.FieldValue.serverTimestamp(),
+            suspendedBy: request.auth.uid,
+            suspensionReason: justification || 'Account access suspended by administrator'
+        });
+
+        await db.collection('audit_logs').add({
+            adminId: request.auth.uid,
+            action: 'ADMIN_DEACTIVATE_MEMBER',
+            justification: justification || 'Administrator suspended member account access',
+            details: {
+                memberId,
+                memberName: memberData.name || 'Member',
+                memberEmail: memberData.email || '',
+                previousStatus: memberData.status || 'active'
+            },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return { success: true, memberId, status: 'suspended' };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message);
+    }
+});

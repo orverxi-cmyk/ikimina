@@ -1082,4 +1082,94 @@ export async function testEmailSettingsAction(data: {
   }
 }
 
+/**
+ * Configures a member's initial password securely using Firebase Admin SDK.
+ * Links pre-registered profiles to Firebase Auth without requiring email links.
+ */
+export async function setMemberInitialPasswordAction(data: {
+  email: string;
+  password: string;
+  memberDocId?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'setMemberInitialPassword');
+  try {
+    const result = await fn(data);
+    return result.data as {
+      success: boolean;
+      uid: string;
+      status: string;
+      isActive: boolean;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to set account password');
+  }
+}
+
+/**
+ * Self-registration for new members.
+ * Creates credentials and submits profile for Administrator activation.
+ */
+export async function registerMemberSelfAction(data: {
+  name: string;
+  email: string;
+  phone?: string;
+  password: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'registerMemberSelf');
+  try {
+    const result = await fn(data);
+    return result.data as {
+      success: boolean;
+      uid: string;
+      status: string;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to register account');
+  }
+}
+
+/**
+ * Administrator Action: Activates a member's account.
+ */
+export async function adminActivateMemberAction(data: {
+  memberId: string;
+  justification?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'adminActivateMember');
+  try {
+    const result = await fn(data);
+    return result.data as {
+      success: boolean;
+      memberId: string;
+      status: string;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to activate member account');
+  }
+}
+
+/**
+ * Administrator Action: Deactivates or suspends a member's account.
+ */
+export async function adminDeactivateMemberAction(data: {
+  memberId: string;
+  justification?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'adminDeactivateMember');
+  try {
+    const result = await fn(data);
+    return result.data as {
+      success: boolean;
+      memberId: string;
+      status: string;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to suspend member account');
+  }
+}
+
 
