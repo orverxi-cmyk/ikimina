@@ -96,4 +96,21 @@
   ::-webkit-scrollbar-thumb:hover {
     background-color: rgba(0, 0, 0, 0.2);
   }
+
+  /* Tab count badge dynamic styling: white when inactive, blue when in focus/active */
+  [role="tab"] [data-tab-count],
+  [role="tab"] .tab-badge {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+    transition: all 0.15s ease-in-out;
+  }
+
+  [role="tab"][data-state="active"] [data-tab-count],
+  [role="tab"][data-state="active"] .tab-badge,
+  [role="tab"]:focus-visible [data-tab-count],
+  [role="tab"]:focus-visible .tab-badge {
+    background-color: #dbeafe !important; /* bg-blue-100 */
+    color: #2563eb !important; /* text-blue-600 */
+  }
 }
+

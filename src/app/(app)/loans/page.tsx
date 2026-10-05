@@ -593,7 +593,15 @@ function LoansPageContent() {
                     </p>
                   </div>
                 </div>
-                
+                <Button
+                  asChild
+                  size="sm"
+                  className="rounded-lg font-bold text-xs bg-blue-600 hover:bg-blue-700 text-white shadow-sm shrink-0 gap-1.5"
+                >
+                  <Link href={`/loans/apply?topup=true&parentLoanId=${myActive?.id}`}>
+                    <TrendingUp className="h-3.5 w-3.5" /> Apply for Top-Up
+                  </Link>
+                </Button>
               </div>
             )}
         </div>

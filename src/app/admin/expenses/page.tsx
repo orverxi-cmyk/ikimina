@@ -459,21 +459,21 @@ export default function ExpensesAdminPage() {
             <TabsTrigger value="pending" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Clock className="h-3.5 w-3.5" />
               Pending Approval
-              <Badge className="font-mono text-[10px] h-4 min-w-4 px-1.5 rounded-full border-none transition-colors bg-white/20 text-white group-data-[state=active]:bg-blue-100 group-data-[state=active]:text-blue-600 group-data-[state=active]:font-bold group-focus-visible:bg-blue-100 group-focus-visible:text-blue-600">
+              <Badge data-tab-count="true" className="tab-badge font-mono text-[10px] h-4 min-w-4 px-1.5 rounded-full border-none transition-colors">
                 {pendingExpenses.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="approved" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Approved Expenses
-              <Badge className="font-mono text-[10px] h-4 min-w-4 px-1.5 rounded-full border-none transition-colors bg-white/20 text-white group-data-[state=active]:bg-blue-100 group-data-[state=active]:text-blue-600 group-data-[state=active]:font-bold group-focus-visible:bg-blue-100 group-focus-visible:text-blue-600">
+              <Badge data-tab-count="true" className="tab-badge font-mono text-[10px] h-4 min-w-4 px-1.5 rounded-full border-none transition-colors">
                 {approvedExpenses.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="rejected" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <XCircle className="h-3.5 w-3.5" />
               Rejected
-              <Badge className="font-mono text-[10px] h-4 min-w-4 px-1.5 rounded-full border-none transition-colors bg-white/20 text-white group-data-[state=active]:bg-blue-100 group-data-[state=active]:text-blue-600 group-data-[state=active]:font-bold group-focus-visible:bg-blue-100 group-focus-visible:text-blue-600">
+              <Badge data-tab-count="true" className="tab-badge font-mono text-[10px] h-4 min-w-4 px-1.5 rounded-full border-none transition-colors">
                 {rejectedExpenses.length}
               </Badge>
             </TabsTrigger>
