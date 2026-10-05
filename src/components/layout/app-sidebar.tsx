@@ -101,8 +101,8 @@ export function AppSidebar() {
 
   // 1. Member Services Navigation (Available to all authenticated members & staff)
   const memberItems = [
-    { href: '/', label: 'My Account', icon: LayoutDashboard },
-    { href: '/contributions', label: 'Contributions', icon: Wallet },
+    { href: '/', label: 'Account', icon: LayoutDashboard },
+    { href: '/contributions', label: 'Savings', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
     { href: '/messages', label: 'Inbox', icon: MessageSquare },
@@ -264,7 +264,7 @@ export function AppSidebar() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" side="top" className="w-56 mb-1 rounded-xl shadow-xl bg-card border border-border z-50">
                     <DropdownMenuLabel className="font-bold text-xs truncate py-2 px-3">
-                      <p className="truncate text-foreground">{userData?.name || 'My Account'}</p>
+                      <p className="truncate text-foreground">{userData?.name || 'Account'}</p>
                       <p className="text-[10px] font-normal text-muted-foreground truncate">{user.email}</p>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
@@ -277,7 +277,7 @@ export function AppSidebar() {
                     <DropdownMenuItem asChild>
                       <Link href="/contributions" className="cursor-pointer flex items-center gap-2 text-xs font-semibold py-2">
                         <Wallet className="h-4 w-4 text-primary" />
-                        <span>My Contributions</span>
+                        <span>Savings</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

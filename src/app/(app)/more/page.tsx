@@ -69,7 +69,7 @@ export default function MorePage() {
     {
       title: 'Financials',
       items: [
-        { href: '/contributions', label: 'My Contributions', icon: Wallet, description: 'View your payment history' },
+        { href: '/contributions', label: 'Savings', icon: Wallet, description: 'View your savings and deposit history' },
       ]
     },
     {

@@ -70,7 +70,7 @@ export function Header() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56 mt-2 rounded-xl shadow-xl bg-card border border-border">
                 <DropdownMenuLabel className="font-bold text-xs truncate py-2 px-3">
-                  <p className="truncate text-foreground">{userData?.name || 'My Account'}</p>
+                  <p className="truncate text-foreground">{userData?.name || 'Account'}</p>
                   <p className="text-[10px] font-normal text-muted-foreground truncate">{user.email}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -83,7 +83,7 @@ export function Header() {
                 <DropdownMenuItem asChild>
                   <Link href="/contributions" className="cursor-pointer flex items-center gap-2 text-xs font-semibold py-2">
                     <Wallet className="h-4 w-4 text-primary" />
-                    <span>My Contributions</span>
+                    <span>Savings</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

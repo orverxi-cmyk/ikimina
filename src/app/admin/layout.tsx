@@ -416,8 +416,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   ];
 
   const memberMenuItems = [
-    { href: '/', label: 'My Account', icon: LayoutDashboard },
-    { href: '/contributions', label: 'Contributions', icon: Wallet },
+    { href: '/', label: 'Account', icon: LayoutDashboard },
+    { href: '/contributions', label: 'Savings', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
     { href: '/messages', label: 'Inbox', icon: MessageSquare },

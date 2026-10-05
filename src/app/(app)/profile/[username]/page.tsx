@@ -348,7 +348,7 @@ export default function ProfilePage() {
             isOwnProfile ? "grid grid-cols-4" : "grid grid-cols-3"
           )}>
             <TabsTrigger value="overview" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><Landmark className="mr-1.5 sm:mr-2 h-4 w-4" /> Summary</TabsTrigger>
-            <TabsTrigger value="contributions" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><Wallet className="mr-1.5 sm:mr-2 h-4 w-4" /> Contributions</TabsTrigger>
+            <TabsTrigger value="contributions" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><Wallet className="mr-1.5 sm:mr-2 h-4 w-4" /> Savings</TabsTrigger>
             <TabsTrigger value="loans" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><HandCoins className="mr-1.5 sm:mr-2 h-4 w-4" /> Loans</TabsTrigger>
             {isOwnProfile && (
               <TabsTrigger 

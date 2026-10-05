@@ -8,8 +8,8 @@ export function MobileNav() {
   const pathname = usePathname();
 
   const leftItems = [
-    { href: '/', label: 'My Account', icon: LayoutDashboard },
-    { href: '/contributions', label: 'Contributions', icon: Wallet },
+    { href: '/', label: 'Account', icon: LayoutDashboard },
+    { href: '/contributions', label: 'Savings', icon: Wallet },
   ];
 
   const rightItems = [
