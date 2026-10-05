@@ -597,7 +597,7 @@ export default function AdminDashboard() {
               <Receipt className="h-3.5 w-3.5" />
               Operating Expenses
               {pendingExpenses.length > 0 && (
-                <Badge className="bg-primary/20 text-primary font-bold text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
+                <Badge className="font-mono text-[9px] h-4 min-w-4 px-1.5 rounded-full border-none transition-colors bg-white/20 text-white group-data-[state=active]:bg-blue-100 group-data-[state=active]:text-blue-600 group-data-[state=active]:font-bold group-focus-visible:bg-blue-100 group-focus-visible:text-blue-600">
                   {pendingExpenses.length}
                 </Badge>
               )}

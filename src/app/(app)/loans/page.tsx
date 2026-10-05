@@ -1086,7 +1086,7 @@ function LoansPageContent() {
           {canTopUp ? (
             <Button 
               asChild 
-              className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 border border-emerald-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
+              className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 border border-blue-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
             >
               <Link href={`/loans/apply?topup=true&parentLoanId=${myActive?.id}`}>
                 <TrendingUp className="h-4 w-4" /> Apply for Top-Up

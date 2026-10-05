@@ -587,7 +587,7 @@ export default function ContributionsPage() {
         <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-4 sm:flex sm:justify-end">
           <Button 
             onClick={() => setIsSubmitOpen(true)} 
-            className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 border border-green-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
+            className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 border border-blue-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
           >
             <Upload className="h-4 w-4" /> Submit Contribution
           </Button>

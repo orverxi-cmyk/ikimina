@@ -593,7 +593,7 @@ function LoanApplyContent() {
               {isEligibleForTopUp && (
                 <Button
                   onClick={() => setIsTopUpMode(true)}
-                  className="rounded-[10px] font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                  className="rounded-[10px] font-bold text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
                 >
                   <TrendingUp className="h-4 w-4" /> Apply as Top-Up ({formatCurrency(maxTopUpLimit, currency)} max)
                 </Button>
