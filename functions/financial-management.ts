@@ -375,6 +375,19 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
         const batch = db.batch();
         batch.set(reqRef, requestPayload);
 
+        // Open payout campaign in settings so members receive notification and payout preference selection
+        const settingsRef = db.collection('settings').doc('financials');
+        batch.set(settingsRef, {
+            payoutCampaign: {
+                status: 'open',
+                targetAmount: parsedAmount,
+                announcement: justification.trim() || 'Management has initiated an interest distribution. Please select whether you want your dividend added to your savings or received as cash.',
+                openedAt: admin.firestore.FieldValue.serverTimestamp(),
+                openedBy: callerUid,
+                pendingRequestId: reqRef.id
+            }
+        }, { merge: true });
+
         // Audit Log
         const logRef = db.collection('audit_logs').doc();
         batch.set(logRef, {
@@ -607,6 +620,18 @@ export const rejectInterestDistribution = onCall({ cors: true }, async (request)
         details: { requestId, totalInterestToDistribute: reqData.totalInterestToDistribute },
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    // Close payout campaign if linked to this rejected proposal
+    const settingsRef = db.collection('settings').doc('financials');
+    const settingsSnap = await settingsRef.get();
+    if (settingsSnap.data()?.payoutCampaign?.pendingRequestId === requestId) {
+        await settingsRef.set({
+            payoutCampaign: {
+                status: 'closed',
+                closedAt: admin.firestore.FieldValue.serverTimestamp()
+            }
+        }, { merge: true });
+    }
 
     return { success: true, requestId };
 });

@@ -360,7 +360,7 @@ export default function LoginPage() {
               <Wallet className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-headline font-bold">{appName}</CardTitle>
+          <CardTitle className="text-3xl font-headline font-bold" suppressHydrationWarning>{appName}</CardTitle>
           <CardDescription>
             {step === 'email' && "Enter your email to sign in or register"}
             {step === 'password' && "Enter your password to sign in"}
@@ -726,7 +726,7 @@ export default function LoginPage() {
         </CardContent>
 
         <CardFooter className="justify-center border-t py-3 px-4">
-          <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold leading-none">
+          <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold leading-none" suppressHydrationWarning>
             {infrastructureBranding}
           </p>
         </CardFooter>

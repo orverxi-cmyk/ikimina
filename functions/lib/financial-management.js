@@ -371,6 +371,18 @@ exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async
         };
         const batch = db.batch();
         batch.set(reqRef, requestPayload);
+        // Open payout campaign in settings so members receive notification and payout preference selection
+        const settingsRef = db.collection('settings').doc('financials');
+        batch.set(settingsRef, {
+            payoutCampaign: {
+                status: 'open',
+                targetAmount: parsedAmount,
+                announcement: justification.trim() || 'Management has initiated an interest distribution. Please select whether you want your dividend added to your savings or received as cash.',
+                openedAt: admin.firestore.FieldValue.serverTimestamp(),
+                openedBy: callerUid,
+                pendingRequestId: reqRef.id
+            }
+        }, { merge: true });
         // Audit Log
         const logRef = db.collection('audit_logs').doc();
         batch.set(logRef, {
@@ -543,6 +555,7 @@ exports.approveInterestDistribution = (0, https_1.onCall)({ cors: true }, async 
  * Rejects a pending interest distribution request.
  */
 exports.rejectInterestDistribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const callerUid = request.auth.uid;
@@ -581,6 +594,17 @@ exports.rejectInterestDistribution = (0, https_1.onCall)({ cors: true }, async (
         details: { requestId, totalInterestToDistribute: reqData.totalInterestToDistribute },
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
+    // Close payout campaign if linked to this rejected proposal
+    const settingsRef = db.collection('settings').doc('financials');
+    const settingsSnap = await settingsRef.get();
+    if (((_b = (_a = settingsSnap.data()) === null || _a === void 0 ? void 0 : _a.payoutCampaign) === null || _b === void 0 ? void 0 : _b.pendingRequestId) === requestId) {
+        await settingsRef.set({
+            payoutCampaign: {
+                status: 'closed',
+                closedAt: admin.firestore.FieldValue.serverTimestamp()
+            }
+        }, { merge: true });
+    }
     return { success: true, requestId };
 });
 /**

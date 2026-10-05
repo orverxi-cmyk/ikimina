@@ -46,11 +46,14 @@ export function MobileNav() {
         <div className="relative w-full h-full flex items-center justify-center">
           <Link 
             href="/loans/apply" 
-            className="absolute -top-5 bg-primary rounded-2xl w-12 h-12 shadow-md shadow-primary/25 border-4 border-background flex flex-col items-center justify-center text-primary-foreground group active:scale-95 transition-transform"
+            className={cn(
+              "absolute -top-4 bg-primary rounded-2xl w-[52px] h-[52px] shadow-lg shadow-primary/25 border-[3px] border-background flex flex-col items-center justify-center text-primary-foreground group active:scale-95 transition-all p-1",
+              pathname === '/loans/apply' && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+            )}
             title="Apply for Loan"
           >
-            <HandCoins className="h-5 w-5" />
-            <span className="text-[9px] font-semibold mt-0.5">Apply</span>
+            <HandCoins className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" />
+            <span className="text-[9px] font-bold tracking-tight leading-none mt-1 select-none">Apply</span>
           </Link>
         </div>
 

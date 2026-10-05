@@ -31,16 +31,18 @@ const SETTINGS_CACHE_KEY = 'ikimina_system_settings';
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useUser();
-  const [settings, setSettings] = useState<SystemSettings>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
-        if (cached) return { ...DEFAULT_SETTINGS, ...JSON.parse(cached) };
-      } catch (e) {}
-    }
-    return DEFAULT_SETTINGS;
-  });
+  const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
+
+  // Safely hydrate cached settings on client mount after initial SSR render
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
+      if (cached) {
+        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(cached) });
+      }
+    } catch (e) {}
+  }, []);
 
   const fetchSettings = useCallback(async () => {
     // Only call the Cloud Function when authenticated.

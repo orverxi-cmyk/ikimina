@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Wallet, HandCoins, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock, PiggyBank, Banknote, Check } from 'lucide-react';
+import { Wallet, HandCoins, Calendar, ArrowUpRight, CheckCircle2, Loader2, Sparkles, Clock, PiggyBank, Banknote, Check, RefreshCw } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, doc, query, where } from 'firebase/firestore';
@@ -180,12 +180,12 @@ export default function DashboardPage() {
 
       {/* Member Dividend Payout Preference Election Banner */}
       {isCampaignOpen && (
-        <Card className="border-2 border-primary/40 shadow-xl bg-gradient-to-br from-primary/5 via-card to-primary/10 rounded-2xl overflow-hidden">
-          <CardHeader className="bg-primary/10 border-b border-primary/20 pb-4">
+        <Card className="border-2 border-primary/30 shadow-xl bg-gradient-to-br from-primary/5 via-card to-primary/10 rounded-2xl overflow-hidden">
+          <CardHeader className="bg-primary/10 border-b border-primary/20 p-4 sm:p-6 pb-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-primary text-primary-foreground font-bold text-[10px] tracking-wide uppercase px-2.5 py-0.5">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="bg-primary text-primary-foreground font-bold text-[10px] tracking-wide uppercase px-2.5 py-0.5 shadow-xs">
                     Action Required
                   </Badge>
                   <span className="text-xs font-bold text-primary flex items-center gap-1">
@@ -195,43 +195,43 @@ export default function DashboardPage() {
                 <CardTitle className="text-base sm:text-lg font-bold text-foreground">
                   Select Your Preferred Dividend Payout
                 </CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
+                <CardDescription className="text-xs text-muted-foreground leading-relaxed">
                   {campaign?.announcement ||
-                    "Management has initiated an interest distribution. Please select whether you want your dividend added to your savings or received as cash."}
+                    "Management has initiated an interest distribution. Choose whether your dividend is reinvested into your verified savings or received directly as cash."}
                 </CardDescription>
               </div>
               {campaign?.targetAmount && campaign.targetAmount > 0 ? (
-                <div className="bg-background/80 backdrop-blur-sm border border-primary/20 rounded-xl px-3 py-2 text-right shrink-0">
+                <div className="bg-background/90 backdrop-blur-sm border border-primary/20 rounded-xl p-3 sm:px-3.5 sm:py-2 text-left sm:text-right shrink-0 flex sm:flex-col justify-between items-center sm:items-end w-full sm:w-auto shadow-xs">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground">Target Dividend Pool</p>
                   <p className="text-sm font-bold text-primary">{formatCurrency(campaign.targetAmount, currency)}</p>
                 </div>
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <CardContent className="p-3.5 sm:p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               {/* Option A: Add to Total Contribution */}
               <button
                 type="button"
                 disabled={isUpdatingPreference}
                 onClick={() => handleUpdatePreference('add_to_contribution')}
                 className={cn(
-                  "flex flex-col text-left p-4 sm:p-5 rounded-xl border-2 transition-all relative group cursor-pointer",
+                  "flex flex-col text-left p-4 sm:p-5 rounded-xl border-2 transition-all relative group cursor-pointer active:scale-[0.99]",
                   memberPreference === 'add_to_contribution'
-                    ? "border-green-600 bg-green-500/10 shadow-md ring-2 ring-green-600/20"
-                    : "border-border bg-card/60 hover:border-green-500/50 hover:bg-muted/50"
+                    ? "border-emerald-600 bg-emerald-500/10 shadow-md ring-2 ring-emerald-600/20 dark:bg-emerald-950/20"
+                    : "border-border bg-card/60 hover:border-emerald-500/50 hover:bg-muted/50"
                 )}
               >
-                <div className="flex items-center justify-between w-full mb-2">
-                  <div className="p-2.5 rounded-xl bg-green-500/10 text-green-600">
+                <div className="flex items-center justify-between w-full mb-2.5">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                     <PiggyBank className="h-5 w-5" />
                   </div>
                   {memberPreference === 'add_to_contribution' ? (
-                    <Badge className="bg-green-600 text-white font-bold text-[10px] gap-1 px-2 py-0.5">
+                    <Badge className="bg-emerald-600 text-white font-bold text-[10px] gap-1 px-2.5 py-0.5 shadow-xs">
                       <Check className="h-3 w-3" /> Selected
                     </Badge>
                   ) : (
-                    <span className="text-[11px] font-bold text-muted-foreground group-hover:text-green-600">
+                    <span className="text-[11px] font-bold text-muted-foreground group-hover:text-emerald-600">
                       Select
                     </span>
                   )}
@@ -240,7 +240,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                   Reinvest dividend directly into your verified savings. Increases your borrowing power and capital base. Excluded from cash payout.
                 </p>
-                <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-1.5 text-[11px] font-medium text-green-700 dark:text-green-400">
+                <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
                   <Sparkles className="h-3 w-3 shrink-0" /> Automatically capitalized into savings
                 </div>
               </button>
@@ -251,18 +251,18 @@ export default function DashboardPage() {
                 disabled={isUpdatingPreference}
                 onClick={() => handleUpdatePreference('receive_payout')}
                 className={cn(
-                  "flex flex-col text-left p-4 sm:p-5 rounded-xl border-2 transition-all relative group cursor-pointer",
+                  "flex flex-col text-left p-4 sm:p-5 rounded-xl border-2 transition-all relative group cursor-pointer active:scale-[0.99]",
                   memberPreference === 'receive_payout'
-                    ? "border-blue-600 bg-blue-500/10 shadow-md ring-2 ring-blue-600/20"
+                    ? "border-blue-600 bg-blue-500/10 shadow-md ring-2 ring-blue-600/20 dark:bg-blue-950/20"
                     : "border-border bg-card/60 hover:border-blue-500/50 hover:bg-muted/50"
                 )}
               >
-                <div className="flex items-center justify-between w-full mb-2">
-                  <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600">
+                <div className="flex items-center justify-between w-full mb-2.5">
+                  <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
                     <Banknote className="h-5 w-5" />
                   </div>
                   {memberPreference === 'receive_payout' ? (
-                    <Badge className="bg-blue-600 text-white font-bold text-[10px] gap-1 px-2 py-0.5">
+                    <Badge className="bg-blue-600 text-white font-bold text-[10px] gap-1 px-2.5 py-0.5 shadow-xs">
                       <Check className="h-3 w-3" /> Selected
                     </Badge>
                   ) : (
@@ -281,7 +281,7 @@ export default function DashboardPage() {
               </button>
             </div>
             {isUpdatingPreference && (
-              <div className="flex items-center justify-center gap-2 text-xs font-bold text-primary">
+              <div className="flex items-center justify-center gap-2 text-xs font-bold text-primary pt-1">
                 <Loader2 className="h-4 w-4 animate-spin" /> Saving your preference...
               </div>
             )}
@@ -323,41 +323,64 @@ export default function DashboardPage() {
               <span className="text-muted-foreground font-normal text-[12px]">Current Liabilities (Active Loans)</span>
               <span data-stat-value="true" className="font-bold text-base sm:text-lg text-foreground">-{formatCurrency(myParticipation.debt, currency)}</span>
             </div>
-            <div className="flex justify-between items-center p-3.5 sm:p-4 bg-muted rounded-xl border border-border hover:border-foreground/20 transition-colors">
-              <div className="flex flex-col">
-                <span className="text-muted-foreground font-normal text-[12px]">Dividend Payout Preference</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {memberPreference === 'add_to_contribution'
-                    ? 'Reinvested into verified savings'
-                    : 'Credited as withdrawable liquid interest'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <Badge
-                  className={cn(
-                    "text-[10px] sm:text-[11px] font-bold py-0.5 sm:py-1 px-2 sm:px-2.5 border-none",
+            {/* Dividend Payout Preference Row — Only rendered when admin launches/initiates dividend payout campaign */}
+            {isCampaignOpen && (
+              <div className="p-3.5 sm:p-4 bg-muted rounded-xl border border-border hover:border-foreground/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                  <div className={cn(
+                    "p-2 rounded-xl shrink-0 transition-colors",
                     memberPreference === 'add_to_contribution'
-                      ? "bg-green-600/15 text-green-700 dark:text-green-400"
-                      : "bg-blue-600/15 text-blue-700 dark:text-blue-400"
-                  )}
-                >
-                  {memberPreference === 'add_to_contribution' ? 'Contribution' : 'Cash Payout'}
-                </Badge>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={isUpdatingPreference}
-                  onClick={() =>
-                    handleUpdatePreference(
-                      memberPreference === 'add_to_contribution' ? 'receive_payout' : 'add_to_contribution'
-                    )
-                  }
-                  className="h-7 px-2 text-[10px] font-bold text-muted-foreground hover:text-foreground"
-                >
-                  Switch
-                </Button>
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                  )}>
+                    {memberPreference === 'add_to_contribution' ? (
+                      <PiggyBank className="h-4 w-4" />
+                    ) : (
+                      <Banknote className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-foreground font-bold text-[12px]">Dividend Payout Preference</span>
+                    <span className="text-[11px] text-muted-foreground leading-snug">
+                      {memberPreference === 'add_to_contribution'
+                        ? 'Reinvested into verified savings'
+                        : 'Credited as withdrawable liquid interest'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-2 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-border/60 shrink-0 w-full sm:w-auto">
+                  <Badge
+                    className={cn(
+                      "text-[10px] sm:text-[11px] font-bold py-1 px-2.5 border-none shrink-0 flex items-center gap-1.5 shadow-xs",
+                      memberPreference === 'add_to_contribution'
+                        ? "bg-emerald-600/15 text-emerald-700 dark:text-emerald-400"
+                        : "bg-blue-600/15 text-blue-700 dark:text-blue-400"
+                    )}
+                  >
+                    <span className={cn(
+                      "h-1.5 w-1.5 rounded-full shrink-0",
+                      memberPreference === 'add_to_contribution' ? "bg-emerald-600" : "bg-blue-600"
+                    )} />
+                    {memberPreference === 'add_to_contribution' ? 'Contribution' : 'Cash Payout'}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdatingPreference}
+                    onClick={() =>
+                      handleUpdatePreference(
+                        memberPreference === 'add_to_contribution' ? 'receive_payout' : 'add_to_contribution'
+                      )
+                    }
+                    className="h-7 sm:h-8 px-2.5 text-[10px] sm:text-[11px] font-bold border-border/80 hover:bg-background active:scale-95 transition-all flex items-center gap-1.5 shrink-0"
+                  >
+                    <RefreshCw className={cn("h-3 w-3", isUpdatingPreference && "animate-spin")} />
+                    <span>Switch</span>
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 

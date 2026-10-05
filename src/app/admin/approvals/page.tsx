@@ -2057,7 +2057,7 @@ export default function ApprovalsHubPage() {
               </div>
 
               <div className="max-h-64 overflow-y-auto overflow-x-auto">
-                <Table>
+                <Table className="min-w-[620px]">
                   <TableHeader className="bg-blue-600/90 text-white">
                     <TableRow className="border-none hover:bg-transparent">
                       <TableHead className="text-white font-bold text-xs py-3 px-4 uppercase">Member Saver</TableHead>
