@@ -211,15 +211,17 @@ export default function MorePage() {
       </div>
 
       <div className="pt-2 space-y-2">
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
-              <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
-                {settings.infrastructureBranding || "Secure Infrastructure Provided by ORVEXI"}
+        <Card className="border-primary/20 bg-primary/5 rounded-2xl shadow-xs">
+          <CardContent className="p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-4 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2 sm:gap-2.5">
+              <div className="p-1 rounded-lg bg-primary/10 text-primary shrink-0">
+                <ShieldCheck className="h-4 w-4" />
               </div>
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-bold uppercase tracking-wider" suppressHydrationWarning>
+                {settings.infrastructureBranding?.trim() || "Secure Infrastructure Provided by ORVEXI"}
+              </span>
             </div>
-            <div className="text-[10px] text-muted-foreground font-medium text-right shrink-0">
+            <div className="text-[10px] sm:text-[11px] text-muted-foreground font-medium text-center sm:text-right shrink-0" suppressHydrationWarning>
               {copyrightText}
             </div>
           </CardContent>
