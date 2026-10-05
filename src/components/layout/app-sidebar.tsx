@@ -15,9 +15,11 @@ import {
   FileSpreadsheet,
   Receipt,
   ShieldCheck,
-  TrendingUp,
   UserX,
   MessageSquare,
+  MoreVertical,
+  User,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -25,6 +27,16 @@ import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { AvatarUpload } from '@/components/ui/avatar-upload';
+import { Button } from '@/components/ui/button';
+import { getAuth, signOut } from 'firebase/auth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -214,34 +226,80 @@ export function AppSidebar() {
         {/* User Session Footer */}
         <div className="pt-4 border-t border-border">
           {user && (
-            <div className="px-3.5 py-2.5 bg-muted rounded-[10px] border border-border space-y-2">
-              <div className="flex items-center justify-between">
+            <div className="p-2.5 bg-muted/60 hover:bg-muted rounded-xl border border-border/80 transition-colors">
+              <div className="flex items-center justify-between mb-1.5 px-1">
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Logged In As</p>
-                <Link 
-                  href="/profile/me?tab=account" 
-                  className="text-[10px] font-bold text-destructive hover:underline flex items-center gap-1"
-                  title="Request Account Deletion"
-                >
-                  <UserX className="h-3 w-3" />
-                  Delete Account
-                </Link>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <AvatarUpload
-                  uid={user.uid}
-                  currentPhotoURL={userData?.photoURL ?? user.photoURL}
-                  displayName={userData?.name ?? user.displayName}
-                  size={36}
-                />
-                <div className="min-w-0 flex-1">
-                  <Link href="/profile/me" className="hover:underline">
-                    <p className="text-xs font-bold truncate text-foreground">{userData?.name || user.email}</p>
-                  </Link>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-                    <span className="text-[9px] text-primary font-bold uppercase tracking-tight">{role}</span>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-[9px] text-primary font-bold uppercase tracking-tight">{role}</span>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <Link href="/profile/me" className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-85 transition-opacity">
+                  <AvatarUpload
+                    uid={user.uid}
+                    currentPhotoURL={userData?.photoURL ?? user.photoURL}
+                    displayName={userData?.name ?? user.displayName}
+                    size={36}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold truncate text-foreground leading-tight">{userData?.name || user.email}</p>
+                    <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">{user.email}</p>
+                  </div>
+                </Link>
+
+                {/* Dropdown Menu Holding Delete Account & User Actions */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background shrink-0 focus-visible:ring-1"
+                      title="User Menu & Account Options"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">Open user menu</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" side="top" className="w-56 mb-1 rounded-xl shadow-xl bg-card border border-border z-50">
+                    <DropdownMenuLabel className="font-bold text-xs truncate py-2 px-3">
+                      <p className="truncate text-foreground">{userData?.name || 'My Account'}</p>
+                      <p className="text-[10px] font-normal text-muted-foreground truncate">{user.email}</p>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile/me" className="cursor-pointer flex items-center gap-2 text-xs font-semibold py-2">
+                        <User className="h-4 w-4 text-primary" />
+                        <span>View Profile</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/contributions" className="cursor-pointer flex items-center gap-2 text-xs font-semibold py-2">
+                        <Wallet className="h-4 w-4 text-primary" />
+                        <span>My Contributions</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link 
+                        href="/profile/me?tab=account" 
+                        className="cursor-pointer flex items-center gap-2 text-xs font-bold text-destructive focus:text-destructive focus:bg-destructive/10 py-2"
+                      >
+                        <UserX className="h-4 w-4 text-destructive" />
+                        <span>Delete Account</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => signOut(getAuth())} 
+                      className="cursor-pointer flex items-center gap-2 text-xs font-semibold text-muted-foreground py-2"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Sign Out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           )}
