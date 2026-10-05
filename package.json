@@ -67,6 +67,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "firebase-tools": "^15.32.1",
     "postcss": "latest",
     "tailwindcss": "latest",
     "typescript": "latest"

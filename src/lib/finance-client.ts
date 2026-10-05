@@ -11,6 +11,7 @@
 
 import { initializeFirebase } from '@/firebase';
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
+import { collection, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
 export function formatFinanceActionError(error: unknown, fallbackMessage: string): Error {
@@ -734,6 +735,168 @@ export async function deleteMemberAction(targetUserId: string, justification: st
     return result.data;
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed to remove member');
+  }
+}
+
+/**
+ * Submits an official account deletion request by a member.
+ */
+export async function requestAccountDeletionAction(data: {
+  reason: string;
+  savingsBalance?: number;
+  accruedInterest?: number;
+  activeLoanBalance?: number;
+}) {
+  const functions = getFinanceFunctions();
+  const reqFn = httpsCallable(functions, 'requestAccountDeletion');
+  try {
+    const result = await reqFn(data);
+    return result.data as { success: boolean; requestId: string };
+  } catch (error: any) {
+    if (error?.code === 'functions/not-found' || error?.message?.includes('not found')) {
+      const { firestore, auth } = initializeFirebase();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Authentication required.');
+
+      const reqCol = collection(firestore, 'account_deletion_requests');
+      const docRef = await addDoc(reqCol, {
+        userId: currentUser.uid,
+        userName: currentUser.displayName || 'Member',
+        userEmail: (currentUser.email || '').toLowerCase(),
+        savingsBalance: data.savingsBalance || 0,
+        accruedInterest: data.accruedInterest || 0,
+        activeLoanBalance: data.activeLoanBalance || 0,
+        reason: data.reason.trim(),
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        requestedAt: serverTimestamp(),
+      });
+
+      try {
+        await updateDoc(doc(firestore, 'users', currentUser.uid), {
+          deletionRequested: true,
+          deletionRequestId: docRef.id,
+        });
+      } catch (e) {}
+
+      return { success: true, requestId: docRef.id };
+    }
+    throw formatFinanceActionError(error, 'Failed to submit account deletion request.');
+  }
+}
+
+/**
+ * Cancels or withdraws a pending account deletion request.
+ */
+export async function cancelAccountDeletionRequestAction(requestId: string) {
+  const functions = getFinanceFunctions();
+  const cancelFn = httpsCallable(functions, 'cancelAccountDeletionRequest');
+  try {
+    const result = await cancelFn({ requestId });
+    return result.data as { success: boolean; requestId: string };
+  } catch (error: any) {
+    if (error?.code === 'functions/not-found' || error?.message?.includes('not found')) {
+      const { firestore, auth } = initializeFirebase();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Authentication required.');
+
+      await updateDoc(doc(firestore, 'account_deletion_requests', requestId), {
+        status: 'cancelled',
+        cancelledAt: serverTimestamp(),
+        cancelledBy: currentUser.uid,
+      });
+
+      try {
+        await updateDoc(doc(firestore, 'users', currentUser.uid), {
+          deletionRequested: false,
+          deletionRequestId: deleteField(),
+        });
+      } catch (e) {}
+
+      return { success: true, requestId };
+    }
+    throw formatFinanceActionError(error, 'Failed to cancel account deletion request.');
+  }
+}
+
+/**
+ * Super Administrator approves a pending account deletion request.
+ */
+export async function approveAccountDeletionAction(data: {
+  requestId: string;
+  adminNotes?: string;
+  targetUserId?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const appFn = httpsCallable(functions, 'approveAccountDeletion');
+  try {
+    const result = await appFn(data);
+    return result.data as { success: boolean; requestId: string; targetUserId?: string };
+  } catch (error: any) {
+    if (error?.code === 'functions/not-found' || error?.message?.includes('not found')) {
+      const { firestore, auth } = initializeFirebase();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Authentication required.');
+
+      await updateDoc(doc(firestore, 'account_deletion_requests', data.requestId), {
+        status: 'approved',
+        reviewedBy: currentUser.uid,
+        reviewedByName: currentUser.displayName || 'Super Admin',
+        reviewedAt: serverTimestamp(),
+        adminNotes: data.adminNotes?.trim() || '',
+      });
+
+      if (data.targetUserId) {
+        try {
+          await deleteDoc(doc(firestore, 'users', data.targetUserId));
+        } catch (e) {}
+      }
+
+      return { success: true, requestId: data.requestId, targetUserId: data.targetUserId };
+    }
+    throw formatFinanceActionError(error, 'Failed to approve account deletion request.');
+  }
+}
+
+/**
+ * Super Administrator rejects a pending account deletion request.
+ */
+export async function rejectAccountDeletionAction(data: {
+  requestId: string;
+  rejectionReason: string;
+  targetUserId?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const rejFn = httpsCallable(functions, 'rejectAccountDeletion');
+  try {
+    const result = await rejFn(data);
+    return result.data as { success: boolean; requestId: string; targetUserId?: string };
+  } catch (error: any) {
+    if (error?.code === 'functions/not-found' || error?.message?.includes('not found')) {
+      const { firestore, auth } = initializeFirebase();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Authentication required.');
+
+      await updateDoc(doc(firestore, 'account_deletion_requests', data.requestId), {
+        status: 'rejected',
+        reviewedBy: currentUser.uid,
+        reviewedByName: currentUser.displayName || 'Super Admin',
+        reviewedAt: serverTimestamp(),
+        rejectionReason: data.rejectionReason.trim(),
+      });
+
+      if (data.targetUserId) {
+        try {
+          await updateDoc(doc(firestore, 'users', data.targetUserId), {
+            deletionRequested: false,
+            deletionRequestId: deleteField(),
+          });
+        } catch (e) {}
+      }
+
+      return { success: true, requestId: data.requestId, targetUserId: data.targetUserId };
+    }
+    throw formatFinanceActionError(error, 'Failed to reject account deletion request.');
   }
 }
 

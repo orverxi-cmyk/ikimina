@@ -25,7 +25,9 @@ import {
   Landmark,
   HandCoins,
   FileSpreadsheet,
-  FileText
+  FileText,
+  MessageSquare,
+  UserX
 } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -418,6 +420,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { href: '/contributions', label: 'Contributions', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
+    { href: '/messages', label: 'Inbox', icon: MessageSquare },
+    { href: '/profile/me?tab=account', label: 'Delete Account', icon: UserX },
   ];
 
   const isRootLevel = pathname === '/admin';

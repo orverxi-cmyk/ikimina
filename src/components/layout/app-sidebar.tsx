@@ -16,6 +16,8 @@ import {
   Receipt,
   ShieldCheck,
   TrendingUp,
+  UserX,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -91,6 +93,8 @@ export function AppSidebar() {
     { href: '/contributions', label: 'Contributions', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
+    { href: '/messages', label: 'Inbox', icon: MessageSquare },
+    { href: '/profile/me?tab=account', label: 'Delete Account', icon: UserX, isDestructive: true },
   ];
 
   // 2. Executive Administrator & Console Tools (Persistently accessible to authorized roles)
@@ -155,7 +159,7 @@ export function AppSidebar() {
                 const isActive = pathname === item.href;
                 return (
                   <Link
-                    key={item.href}
+                    key={`${item.href}-${item.label}`}
                     href={item.href}
                     className={cn(
                       'flex items-center gap-3 rounded-[10px] px-3.5 py-2 text-xs font-bold transition-all duration-200',
@@ -180,19 +184,26 @@ export function AppSidebar() {
               </p>
             )}
             {memberItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isItemActive = item.href.includes('?')
+                ? pathname === item.href.split('?')[0]
+                : pathname === item.href;
+
               return (
                 <Link
-                  key={item.href}
+                  key={`${item.href}-${item.label}`}
                   href={item.href}
                   className={cn(
                     'flex items-center gap-3 rounded-[10px] px-3.5 py-2 text-xs font-bold transition-all duration-200',
-                    isActive
+                    item.isDestructive
+                      ? isItemActive
+                        ? 'bg-destructive/15 text-destructive border border-destructive/30'
+                        : 'text-destructive/80 hover:bg-destructive/10 hover:text-destructive'
+                      : isItemActive
                       ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.01]'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
-                  <item.icon className="h-4 w-4 shrink-0" />
+                  <item.icon className={cn("h-4 w-4 shrink-0", item.isDestructive && "text-destructive")} />
                   <span className="truncate">{item.label}</span>
                 </Link>
               );
@@ -203,8 +214,18 @@ export function AppSidebar() {
         {/* User Session Footer */}
         <div className="pt-4 border-t border-border">
           {user && (
-            <div className="px-3.5 py-2.5 bg-muted rounded-[10px] border border-border">
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Logged In As</p>
+            <div className="px-3.5 py-2.5 bg-muted rounded-[10px] border border-border space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Logged In As</p>
+                <Link 
+                  href="/profile/me?tab=account" 
+                  className="text-[10px] font-bold text-destructive hover:underline flex items-center gap-1"
+                  title="Request Account Deletion"
+                >
+                  <UserX className="h-3 w-3" />
+                  Delete Account
+                </Link>
+              </div>
               <div className="flex items-center gap-2.5">
                 <AvatarUpload
                   uid={user.uid}
@@ -213,7 +234,9 @@ export function AppSidebar() {
                   size={36}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold truncate text-foreground">{userData?.name || user.email}</p>
+                  <Link href="/profile/me" className="hover:underline">
+                    <p className="text-xs font-bold truncate text-foreground">{userData?.name || user.email}</p>
+                  </Link>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
                     <span className="text-[9px] text-primary font-bold uppercase tracking-tight">{role}</span>

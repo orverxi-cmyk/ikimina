@@ -37,6 +37,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 import { 
   registerMemberAction, 
   bulkRegisterMembersAction, 
@@ -354,7 +355,14 @@ export default function MembersPage() {
                 filteredMembers.map((member: any) => (
                   <TableRow key={member.id} className="hover:bg-muted/50 transition-colors">
                     <TableCell className="py-4 px-6">
-                      <div className="font-bold text-sm">{member.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm">{member.name}</span>
+                        {member.deletionRequested && (
+                          <Badge variant="outline" className="text-[9px] font-bold uppercase bg-amber-500/10 text-amber-700 border-amber-300">
+                            Deletion Requested
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-[11px] text-muted-foreground">{member.email}</div>
                     </TableCell>
                     <TableCell>
@@ -383,8 +391,13 @@ export default function MembersPage() {
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="rounded-lg h-9 w-9"><MoreVertical className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl w-48 shadow-xl">
+                        <DropdownMenuContent align="end" className="rounded-xl w-52 shadow-xl">
                           <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
+                          {member.deletionRequested && (
+                            <DropdownMenuItem asChild className="font-bold text-amber-700">
+                              <Link href="/admin/approvals">Review Deletion Request</Link>
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem className="text-destructive font-bold" onClick={async () => {
                               if (isBrowserOffline()) {
                                 return toast({

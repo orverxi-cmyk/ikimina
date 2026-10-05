@@ -16,9 +16,11 @@ import {
   FileSpreadsheet,
   Info,
   Scale,
-  Lock
+  Lock,
+  UserX
 } from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { doc } from 'firebase/firestore';
@@ -69,6 +71,13 @@ export default function MorePage() {
       items: [
         { href: '/contributions', label: 'My Contributions', icon: Wallet, description: 'View your payment history' },
       ]
+    },
+    {
+      title: 'Account & Security',
+      items: [
+        { href: '/profile/me', label: 'Profile & Membership', icon: Users, description: 'View capital standing and member details' },
+        { href: '/profile/me?tab=account', label: 'Delete Account', icon: UserX, description: 'Submit or view status of account deletion request' },
+      ]
     }
   ];
 
@@ -108,24 +117,33 @@ export default function MorePage() {
             {section.title}
           </h2>
           <div className="grid gap-2">
-            {section.items.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <Card className="hover:bg-accent/50 transition-colors border-none shadow-sm bg-card/50">
-                  <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="bg-primary/10 p-2 sm:p-2.5 rounded-xl text-primary">
-                        <item.icon className="h-4 w-4 sm:h-5 sm:w-5" />
+            {section.items.map((item, itemIdx) => {
+              const isDeleteAccount = item.href.includes('tab=account');
+              return (
+                <Link key={`${item.href}-${item.label}-${itemIdx}`} href={item.href}>
+                  <Card className={cn(
+                    "hover:bg-accent/50 transition-colors border shadow-sm bg-card/50",
+                    isDeleteAccount ? "border-destructive/20 hover:border-destructive/40" : "border-none"
+                  )}>
+                    <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <div className={cn(
+                          "p-2 sm:p-2.5 rounded-xl",
+                          isDeleteAccount ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
+                        )}>
+                          <item.icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                        </div>
+                        <div>
+                          <p className={cn("font-bold text-[12px]", isDeleteAccount && "text-destructive")}>{item.label}</p>
+                          <p className="text-[12px] font-normal text-muted-foreground">{item.description}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-[12px]">{item.label}</p>
-                        <p className="text-[12px] font-normal text-muted-foreground">{item.description}</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                      <ChevronRight className={cn("h-4 w-4", isDeleteAccount ? "text-destructive" : "text-muted-foreground")} />
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         </div>
       ))}

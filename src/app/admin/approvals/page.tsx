@@ -42,7 +42,10 @@ import {
   PiggyBank,
   Banknote,
   Users,
-  ShieldAlert
+  ShieldAlert,
+  UserX,
+  UserMinus,
+  Trash2
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc, limit, where, Timestamp } from 'firebase/firestore';
@@ -76,7 +79,9 @@ import {
   approveExpenseAction,
   rejectExpenseAction,
   approveInterestDistributionAction,
-  rejectInterestDistributionAction
+  rejectInterestDistributionAction,
+  approveAccountDeletionAction,
+  rejectAccountDeletionAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { safeFormatDate } from '@/lib/loan-utils';
@@ -109,9 +114,10 @@ export default function ApprovalsHubPage() {
   const isReviewer = userRole === 'reviewer' || userRole === 'management' || userRole === 'admin';
   const isAccountant = userRole === 'accountant' || userRole === 'admin';
 
-  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'upload'>('batches');
+  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'deletions' | 'upload'>('batches');
   const [batchSubTab, setBatchSubTab] = useState<'pending' | 'all'>('pending');
   const [interestSubTab, setInterestSubTab] = useState<'pending' | 'all'>('pending');
+  const [deletionSubTab, setDeletionSubTab] = useState<'pending' | 'all'>('pending');
 
   // New Batch Upload States (Accountant / Admin)
   const [batchTitle, setBatchTitle] = useState<string>('Staff Contributions Population');
@@ -157,6 +163,12 @@ export default function ApprovalsHubPage() {
   const [interestApprovalNotes, setInterestApprovalNotes] = useState('');
   const [interestMemberFilter, setInterestMemberFilter] = useState('');
 
+  // Member Account Deletion Modal
+  const [inspectDeletion, setInspectDeletion] = useState<any | null>(null);
+  const [isDeletionModalOpen, setIsDeletionModalOpen] = useState(false);
+  const [deletionAdminNotes, setDeletionAdminNotes] = useState('');
+  const [deletionRejectionReason, setDeletionRejectionReason] = useState('');
+
   // Firestore Data Subscriptions - strictly mounted only when authorized
   const membersQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'users'), orderBy('name', 'asc')) : null, [firestore, isAuthorized]);
   const { data: membersSnap } = useCollection(membersQuery);
@@ -175,6 +187,9 @@ export default function ApprovalsHubPage() {
 
   const interestRequestsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'interest_distribution_requests'), orderBy('createdAt', 'desc'), limit(50)) : null, [firestore, isAuthorized]);
   const { data: interestRequestsSnap, loading: loadingInterestRequests } = useCollection(interestRequestsQuery);
+
+  const deletionRequestsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'account_deletion_requests'), orderBy('requestedAt', 'desc'), limit(50)) : null, [firestore, isAuthorized]);
+  const { data: deletionRequestsSnap, loading: loadingDeletionRequests } = useCollection(deletionRequestsQuery);
 
   // Queries for Financial Metric Cards
   const allLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans')) : null, [firestore, isAuthorized]);
@@ -209,7 +224,10 @@ export default function ApprovalsHubPage() {
   const allInterestRequests = useMemo(() => interestRequestsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [interestRequestsSnap]);
   const pendingInterestRequests = useMemo(() => allInterestRequests.filter((r: any) => r.status === 'pending'), [allInterestRequests]);
 
-  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingExpenses.length + pendingInterestRequests.length;
+  const allDeletionRequests = useMemo(() => deletionRequestsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [deletionRequestsSnap]);
+  const pendingDeletionRequests = useMemo(() => allDeletionRequests.filter((r: any) => r.status === 'pending'), [allDeletionRequests]);
+
+  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingExpenses.length + pendingInterestRequests.length + pendingDeletionRequests.length;
 
   // -------------------------------------------------------------
   // FINANCIAL KPI METRICS (SCREENSHOT 1)
@@ -593,6 +611,72 @@ export default function ApprovalsHubPage() {
     }
   };
 
+  const handleActionDeletion = async (decision: 'approve' | 'reject') => {
+    if (!inspectDeletion) return;
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are offline. Please reconnect and try again."
+      });
+    }
+
+    if (!isSuperAdmin) {
+      return toast({
+        variant: "destructive",
+        title: "Permission Denied",
+        description: "Only Super Administrators can approve or reject account deletion requests."
+      });
+    }
+
+    if (decision === 'reject' && !deletionRejectionReason.trim()) {
+      return toast({
+        variant: "destructive",
+        title: "Rejection Reason Required",
+        description: "Please enter an official audit reason for turning down this deletion request."
+      });
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (decision === 'approve') {
+        await approveAccountDeletionAction({
+          requestId: inspectDeletion.id,
+          adminNotes: deletionAdminNotes.trim() || undefined,
+          targetUserId: inspectDeletion.userId
+        });
+        toast({
+          title: "Account Deletion Approved",
+          description: `Account for ${inspectDeletion.userName || inspectDeletion.userEmail} has been permanently deleted.`
+        });
+      } else {
+        await rejectAccountDeletionAction({
+          requestId: inspectDeletion.id,
+          rejectionReason: deletionRejectionReason.trim(),
+          targetUserId: inspectDeletion.userId
+        });
+        toast({
+          title: "Account Deletion Rejected",
+          description: "Member deletion request has been turned down."
+        });
+      }
+      setIsDeletionModalOpen(false);
+      setInspectDeletion(null);
+      setDeletionAdminNotes('');
+      setDeletionRejectionReason('');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: "destructive",
+        title: parsed.title || "Operation Failed",
+        description: parsed.message
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Filtered preview savers in the Interest Proposal Modal
   const modalFilteredBreakdown = useMemo(() => {
     if (!inspectInterest || !Array.isArray(inspectInterest.breakdown)) return [];
@@ -675,7 +759,7 @@ export default function ApprovalsHubPage() {
       {/* Main Approvals Tabs */}
       <Tabs value={mainTab} onValueChange={(val: any) => setMainTab(val)} className="w-full space-y-4">
         <div className="w-full overflow-x-auto no-scrollbar pb-1">
-          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-6 h-11">
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-7 h-11">
             <TabsTrigger value="batches" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Layers className="h-3.5 w-3.5" /> Batches {pendingBatches.length > 0 && `(${pendingBatches.length})`}
             </TabsTrigger>
@@ -690,6 +774,9 @@ export default function ApprovalsHubPage() {
             </TabsTrigger>
             <TabsTrigger value="interest" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <TrendingUp className="h-3.5 w-3.5" /> Interest {pendingInterestRequests.length > 0 && `(${pendingInterestRequests.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="deletions" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5 text-destructive/90 data-[state=active]:text-destructive">
+              <UserX className="h-3.5 w-3.5" /> Deletions {pendingDeletionRequests.length > 0 && `(${pendingDeletionRequests.length})`}
             </TabsTrigger>
             <TabsTrigger value="upload" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Upload className="h-3.5 w-3.5" /> Upload Excel
@@ -1270,6 +1357,121 @@ export default function ApprovalsHubPage() {
                   </Button>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 6. ACCOUNT DELETIONS TAB (SUPER ADMIN REQUEST TABLE) */}
+        <TabsContent value="deletions" className="space-y-4">
+          <Card className="border border-border shadow-md rounded-2xl overflow-hidden bg-card">
+            <CardHeader className="bg-red-600 text-white p-4 sm:p-5 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserX className="h-5 w-5" />
+                <div>
+                  <CardTitle className="text-[13px] font-bold text-white">Member Account Deletion Requests</CardTitle>
+                  <CardDescription className="text-red-100 text-xs mt-0.5">
+                    Requests submitted by scheme members to withdraw and delete their accounts. Requires Super Admin approval.
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="secondary" 
+                  onClick={() => setDeletionSubTab(deletionSubTab === 'pending' ? 'all' : 'pending')}
+                  className="h-7 text-xs font-bold rounded-lg bg-white/20 text-white hover:bg-white/30 border-none"
+                >
+                  {deletionSubTab === 'pending' ? 'Show All History' : 'Show Pending Only'}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto no-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b hover:bg-transparent">
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Member</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Reason for Deletion</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Verified Savings</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Accrued Interest</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Active Loan Debt</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Requested Date</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Status</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingDeletionRequests ? (
+                      <TableRow><TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading deletion requests...</TableCell></TableRow>
+                    ) : (deletionSubTab === 'pending' ? pendingDeletionRequests : allDeletionRequests).length === 0 ? (
+                      <TableRow><TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground italic">No {deletionSubTab === 'pending' ? 'pending' : ''} account deletion requests found.</TableCell></TableRow>
+                    ) : (
+                      (deletionSubTab === 'pending' ? pendingDeletionRequests : allDeletionRequests).map((req: any) => {
+                        const isPending = req.status === 'pending';
+                        return (
+                          <TableRow key={req.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="px-4 py-3">
+                              <div className="font-bold text-xs text-foreground">{req.userName || 'Member'}</div>
+                              <div className="text-[10px] text-muted-foreground">{req.userEmail}</div>
+                              {req.userPhone && <div className="text-[10px] text-muted-foreground">{req.userPhone}</div>}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 max-w-[200px]">
+                              <p className="text-xs text-foreground line-clamp-2 italic">&ldquo;{req.reason}&rdquo;</p>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right font-bold text-xs text-foreground">
+                              {formatCurrency(req.savingsBalance || 0, currency)}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right font-bold text-xs text-emerald-600">
+                              +{formatCurrency(req.accruedInterest || 0, currency)}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-center">
+                              {Number(req.activeLoanBalance || 0) > 0 ? (
+                                <Badge variant="destructive" className="text-[9px] font-bold">
+                                  {formatCurrency(req.activeLoanBalance, currency)} Owed
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] font-bold text-emerald-600 border-emerald-300 bg-emerald-50">
+                                  Cleared (0 {currency})
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                              {safeFormatDate(req.requestedAt, 'MMM d, yyyy')}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-center">
+                              <Badge className={cn(
+                                "text-[9px] font-bold uppercase",
+                                req.status === 'pending' && "bg-amber-500/10 text-amber-700 border-amber-300",
+                                req.status === 'approved' && "bg-green-500/10 text-green-700 border-green-300",
+                                req.status === 'rejected' && "bg-destructive/10 text-destructive border-destructive/30",
+                                req.status === 'cancelled' && "bg-muted text-muted-foreground"
+                              )}>
+                                {req.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right whitespace-nowrap">
+                              <Button
+                                size="sm"
+                                variant={isPending ? "destructive" : "outline"}
+                                onClick={() => {
+                                  setInspectDeletion(req);
+                                  setDeletionAdminNotes(req.adminNotes || '');
+                                  setDeletionRejectionReason(req.rejectionReason || '');
+                                  setIsDeletionModalOpen(true);
+                                }}
+                                className="h-7 text-xs font-bold rounded-lg gap-1"
+                              >
+                                <Eye className="h-3 w-3" />
+                                {isPending ? 'Review Request' : 'View Details'}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1855,6 +2057,165 @@ export default function ApprovalsHubPage() {
                 >
                   {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
                   Approve &amp; Distribute {formatCurrency(inspectInterest?.totalInterestToDistribute || 0, currency)}
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 6. ACCOUNT DELETION INSPECTION & APPROVAL MODAL */}
+      <Dialog open={isDeletionModalOpen} onOpenChange={setIsDeletionModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 rounded-2xl overflow-hidden bg-card border border-border shadow-2xl">
+          <DialogHeader className="p-5 bg-red-600 text-white border-b border-red-700/30 shrink-0">
+            <DialogTitle className="text-base font-bold text-white flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <UserX className="h-5 w-5" /> Account Deletion Request
+              </span>
+              <Badge className="bg-white/20 text-white border-none text-[10px] font-bold uppercase">
+                {inspectDeletion?.status}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-red-100 text-xs mt-1">
+              Member ID: {inspectDeletion?.userId} | Requested on {safeFormatDate(inspectDeletion?.requestedAt, 'PPP')}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-5 overflow-y-auto space-y-5 flex-1">
+            {/* Member Profile Summary */}
+            <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-xl border border-border">
+              <Avatar className="h-11 w-11 border-2 border-primary/20">
+                <AvatarFallback className="font-bold text-xs bg-primary/10 text-primary">
+                  {inspectDeletion?.userName?.slice(0, 2)?.toUpperCase() || 'M'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm text-foreground">{inspectDeletion?.userName || 'Member'}</p>
+                <p className="text-xs text-muted-foreground truncate">{inspectDeletion?.userEmail}</p>
+                {inspectDeletion?.userPhone && <p className="text-[11px] text-muted-foreground">{inspectDeletion?.userPhone}</p>}
+              </div>
+              <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                {inspectDeletion?.userRole || 'member'}
+              </Badge>
+            </div>
+
+            {/* Member's stated reason */}
+            <div className="space-y-1.5 p-3.5 bg-muted/20 rounded-xl border border-border">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Member&apos;s Reason for Leaving:
+              </span>
+              <p className="text-xs text-foreground italic bg-background p-2.5 rounded-lg border border-border/60">
+                &ldquo;{inspectDeletion?.reason}&rdquo;
+              </p>
+            </div>
+
+            {/* Financial Clearance Audit Cards */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Financial Clearance Audit:
+              </span>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-3 bg-muted/30 rounded-xl border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Verified Savings</p>
+                  <p className="text-sm font-bold text-foreground mt-0.5">
+                    {formatCurrency(inspectDeletion?.savingsBalance || 0, currency)}
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/30 rounded-xl border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Accrued Interest</p>
+                  <p className="text-sm font-bold text-emerald-600 mt-0.5">
+                    +{formatCurrency(inspectDeletion?.accruedInterest || 0, currency)}
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/30 rounded-xl border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Active Loan Debt</p>
+                  <p className={cn(
+                    "text-sm font-bold mt-0.5",
+                    Number(inspectDeletion?.activeLoanBalance || 0) > 0 ? "text-destructive" : "text-emerald-600"
+                  )}>
+                    {formatCurrency(inspectDeletion?.activeLoanBalance || 0, currency)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* High-Stakes Warning Alert */}
+            <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-900 dark:text-red-200 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold">Permanent Account Action</p>
+                <p className="text-[11px] leading-relaxed">
+                  Approving this request will permanently revoke the user&apos;s authentication access and remove their member record from the active directory. An immutable log entry will be preserved in the audit trail. Any payout of member savings must be executed according to scheme bylaws.
+                </p>
+              </div>
+            </div>
+
+            {/* Previous Review details if not pending */}
+            {inspectDeletion?.status !== 'pending' && (
+              <div className="p-3.5 bg-muted/40 rounded-xl border border-border space-y-1 text-xs">
+                <p className="font-bold text-foreground">
+                  Reviewed by: {inspectDeletion?.reviewedByName || 'Super Admin'} on {safeFormatDate(inspectDeletion?.reviewedAt, 'PPP')}
+                </p>
+                {inspectDeletion?.adminNotes && (
+                  <p className="text-muted-foreground">Admin Notes: {inspectDeletion.adminNotes}</p>
+                )}
+                {inspectDeletion?.rejectionReason && (
+                  <p className="text-destructive font-medium">Rejection Reason: {inspectDeletion.rejectionReason}</p>
+                )}
+              </div>
+            )}
+
+            {/* Action Inputs for Super Admin */}
+            {inspectDeletion?.status === 'pending' && isSuperAdmin && (
+              <div className="space-y-3 pt-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Admin Approval Notes (Optional)
+                  </Label>
+                  <Textarea
+                    value={deletionAdminNotes}
+                    onChange={e => setDeletionAdminNotes(e.target.value)}
+                    placeholder="Enter administrative closure notes or payout settlement confirmation..."
+                    className="text-xs rounded-xl bg-background min-h-[60px]"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Rejection Justification (Required only if rejecting)
+                  </Label>
+                  <Input
+                    value={deletionRejectionReason}
+                    onChange={e => setDeletionRejectionReason(e.target.value)}
+                    placeholder="State reason why deletion cannot be granted at this time..."
+                    className="text-xs rounded-xl bg-background h-9"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-4 bg-muted/20 border-t shrink-0 flex items-center justify-between gap-2">
+            <Button variant="outline" onClick={() => setIsDeletionModalOpen(false)} className="rounded-xl text-xs font-bold">
+              Close
+            </Button>
+            {inspectDeletion?.status === 'pending' && isSuperAdmin && (
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleActionDeletion('reject')} 
+                  disabled={isSubmitting}
+                  className="rounded-xl text-xs font-bold border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+                >
+                  Reject Request
+                </Button>
+                <Button 
+                  onClick={() => handleActionDeletion('approve')} 
+                  disabled={isSubmitting || Number(inspectDeletion?.activeLoanBalance || 0) > 0}
+                  className="rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white gap-1.5 shadow-md"
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Approve &amp; Delete Account
                 </Button>
               </div>
             )}

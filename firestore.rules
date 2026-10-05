@@ -88,5 +88,16 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if false;
     }
+
+    // Account deletion requests: Managed via Cloud Functions with client fallback, readable by signed-in users
+    match /account_deletion_requests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending';
+      allow update: if isSignedIn() && (
+        (resource.data.userId == request.auth.uid && request.resource.data.status == 'cancelled') ||
+        isStaff()
+      );
+      allow delete: if isStaff();
+    }
   }
 }

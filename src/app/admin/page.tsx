@@ -32,10 +32,11 @@ import {
   FileText,
   UserCog,
   Search,
-  Loader2
+  Loader2,
+  UserX
 } from "lucide-react";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { collection, doc, query, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { collection, doc, query, orderBy, limit, Timestamp, where } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useSettings } from '@/context/settings-context';
@@ -167,6 +168,11 @@ export default function AdminDashboard() {
   }, [firestore]);
   const { data: batchesSnap } = useCollection(batchesQuery);
 
+  const pendingDeletionsQuery = useMemoFirebase(() => {
+    return isSuperAdmin ? query(collection(firestore, 'account_deletion_requests'), where('status', '==', 'pending'), limit(10)) : null;
+  }, [firestore, isSuperAdmin]);
+  const { data: pendingDeletionsSnap } = useCollection(pendingDeletionsQuery);
+
   // 2. Parsed entities
   const users = useMemo(() => usersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [usersSnap]);
   const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
@@ -174,6 +180,7 @@ export default function AdminDashboard() {
   const repayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
   const expenses = useMemo(() => expensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [expensesSnap]);
   const recentBatches = useMemo(() => batchesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [batchesSnap]);
+  const pendingDeletionRequests = useMemo(() => pendingDeletionsSnap?.docs.map(d => ({ id: d.id, ...(d.data() as any) })) || [], [pendingDeletionsSnap]);
 
   // Member map helper
   const memberMap = useMemo(() => {
@@ -353,6 +360,30 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      {/* PENDING ACCOUNT DELETIONS ALERT BANNER */}
+      {pendingDeletionRequests.length > 0 && isSuperAdmin && (
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-lg bg-red-500/20 text-red-600 shrink-0 mt-0.5">
+              <UserX className="h-5 w-5" />
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-sm font-bold text-red-950 dark:text-red-200">
+                {pendingDeletionRequests.length} Member Account Deletion {pendingDeletionRequests.length === 1 ? 'Request' : 'Requests'} Awaiting Review
+              </p>
+              <p className="text-xs text-red-800/80 dark:text-red-300/80">
+                Scheme members have submitted formal requests to delete their accounts. Super Admin sign-off is required.
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" variant="destructive" className="rounded-xl font-bold text-xs gap-1.5 shrink-0 shadow-sm">
+            <Link href="/admin/approvals">
+              Review in Approvals Hub <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {/* 6 TOP EXECUTIVE KPI CARDS */}
       <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">

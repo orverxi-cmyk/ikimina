@@ -1,15 +1,15 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, MessageSquare, MoreHorizontal, HandCoins, Wallet } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, MoreHorizontal, HandCoins, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function MobileNav() {
   const pathname = usePathname();
 
   const leftItems = [
-    { href: '/', label: 'Home', icon: Home },
-    { href: '/contributions', label: 'Savings', icon: Wallet },
+    { href: '/', label: 'My Account', icon: LayoutDashboard },
+    { href: '/contributions', label: 'Contributions', icon: Wallet },
   ];
 
   const rightItems = [
@@ -30,7 +30,7 @@ export function MobileNav() {
             )}
           >
             <item.icon className="h-5 w-5" />
-            <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">{item.label}</span>
+            <span className="text-[9px] mt-1 font-bold uppercase tracking-tight text-center leading-none px-0.5 truncate max-w-full">{item.label}</span>
           </Link>
         ))}
         
@@ -55,7 +55,7 @@ export function MobileNav() {
             )}
           >
             <item.icon className="h-5 w-5" />
-            <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">{item.label}</span>
+            <span className="text-[9px] mt-1 font-bold uppercase tracking-tight text-center leading-none px-0.5 truncate max-w-full">{item.label}</span>
           </Link>
         ))}
       </nav>
