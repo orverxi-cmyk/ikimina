@@ -18,46 +18,63 @@ export function MobileNav() {
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-black border-t border-white/10 z-[60] shadow-[0_-4px_20px_rgba(0,0,0,0.4)]">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border z-[60] shadow-lg">
       <nav className="flex justify-around items-center h-16 px-2">
-        {leftItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              'flex flex-col items-center justify-center w-full h-full transition-colors',
-              pathname === item.href ? 'text-primary' : 'text-gray-400'
-            )}
-          >
-            <item.icon className="h-5 w-5" />
-            <span className="text-[9px] mt-1 font-bold uppercase tracking-tight text-center leading-none px-0.5 truncate max-w-full">{item.label}</span>
-          </Link>
-        ))}
+        {leftItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex flex-col items-center justify-center w-full h-full transition-colors',
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <item.icon className={cn('h-5 w-5 transition-transform', isActive && 'scale-110')} />
+              <span className={cn(
+                'text-[10px] mt-1 tracking-tight text-center leading-tight truncate max-w-full px-0.5',
+                isActive ? 'font-semibold text-primary' : 'font-normal'
+              )}>
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
         
         {/* Streamlined "Apply" Action in the Center */}
         <div className="relative w-full h-full flex items-center justify-center">
           <Link 
             href="/loans/apply" 
-            className="absolute -top-6 bg-primary rounded-2xl w-14 h-14 shadow-lg shadow-primary/30 border-4 border-black flex flex-col items-center justify-center text-primary-foreground group active:scale-95 transition-transform"
+            className="absolute -top-5 bg-primary rounded-2xl w-12 h-12 shadow-md shadow-primary/25 border-4 border-background flex flex-col items-center justify-center text-primary-foreground group active:scale-95 transition-transform"
+            title="Apply for Loan"
           >
-            <HandCoins className="h-6 w-6" />
-            <span className="text-[8px] font-bold uppercase mt-0.5">Apply</span>
+            <HandCoins className="h-5 w-5" />
+            <span className="text-[9px] font-semibold mt-0.5">Apply</span>
           </Link>
         </div>
 
-        {rightItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              'flex flex-col items-center justify-center w-full h-full transition-colors',
-              pathname === item.href ? 'text-primary' : 'text-gray-400'
-            )}
-          >
-            <item.icon className="h-5 w-5" />
-            <span className="text-[9px] mt-1 font-bold uppercase tracking-tight text-center leading-none px-0.5 truncate max-w-full">{item.label}</span>
-          </Link>
-        ))}
+        {rightItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex flex-col items-center justify-center w-full h-full transition-colors',
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <item.icon className={cn('h-5 w-5 transition-transform', isActive && 'scale-110')} />
+              <span className={cn(
+                'text-[10px] mt-1 tracking-tight text-center leading-tight truncate max-w-full px-0.5',
+                isActive ? 'font-semibold text-primary' : 'font-normal'
+              )}>
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );
