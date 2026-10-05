@@ -792,7 +792,7 @@ export default function ApprovalsHubPage() {
           Only administrators, designated reviewers, accountants, and management have permission to access institutional approvals.
         </p>
         <Button asChild variant="outline" className="rounded-xl">
-          <Link href="/">Return to Member Portal</Link>
+          <Link href="/dashboard">Return to Member Portal</Link>
         </Button>
       </div>
     );

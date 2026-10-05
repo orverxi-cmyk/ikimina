@@ -373,7 +373,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <p className="text-xs text-muted-foreground">
               Please sign in with an authorized account or return to the main dashboard.
             </p>
-            <Button variant="outline" onClick={() => router.push('/')} className="w-full h-11 rounded-xl">
+            <Button variant="outline" onClick={() => router.push('/dashboard')} className="w-full h-11 rounded-xl">
               Return to Member Portal
             </Button>
             <Button variant="destructive" onClick={handleLogout} className="w-full h-11 rounded-xl font-bold">
@@ -416,7 +416,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   ];
 
   const memberMenuItems = [
-    { href: '/', label: 'Account', icon: LayoutDashboard },
+    { href: '/dashboard', label: 'Account', icon: LayoutDashboard },
     { href: '/contributions', label: 'Savings', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
@@ -457,7 +457,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <DropdownMenuContent align="start" className="w-56 rounded-[10px]">
                 <DropdownMenuLabel>Administrative Access</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/')}>Exit to Member Portal</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/dashboard')}>Exit to Member Portal</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive font-bold">
                   <LogOut className="mr-2 h-4 w-4" /> Logout

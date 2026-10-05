@@ -20,6 +20,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase/provider';
+import { useUser } from '@/firebase/auth/use-user';
 import { useSettings } from '@/context/settings-context';
 import { activateMemberAccountAction } from '@/lib/finance-client';
 import { Button } from '@/components/ui/button';
@@ -57,11 +58,19 @@ export default function LoginPage() {
   const [isSendingReset, setIsSendingReset] = useState(false);
 
   const auth = useAuth();
+  const { user: currentUser, loading: userLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const { settings } = useSettings();
   const infrastructureBranding = settings.infrastructureBranding?.trim() || 'Secure Infrastructure Provided by ORVEXI';
+
+  // If already authenticated and not in an activation link flow, seamlessly navigate to the member dashboard
+  useEffect(() => {
+    if (!userLoading && currentUser && step === 'email' && typeof window !== 'undefined' && !isSignInWithEmailLink(auth, window.location.href)) {
+      router.replace('/dashboard');
+    }
+  }, [currentUser, userLoading, step, router, auth]);
 
   useEffect(() => {
     const handleAuthLink = async () => {
@@ -85,7 +94,7 @@ export default function LoginPage() {
               if (userDocByUid.data().status === 'pending') {
                 setStep('set-password');
               } else {
-                router.push('/');
+                router.push('/dashboard');
               }
             } else {
               // 2. Lookup by email to find the invitation doc (which has a random ID)
@@ -100,7 +109,7 @@ export default function LoginPage() {
                 setStep('set-password');
               } else {
                 toast({ title: "Profile Missing", description: "You are logged in, but we couldn't find your member profile." });
-                router.push('/');
+                router.push('/dashboard');
               }
             }
           } catch (error: any) {
@@ -225,7 +234,7 @@ export default function LoginPage() {
       await updatePassword(auth.currentUser, password);
       await activateMemberAccountAction(memberDocId);
       toast({ title: 'Success', description: 'Account activated successfully.' });
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
       const parsed = parseAppError(error);
       toast({ 
@@ -251,7 +260,7 @@ export default function LoginPage() {
     const normalizedEmail = email.trim().toLowerCase();
     try {
       await signInWithEmailAndPassword(auth, normalizedEmail, password);
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
       const parsed = parseAppError(error);
       toast({ 

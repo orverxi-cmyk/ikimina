@@ -101,7 +101,7 @@ export function AppSidebar() {
 
   // 1. Member Services Navigation (Available to all authenticated members & staff)
   const memberItems = [
-    { href: '/', label: 'Account', icon: LayoutDashboard },
+    { href: '/dashboard', label: 'Account', icon: LayoutDashboard },
     { href: '/contributions', label: 'Savings', icon: Wallet },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/loans/apply', label: 'Apply for Loan', icon: HandCoins },
@@ -198,7 +198,7 @@ export function AppSidebar() {
             {memberItems.map((item) => {
               const isItemActive = item.href.includes('?')
                 ? pathname === item.href.split('?')[0]
-                : pathname === item.href;
+                : (pathname === item.href || (item.href === '/dashboard' && pathname === '/'));
 
               return (
                 <Link

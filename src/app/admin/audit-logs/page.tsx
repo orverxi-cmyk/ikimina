@@ -485,7 +485,7 @@ export default function AuditLogsPage() {
           Only administrators, designated auditors, reviewers, and accountants have permission to access institutional audit trails.
         </p>
         <Button asChild variant="outline" className="rounded-xl">
-          <Link href="/">Return to Member Portal</Link>
+          <Link href="/dashboard">Return to Member Portal</Link>
         </Button>
       </div>
     );

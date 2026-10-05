@@ -8,7 +8,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   const leftItems = [
-    { href: '/', label: 'Account', icon: LayoutDashboard },
+    { href: '/dashboard', label: 'Account', icon: LayoutDashboard },
     { href: '/contributions', label: 'Savings', icon: Wallet },
   ];
 
@@ -21,7 +21,7 @@ export function MobileNav() {
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border z-[60] shadow-lg">
       <nav className="flex justify-around items-center h-16 px-2">
         {leftItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || (item.href === '/dashboard' && pathname === '/');
           return (
             <Link
               key={item.href}

@@ -34,7 +34,7 @@ export function Header() {
   };
 
   // Define top-level routes that don't need a back button on mobile
-  const isRootLevel = ['/', '/messages', '/profile/me', '/more'].includes(pathname);
+  const isRootLevel = ['/dashboard', '/', '/messages', '/profile/me', '/more'].includes(pathname);
 
   return (
     <header className="grid grid-cols-3 h-16 w-full items-center border-b border-white/10 bg-primary px-4 md:px-10 sticky top-0 z-[60] shrink-0 shadow-lg">
