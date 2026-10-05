@@ -4,7 +4,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2 } from 'lucide-react';
+import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2, Mail } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -43,7 +43,8 @@ import {
   bulkRegisterMembersAction, 
   updateUserRoleAction,
   updateMemberProfileAction,
-  deleteMemberAction
+  deleteMemberAction,
+  sendMemberActivationEmailAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
@@ -124,8 +125,13 @@ export default function MembersPage() {
         
         toast({ title: "Profile Updated", description: "Member profile and role synchronization complete." });
       } else {
-        await registerMemberAction(user.uid, memberData);
-        toast({ title: "Invited", description: "Member registered successfully." });
+        const res = await registerMemberAction(user.uid, memberData);
+        toast({ 
+          title: "Member Enrolled", 
+          description: res?.emailSent 
+            ? `Member profile registered and activation email dispatched to ${memberData.email}.`
+            : `Member profile registered. Activation link generated successfully.`
+        });
       }
       setIsAddDialogOpen(false);
       setIsEditing(false);
@@ -135,6 +141,38 @@ export default function MembersPage() {
       toast({ variant: "destructive", title: parsed.title || "Operation Failed", description: parsed.message });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendActivation = async (targetMember: any) => {
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'You are currently offline. Please reconnect before sending emails.',
+      });
+    }
+
+    try {
+      const res = await sendMemberActivationEmailAction({
+        email: targetMember.email,
+        memberId: targetMember.id,
+        appUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+      });
+
+      toast({
+        title: res.emailSent ? "Activation Email Dispatched" : "Activation Link Generated",
+        description: res.emailSent 
+          ? `A secure activation link was dispatched to ${targetMember.email}.`
+          : `Activation link generated: ${res.message}`,
+      });
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({ 
+        variant: "destructive", 
+        title: parsed.title || "Dispatch Failed", 
+        description: parsed.message 
+      });
     }
   };
 
@@ -433,6 +471,14 @@ export default function MembersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl w-52 shadow-xl">
                           <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
+                          {member.status !== 'active' && (
+                            <DropdownMenuItem 
+                              className="font-bold text-primary flex items-center gap-1.5 focus:text-primary focus:bg-primary/10" 
+                              onClick={() => handleResendActivation(member)}
+                            >
+                              <Mail className="h-4 w-4" /> Send Activation Email
+                            </DropdownMenuItem>
+                          )}
                           {member.deletionRequested && (
                             <DropdownMenuItem asChild className="font-bold text-amber-700">
                               <Link href="/admin/approvals">Review Deletion Request</Link>

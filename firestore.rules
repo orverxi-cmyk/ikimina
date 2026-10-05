@@ -65,9 +65,10 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // System financial policy, footer and platform branding settings (Public read for unauthenticated views)
+    // System financial policy, footer and platform branding settings (Public read for unauthenticated views).
+    // Note: settings/email contains sensitive SMTP secrets and is strictly blocked from direct client reads.
     match /settings/{docId} {
-      allow read: if true;
+      allow read: if docId != 'email';
       allow write: if false;
     }
 

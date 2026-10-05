@@ -36,9 +36,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.rejectAccountDeletion = exports.approveAccountDeletion = exports.cancelAccountDeletionRequest = exports.requestAccountDeletion = exports.activateMemberAccount = exports.updateMemberProfile = exports.deleteMember = exports.updateUserRole = exports.bulkRegisterMembers = exports.registerMember = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
+const email_service_1 = require("./email-service");
 /**
  * Registers a new member securely.
- * Checks for admin privileges before adding to the users collection.
+ * Checks for admin privileges before adding to the users collection,
+ * and automatically dispatches an account activation link to their email address.
  */
 exports.registerMember = (0, https_1.onCall)({ cors: true }, async (request) => {
     var _a;
@@ -49,26 +51,57 @@ exports.registerMember = (0, https_1.onCall)({ cors: true }, async (request) => 
     if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Only administrators can register members.');
     }
-    const { memberData, justification } = request.data;
-    const name = `${memberData.firstName} ${memberData.surname}`.trim();
+    const { memberData, justification, appUrl } = request.data || {};
+    if (!(memberData === null || memberData === void 0 ? void 0 : memberData.email)) {
+        throw new https_1.HttpsError('invalid-argument', 'Member email is required.');
+    }
+    const name = `${memberData.firstName || ''} ${memberData.surname || ''}`.trim() || 'Member';
+    const email = memberData.email.toLowerCase().trim();
     try {
         const docRef = await db.collection('users').add({
             name,
-            email: memberData.email.toLowerCase(),
+            email,
             phone: memberData.phone || '',
             role: memberData.role || 'member',
             joinedAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'pending',
         });
+        // Automatically generate activation link and dispatch activation email
+        let emailSent = false;
+        let activationLink = '';
+        try {
+            const emailResult = await (0, email_service_1.generateAndSendActivationEmail)({
+                email,
+                name,
+                memberDocId: docRef.id,
+                requestedBy: request.auth.uid,
+                appUrl,
+            });
+            emailSent = emailResult.emailSent;
+            activationLink = emailResult.activationLink;
+        }
+        catch (mailErr) {
+            console.error('Failed to dispatch activation email on member registration:', mailErr);
+        }
         // Log the administrative action
         await db.collection('audit_logs').add({
             adminId: request.auth.uid,
             action: 'REGISTER_MEMBER',
             justification,
-            details: { memberId: docRef.id, email: memberData.email },
+            details: {
+                memberId: docRef.id,
+                email,
+                emailSent,
+                activationLink
+            },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
-        return { success: true, id: docRef.id };
+        return {
+            success: true,
+            id: docRef.id,
+            emailSent,
+            activationLink
+        };
     }
     catch (error) {
         throw new https_1.HttpsError('internal', error.message);
@@ -76,6 +109,7 @@ exports.registerMember = (0, https_1.onCall)({ cors: true }, async (request) => 
 });
 /**
  * Registers multiple members in a single batch operation.
+ * Dispatches activation emails for each imported member profile.
  */
 exports.bulkRegisterMembers = (0, https_1.onCall)({ cors: true }, async (request) => {
     var _a;
@@ -86,29 +120,53 @@ exports.bulkRegisterMembers = (0, https_1.onCall)({ cors: true }, async (request
     if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Only administrators can perform bulk registration.');
     }
-    const { members, justification } = request.data;
+    const { members, justification, appUrl } = request.data || {};
     if (!Array.isArray(members)) {
         throw new https_1.HttpsError('invalid-argument', 'The "members" parameter must be an array.');
     }
     try {
         const batchSize = 500;
         const totalBatches = Math.ceil(members.length / batchSize);
+        const createdMembers = [];
         for (let i = 0; i < totalBatches; i++) {
             const batch = db.batch();
             const chunk = members.slice(i * batchSize, (i + 1) * batchSize);
             chunk.forEach(m => {
                 const userRef = db.collection('users').doc();
+                const cleanEmail = (m.email || '').toLowerCase().trim();
                 batch.set(userRef, {
                     name: m.name,
-                    email: m.email.toLowerCase(),
+                    email: cleanEmail,
                     phone: m.phone || '',
                     role: m.role || 'member',
                     joinedAt: admin.firestore.FieldValue.serverTimestamp(),
                     status: 'pending',
                 });
+                createdMembers.push({ id: userRef.id, name: m.name, email: cleanEmail });
             });
             await batch.commit();
         }
+        // Asynchronously dispatch activation emails for each created member
+        const emailDispatches = createdMembers.map(async (m) => {
+            var _a;
+            if (!m.email)
+                return;
+            try {
+                return await (0, email_service_1.generateAndSendActivationEmail)({
+                    email: m.email,
+                    name: m.name,
+                    memberDocId: m.id,
+                    requestedBy: (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid,
+                    appUrl,
+                });
+            }
+            catch (err) {
+                console.error(`Bulk registration email dispatch failed for ${m.email}:`, err);
+                return null;
+            }
+        });
+        // Allow up to 10 concurrent dispatches to avoid throttling
+        await Promise.allSettled(emailDispatches);
         // Log the administrative action
         await db.collection('audit_logs').add({
             adminId: request.auth.uid,

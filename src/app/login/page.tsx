@@ -22,11 +22,12 @@ import {
 import { useAuth, useFirestore } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
 import { useSettings } from '@/context/settings-context';
-import { activateMemberAccountAction } from '@/lib/finance-client';
+import { activateMemberAccountAction, sendMemberActivationEmailAction } from '@/lib/finance-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { 
   Dialog, 
   DialogContent, 
@@ -35,7 +36,7 @@ import {
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog';
-import { Wallet, Loader2, LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Wallet, Loader2, LogIn, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2, Eye, EyeOff, KeyRound, Copy, Check, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
@@ -51,6 +52,10 @@ export default function LoginPage() {
   const [step, setStep] = useState<'email' | 'password' | 'pending-activation' | 'set-password'>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [memberDocId, setMemberDocId] = useState<string | null>(null);
+  const [activationSent, setActivationSent] = useState(false);
+  const [activationMessage, setActivationMessage] = useState<string | null>(null);
+  const [devActivationLink, setDevActivationLink] = useState<string | null>(null);
+  const [hasCopiedLink, setHasCopiedLink] = useState(false);
 
   // Forgot Password State
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -189,15 +194,26 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      const actionCodeSettings = {
-        url: window.location.origin + '/login',
-        handleCodeInApp: true,
-      };
-      await sendSignInLinkToEmail(auth, email.toLowerCase(), actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email.toLowerCase());
+      const normalizedEmail = email.trim().toLowerCase();
+      window.localStorage.setItem('emailForSignIn', normalizedEmail);
+
+      const result = await sendMemberActivationEmailAction({
+        email: normalizedEmail,
+        memberId: memberDocId || undefined,
+        appUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+      });
+
+      setActivationSent(true);
+      setActivationMessage(result.message);
+      if (result.activationLink) {
+        setDevActivationLink(result.activationLink);
+      }
+
       toast({ 
-        title: "Activation Sent", 
-        description: "A secure verification link has been sent to " + email
+        title: result.emailSent ? "Activation Email Dispatched" : "Activation Link Generated", 
+        description: result.emailSent 
+          ? `A secure activation link has been sent to ${normalizedEmail}. Please check your inbox and spam folder.`
+          : result.message
       });
     } catch (error: any) {
       const parsed = parseAppError(error);
@@ -428,20 +444,107 @@ export default function LoginPage() {
           )}
 
           {step === 'pending-activation' && (
-            <div className="space-y-6">
-              <div className="bg-primary/10 border border-primary/20 p-4 rounded-xl flex gap-3 items-start text-left">
-                <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground">One Last Step</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Your account exists but isn't active. We will send a secure activation link to your email to verify your identity.
-                  </p>
+            <div className="space-y-4">
+              {!activationSent ? (
+                <>
+                  <div className="bg-primary/10 border border-primary/20 p-4 rounded-xl flex gap-3 items-start text-left">
+                    <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">One Last Step</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Your member account is registered but awaiting activation. Request an activation link to verify your identity and set your password.
+                      </p>
+                    </div>
+                  </div>
+                  <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold" onClick={handleSendActivationLink} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Mail className="mr-2 h-5 w-5" />}
+                    Request Activation Link
+                  </Button>
+                </>
+              ) : (
+                <div className="space-y-4 text-left">
+                  <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl flex gap-3 items-start">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">Activation Link Dispatched</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        A secure activation link was dispatched to <strong className="text-foreground">{email}</strong>. Please check your inbox and spam folder.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Fallback / Direct Testing Link */}
+                  {devActivationLink && (
+                    <div className="p-3.5 bg-muted/60 rounded-xl border border-border/80 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Direct Activation Link
+                        </span>
+                        <Badge variant="outline" className="text-[9px] font-bold">Quick Access</Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        You can open the activation link directly or copy it:
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1 h-9 rounded-lg text-xs font-bold gap-1.5"
+                          onClick={() => {
+                            if (devActivationLink) {
+                              navigator.clipboard.writeText(devActivationLink);
+                              setHasCopiedLink(true);
+                              toast({ title: 'Link Copied', description: 'Activation link copied to clipboard.' });
+                              setTimeout(() => setHasCopiedLink(false), 2500);
+                            }
+                          }}
+                        >
+                          {hasCopiedLink ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                          {hasCopiedLink ? 'Copied' : 'Copy Link'}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="flex-1 h-9 rounded-lg text-xs font-bold gap-1.5"
+                          onClick={() => {
+                            if (devActivationLink) {
+                              window.location.href = devActivationLink;
+                            }
+                          }}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Activate Now
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <Button 
+                    variant="outline" 
+                    className="w-full h-10 rounded-xl text-xs font-bold" 
+                    onClick={handleSendActivationLink} 
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                    Resend Activation Link
+                  </Button>
                 </div>
+              )}
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivationSent(false);
+                    setDevActivationLink(null);
+                    setStep('email');
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+                >
+                  Use a different email
+                </button>
               </div>
-              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold" onClick={handleSendActivationLink} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Mail className="mr-2 h-5 w-5" />}
-                Request Activation Link
-              </Button>
             </div>
           )}
 

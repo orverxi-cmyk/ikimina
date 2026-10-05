@@ -1,9 +1,11 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
+import { generateAndSendActivationEmail } from './email-service';
 
 /**
  * Registers a new member securely.
- * Checks for admin privileges before adding to the users collection.
+ * Checks for admin privileges before adding to the users collection,
+ * and automatically dispatches an account activation link to their email address.
  */
 export const registerMember = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -15,29 +17,61 @@ export const registerMember = onCall({ cors: true }, async (request) => {
         throw new HttpsError('permission-denied', 'Only administrators can register members.');
     }
 
-    const { memberData, justification } = request.data;
-    const name = `${memberData.firstName} ${memberData.surname}`.trim();
+    const { memberData, justification, appUrl } = request.data || {};
+    if (!memberData?.email) {
+        throw new HttpsError('invalid-argument', 'Member email is required.');
+    }
+
+    const name = `${memberData.firstName || ''} ${memberData.surname || ''}`.trim() || 'Member';
+    const email = memberData.email.toLowerCase().trim();
 
     try {
         const docRef = await db.collection('users').add({
             name,
-            email: memberData.email.toLowerCase(),
+            email,
             phone: memberData.phone || '',
             role: memberData.role || 'member',
             joinedAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'pending',
         });
 
+        // Automatically generate activation link and dispatch activation email
+        let emailSent = false;
+        let activationLink = '';
+        try {
+            const emailResult = await generateAndSendActivationEmail({
+                email,
+                name,
+                memberDocId: docRef.id,
+                requestedBy: request.auth.uid,
+                appUrl,
+            });
+            emailSent = emailResult.emailSent;
+            activationLink = emailResult.activationLink;
+        } catch (mailErr) {
+            console.error('Failed to dispatch activation email on member registration:', mailErr);
+        }
+
         // Log the administrative action
         await db.collection('audit_logs').add({
             adminId: request.auth.uid,
             action: 'REGISTER_MEMBER',
             justification,
-            details: { memberId: docRef.id, email: memberData.email },
+            details: { 
+                memberId: docRef.id, 
+                email, 
+                emailSent,
+                activationLink 
+            },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        return { success: true, id: docRef.id };
+        return { 
+            success: true, 
+            id: docRef.id, 
+            emailSent, 
+            activationLink 
+        };
     } catch (error: any) {
         throw new HttpsError('internal', error.message);
     }
@@ -45,6 +79,7 @@ export const registerMember = onCall({ cors: true }, async (request) => {
 
 /**
  * Registers multiple members in a single batch operation.
+ * Dispatches activation emails for each imported member profile.
  */
 export const bulkRegisterMembers = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -56,7 +91,7 @@ export const bulkRegisterMembers = onCall({ cors: true }, async (request) => {
         throw new HttpsError('permission-denied', 'Only administrators can perform bulk registration.');
     }
 
-    const { members, justification } = request.data;
+    const { members, justification, appUrl } = request.data || {};
     if (!Array.isArray(members)) {
         throw new HttpsError('invalid-argument', 'The "members" parameter must be an array.');
     }
@@ -64,6 +99,7 @@ export const bulkRegisterMembers = onCall({ cors: true }, async (request) => {
     try {
         const batchSize = 500;
         const totalBatches = Math.ceil(members.length / batchSize);
+        const createdMembers: Array<{ id: string; name: string; email: string }> = [];
         
         for (let i = 0; i < totalBatches; i++) {
             const batch = db.batch();
@@ -71,18 +107,40 @@ export const bulkRegisterMembers = onCall({ cors: true }, async (request) => {
             
             chunk.forEach(m => {
                 const userRef = db.collection('users').doc();
+                const cleanEmail = (m.email || '').toLowerCase().trim();
                 batch.set(userRef, {
                     name: m.name,
-                    email: m.email.toLowerCase(),
+                    email: cleanEmail,
                     phone: m.phone || '',
                     role: m.role || 'member',
                     joinedAt: admin.firestore.FieldValue.serverTimestamp(),
                     status: 'pending',
                 });
+                createdMembers.push({ id: userRef.id, name: m.name, email: cleanEmail });
             });
             
             await batch.commit();
         }
+
+        // Asynchronously dispatch activation emails for each created member
+        const emailDispatches = createdMembers.map(async (m) => {
+            if (!m.email) return;
+            try {
+                return await generateAndSendActivationEmail({
+                    email: m.email,
+                    name: m.name,
+                    memberDocId: m.id,
+                    requestedBy: request.auth?.uid,
+                    appUrl,
+                });
+            } catch (err) {
+                console.error(`Bulk registration email dispatch failed for ${m.email}:`, err);
+                return null;
+            }
+        });
+
+        // Allow up to 10 concurrent dispatches to avoid throttling
+        await Promise.allSettled(emailDispatches);
 
         // Log the administrative action
         await db.collection('audit_logs').add({

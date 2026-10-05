@@ -34,7 +34,12 @@ import {
   Sparkles,
   HelpCircle,
   Coins,
-  Check
+  Check,
+  Mail,
+  Send,
+  Eye,
+  EyeOff,
+  Server
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -45,13 +50,21 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
-import { updateFinancialSettingsAction, resetFinancialDataAction, initiateInterestDistributionAction } from '@/lib/finance-client';
+import { 
+  updateFinancialSettingsAction, 
+  resetFinancialDataAction, 
+  initiateInterestDistributionAction,
+  getEmailSettingsAction,
+  updateEmailSettingsAction,
+  testEmailSettingsAction
+} from '@/lib/finance-client';
 import { useToast } from '@/hooks/use-toast';
 import { useSettings } from '@/context/settings-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getDefaultAbout, getDefaultTerms, getDefaultPrivacy, DEFAULT_APP_NAME } from '@/lib/legal-defaults';
 import { formatCurrency } from '@/lib/currency';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 export default function AdminSettingsPage() {
@@ -77,6 +90,27 @@ export default function AdminSettingsPage() {
   const [termsOfService, setTermsOfService] = useState<string>('');
   const [privacyPolicy, setPrivacyPolicy] = useState<string>('');
   const [copyrightNotice, setCopyrightNotice] = useState<string>('');
+
+  // Email & SMTP Infrastructure State
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpSecure, setSmtpSecure] = useState(false);
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPass, setSmtpPass] = useState('');
+  const [fromName, setFromName] = useState('');
+  const [fromEmail, setFromEmail] = useState('');
+  const [emailAppUrl, setEmailAppUrl] = useState('');
+  const [hasStoredPassword, setHasStoredPassword] = useState(false);
+  const [isEmailConfigured, setIsEmailConfigured] = useState(false);
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const [emailJustification, setEmailJustification] = useState('');
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [isLoadingEmailConfig, setIsLoadingEmailConfig] = useState(false);
+
+  // Test Email State
+  const [testEmailRecipient, setTestEmailRecipient] = useState('');
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Allocation Configuration (Screenshot 3) State
   const [distributeAmountInput, setDistributeAmountInput] = useState<string>('');
@@ -164,6 +198,151 @@ export default function AdminSettingsPage() {
     if (poolMetrics.availableUndistributedInterest <= 0) return;
     const amount = Math.floor((poolMetrics.availableUndistributedInterest * percentage) / 100);
     setDistributeAmountInput(amount.toString());
+  };
+
+  const fetchEmailSettings = async () => {
+    setIsLoadingEmailConfig(true);
+    try {
+      const config = await getEmailSettingsAction();
+      setSmtpHost(config.smtpHost || '');
+      setSmtpPort(config.smtpPort ? String(config.smtpPort) : '587');
+      setSmtpSecure(config.smtpSecure ?? false);
+      setSmtpUser(config.smtpUser || '');
+      setFromName(config.fromName || '');
+      setFromEmail(config.fromEmail || '');
+      setEmailAppUrl(config.appUrl || '');
+      setHasStoredPassword(config.hasPassword);
+      setIsEmailConfigured(config.isConfigured);
+    } catch (e) {
+      console.warn('Could not load email settings:', e);
+    } finally {
+      setIsLoadingEmailConfig(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchEmailSettings();
+    }
+  }, [isAdmin]);
+
+  const handleApplyPreset = (preset: 'gmail' | 'sendgrid' | 'brevo' | 'resend') => {
+    if (preset === 'gmail') {
+      setSmtpHost('smtp.gmail.com');
+      setSmtpPort('465');
+      setSmtpSecure(true);
+    } else if (preset === 'sendgrid') {
+      setSmtpHost('smtp.sendgrid.net');
+      setSmtpPort('587');
+      setSmtpSecure(false);
+      setSmtpUser('apikey');
+    } else if (preset === 'brevo') {
+      setSmtpHost('smtp-relay.brevo.com');
+      setSmtpPort('587');
+      setSmtpSecure(false);
+    } else if (preset === 'resend') {
+      setSmtpHost('smtp.resend.com');
+      setSmtpPort('465');
+      setSmtpSecure(true);
+      setSmtpUser('resend');
+    }
+  };
+
+  const handleSaveEmailSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'You are currently offline. Please reconnect before saving settings.',
+      });
+    }
+
+    setIsSavingEmail(true);
+    try {
+      await updateEmailSettingsAction({
+        smtpHost: smtpHost.trim(),
+        smtpPort: Number(smtpPort) || 587,
+        smtpSecure,
+        smtpUser: smtpUser.trim(),
+        smtpPass: smtpPass.trim() ? smtpPass.trim() : undefined,
+        fromName: fromName.trim() || appName,
+        fromEmail: fromEmail.trim() || smtpUser.trim(),
+        appUrl: emailAppUrl.trim() || (typeof window !== 'undefined' ? window.location.origin : undefined),
+        justification: emailJustification.trim() || 'Configured system SMTP email delivery settings',
+      });
+
+      toast({
+        title: 'Email Delivery Settings Saved',
+        description: 'SMTP connection parameters updated successfully. Member invitations will now be dispatched via this server.',
+      });
+      setSmtpPass('');
+      fetchEmailSettings();
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: 'destructive',
+        title: parsed.title || 'Save Failed',
+        description: parsed.message,
+      });
+    } finally {
+      setIsSavingEmail(false);
+    }
+  };
+
+  const handleSendTestEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const recipient = (testEmailRecipient.trim() || user?.email || '').toLowerCase();
+    if (!recipient) {
+      return toast({
+        variant: 'destructive',
+        title: 'Recipient Required',
+        description: 'Please specify an email address to receive the test email.',
+      });
+    }
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: 'destructive',
+        title: 'Connection Offline',
+        description: 'You are offline. Please reconnect before testing.',
+      });
+    }
+
+    setIsTestingEmail(true);
+    setTestEmailResult(null);
+    try {
+      const res = await testEmailSettingsAction({
+        targetEmail: recipient,
+        testConfig: {
+          smtpHost: smtpHost.trim(),
+          smtpPort: Number(smtpPort) || 587,
+          smtpSecure,
+          smtpUser: smtpUser.trim(),
+          smtpPass: smtpPass.trim() || undefined,
+          fromName: fromName.trim(),
+          fromEmail: fromEmail.trim() || smtpUser.trim(),
+          appUrl: emailAppUrl.trim(),
+        }
+      });
+      setTestEmailResult({ success: true, message: res.message });
+      toast({
+        title: 'Test Email Sent Successfully',
+        description: res.message,
+      });
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      setTestEmailResult({ success: false, message: parsed.message });
+      toast({
+        variant: 'destructive',
+        title: parsed.title || 'Test Email Failed',
+        description: parsed.message,
+      });
+    } finally {
+      setIsTestingEmail(false);
+    }
   };
 
   const handleInitiateDistributionSubmit = async (e: React.FormEvent) => {
@@ -358,7 +537,7 @@ export default function AdminSettingsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
         <div className="w-full overflow-x-auto no-scrollbar pb-1">
-          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-4 bg-muted p-1 rounded-xl h-11 border border-border/60 gap-1">
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-5 bg-muted p-1 rounded-xl h-11 border border-border/60 gap-1">
             <TabsTrigger id="tab-financials" value="financials" className="rounded-lg font-bold text-xs gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Wallet className="h-4 w-4 text-primary" /> Financials
             </TabsTrigger>
@@ -367,6 +546,9 @@ export default function AdminSettingsPage() {
             </TabsTrigger>
             <TabsTrigger id="tab-identity" value="identity" className="rounded-lg font-bold text-xs gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <ShieldCheck className="h-4 w-4 text-primary" /> Identity
+            </TabsTrigger>
+            <TabsTrigger id="tab-email" value="email" className="rounded-lg font-bold text-xs gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Mail className="h-4 w-4 text-primary" /> Email Delivery
             </TabsTrigger>
             {isSuperAdmin && (
               <TabsTrigger id="tab-reset" value="reset" className="rounded-lg font-bold text-xs gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 data-[state=active]:bg-background data-[state=active]:text-destructive data-[state=active]:shadow-sm">
@@ -971,6 +1153,319 @@ export default function AdminSettingsPage() {
             </Card>
           </form>
         </TabsContent>
+
+        {/* 4. EMAIL & SMTP DELIVERY INFRASTRUCTURE TAB */}
+        <TabsContent value="email" className="mt-0 space-y-4 sm:space-y-6">
+          {/* Status & Overview Card */}
+          <Card className="border border-border shadow-sm bg-card rounded-[10px]">
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-[13px] font-bold">
+                  <Mail className="h-4 w-4 text-primary" /> Outbound Email Infrastructure
+                </CardTitle>
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "text-[10px] font-bold px-2.5 py-0.5 self-start sm:self-auto",
+                    isEmailConfigured 
+                      ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30" 
+                      : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                  )}
+                >
+                  {isEmailConfigured ? "Live SMTP Delivery Active" : "Simulation Mode (Audit Log Tracking)"}
+                </Badge>
+              </div>
+              <CardDescription className="text-xs">
+                Configure your SMTP mail server to automatically dispatch account activation links, invitations, and notifications to freshly created member emails.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3.5 bg-muted/40 rounded-xl border border-border space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-bold text-foreground">
+                  <Server className="h-4 w-4 text-primary" />
+                  Provider Quick Presets
+                </div>
+                <p className="text-muted-foreground text-[11px]">
+                  Click a preset to populate recommended host and port configurations for common email services:
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 rounded-lg text-xs font-semibold"
+                    onClick={() => handleApplyPreset('gmail')}
+                  >
+                    Gmail (App Password)
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 rounded-lg text-xs font-semibold"
+                    onClick={() => handleApplyPreset('sendgrid')}
+                  >
+                    SendGrid
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 rounded-lg text-xs font-semibold"
+                    onClick={() => handleApplyPreset('brevo')}
+                  >
+                    Brevo (Sendinblue)
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 rounded-lg text-xs font-semibold"
+                    onClick={() => handleApplyPreset('resend')}
+                  >
+                    Resend
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SMTP Configuration Form */}
+          <form onSubmit={handleSaveEmailSettings} className="space-y-6">
+            <Card className="border border-border shadow-sm bg-card rounded-[10px]">
+              <CardHeader>
+                <CardTitle className="text-[13px] font-bold flex items-center gap-2">
+                  <Server className="h-4 w-4 text-primary" /> SMTP Server Credentials
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Enter connection details for your transactional email provider or corporate mail server
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <Label htmlFor="smtpHost" className="text-xs font-bold">SMTP Host / Server</Label>
+                    <Input
+                      id="smtpHost"
+                      placeholder="e.g. smtp.gmail.com or smtp.mailgun.org"
+                      value={smtpHost}
+                      onChange={(e) => setSmtpHost(e.target.value)}
+                      required
+                      className="h-10 rounded-[10px] bg-muted border-none text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="smtpPort" className="text-xs font-bold">Port</Label>
+                    <Input
+                      id="smtpPort"
+                      type="number"
+                      placeholder="587"
+                      value={smtpPort}
+                      onChange={(e) => setSmtpPort(e.target.value)}
+                      required
+                      className="h-10 rounded-[10px] bg-muted border-none text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    id="smtpSecure"
+                    type="checkbox"
+                    checked={smtpSecure}
+                    onChange={(e) => setSmtpSecure(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor="smtpSecure" className="text-xs cursor-pointer select-none">
+                    Use SSL / TLS (Required for port 465; uncheck for STARTTLS on port 587)
+                  </Label>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="smtpUser" className="text-xs font-bold">SMTP Username / Email</Label>
+                    <Input
+                      id="smtpUser"
+                      placeholder="e.g. notifications@example.com"
+                      value={smtpUser}
+                      onChange={(e) => setSmtpUser(e.target.value)}
+                      required
+                      className="h-10 rounded-[10px] bg-muted border-none text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="smtpPass" className="text-xs font-bold">
+                        SMTP Password / App Password
+                      </Label>
+                      {hasStoredPassword && (
+                        <span className="text-[10px] text-green-600 font-bold">Configured (••••••••)</span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="smtpPass"
+                        type={showSmtpPass ? "text" : "password"}
+                        placeholder={hasStoredPassword ? "Enter new password to change" : "Enter SMTP password"}
+                        value={smtpPass}
+                        onChange={(e) => setSmtpPass(e.target.value)}
+                        className="h-10 pr-9 rounded-[10px] bg-muted border-none text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSmtpPass(!showSmtpPass)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showSmtpPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="fromName" className="text-xs font-bold">Sender Display Name</Label>
+                    <Input
+                      id="fromName"
+                      placeholder="e.g. Ikimina Scheme"
+                      value={fromName}
+                      onChange={(e) => setFromName(e.target.value)}
+                      className="h-10 rounded-[10px] bg-muted border-none text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="fromEmail" className="text-xs font-bold">Sender From Email</Label>
+                    <Input
+                      id="fromEmail"
+                      placeholder="e.g. no-reply@ikimina.rw"
+                      value={fromEmail}
+                      onChange={(e) => setFromEmail(e.target.value)}
+                      className="h-10 rounded-[10px] bg-muted border-none text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="emailAppUrl" className="text-xs font-bold">Application Web URL</Label>
+                  <Input
+                    id="emailAppUrl"
+                    placeholder="e.g. https://studio-1670844393-18cbb.web.app"
+                    value={emailAppUrl}
+                    onChange={(e) => setEmailAppUrl(e.target.value)}
+                    className="h-10 rounded-[10px] bg-muted border-none text-xs"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    The public web domain inserted into account activation links sent to newly enrolled members.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Audit Justification & Save */}
+            <Card className="border border-border shadow-sm bg-card rounded-[10px]">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-[13px] font-bold">Authorization & Audit Trail</CardTitle>
+                <CardDescription className="text-xs">
+                  Record permanent administrative notes for this SMTP credential update
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="emailJustification" className="text-xs font-bold">Administrative Justification</Label>
+                  <Textarea
+                    id="emailJustification"
+                    placeholder="e.g. Configured production transactional SMTP relay for member activation emails..."
+                    value={emailJustification}
+                    onChange={(e) => setEmailJustification(e.target.value)}
+                    rows={2}
+                    required
+                    className="text-xs rounded-[10px] bg-muted border-none resize-none"
+                  />
+                </div>
+
+                <Button 
+                  type="submit" 
+                  disabled={isSavingEmail} 
+                  className="w-full h-11 rounded-[10px] font-bold shadow-md"
+                >
+                  {isSavingEmail ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving Settings...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" /> Save Email Delivery Settings
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </form>
+
+          {/* Test Email Card */}
+          <Card className="border border-border shadow-sm bg-card rounded-[10px]">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-[13px] font-bold flex items-center gap-2">
+                <Send className="h-4 w-4 text-primary" /> Test SMTP Delivery Connection
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Dispatch an immediate test email to verify host accessibility, port routing, and authentication credentials
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSendTestEmail} className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-2.5">
+                  <div className="flex-1">
+                    <Input
+                      type="email"
+                      placeholder="recipient@example.com"
+                      value={testEmailRecipient}
+                      onChange={(e) => setTestEmailRecipient(e.target.value)}
+                      className="h-10 rounded-[10px] bg-muted border-none text-xs"
+                      required
+                    />
+                  </div>
+                  <Button 
+                    type="submit" 
+                    variant="outline" 
+                    disabled={isTestingEmail} 
+                    className="h-10 px-4 rounded-[10px] font-bold text-xs shrink-0"
+                  >
+                    {isTestingEmail ? (
+                      <>
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Testing...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-1.5 h-3.5 w-3.5" /> Send Test Email
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {testEmailResult && (
+                  <div className={cn(
+                    "p-3 rounded-xl border text-xs flex gap-2.5 items-start",
+                    testEmailResult.success 
+                      ? "bg-green-500/10 border-green-500/20 text-green-800 dark:text-green-300"
+                      : "bg-destructive/10 border-destructive/20 text-destructive dark:text-red-300"
+                  )}>
+                    {testEmailResult.success ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-destructive mt-0.5" />
+                    )}
+                    <div className="space-y-0.5">
+                      <p className="font-bold">{testEmailResult.success ? 'SMTP Connection Succeeded' : 'SMTP Connection Failed'}</p>
+                      <p className="text-[11px] leading-relaxed opacity-90">{testEmailResult.message}</p>
+                    </div>
+                  </div>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
 
         {/* 4. SUPER ADMIN DANGER ZONE RESET TAB */}
         {isSuperAdmin && (

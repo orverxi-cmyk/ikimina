@@ -605,9 +605,10 @@ export async function updateUserRoleAction(targetUserId: string, role: string, j
 export async function registerMemberAction(uid: string, memberData: any) {
   const functions = getFinanceFunctions();
   const registerFn = httpsCallable(functions, 'registerMember');
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
   try {
-    const result = await registerFn({ memberData, justification: memberData.justification });
-    return result.data;
+    const result = await registerFn({ memberData, justification: memberData.justification, appUrl });
+    return result.data as any;
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed to register member');
   }
@@ -619,9 +620,10 @@ export async function registerMemberAction(uid: string, memberData: any) {
 export async function bulkRegisterMembersAction(uid: string, members: any[], justification: string) {
   const functions = getFinanceFunctions();
   const bulkFn = httpsCallable(functions, 'bulkRegisterMembers');
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
   try {
-    const result = await bulkFn({ members, justification });
-    return result.data;
+    const result = await bulkFn({ members, justification, appUrl });
+    return result.data as any;
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed bulk registration');
   }
@@ -985,6 +987,98 @@ export async function rejectExpenseAction(data: {
     return result.data as { success: boolean; expenseId: string; message: string };
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed to reject expense');
+  }
+}
+
+/**
+ * Triggers or resends an account activation email with an authoritative Firebase link.
+ */
+export async function sendMemberActivationEmailAction(data: {
+  email?: string;
+  memberId?: string;
+  appUrl?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'sendMemberActivationEmail');
+  const payload = {
+    ...data,
+    appUrl: data.appUrl || (typeof window !== 'undefined' ? window.location.origin : undefined),
+  };
+  try {
+    const result = await fn(payload);
+    return result.data as {
+      success: boolean;
+      emailSent: boolean;
+      message: string;
+      activationLink?: string;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to send activation email');
+  }
+}
+
+/**
+ * Retrieves the system SMTP email delivery settings (Admin only).
+ */
+export async function getEmailSettingsAction() {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'getEmailSettings');
+  try {
+    const result = await fn();
+    return result.data as {
+      smtpHost: string;
+      smtpPort: number;
+      smtpSecure: boolean;
+      smtpUser: string;
+      hasPassword: boolean;
+      fromName: string;
+      fromEmail: string;
+      appUrl: string;
+      isConfigured: boolean;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to load email settings');
+  }
+}
+
+/**
+ * Updates system SMTP email delivery configuration (Admin only).
+ */
+export async function updateEmailSettingsAction(data: {
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser: string;
+  smtpPass?: string;
+  fromName: string;
+  fromEmail: string;
+  appUrl?: string;
+  justification?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'updateEmailSettings');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to update email settings');
+  }
+}
+
+/**
+ * Sends a test email to verify SMTP configuration and credentials (Admin only).
+ */
+export async function testEmailSettingsAction(data: {
+  targetEmail: string;
+  testConfig?: any;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'testEmailSettings');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; message: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to send test email');
   }
 }
 
