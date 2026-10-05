@@ -155,51 +155,83 @@ exports.updateUserRole = (0, https_1.onCall)({ cors: true }, async (request) => 
 });
 /**
  * Deletes or revokes access for a member securely.
- * Checks for admin privileges and verifies there are no outstanding loan debts.
+ * Can be executed directly by a Super Administrator without requiring a member request.
+ * Checks for admin privileges, prevents self-deletion, and verifies there are no outstanding loan debts.
  */
 exports.deleteMember = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a;
+    var _a, _b;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
-        throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
+        throw new https_1.HttpsError('permission-denied', 'Super Administrator privileges required.');
     }
     const { targetUserId, justification } = request.data || {};
-    if (!targetUserId || !justification) {
+    if (!targetUserId || !justification || typeof justification !== 'string' || !justification.trim()) {
         throw new https_1.HttpsError('invalid-argument', 'Target user ID and justification are required.');
     }
+    if (targetUserId === request.auth.uid) {
+        throw new https_1.HttpsError('failed-precondition', 'Super Administrators cannot delete their own account directly.');
+    }
+    const targetUserRef = db.collection('users').doc(targetUserId);
+    const targetUserSnap = await targetUserRef.get();
+    const targetUserData = targetUserSnap.exists ? targetUserSnap.data() : {};
     // Guard: Check for active loans
     const loansSnap = await db.collection('loans')
         .where('memberId', '==', targetUserId)
         .where('status', '==', 'approved')
         .get();
     for (const doc of loansSnap.docs) {
-        if ((Number(doc.data().balance) || 0) > 0) {
-            throw new https_1.HttpsError('failed-precondition', 'Cannot remove a member with an active outstanding loan balance.');
+        const balance = Number(doc.data().balance) || 0;
+        if (balance > 0) {
+            throw new https_1.HttpsError('failed-precondition', `Cannot delete member account with active outstanding loan debt (${balance}). All loans must be settled first.`);
         }
     }
     try {
         const batch = db.batch();
-        batch.delete(db.collection('users').doc(targetUserId));
+        // 1. Delete user record
+        batch.delete(targetUserRef);
+        // 2. If there are any pending account_deletion_requests for this user, resolve them
+        const pendingReqsSnap = await db.collection('account_deletion_requests')
+            .where('userId', '==', targetUserId)
+            .where('status', '==', 'pending')
+            .get();
+        for (const reqDoc of pendingReqsSnap.docs) {
+            batch.update(reqDoc.ref, {
+                status: 'approved',
+                reviewedBy: request.auth.uid,
+                reviewedByName: ((_b = adminSnap.data()) === null || _b === void 0 ? void 0 : _b.name) || 'Super Admin',
+                reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+                adminNotes: justification.trim() || 'Account deleted directly by Super Admin'
+            });
+        }
+        // 3. Write immutable audit log
         const logRef = db.collection('audit_logs').doc();
         batch.set(logRef, {
             adminId: request.auth.uid,
-            action: 'DELETE_MEMBER',
-            justification,
-            details: { memberId: targetUserId },
+            action: 'DELETE_MEMBER_DIRECT',
+            justification: justification.trim(),
+            details: {
+                memberId: targetUserId,
+                memberName: targetUserData.name || 'Unknown',
+                memberEmail: targetUserData.email || '',
+                savingsBalance: targetUserData.savingsBalance || 0,
+                accruedInterest: targetUserData.accruedInterest || 0,
+                directSuperAdminDeletion: true
+            },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
-        // Also clean up Auth record if exists
+        // 4. Also clean up Auth record if exists
         try {
             await admin.auth().deleteUser(targetUserId);
         }
         catch (e) {
             // Ignore if auth user doesn't exist
+            console.warn('Auth user already deleted or not found:', (e === null || e === void 0 ? void 0 : e.message) || e);
         }
-        return { success: true };
+        return { success: true, targetUserId };
     }
     catch (error) {
         throw new https_1.HttpsError('internal', error.message);

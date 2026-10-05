@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -46,7 +46,8 @@ import { useToast } from '@/hooks/use-toast';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { 
   requestAccountDeletionAction, 
-  cancelAccountDeletionRequestAction 
+  cancelAccountDeletionRequestAction,
+  deleteMemberAction
 } from '@/lib/finance-client';
 import { safeFormatDate } from '@/lib/loan-utils';
 
@@ -55,13 +56,19 @@ import { useSettings } from '@/context/settings-context';
 export default function ProfilePage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<string>(tabParam === 'account' ? 'account' : 'overview');
 
-  // Deletion Request States
+  // Deletion Request States (Member Self-Service)
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [deletionReason, setDeletionReason] = useState('');
   const [isSubmittingDeletion, setIsSubmittingDeletion] = useState(false);
+
+  // Direct Account Deletion States (Super Admin)
+  const [isDirectDeleteDialogOpen, setIsDirectDeleteDialogOpen] = useState(false);
+  const [directDeleteJustification, setDirectDeleteJustification] = useState('');
+  const [isDirectDeleting, setIsDirectDeleting] = useState(false);
 
   const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
@@ -92,7 +99,9 @@ export default function ProfilePage() {
 
   const userLoading = authLoading || userDocLoading || currentUserLoading;
   const isManagement = currentUserData?.role === 'admin' || currentUserData?.role === 'management';
+  const isSuperAdmin = currentUserData?.role === 'admin';
   const isOwnProfile = Boolean(user && (targetId === user.uid || params.username === 'me'));
+  const canViewAccountTab = isOwnProfile || isSuperAdmin;
 
   // Fetch target user's financial records with server-side ordering to utilize indexes
   const contributionsQuery = useMemoFirebase(() => {
@@ -230,6 +239,48 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDirectDeleteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetId || !directDeleteJustification.trim()) return;
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are offline. Please reconnect before deleting accounts."
+      });
+    }
+
+    if (activeDebt > 0) {
+      return toast({
+        variant: "destructive",
+        title: "Active Loan Balance",
+        description: `Cannot delete member with active debt (${formatCurrency(activeDebt, currency)}). Settle all loans first.`
+      });
+    }
+
+    setIsDirectDeleting(true);
+    try {
+      await deleteMemberAction(targetId, directDeleteJustification.trim());
+      toast({
+        title: "Account Permanently Deleted",
+        description: `Account for ${userData?.name || userData?.email} has been directly deleted by Super Admin.`
+      });
+      setIsDirectDeleteDialogOpen(false);
+      setDirectDeleteJustification('');
+      router.push('/members');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: "destructive",
+        title: parsed.title || "Deletion Failed",
+        description: parsed.message
+      });
+    } finally {
+      setIsDirectDeleting(false);
+    }
+  };
+
   if (userLoading || loadingConts || loadingLoans) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[50vh]">
@@ -345,17 +396,17 @@ export default function ProfilePage() {
         <div className="w-full overflow-x-auto no-scrollbar pb-1">
           <TabsList className={cn(
             "inline-flex w-full min-w-max sm:min-w-0 sm:w-fit h-12 p-1 bg-muted rounded-xl border border-border/60 gap-1",
-            isOwnProfile ? "grid grid-cols-4" : "grid grid-cols-3"
+            canViewAccountTab ? "grid grid-cols-4" : "grid grid-cols-3"
           )}>
             <TabsTrigger value="overview" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><Landmark className="mr-1.5 sm:mr-2 h-4 w-4" /> Summary</TabsTrigger>
             <TabsTrigger value="contributions" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><Wallet className="mr-1.5 sm:mr-2 h-4 w-4" /> Savings</TabsTrigger>
             <TabsTrigger value="loans" className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold"><HandCoins className="mr-1.5 sm:mr-2 h-4 w-4" /> Loans</TabsTrigger>
-            {isOwnProfile && (
+            {canViewAccountTab && (
               <TabsTrigger 
                 value="account" 
                 className="whitespace-nowrap shrink-0 px-3 sm:px-4 text-xs font-semibold text-destructive hover:text-destructive data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground"
               >
-                <UserX className="mr-1.5 sm:mr-2 h-4 w-4" /> Delete Account
+                <UserX className="mr-1.5 sm:mr-2 h-4 w-4" /> {isOwnProfile ? "Delete Account" : "Account & Deletion"}
               </TabsTrigger>
             )}
           </TabsList>
@@ -489,87 +540,159 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
 
-        {/* Account Tab (Danger Zone & Deletion Request) */}
-        {isOwnProfile && (
+        {/* Account Tab (Danger Zone & Deletion Request / Direct Deletion) */}
+        {canViewAccountTab && (
           <TabsContent value="account" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card className="border-none shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground">Membership &amp; Access</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="p-4 bg-muted rounded-xl space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase font-bold">Registered Name</p>
-                    <p className="text-sm font-semibold text-foreground">{userData.name}</p>
-                  </div>
-                  <div className="p-4 bg-muted rounded-xl space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase font-bold">Email Address</p>
-                    <p className="text-sm font-semibold text-foreground">{userData.email}</p>
-                  </div>
-                  <div className="p-4 bg-muted rounded-xl space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase font-bold">System Role</p>
-                    <p className="text-sm font-semibold text-foreground capitalize">{userData.role || 'member'}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Danger Zone: Account Deletion */}
-              <Card className="border border-destructive/20 shadow-md bg-destructive/5">
-                <CardHeader>
-                  <CardTitle className="text-sm uppercase tracking-widest text-destructive flex items-center gap-2">
-                    <UserX className="h-4 w-4" /> Danger Zone
-                  </CardTitle>
-                  <CardDescription>
-                    Request permanent account deletion and scheme withdrawal.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Once requested, your account deletion is submitted to the Super Admin request table for dual-control approval. Before an account can be approved for deletion, all active loan debt must be cleared.
-                  </p>
-
-                  {activeDebt > 0 && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl text-xs text-destructive flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                      <span>
-                        You have an active loan balance of <strong>{formatCurrency(activeDebt, currency)}</strong>. You must settle all active facilities before requesting deletion.
-                      </span>
+            {isOwnProfile ? (
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card className="border-none shadow-md">
+                  <CardHeader>
+                    <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground">Membership &amp; Access</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-4 bg-muted rounded-xl space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase font-bold">Registered Name</p>
+                      <p className="text-sm font-semibold text-foreground">{userData.name}</p>
                     </div>
-                  )}
+                    <div className="p-4 bg-muted rounded-xl space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase font-bold">Email Address</p>
+                      <p className="text-sm font-semibold text-foreground">{userData.email}</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-xl space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase font-bold">System Role</p>
+                      <p className="text-sm font-semibold text-foreground capitalize">{userData.role || 'member'}</p>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                  {latestDeletionRequest?.status === 'pending' ? (
-                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
-                        <Clock className="h-4 w-4 text-amber-600" />
-                        Deletion Request Awaiting Review
+                {/* Danger Zone: Account Deletion */}
+                <Card className="border border-destructive/20 shadow-md bg-destructive/5">
+                  <CardHeader>
+                    <CardTitle className="text-sm uppercase tracking-widest text-destructive flex items-center gap-2">
+                      <UserX className="h-4 w-4" /> Danger Zone
+                    </CardTitle>
+                    <CardDescription>
+                      Request permanent account deletion and scheme withdrawal.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Once requested, your account deletion is submitted to the Super Admin request table for dual-control approval. Before an account can be approved for deletion, all active loan debt must be cleared.
+                    </p>
+
+                    {activeDebt > 0 && (
+                      <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl text-xs text-destructive flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>
+                          You have an active loan balance of <strong>{formatCurrency(activeDebt, currency)}</strong>. You must settle all active facilities before requesting deletion.
+                        </span>
                       </div>
-                      <p className="text-xs text-amber-900/90 dark:text-amber-200/90 italic">
-                        &ldquo;{latestDeletionRequest.reason}&rdquo;
-                      </p>
+                    )}
+
+                    {latestDeletionRequest?.status === 'pending' ? (
+                      <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                          <Clock className="h-4 w-4 text-amber-600" />
+                          Deletion Request Awaiting Review
+                        </div>
+                        <p className="text-xs text-amber-900/90 dark:text-amber-200/90 italic">
+                          &ldquo;{latestDeletionRequest.reason}&rdquo;
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCancelDeletionSubmit(latestDeletionRequest.id)}
+                          disabled={isSubmittingDeletion}
+                          className="w-full rounded-xl text-xs font-bold border-amber-600/40 text-amber-800 hover:bg-amber-500/20"
+                        >
+                          {isSubmittingDeletion ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+                          Withdraw Deletion Request
+                        </Button>
+                      </div>
+                    ) : (
                       <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCancelDeletionSubmit(latestDeletionRequest.id)}
-                        disabled={isSubmittingDeletion}
-                        className="w-full rounded-xl text-xs font-bold border-amber-600/40 text-amber-800 hover:bg-amber-500/20"
+                        variant="destructive"
+                        onClick={() => setIsRequestDialogOpen(true)}
+                        disabled={activeDebt > 0 || isSubmittingDeletion}
+                        className="w-full rounded-xl text-xs font-bold gap-2 shadow-md"
                       >
-                        {isSubmittingDeletion ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
-                        Withdraw Deletion Request
+                        <UserX className="h-4 w-4" /> Request Account Deletion
                       </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            ) : isSuperAdmin ? (
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card className="border-none shadow-md">
+                  <CardHeader>
+                    <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground">Member Account Standing</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-4 bg-muted rounded-xl space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase font-bold">Registered Name</p>
+                      <p className="text-sm font-semibold text-foreground">{userData.name}</p>
                     </div>
-                  ) : (
+                    <div className="p-4 bg-muted rounded-xl space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase font-bold">Email Address</p>
+                      <p className="text-sm font-semibold text-foreground">{userData.email}</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-xl space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase font-bold">System Role</p>
+                      <p className="text-sm font-semibold text-foreground capitalize">{userData.role || 'member'}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Danger Zone: Super Admin Direct Account Deletion */}
+                <Card className="border border-destructive/20 shadow-md bg-destructive/5">
+                  <CardHeader>
+                    <CardTitle className="text-sm uppercase tracking-widest text-destructive flex items-center gap-2">
+                      <UserX className="h-4 w-4" /> Direct Account Deletion
+                    </CardTitle>
+                    <CardDescription>
+                      Super Administrator action: Delete this account without requiring a member request.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      As a Super Administrator, you can directly delete this member account from the system. An immutable audit record will be logged with your justification. All active loans must be cleared prior to deletion.
+                    </p>
+
+                    {activeDebt > 0 && (
+                      <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl text-xs text-destructive flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>
+                          Member has an active loan balance of <strong>{formatCurrency(activeDebt, currency)}</strong>. All outstanding loans must be cleared before deleting the account.
+                        </span>
+                      </div>
+                    )}
+
+                    {latestDeletionRequest?.status === 'pending' && (
+                      <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1 text-xs text-amber-900 dark:text-amber-200">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <Clock className="h-4 w-4 text-amber-600" />
+                          <span>Pending Member Deletion Request</span>
+                        </div>
+                        <p className="italic">&ldquo;{latestDeletionRequest.reason}&rdquo;</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Direct deletion will automatically mark this pending request as approved.
+                        </p>
+                      </div>
+                    )}
+
                     <Button
                       variant="destructive"
-                      onClick={() => setIsRequestDialogOpen(true)}
-                      disabled={activeDebt > 0 || isSubmittingDeletion}
+                      onClick={() => setIsDirectDeleteDialogOpen(true)}
+                      disabled={activeDebt > 0 || isDirectDeleting}
                       className="w-full rounded-xl text-xs font-bold gap-2 shadow-md"
                     >
-                      <UserX className="h-4 w-4" /> Request Account Deletion
+                      <UserX className="h-4 w-4" /> Delete Member Account
                     </Button>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : null}
           </TabsContent>
         )}
       </Tabs>
@@ -636,6 +759,81 @@ export default function ProfilePage() {
               <Button type="submit" disabled={isSubmittingDeletion || !deletionReason.trim()} variant="destructive" className="rounded-xl text-xs font-bold gap-1.5 shadow-md">
                 {isSubmittingDeletion ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserX className="h-4 w-4 mr-1" />}
                 Submit Request to Super Admin
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Super Admin Direct Account Deletion Dialog */}
+      <Dialog open={isDirectDeleteDialogOpen} onOpenChange={setIsDirectDeleteDialogOpen}>
+        <DialogContent className="max-w-md rounded-2xl bg-card border border-border shadow-2xl p-0 overflow-hidden">
+          <form onSubmit={handleDirectDeleteSubmit}>
+            <DialogHeader className="p-5 bg-destructive text-destructive-foreground">
+              <DialogTitle className="text-base font-bold flex items-center gap-2 text-white">
+                <UserX className="h-5 w-5" /> Direct Account Deletion
+              </DialogTitle>
+              <DialogDescription className="text-red-100 text-xs mt-1">
+                Directly delete {userData?.name || userData?.email}&apos;s account without member request.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="p-5 space-y-4">
+              {/* Financial Position Snapshot */}
+              <div className="p-3.5 bg-muted/40 rounded-xl border border-border space-y-2 text-xs">
+                <span className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Member Financial Standing:</span>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Total Verified Savings:</span>
+                  <span className="font-bold text-foreground">{formatCurrency(totalContributions, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Accrued Interest:</span>
+                  <span className="font-bold text-emerald-600">+{formatCurrency(userData?.accruedInterest || 0, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Outstanding Loans:</span>
+                  <span className={cn("font-bold", activeDebt > 0 ? "text-destructive" : "text-emerald-600")}>
+                    {formatCurrency(activeDebt, currency)} {activeDebt === 0 && "(Cleared)"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-900 dark:text-red-200 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  This action will permanently delete the member from Firestore and remove their Firebase Auth credentials. Any payout of member savings must be coordinated per bylaws.
+                </p>
+              </div>
+
+              {/* Reason input */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Administrative Justification <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  value={directDeleteJustification}
+                  onChange={e => setDirectDeleteJustification(e.target.value)}
+                  placeholder="Official administrative reason for direct deletion (e.g. Scheme withdrawal, disciplinary action, account consolidation)..."
+                  required
+                  rows={3}
+                  className="text-xs rounded-xl bg-muted border-none resize-none"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="p-4 bg-muted/20 border-t flex items-center justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsDirectDeleteDialogOpen(false)} className="rounded-xl text-xs font-bold">
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={isDirectDeleting || !directDeleteJustification.trim() || activeDebt > 0} 
+                variant="destructive" 
+                className="rounded-xl text-xs font-bold gap-1.5 shadow-md"
+              >
+                {isDirectDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                Confirm &amp; Permanently Delete
               </Button>
             </DialogFooter>
           </form>

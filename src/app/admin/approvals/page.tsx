@@ -81,7 +81,8 @@ import {
   approveInterestDistributionAction,
   rejectInterestDistributionAction,
   approveAccountDeletionAction,
-  rejectAccountDeletionAction
+  rejectAccountDeletionAction,
+  deleteMemberAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { safeFormatDate } from '@/lib/loan-utils';
@@ -94,6 +95,13 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Link from 'next/link';
 
 export default function ApprovalsHubPage() {
@@ -168,6 +176,11 @@ export default function ApprovalsHubPage() {
   const [isDeletionModalOpen, setIsDeletionModalOpen] = useState(false);
   const [deletionAdminNotes, setDeletionAdminNotes] = useState('');
   const [deletionRejectionReason, setDeletionRejectionReason] = useState('');
+
+  // Super Admin Direct Deletion Modal States
+  const [isDirectDeleteModalOpen, setIsDirectDeleteModalOpen] = useState(false);
+  const [selectedDirectDeleteMemberId, setSelectedDirectDeleteMemberId] = useState('');
+  const [directDeleteJustification, setDirectDeleteJustification] = useState('');
 
   // Firestore Data Subscriptions - strictly mounted only when authorized
   const membersQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'users'), orderBy('name', 'asc')) : null, [firestore, isAuthorized]);
@@ -670,6 +683,77 @@ export default function ApprovalsHubPage() {
       toast({
         variant: "destructive",
         title: parsed.title || "Operation Failed",
+        description: parsed.message
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Direct Account Deletion Details for Super Admin
+  const selectedDirectDeleteMember = useMemo(() => {
+    if (!selectedDirectDeleteMemberId) return null;
+    return memberMap.get(selectedDirectDeleteMemberId) || null;
+  }, [selectedDirectDeleteMemberId, memberMap]);
+
+  const selectedMemberDebt = useMemo(() => {
+    if (!selectedDirectDeleteMemberId || !allLoansSnap) return 0;
+    return allLoansSnap.docs
+      .map(d => d.data())
+      .filter((l: any) => l.memberId === selectedDirectDeleteMemberId && l.status === 'approved')
+      .reduce((sum, l: any) => sum + (Number(l.balance) || 0), 0);
+  }, [selectedDirectDeleteMemberId, allLoansSnap]);
+
+  const selectedMemberTotalSavings = useMemo(() => {
+    if (!selectedDirectDeleteMemberId || !allContributionsSnap) return 0;
+    return allContributionsSnap.docs
+      .map(d => d.data())
+      .filter((c: any) => c.memberId === selectedDirectDeleteMemberId && c.status === 'approved')
+      .reduce((sum, c: any) => sum + (Number(c.amount) || 0), 0);
+  }, [selectedDirectDeleteMemberId, allContributionsSnap]);
+
+  const handleDirectDeleteMember = async () => {
+    if (!selectedDirectDeleteMemberId || !directDeleteJustification.trim()) return;
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are offline. Please reconnect and try again."
+      });
+    }
+
+    if (!isSuperAdmin) {
+      return toast({
+        variant: "destructive",
+        title: "Permission Denied",
+        description: "Only Super Administrators can execute direct account deletions."
+      });
+    }
+
+    if (selectedMemberDebt > 0) {
+      return toast({
+        variant: "destructive",
+        title: "Active Loan Balance",
+        description: `Cannot delete member with active debt (${formatCurrency(selectedMemberDebt, currency)}). Settle all loans first.`
+      });
+    }
+
+    setIsSubmitting(true);
+    try {
+      await deleteMemberAction(selectedDirectDeleteMemberId, directDeleteJustification.trim());
+      toast({
+        title: "Account Permanently Deleted",
+        description: `Account for ${selectedDirectDeleteMember?.name || selectedDirectDeleteMember?.email || 'Member'} has been directly deleted by Super Admin.`
+      });
+      setIsDirectDeleteModalOpen(false);
+      setSelectedDirectDeleteMemberId('');
+      setDirectDeleteJustification('');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: "destructive",
+        title: parsed.title || "Deletion Failed",
         description: parsed.message
       });
     } finally {
@@ -1383,6 +1467,20 @@ export default function ApprovalsHubPage() {
                 >
                   {deletionSubTab === 'pending' ? 'Show All History' : 'Show Pending Only'}
                 </Button>
+                {isSuperAdmin && (
+                  <Button 
+                    size="sm" 
+                    variant="secondary" 
+                    onClick={() => {
+                      setSelectedDirectDeleteMemberId('');
+                      setDirectDeleteJustification('');
+                      setIsDirectDeleteModalOpen(true);
+                    }}
+                    className="h-7 text-xs font-bold rounded-lg bg-white text-red-600 hover:bg-red-50 border-none shadow-sm gap-1.5"
+                  >
+                    <UserMinus className="h-3.5 w-3.5" /> Direct Deletion
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -2219,6 +2317,143 @@ export default function ApprovalsHubPage() {
                 </Button>
               </div>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 7. SUPER ADMIN DIRECT ACCOUNT DELETION MODAL */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog open={isDirectDeleteModalOpen} onOpenChange={setIsDirectDeleteModalOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0 rounded-2xl overflow-hidden bg-card border border-border shadow-2xl">
+          <DialogHeader className="p-5 bg-red-600 text-white border-b border-red-700/30 shrink-0">
+            <DialogTitle className="text-base font-bold text-white flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <UserX className="h-5 w-5" /> Direct Account Deletion
+              </span>
+              <Badge className="bg-white/20 text-white border-none text-[10px] font-bold uppercase">
+                Super Admin Override
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-red-100 text-xs mt-1">
+              Directly purge a member account and revoke credentials without requiring a prior member request.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-5 overflow-y-auto space-y-4 flex-1">
+            {/* Member Selector */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider text-foreground">
+                Select Member to Delete <span className="text-destructive">*</span>
+              </Label>
+              <Select value={selectedDirectDeleteMemberId} onValueChange={setSelectedDirectDeleteMemberId}>
+                <SelectTrigger className="h-11 rounded-xl bg-muted border-none text-xs">
+                  <SelectValue placeholder="Choose a registered member..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-56 rounded-xl">
+                  {members
+                    .filter((m: any) => m.id !== user?.uid)
+                    .map((m: any) => (
+                      <SelectItem key={m.id} value={m.id} className="text-xs">
+                        {m.name || 'Unknown'} ({m.email}) - {m.role || 'member'}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Selected Member Financial Overview */}
+            {selectedDirectDeleteMember && (
+              <div className="p-3.5 bg-muted/40 rounded-xl border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-xs text-foreground">{selectedDirectDeleteMember.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{selectedDirectDeleteMember.email}</p>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] uppercase font-bold">
+                    {selectedDirectDeleteMember.role || 'member'}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t">
+                  <div className="p-2 bg-background rounded-lg border">
+                    <p className="text-[9px] uppercase font-bold text-muted-foreground">Savings</p>
+                    <p className="text-xs font-bold text-foreground mt-0.5">
+                      {formatCurrency(selectedMemberTotalSavings, currency)}
+                    </p>
+                  </div>
+                  <div className="p-2 bg-background rounded-lg border">
+                    <p className="text-[9px] uppercase font-bold text-muted-foreground">Accrued Interest</p>
+                    <p className="text-xs font-bold text-emerald-600 mt-0.5">
+                      +{formatCurrency(selectedDirectDeleteMember.accruedInterest || 0, currency)}
+                    </p>
+                  </div>
+                  <div className="p-2 bg-background rounded-lg border">
+                    <p className="text-[9px] uppercase font-bold text-muted-foreground">Active Debt</p>
+                    <p className={cn(
+                      "text-xs font-bold mt-0.5",
+                      selectedMemberDebt > 0 ? "text-destructive" : "text-emerald-600"
+                    )}>
+                      {formatCurrency(selectedMemberDebt, currency)}
+                    </p>
+                  </div>
+                </div>
+
+                {selectedMemberDebt > 0 && (
+                  <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-900 dark:text-red-200 text-xs flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                    <p className="leading-tight">
+                      This member has an outstanding loan balance of <strong>{formatCurrency(selectedMemberDebt, currency)}</strong>. Deletion is blocked until all debt is repaid.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Warning Callout */}
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-900 dark:text-red-200 text-xs flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                Direct deletion immediately revokes the member&apos;s authentication credentials, erases their user document, and writes an immutable entry into the audit trail.
+              </p>
+            </div>
+
+            {/* Administrative Justification */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider text-foreground">
+                Administrative Justification <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={directDeleteJustification}
+                onChange={e => setDirectDeleteJustification(e.target.value)}
+                placeholder="State official reason for direct deletion without member request (e.g. Disciplinary revocation, member deceased, scheme liquidation)..."
+                required
+                rows={3}
+                className="text-xs rounded-xl bg-muted border-none resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 bg-muted/20 border-t shrink-0 flex items-center justify-between gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsDirectDeleteModalOpen(false);
+                setSelectedDirectDeleteMemberId('');
+                setDirectDeleteJustification('');
+              }} 
+              className="rounded-xl text-xs font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDirectDeleteMember}
+              disabled={isSubmitting || !selectedDirectDeleteMemberId || !directDeleteJustification.trim() || selectedMemberDebt > 0}
+              className="rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white gap-1.5 shadow-md"
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Confirm &amp; Delete Account
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

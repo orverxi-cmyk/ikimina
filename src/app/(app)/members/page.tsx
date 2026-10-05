@@ -4,7 +4,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -62,6 +62,12 @@ export default function MembersPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Super Admin Direct Deletion Dialog States
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState<any>(null);
+  const [deleteJustification, setDeleteJustification] = useState('');
+  const [isDeletingMember, setIsDeletingMember] = useState(false);
 
   const isAdmin = userData?.role === 'admin';
 
@@ -207,6 +213,40 @@ export default function MembersPage() {
       firstName: parts[0] || '',
       surname: parts.slice(1).join(' ') || ''
     };
+  };
+
+  const handleDeleteMemberSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberToDelete || !deleteJustification.trim()) return;
+
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Connection Offline",
+        description: "You are currently offline. Please connect before deleting accounts.",
+      });
+    }
+
+    setIsDeletingMember(true);
+    try {
+      await deleteMemberAction(memberToDelete.id, deleteJustification.trim());
+      toast({
+        title: "Account Permanently Deleted",
+        description: `Account for ${memberToDelete.name || memberToDelete.email} has been deleted directly by Super Admin.`,
+      });
+      setIsDeleteDialogOpen(false);
+      setMemberToDelete(null);
+      setDeleteJustification('');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({
+        variant: "destructive",
+        title: parsed.title || "Deletion Failed",
+        description: parsed.message,
+      });
+    } finally {
+      setIsDeletingMember(false);
+    }
   };
 
   if (userLoading || (isAdmin && membersLoading)) {
@@ -398,26 +438,16 @@ export default function MembersPage() {
                               <Link href="/admin/approvals">Review Deletion Request</Link>
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem className="text-destructive font-bold" onClick={async () => {
-                              if (isBrowserOffline()) {
-                                return toast({
-                                  variant: "destructive",
-                                  title: "Connection Offline",
-                                  description: "You are currently offline. Please connect before revoking access.",
-                                });
-                              }
-                              if (confirm(`Remove access for ${member.name}?`)) {
-                                const justification = window.prompt("Reason for removal:");
-                                if (!justification) return;
-                                try {
-                                  await deleteMemberAction(member.id, justification);
-                                  toast({ title: "Removed", description: "Access has been revoked." });
-                                } catch (err: any) {
-                                  const parsed = parseAppError(err);
-                                  toast({ variant: "destructive", title: parsed.title || "Removal Failed", description: parsed.message });
-                                }
-                              }
-                            }}>Revoke Access</DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-destructive font-bold flex items-center gap-1.5 focus:text-destructive focus:bg-destructive/10" 
+                            onClick={() => {
+                              setMemberToDelete(member);
+                              setDeleteJustification('');
+                              setIsDeleteDialogOpen(true);
+                            }}
+                          >
+                            <UserX className="h-4 w-4" /> Delete Account
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                        </DropdownMenu>
                     </TableCell>
@@ -428,6 +458,90 @@ export default function MembersPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Super Admin Direct Delete Member Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md rounded-2xl bg-card border border-border shadow-2xl p-0 overflow-hidden">
+          <form onSubmit={handleDeleteMemberSubmit}>
+            <DialogHeader className="p-5 bg-destructive text-destructive-foreground">
+              <DialogTitle className="text-base font-bold flex items-center gap-2 text-white">
+                <UserX className="h-5 w-5" /> Direct Account Deletion
+              </DialogTitle>
+              <DialogDescription className="text-red-100 text-xs mt-1">
+                Delete {memberToDelete?.name || memberToDelete?.email}&apos;s account directly without member request.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="p-5 space-y-4">
+              {/* Member Summary */}
+              <div className="p-3.5 bg-muted/40 rounded-xl border border-border space-y-2 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-destructive/10 text-destructive rounded-xl shrink-0">
+                    <UserX className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground text-sm">{memberToDelete?.name}</p>
+                    <p className="text-muted-foreground">{memberToDelete?.email}</p>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center text-xs pt-1 border-t">
+                  <span className="text-muted-foreground">System Role:</span>
+                  <Badge variant="outline" className="text-[10px] uppercase font-bold">{memberToDelete?.role || 'member'}</Badge>
+                </div>
+                {memberToDelete?.deletionRequested && (
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-800 dark:text-amber-300 text-[11px] font-medium flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    Member previously requested deletion. Direct deletion will resolve the request.
+                  </div>
+                )}
+              </div>
+
+              {/* Warning Alert */}
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-900 dark:text-red-200 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  This action permanently revokes login credentials, deletes the member user record, and records an official audit trail. Any outstanding loan debt must be settled first.
+                </p>
+              </div>
+
+              {/* Justification input */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Administrative Justification <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  value={deleteJustification}
+                  onChange={e => setDeleteJustification(e.target.value)}
+                  placeholder="Official reason for account deletion (e.g. Inactivity, scheme withdrawal, disciplinary termination)..."
+                  required
+                  rows={3}
+                  className="text-xs rounded-xl bg-muted border-none resize-none"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="p-4 bg-muted/20 border-t flex items-center justify-end gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => { setIsDeleteDialogOpen(false); setMemberToDelete(null); }} 
+                className="rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={isDeletingMember || !deleteJustification.trim()} 
+                variant="destructive" 
+                className="rounded-xl text-xs font-bold gap-1.5 shadow-md"
+              >
+                {isDeletingMember ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                Confirm &amp; Delete Account
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
