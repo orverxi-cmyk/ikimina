@@ -1773,7 +1773,7 @@ export default function ApprovalsHubPage() {
                 </a>
               </div>
             )}
-            {!isSlipInitiatedByCurrentUser(inspectSlip) && (
+            {!isSlipInitiatedByCurrentUser(inspectSlip) && ((isReviewer && inspectSlip?.status === 'pending') || (isSuperAdmin && inspectSlip?.status === 'reviewed')) && (
               <div className="space-y-2 pt-2">
                 <Label className="text-xs font-bold uppercase tracking-wider">Audit Justification *</Label>
                 <Input 
@@ -1862,7 +1862,7 @@ export default function ApprovalsHubPage() {
               <span className="text-muted-foreground">Purpose:</span>
               <span className="font-semibold">{inspectLoan?.description}</span>
             </div>
-            {!isLoanInitiatedByCurrentUser(inspectLoan) && (
+            {!isLoanInitiatedByCurrentUser(inspectLoan) && ((isReviewer && inspectLoan?.status === 'requested') || (isSuperAdmin && inspectLoan?.status === 'reviewed')) && (
               <div className="space-y-2 pt-2">
                 <Label className="text-xs font-bold uppercase tracking-wider">Approval / Audit Justification *</Label>
                 <Input 
