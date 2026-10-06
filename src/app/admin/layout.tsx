@@ -61,6 +61,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useSettings } from '@/context/settings-context';
 import { AppFooter } from '@/components/layout/app-footer';
+import { MobileNav } from '@/components/layout/mobile-nav';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -571,6 +572,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
+      <MobileNav />
+      {/* Spacer for Mobile Navigation */}
+      <div className="h-16 md:hidden shrink-0" />
     </div>
   );
 }
