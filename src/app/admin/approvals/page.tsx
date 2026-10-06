@@ -70,7 +70,7 @@ import {
   approveContributionBatchAction,
   bulkReviewContributionBatchesAction,
   bulkApproveContributionBatchesAction,
-  verifyContributionAction,
+  verifyContributionAction, reviewContributionAction, reviewLoanAction,
   rejectContributionAction,
   bulkVerifyContributionsAction,
   bulkRejectContributionsAction,
@@ -458,7 +458,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   // Individual Deposit Slip Action
   // -------------------------------------------------------------
-  const handleActionSlip = async (decision: 'verify' | 'reject') => {
+  const handleActionSlip = async (decision: 'review' | 'verify' | 'reject') => {
     if (!inspectSlip || !user) return;
     if (isSlipInitiatedByCurrentUser(inspectSlip)) {
       return toast({
@@ -500,7 +500,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   // Loan Application Action
   // -------------------------------------------------------------
-  const handleActionLoan = async (decision: 'approve' | 'reject') => {
+  const handleActionLoan = async (decision: 'review' | 'approve' | 'reject') => {
     if (!inspectLoan || !user) return;
     if (isLoanInitiatedByCurrentUser(inspectLoan)) {
       return toast({
@@ -515,7 +515,13 @@ export default function ApprovalsHubPage() {
 
     setIsSubmitting(true);
     try {
-      if (decision === 'approve') {
+      if (decision === 'review') {
+        await reviewLoanAction({
+          loanId: inspectLoan.id,
+          justification: loanJustification.trim()
+        });
+        toast({ title: "Loan Reviewed", description: "Loan request has been reviewed successfully." });
+      } else if (decision === 'approve') {
         await approveLoanAction({
           loanId: inspectLoan.id,
           terms: { durationMonths: 12 },
@@ -1786,22 +1792,36 @@ export default function ApprovalsHubPage() {
             </Button>
             {!isSlipInitiatedByCurrentUser(inspectSlip) && (
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleActionSlip('reject')} 
-                  disabled={isSubmitting}
-                  className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
-                >
-                  Reject
-                </Button>
-                <Button 
-                  onClick={() => handleActionSlip('verify')} 
-                  disabled={isSubmitting}
-                  className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                  Verify & Credit
-                </Button>
+                {(isReviewer || isSuperAdmin) && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionSlip('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
+                )}
+                {isReviewer && inspectSlip?.status === 'pending' && (
+                  <Button 
+                    onClick={() => handleActionSlip('review')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                    Review Deposit
+                  </Button>
+                )}
+                {isSuperAdmin && inspectSlip?.status === 'reviewed' && (
+                  <Button 
+                    onClick={() => handleActionSlip('verify')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    Approve Deposit
+                  </Button>
+                )}
               </div>
             )}
           </DialogFooter>
@@ -1861,22 +1881,36 @@ export default function ApprovalsHubPage() {
             </Button>
             {!isLoanInitiatedByCurrentUser(inspectLoan) && (
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleActionLoan('reject')} 
-                  disabled={isSubmitting}
-                  className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
-                >
-                  Reject
-                </Button>
-                <Button 
-                  onClick={() => handleActionLoan('approve')} 
-                  disabled={isSubmitting}
-                  className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                  Approve Loan
-                </Button>
+                {(isReviewer || isSuperAdmin) && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionLoan('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
+                )}
+                {isReviewer && inspectLoan?.status === 'requested' && (
+                  <Button 
+                    onClick={() => handleActionLoan('review')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                    Review Loan
+                  </Button>
+                )}
+                {isSuperAdmin && inspectLoan?.status === 'reviewed' && (
+                  <Button 
+                    onClick={() => handleActionLoan('approve')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    Approve Loan
+                  </Button>
+                )}
               </div>
             )}
           </DialogFooter>
