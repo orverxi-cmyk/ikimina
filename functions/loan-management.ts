@@ -656,8 +656,8 @@ export const reviewLoan = onCall({ cors: true }, async (request) => {
     const callerSnap = await db.collection('users').doc(request.auth.uid).get();
     const callerRole = callerSnap.data()?.role;
 
-    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
-        throw new HttpsError('permission-denied', 'Only reviewers can review loans.');
+    if (callerRole !== 'reviewer') {
+        throw new HttpsError('permission-denied', 'Only users with the reviewer role can review loans.');
     }
 
     const { loanId, justification } = request.data;

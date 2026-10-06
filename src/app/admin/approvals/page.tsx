@@ -119,7 +119,7 @@ export default function ApprovalsHubPage() {
   const userRole = userData?.role || 'member';
   const isAuthorized = Boolean(user && !userDataLoading && ['admin', 'management', 'accountant', 'reviewer', 'auditor'].includes(userRole));
   const isSuperAdmin = userRole === 'admin';
-  const isReviewer = userRole === 'reviewer' || userRole === 'management' || userRole === 'admin';
+  const isReviewer = userRole === 'reviewer';
   const isAccountant = userRole === 'accountant' || userRole === 'admin';
 
   const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'deletions' | 'upload'>('batches');

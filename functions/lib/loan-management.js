@@ -580,8 +580,8 @@ exports.reviewLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     const db = admin.firestore();
     const callerSnap = await db.collection('users').doc(request.auth.uid).get();
     const callerRole = (_a = callerSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
-    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
-        throw new https_1.HttpsError('permission-denied', 'Only reviewers can review loans.');
+    if (callerRole !== 'reviewer') {
+        throw new https_1.HttpsError('permission-denied', 'Only users with the reviewer role can review loans.');
     }
     const { loanId, justification } = request.data;
     if (!loanId)

@@ -75,6 +75,7 @@ export default function MembersPage() {
   const [isDeletingMember, setIsDeletingMember] = useState(false);
 
   const isAdmin = userData?.role === 'admin';
+  const isReviewer = userData?.role === 'reviewer';
 
   const membersQuery = useMemoFirebase(() => {
     if (!isAdmin) return null;
@@ -584,7 +585,7 @@ export default function MembersPage() {
                             <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 uppercase text-[9px] font-bold px-2.5 py-0.5 flex items-center gap-1">
                               <Clock className="h-3 w-3" /> Pending
                             </Badge>
-                            {member.passwordSet && member.status === 'pending' && (
+                            {isReviewer && member.passwordSet && member.status === 'pending' && (
                               <Button 
                                 size="sm" 
                                 onClick={() => handleReviewMember(member)}
@@ -599,7 +600,7 @@ export default function MembersPage() {
                                 Review
                               </Button>
                             )}
-                            {member.passwordSet && member.status === 'reviewed' && (
+                            {isAdmin && member.passwordSet && member.status === 'reviewed' && (
                               <Button 
                                 size="sm" 
                                 onClick={() => handleActivateMember(member)}
@@ -626,7 +627,7 @@ export default function MembersPage() {
                         <DropdownMenuContent align="end" className="rounded-xl w-52 shadow-xl">
                           <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
                           {member.status !== 'active' ? (
-                            (member.passwordSet && member.status === 'pending') ? (
+                            (isReviewer && member.passwordSet && member.status === 'pending') ? (
                               <DropdownMenuItem 
                                 className="font-bold text-blue-600 flex items-center gap-1.5 focus:text-blue-600 focus:bg-blue-50 dark:focus:bg-blue-950/20 cursor-pointer" 
                                 onClick={() => handleReviewMember(member)}
@@ -634,7 +635,7 @@ export default function MembersPage() {
                               >
                                 <Eye className="h-4 w-4" /> Review Membership
                               </DropdownMenuItem>
-                            ) : (member.passwordSet && member.status === 'reviewed') ? (
+                            ) : (isAdmin && member.passwordSet && member.status === 'reviewed') ? (
                               <DropdownMenuItem 
                                 className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
                                 onClick={() => handleActivateMember(member)}

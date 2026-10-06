@@ -1046,8 +1046,8 @@ export const reviewMember = onCall({ cors: true }, async (request) => {
     const callerSnap = await db.collection('users').doc(request.auth.uid).get();
     const callerRole = callerSnap.data()?.role;
 
-    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
-        throw new HttpsError('permission-denied', 'Only reviewers can review member accounts.');
+    if (callerRole !== 'reviewer') {
+        throw new HttpsError('permission-denied', 'Only users with the reviewer role can review member accounts.');
     }
 
     const { memberId, justification } = request.data || {};
