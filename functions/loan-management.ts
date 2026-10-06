@@ -345,8 +345,8 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
     const userSnap = await db.collection('users').doc(request.auth.uid).get();
     const userData = userSnap.data();
     
-    if (userData?.role !== 'admin' && userData?.role !== 'management') {
-        throw new HttpsError('permission-denied', 'Management authority required.');
+    if (userData?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Only admin can approve loans.');
     }
 
     const { loanId, terms = {}, justification } = request.data;
@@ -361,8 +361,8 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         if (loanData.memberId === request.auth.uid) {
             throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve your own loan application. Another administrator must approve it.');
         }
-        if (loanData.status !== 'requested') {
-            throw new HttpsError('failed-precondition', `Loan is currently in '${loanData.status}' status, cannot be approved.`);
+        if (loanData.status !== 'reviewed') {
+            throw new HttpsError('failed-precondition', `Loan must be reviewed by a reviewer before approval. Current status: ${loanData.status}`);
         }
 
         // Authoritatively check institutional lending pool capacity before approving
@@ -646,4 +646,46 @@ export const rejectLoan = onCall({ cors: true }, async (request) => {
     } catch (error: any) {
         throw new HttpsError('internal', error.message);
     }
+});
+
+
+export const reviewLoan = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerSnap.data()?.role;
+
+    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only reviewers can review loans.');
+    }
+
+    const { loanId, justification } = request.data;
+    if (!loanId) throw new HttpsError('invalid-argument', 'Loan ID is required.');
+
+    const loanRef = db.collection('loans').doc(loanId);
+    const loanSnap = await loanRef.get();
+    if (!loanSnap.exists) throw new HttpsError('not-found', 'Loan not found.');
+    
+    const loanData = loanSnap.data()!;
+    if (loanData.status !== 'requested') {
+        throw new HttpsError('failed-precondition', 'Loan is currently in ' + loanData.status + ' status, cannot be reviewed.');
+    }
+
+    await loanRef.update({
+        status: 'reviewed',
+        reviewedBy: request.auth.uid,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewJustification: justification || 'Reviewed'
+    });
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REVIEW_LOAN',
+        justification: justification || 'Reviewed loan request',
+        details: { loanId },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { success: true };
 });

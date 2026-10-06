@@ -105,8 +105,8 @@ export const verifyContribution = onCall({ cors: true }, async (request) => {
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
 
-    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant') {
-        throw new HttpsError('permission-denied', 'Only authorized personnel can verify contributions.');
+    if (adminData?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Only admin can verify contributions.');
     }
 
     const { contributionId, justification } = request.data;
@@ -122,6 +122,9 @@ export const verifyContribution = onCall({ cors: true }, async (request) => {
             throw new HttpsError('not-found', 'Contribution not found.');
         }
         const contribData = contribSnap.data()!;
+        if (contribData.status !== 'reviewed') {
+            throw new HttpsError('failed-precondition', 'Cannot approve. Contribution must be reviewed first. (Current status: ' + contribData.status + ')');
+        }
         if (contribData.memberId === request.auth.uid || contribData.recordedBy === request.auth.uid) {
             throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot verify your own deposit submission or a transaction you recorded.');
         }
@@ -1227,3 +1230,45 @@ export const bulkReverseContributions = onCall({ cors: true }, async (request) =
 });
 
 
+
+
+export const reviewContribution = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerSnap.data()?.role;
+
+    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only reviewers can review contributions.');
+    }
+
+    const { contributionId, justification } = request.data;
+    if (!contributionId) throw new HttpsError('invalid-argument', 'Contribution ID is required.');
+
+    const contributionRef = db.collection('contributions').doc(contributionId);
+    const contribSnap = await contributionRef.get();
+    if (!contribSnap.exists) throw new HttpsError('not-found', 'Contribution not found.');
+    
+    const contribData = contribSnap.data()!;
+    if (contribData.status !== 'pending') {
+        throw new HttpsError('failed-precondition', 'Contribution is currently in ' + contribData.status + ' status, cannot be reviewed.');
+    }
+
+    await contributionRef.update({
+        status: 'reviewed',
+        reviewedBy: request.auth.uid,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewJustification: justification || 'Reviewed'
+    });
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REVIEW_CONTRIBUTION',
+        justification: justification || 'Reviewed',
+        details: { contributionId },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { success: true };
+});

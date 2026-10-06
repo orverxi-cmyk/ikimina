@@ -1228,3 +1228,37 @@ export async function adminDeactivateMemberAction(data: {
 }
 
 
+
+
+export async function reviewMemberAction(data: { memberId: string; justification?: string }) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'reviewMember');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; memberId: string; status: string; };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review member account');
+  }
+}
+
+export async function reviewContributionAction(data: { contributionId: string; justification: string }) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'reviewContribution');
+  try {
+    const result = await fn(data);
+    return result.data;
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review contribution');
+  }
+}
+
+export async function reviewLoanAction(data: { loanId: string; justification?: string }) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'reviewLoan');
+  try {
+    const result = await fn(data);
+    return result.data;
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review loan');
+  }
+}

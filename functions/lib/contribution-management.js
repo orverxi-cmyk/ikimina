@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkReverseContributions = exports.reverseContribution = exports.bulkRejectContributions = exports.bulkVerifyContributions = exports.bulkApproveContributionBatches = exports.bulkReviewContributionBatches = exports.approveContributionBatch = exports.reviewContributionBatch = exports.initiateContributionBatch = exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
+exports.reviewContribution = exports.bulkReverseContributions = exports.reverseContribution = exports.bulkRejectContributions = exports.bulkVerifyContributions = exports.bulkApproveContributionBatches = exports.bulkReviewContributionBatches = exports.approveContributionBatch = exports.reviewContributionBatch = exports.initiateContributionBatch = exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -125,8 +125,8 @@ exports.verifyContribution = (0, https_1.onCall)({ cors: true }, async (request)
     const db = admin.firestore();
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
-    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant') {
-        throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can verify contributions.');
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admin can verify contributions.');
     }
     const { contributionId, justification } = request.data;
     if (!contributionId || !justification) {
@@ -139,6 +139,9 @@ exports.verifyContribution = (0, https_1.onCall)({ cors: true }, async (request)
             throw new https_1.HttpsError('not-found', 'Contribution not found.');
         }
         const contribData = contribSnap.data();
+        if (contribData.status !== 'reviewed') {
+            throw new https_1.HttpsError('failed-precondition', 'Cannot approve. Contribution must be reviewed first. (Current status: ' + contribData.status + ')');
+        }
         if (contribData.memberId === request.auth.uid || contribData.recordedBy === request.auth.uid) {
             throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot verify your own deposit submission or a transaction you recorded.');
         }
@@ -1091,5 +1094,41 @@ exports.bulkReverseContributions = (0, https_1.onCall)({ cors: true }, async (re
         await batch.commit();
     }
     return { success: true, count: reversedCount, errors };
+});
+exports.reviewContribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = (_a = callerSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Only reviewers can review contributions.');
+    }
+    const { contributionId, justification } = request.data;
+    if (!contributionId)
+        throw new https_1.HttpsError('invalid-argument', 'Contribution ID is required.');
+    const contributionRef = db.collection('contributions').doc(contributionId);
+    const contribSnap = await contributionRef.get();
+    if (!contribSnap.exists)
+        throw new https_1.HttpsError('not-found', 'Contribution not found.');
+    const contribData = contribSnap.data();
+    if (contribData.status !== 'pending') {
+        throw new https_1.HttpsError('failed-precondition', 'Contribution is currently in ' + contribData.status + ' status, cannot be reviewed.');
+    }
+    await contributionRef.update({
+        status: 'reviewed',
+        reviewedBy: request.auth.uid,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewJustification: justification || 'Reviewed'
+    });
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REVIEW_CONTRIBUTION',
+        justification: justification || 'Reviewed',
+        details: { contributionId },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true };
 });
 //# sourceMappingURL=contribution-management.js.map

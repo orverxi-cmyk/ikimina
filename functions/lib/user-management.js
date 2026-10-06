@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminDeactivateMember = exports.adminActivateMember = exports.registerMemberSelf = exports.setMemberInitialPassword = exports.rejectAccountDeletion = exports.approveAccountDeletion = exports.cancelAccountDeletionRequest = exports.requestAccountDeletion = exports.activateMemberAccount = exports.updateMemberProfile = exports.deleteMember = exports.updateUserRole = exports.bulkRegisterMembers = exports.registerMember = void 0;
+exports.reviewMember = exports.adminDeactivateMember = exports.adminActivateMember = exports.registerMemberSelf = exports.setMemberInitialPassword = exports.rejectAccountDeletion = exports.approveAccountDeletion = exports.cancelAccountDeletionRequest = exports.requestAccountDeletion = exports.activateMemberAccount = exports.updateMemberProfile = exports.deleteMember = exports.updateUserRole = exports.bulkRegisterMembers = exports.registerMember = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const email_service_1 = require("./email-service");
@@ -875,6 +875,9 @@ exports.adminActivateMember = (0, https_1.onCall)({ cors: true }, async (request
         throw new https_1.HttpsError('not-found', 'Member profile not found.');
     }
     const memberData = memberSnap.data();
+    if (memberData.status !== 'reviewed') {
+        throw new https_1.HttpsError('failed-precondition', 'Member account must be reviewed by a reviewer before admin activation. Current status: ' + memberData.status);
+    }
     if (!memberData.passwordSet) {
         throw new https_1.HttpsError('failed-precondition', 'Cannot activate a member account before the member has confirmed their email and set a password.');
     }
@@ -952,5 +955,41 @@ exports.adminDeactivateMember = (0, https_1.onCall)({ cors: true }, async (reque
     catch (error) {
         throw new https_1.HttpsError('internal', error.message);
     }
+});
+exports.reviewMember = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = (_a = callerSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Only reviewers can review member accounts.');
+    }
+    const { memberId, justification } = request.data || {};
+    if (!memberId)
+        throw new https_1.HttpsError('invalid-argument', 'Member ID is required.');
+    const memberRef = db.collection('users').doc(memberId);
+    const memberSnap = await memberRef.get();
+    if (!memberSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Member profile not found.');
+    }
+    const memberData = memberSnap.data();
+    if (memberData.status !== 'pending') {
+        throw new https_1.HttpsError('failed-precondition', 'Cannot review a member not in pending status.');
+    }
+    await memberRef.update({
+        status: 'reviewed',
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: request.auth.uid
+    });
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REVIEW_MEMBER',
+        justification: justification || 'Reviewed member profile',
+        details: { memberId, memberName: memberData.name },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true, memberId, status: 'reviewed' };
 });
 //# sourceMappingURL=user-management.js.map

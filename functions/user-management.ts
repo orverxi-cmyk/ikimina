@@ -950,6 +950,10 @@ export const adminActivateMember = onCall({ cors: true }, async (request) => {
 
     const memberData = memberSnap.data()!;
 
+    if (memberData.status !== 'reviewed') {
+        throw new HttpsError('failed-precondition', 'Member account must be reviewed by a reviewer before admin activation. Current status: ' + memberData.status);
+    }
+
     if (!memberData.passwordSet) {
         throw new HttpsError('failed-precondition', 'Cannot activate a member account before the member has confirmed their email and set a password.');
     }
@@ -1033,4 +1037,46 @@ export const adminDeactivateMember = onCall({ cors: true }, async (request) => {
     } catch (error: any) {
         throw new HttpsError('internal', error.message);
     }
+});
+
+export const reviewMember = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerSnap.data()?.role;
+
+    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only reviewers can review member accounts.');
+    }
+
+    const { memberId, justification } = request.data || {};
+    if (!memberId) throw new HttpsError('invalid-argument', 'Member ID is required.');
+
+    const memberRef = db.collection('users').doc(memberId);
+    const memberSnap = await memberRef.get();
+    if (!memberSnap.exists) {
+        throw new HttpsError('not-found', 'Member profile not found.');
+    }
+
+    const memberData = memberSnap.data()!;
+    if (memberData.status !== 'pending') {
+        throw new HttpsError('failed-precondition', 'Cannot review a member not in pending status.');
+    }
+
+    await memberRef.update({
+        status: 'reviewed',
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: request.auth.uid
+    });
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REVIEW_MEMBER',
+        justification: justification || 'Reviewed member profile',
+        details: { memberId, memberName: memberData.name },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, memberId, status: 'reviewed' };
 });

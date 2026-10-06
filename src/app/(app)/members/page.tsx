@@ -45,7 +45,8 @@ import {
   updateMemberProfileAction,
   deleteMemberAction,
   adminActivateMemberAction,
-  adminDeactivateMemberAction
+  adminDeactivateMemberAction,
+  reviewMemberAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 
@@ -98,6 +99,25 @@ export default function MembersPage() {
     if (statusFilter === 'active') return m.status === 'active';
     return true;
   }), [members, searchTerm, statusFilter]);
+
+  const handleReviewMember = async (targetMember: any) => {
+    setActivatingMemberId(targetMember.id);
+    try {
+      await reviewMemberAction({
+        memberId: targetMember.id,
+        justification: 'Reviewed member profile and verified details'
+      });
+      toast({
+        title: 'Member Reviewed',
+        description: targetMember.name + ' has been reviewed successfully. Awaiting admin activation.'
+      });
+    } catch (e: any) {
+      const error = parseAppError(e);
+      toast({ variant: 'destructive', title: error.title, description: error.message });
+    } finally {
+      setActivatingMemberId(null);
+    }
+  };
 
   const handleActivateMember = async (targetMember: any) => {
     if (isBrowserOffline()) {
@@ -564,7 +584,22 @@ export default function MembersPage() {
                             <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 uppercase text-[9px] font-bold px-2.5 py-0.5 flex items-center gap-1">
                               <Clock className="h-3 w-3" /> Pending
                             </Badge>
-                            {member.passwordSet && (
+                            {member.passwordSet && member.status === 'pending' && (
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleReviewMember(member)}
+                                disabled={activatingMemberId === member.id}
+                                className="h-7 px-2.5 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1"
+                              >
+                                {activatingMemberId === member.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Eye className="h-3 w-3" />
+                                )}
+                                Review
+                              </Button>
+                            )}
+                            {member.passwordSet && member.status === 'reviewed' && (
                               <Button 
                                 size="sm" 
                                 onClick={() => handleActivateMember(member)}
@@ -591,7 +626,15 @@ export default function MembersPage() {
                         <DropdownMenuContent align="end" className="rounded-xl w-52 shadow-xl">
                           <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
                           {member.status !== 'active' ? (
-                            member.passwordSet && (
+                            (member.passwordSet && member.status === 'pending') ? (
+                              <DropdownMenuItem 
+                                className="font-bold text-blue-600 flex items-center gap-1.5 focus:text-blue-600 focus:bg-blue-50 dark:focus:bg-blue-950/20 cursor-pointer" 
+                                onClick={() => handleReviewMember(member)}
+                                disabled={activatingMemberId === member.id}
+                              >
+                                <Eye className="h-4 w-4" /> Review Membership
+                              </DropdownMenuItem>
+                            ) : (member.passwordSet && member.status === 'reviewed') ? (
                               <DropdownMenuItem 
                                 className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
                                 onClick={() => handleActivateMember(member)}
@@ -599,7 +642,7 @@ export default function MembersPage() {
                               >
                                 <UserCheck className="h-4 w-4" /> Activate Membership
                               </DropdownMenuItem>
-                            )
+                            ) : null
                           ) : (
                             <DropdownMenuItem 
                               className="font-bold text-amber-600 flex items-center gap-1.5 focus:text-amber-600 focus:bg-amber-50 dark:focus:bg-amber-950/20 cursor-pointer" 

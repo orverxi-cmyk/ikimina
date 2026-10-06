@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rejectLoan = exports.verifyRepayment = exports.recordRepayment = exports.approveLoan = exports.withdrawLoanApplication = exports.requestLoan = exports.getGroupLiquidityMetrics = void 0;
+exports.reviewLoan = exports.rejectLoan = exports.verifyRepayment = exports.recordRepayment = exports.approveLoan = exports.withdrawLoanApplication = exports.requestLoan = exports.getGroupLiquidityMetrics = void 0;
 exports.getInstitutionalLendingPool = getInstitutionalLendingPool;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
@@ -317,8 +317,8 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     const db = admin.firestore();
     const userSnap = await db.collection('users').doc(request.auth.uid).get();
     const userData = userSnap.data();
-    if ((userData === null || userData === void 0 ? void 0 : userData.role) !== 'admin' && (userData === null || userData === void 0 ? void 0 : userData.role) !== 'management') {
-        throw new https_1.HttpsError('permission-denied', 'Management authority required.');
+    if ((userData === null || userData === void 0 ? void 0 : userData.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only admin can approve loans.');
     }
     const { loanId, terms = {}, justification } = request.data;
     const { durationMonths = 12, startDate: startDateStr, checkUrl = '' } = terms;
@@ -331,8 +331,8 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         if (loanData.memberId === request.auth.uid) {
             throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve your own loan application. Another administrator must approve it.');
         }
-        if (loanData.status !== 'requested') {
-            throw new https_1.HttpsError('failed-precondition', `Loan is currently in '${loanData.status}' status, cannot be approved.`);
+        if (loanData.status !== 'reviewed') {
+            throw new https_1.HttpsError('failed-precondition', `Loan must be reviewed by a reviewer before approval. Current status: ${loanData.status}`);
         }
         // Authoritatively check institutional lending pool capacity before approving
         const pool = await getInstitutionalLendingPool(db);
@@ -572,5 +572,41 @@ exports.rejectLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     catch (error) {
         throw new https_1.HttpsError('internal', error.message);
     }
+});
+exports.reviewLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = (_a = callerSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+    if (callerRole !== 'reviewer' && callerRole !== 'admin' && callerRole !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Only reviewers can review loans.');
+    }
+    const { loanId, justification } = request.data;
+    if (!loanId)
+        throw new https_1.HttpsError('invalid-argument', 'Loan ID is required.');
+    const loanRef = db.collection('loans').doc(loanId);
+    const loanSnap = await loanRef.get();
+    if (!loanSnap.exists)
+        throw new https_1.HttpsError('not-found', 'Loan not found.');
+    const loanData = loanSnap.data();
+    if (loanData.status !== 'requested') {
+        throw new https_1.HttpsError('failed-precondition', 'Loan is currently in ' + loanData.status + ' status, cannot be reviewed.');
+    }
+    await loanRef.update({
+        status: 'reviewed',
+        reviewedBy: request.auth.uid,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewJustification: justification || 'Reviewed'
+    });
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REVIEW_LOAN',
+        justification: justification || 'Reviewed loan request',
+        details: { loanId },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true };
 });
 //# sourceMappingURL=loan-management.js.map
