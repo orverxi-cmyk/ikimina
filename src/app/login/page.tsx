@@ -134,11 +134,10 @@ export default function LoginPage() {
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        setEmail(normalizedEmail);
-        setStep('register');
         toast({ 
-          title: "New Member Registration", 
-          description: "No registered profile found for this email. Please fill in your details below." 
+          variant: "destructive",
+          title: "Account Not Found", 
+          description: "Your email is not registered in the system. Please contact an administrator to create your membership profile." 
         });
         return;
       }
@@ -223,52 +222,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fullName.trim()) {
-      return toast({ variant: 'destructive', title: 'Name Required', description: 'Please enter your full name.' });
-    }
-    if (password.length < 6) {
-      return toast({ variant: 'destructive', title: 'Error', description: 'Password must be at least 6 characters.' });
-    }
-    if (password !== confirmPassword) {
-      return toast({ variant: 'destructive', title: 'Error', description: 'Passwords do not match.' });
-    }
-
-    if (isBrowserOffline()) {
-      return toast({
-        variant: 'destructive',
-        title: 'Connection Offline',
-        description: 'Cannot register while offline. Please connect to the internet.',
-      });
-    }
-
-    setIsLoading(true);
-    try {
-      await registerMemberSelfAction({
-        name: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        password,
-      });
-
-      toast({ 
-        title: 'Registration Submitted', 
-        description: 'Your account has been created. A scheme administrator will activate your membership shortly.' 
-      });
-      setStep('pending-activation');
-    } catch (error: any) {
-      const parsed = parseAppError(error);
-      toast({ 
-        variant: 'destructive', 
-        title: parsed.title || 'Registration Failed', 
-        description: parsed.message 
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isBrowserOffline()) {
@@ -546,128 +500,6 @@ export default function LoginPage() {
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
                 >
                   Back to email
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* STEP 4: SELF-REGISTRATION FOR NEW MEMBER */}
-          {step === 'register' && (
-            <form onSubmit={handleRegister} className="space-y-3.5">
-              <div className="bg-primary/10 border border-primary/20 p-3 rounded-xl flex gap-2.5 items-start text-left">
-                <UserPlus className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <p className="text-xs font-bold text-foreground">Create Membership Account</p>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Fill in your details below. Once submitted, your administrator will activate your account.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="full-name" className="text-xs font-bold">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="full-name"
-                    placeholder="First and Last Name"
-                    className="pl-10 h-10 rounded-xl text-xs"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="reg-email" className="text-xs font-bold">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="reg-email"
-                    type="email"
-                    className="pl-10 h-10 rounded-xl text-xs bg-muted"
-                    value={email}
-                    disabled
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="phone" className="text-xs font-bold">Phone Number (Optional)</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="phone"
-                    placeholder="+250..."
-                    className="pl-10 h-10 rounded-xl text-xs"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="reg-password" className="text-xs font-bold">Desired Password</Label>
-                <div className="relative">
-                  <Input
-                    id="reg-password"
-                    type={showPassword ? "text" : "password"}
-                    className="pr-10 h-10 rounded-xl text-xs"
-                    placeholder="Min 6 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="reg-confirm-password" className="text-xs font-bold">Confirm Password</Label>
-                <div className="relative">
-                  <Input
-                    id="reg-confirm-password"
-                    type={showConfirmPassword ? "text" : "password"}
-                    className="pr-10 h-10 rounded-xl text-xs"
-                    placeholder="Confirm password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold" type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserPlus className="mr-2 h-5 w-5" />}
-                Register & Submit for Activation
-              </Button>
-
-              <div className="text-center pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPassword('');
-                    setConfirmPassword('');
-                    setStep('email');
-                  }}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
-                >
-                  Use a different email
                 </button>
               </div>
             </form>
