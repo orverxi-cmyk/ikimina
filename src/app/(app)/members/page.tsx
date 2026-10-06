@@ -564,19 +564,21 @@ export default function MembersPage() {
                             <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 uppercase text-[9px] font-bold px-2.5 py-0.5 flex items-center gap-1">
                               <Clock className="h-3 w-3" /> Pending
                             </Badge>
-                            <Button 
-                              size="sm" 
-                              onClick={() => handleActivateMember(member)}
-                              disabled={activatingMemberId === member.id}
-                              className="h-7 px-2.5 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1"
-                            >
-                              {activatingMemberId === member.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <UserCheck className="h-3 w-3" />
-                              )}
-                              Activate
-                            </Button>
+                            {member.passwordSet && (
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleActivateMember(member)}
+                                disabled={activatingMemberId === member.id}
+                                className="h-7 px-2.5 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1"
+                              >
+                                {activatingMemberId === member.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <UserCheck className="h-3 w-3" />
+                                )}
+                                Activate
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -589,13 +591,15 @@ export default function MembersPage() {
                         <DropdownMenuContent align="end" className="rounded-xl w-52 shadow-xl">
                           <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
                           {member.status !== 'active' ? (
-                            <DropdownMenuItem 
-                              className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
-                              onClick={() => handleActivateMember(member)}
-                              disabled={activatingMemberId === member.id}
-                            >
-                              <UserCheck className="h-4 w-4" /> Activate Membership
-                            </DropdownMenuItem>
+                            member.passwordSet && (
+                              <DropdownMenuItem 
+                                className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
+                                onClick={() => handleActivateMember(member)}
+                                disabled={activatingMemberId === member.id}
+                              >
+                                <UserCheck className="h-4 w-4" /> Activate Membership
+                              </DropdownMenuItem>
+                            )
                           ) : (
                             <DropdownMenuItem 
                               className="font-bold text-amber-600 flex items-center gap-1.5 focus:text-amber-600 focus:bg-amber-50 dark:focus:bg-amber-950/20 cursor-pointer" 
