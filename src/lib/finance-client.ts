@@ -991,6 +991,61 @@ export async function rejectExpenseAction(data: {
 }
 
 /**
+ * Accountant initiates a member Final Payout (exit settlement) with a mandatory supporting document.
+ */
+export async function initiateFinalPayoutAction(data: {
+  memberId: string;
+  documentUrl: string;
+  documentFileName?: string;
+  notes: string;
+  payoutMethod?: string;
+  payoutReference?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'initiateFinalPayout');
+  try {
+    const result = await fn(data);
+    return result.data as {
+      success: boolean;
+      payoutId: string;
+      totalPayout: number;
+      contributionTotal: number;
+      accruedInterest: number;
+    };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to initiate final payout');
+  }
+}
+
+/**
+ * Super Administrator approves a Final Payout. This PERMANENTLY deletes the member account.
+ */
+export async function approveFinalPayoutAction(data: { payoutId: string; adminNotes?: string }) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'approveFinalPayout');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; payoutId: string; memberId: string; totalPayout: number };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to approve final payout');
+  }
+}
+
+/**
+ * Super Administrator rejects a Final Payout. The member account is left untouched.
+ */
+export async function rejectFinalPayoutAction(data: { payoutId: string; rejectionReason: string }) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'rejectFinalPayout');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; payoutId: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to reject final payout');
+  }
+}
+
+/**
  * Triggers or resends an account activation email with an authoritative Firebase link.
  */
 export async function sendMemberActivationEmailAction(data: {

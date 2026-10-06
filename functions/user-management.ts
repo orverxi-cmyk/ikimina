@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { generateAndSendActivationEmail } from './email-service';
+import { assertMemberHasNoBalance } from './final-payout-management';
 
 /**
  * Registers a new member securely.
@@ -230,6 +231,9 @@ export const deleteMember = onCall({ cors: true }, async (request) => {
             throw new HttpsError('failed-precondition', `Cannot delete member account with active outstanding loan debt (${balance}). All loans must be settled first.`);
         }
     }
+
+    // Guard: Members holding a positive contribution balance must exit via Final Payout
+    await assertMemberHasNoBalance(db, targetUserId);
 
     try {
         const batch = db.batch();
@@ -615,6 +619,9 @@ export const approveAccountDeletion = onCall({ cors: true }, async (request) => 
             throw new HttpsError('failed-precondition', 'Cannot approve deletion for a member with an active outstanding loan balance.');
         }
     }
+
+    // Guard: Members holding a positive contribution balance must exit via Final Payout
+    await assertMemberHasNoBalance(db, targetUserId);
 
     try {
         const batch = db.batch();

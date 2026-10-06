@@ -27,7 +27,8 @@ import {
   FileSpreadsheet,
   FileText,
   MessageSquare,
-  UserX
+  UserX,
+  UserMinus
 } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -403,6 +404,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     ] : [
       ...(isSuperAdmin || isAccountant ? [
         { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt },
+        { href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus },
       ] : []),
       { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck },
       ...(isSuperAdmin ? [

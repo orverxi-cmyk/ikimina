@@ -20,6 +20,7 @@ import {
   MoreVertical,
   User,
   LogOut,
+  UserMinus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -116,6 +117,7 @@ export function AppSidebar() {
     adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
     adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
     adminItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
+    adminItems.push({ href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
     adminItems.push({ href: '/members', label: 'Members Directory', icon: Users });
@@ -127,6 +129,7 @@ export function AppSidebar() {
   } else if (isAccountant) {
     adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
     adminItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
+    adminItems.push({ href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (isReviewer) {

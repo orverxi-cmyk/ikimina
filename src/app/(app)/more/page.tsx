@@ -17,7 +17,8 @@ import {
   Info,
   Scale,
   Lock,
-  UserX
+  UserX,
+  UserMinus
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -89,6 +90,9 @@ export default function MorePage() {
           { href: '/admin', label: 'Dashboard', icon: Home, description: 'Balance sheet and metrics' },
           { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck, description: 'Audit and approve pending requests' },
           { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt, description: 'Manage operational costs' },
+        ] : []),
+        ...(isAdmin || role === 'accountant' ? [
+          { href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus, description: 'Member exit settlements & account closure' },
         ] : []),
         { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck, description: 'Immutable action logs' },
         { href: '/reports', label: 'Financial Reports', icon: ChartBar, description: 'Audits and yearly standing' },

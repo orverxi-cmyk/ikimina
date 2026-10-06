@@ -90,6 +90,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Final payouts (member exit): Initiated by Accountant, approved by Super Admin via Cloud Functions
+    match /final_payouts/{payoutId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
     // Account deletion requests: Managed via Cloud Functions with client fallback, readable by signed-in users
     match /account_deletion_requests/{requestId} {
       allow read: if isSignedIn();

@@ -16,3 +16,4 @@ export * from './contribution-management';
 export * from './financial-management';
 export * from './expense-management';
 export * from './email-management';
+export * from './final-payout-management';

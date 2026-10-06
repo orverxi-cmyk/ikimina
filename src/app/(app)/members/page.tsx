@@ -4,7 +4,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2, Mail, CheckCircle2, Clock, UserCheck, Ban, Check } from 'lucide-react';
+import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2, Mail, CheckCircle2, Clock, UserCheck, Ban, Check, UserMinus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -529,6 +529,11 @@ export default function MembersPage() {
                             Deletion Requested
                           </Badge>
                         )}
+                        {member.finalPayoutPending && (
+                          <Badge variant="outline" className="text-[9px] font-bold uppercase bg-blue-500/10 text-blue-700 border-blue-300">
+                            Final Payout Pending
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-[11px] text-muted-foreground">{member.email}</div>
                     </TableCell>
@@ -605,6 +610,13 @@ export default function MembersPage() {
                               <Link href="/admin/approvals">Review Deletion Request</Link>
                             </DropdownMenuItem>
                           )}
+                          {member.id !== user?.uid && (
+                            <DropdownMenuItem asChild className="font-bold flex items-center gap-1.5 cursor-pointer">
+                              <Link href={member.finalPayoutPending ? '/admin/final-payouts' : `/admin/final-payouts?memberId=${member.id}`}>
+                                <UserMinus className="h-4 w-4" /> {member.finalPayoutPending ? 'View Pending Final Payout' : 'Initiate Final Payout'}
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem 
                             className="text-destructive font-bold flex items-center gap-1.5 focus:text-destructive focus:bg-destructive/10" 
                             onClick={() => {
@@ -668,6 +680,15 @@ export default function MembersPage() {
                 <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
                   This action permanently revokes login credentials, deletes the member user record, and records an official audit trail. Any outstanding loan debt must be settled first.
+                </p>
+              </div>
+
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
+                <UserMinus className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  Members with contributions above 0 cannot be deleted here. An Accountant must{' '}
+                  <Link href={`/admin/final-payouts?memberId=${memberToDelete?.id || ''}`} className="font-bold underline">initiate a Final Payout</Link>;
+                  the account is deleted automatically once an Administrator approves it.
                 </p>
               </div>
 

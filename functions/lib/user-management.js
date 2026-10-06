@@ -37,6 +37,7 @@ exports.adminDeactivateMember = exports.adminActivateMember = exports.registerMe
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const email_service_1 = require("./email-service");
+const final_payout_management_1 = require("./final-payout-management");
 /**
  * Registers a new member securely.
  * Checks for admin privileges before adding to the users collection,
@@ -246,6 +247,8 @@ exports.deleteMember = (0, https_1.onCall)({ cors: true }, async (request) => {
             throw new https_1.HttpsError('failed-precondition', `Cannot delete member account with active outstanding loan debt (${balance}). All loans must be settled first.`);
         }
     }
+    // Guard: Members holding a positive contribution balance must exit via Final Payout
+    await (0, final_payout_management_1.assertMemberHasNoBalance)(db, targetUserId);
     try {
         const batch = db.batch();
         // 1. Delete user record
@@ -580,6 +583,8 @@ exports.approveAccountDeletion = (0, https_1.onCall)({ cors: true }, async (requ
             throw new https_1.HttpsError('failed-precondition', 'Cannot approve deletion for a member with an active outstanding loan balance.');
         }
     }
+    // Guard: Members holding a positive contribution balance must exit via Final Payout
+    await (0, final_payout_management_1.assertMemberHasNoBalance)(db, targetUserId);
     try {
         const batch = db.batch();
         // 1. Mark request approved with audit details
