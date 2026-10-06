@@ -78,9 +78,9 @@ export default function MembersPage() {
   const isReviewer = userData?.role === 'reviewer';
 
   const membersQuery = useMemoFirebase(() => {
-    if (!isAdmin) return null;
+    if (!isAdmin && !isReviewer) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
-  }, [isAdmin]);
+  }, [isAdmin, isReviewer]);
 
   const { data: membersSnap, loading: membersLoading } = useCollection(membersQuery);
 
@@ -343,11 +343,11 @@ export default function MembersPage() {
     }
   };
 
-  if (userLoading || (isAdmin && membersLoading)) {
+  if (userLoading || ((isAdmin || isReviewer) && membersLoading)) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  if (!isAdmin) {
+  if (!isAdmin && !isReviewer) {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <ShieldAlert className="h-12 w-12 text-destructive" />
