@@ -633,7 +633,7 @@ export default function ContributionsPage() {
                     <strong className="text-foreground truncate">{settings.depositBankName || 'Designated Bank'}</strong>
                   </div>
                   {settings.depositAccountNumber && (
-                    <div className="font-mono font-bold text-xs text-foreground bg-background px-2 py-0.5 rounded border border-border shrink-0">
+                    <div className="font-bold text-xs text-foreground bg-background px-2 py-0.5 rounded border border-border shrink-0">
                       {settings.depositAccountNumber}
                     </div>
                   )}
@@ -651,7 +651,7 @@ export default function ContributionsPage() {
             </div>
             <DialogFooter className="pt-2">
               <Button 
-                className="w-full h-11 rounded-xl font-bold text-sm shadow-md bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2" 
+                className="w-full h-11 rounded-xl font-bold text-sm shadow-md bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2" 
                 type="submit" 
                 disabled={isSubmitting}
               >
