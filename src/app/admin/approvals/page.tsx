@@ -1792,7 +1792,7 @@ export default function ApprovalsHubPage() {
             </Button>
             {!isSlipInitiatedByCurrentUser(inspectSlip) && (
               <div className="flex items-center gap-2">
-                {(isReviewer || isSuperAdmin) && (
+                {((isReviewer && inspectSlip?.status === 'pending') || (isSuperAdmin && inspectSlip?.status === 'reviewed')) && (
                   <Button 
                     variant="outline" 
                     onClick={() => handleActionSlip('reject')} 
@@ -1881,7 +1881,7 @@ export default function ApprovalsHubPage() {
             </Button>
             {!isLoanInitiatedByCurrentUser(inspectLoan) && (
               <div className="flex items-center gap-2">
-                {(isReviewer || isSuperAdmin) && (
+                {((isReviewer && inspectLoan?.status === 'requested') || (isSuperAdmin && inspectLoan?.status === 'reviewed')) && (
                   <Button 
                     variant="outline" 
                     onClick={() => handleActionLoan('reject')} 
