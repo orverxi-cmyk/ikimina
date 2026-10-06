@@ -950,7 +950,7 @@ export const adminActivateMember = onCall({ cors: true }, async (request) => {
 
     const memberData = memberSnap.data()!;
 
-    if (memberData.status !== 'reviewed' && memberData.role !== 'reviewer' && memberData.role !== 'auditor') {
+    if (memberData.status !== 'reviewed' && memberData.role !== 'reviewer' && memberData.role !== 'senior_accountant' && memberData.role !== 'auditor') {
         throw new HttpsError('failed-precondition', 'Member account must be reviewed by a reviewer before admin activation. Current status: ' + memberData.status);
     }
 

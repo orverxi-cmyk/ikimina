@@ -64,7 +64,7 @@ export default function MorePage() {
   const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
   const role = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
   const isAdmin = role === 'admin';
-  const isManagement = role === 'admin' || role === 'management' || role === 'accountant' || role === 'auditor';
+  const isManagement = role === 'admin' || role === 'management' || (role === 'accountant' || role === 'senior_accountant') || role === 'auditor';
 
   const sections = [
     {
@@ -96,7 +96,7 @@ export default function MorePage() {
         ] : []),
         { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck, description: 'Immutable action logs' },
         { href: '/reports', label: 'Financial Reports', icon: ChartBar, description: 'Audits and yearly standing' },
-        ...(isAdmin || role === 'reviewer' ? [
+        ...(isAdmin || (role === 'reviewer' || role === 'senior_accountant') ? [
           { href: '/members', label: 'Member Directory', icon: Users, description: 'Manage system access' },
         ] : []),
         ...(isAdmin ? [

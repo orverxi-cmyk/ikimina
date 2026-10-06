@@ -75,7 +75,7 @@ export default function MembersPage() {
   const [isDeletingMember, setIsDeletingMember] = useState(false);
 
   const isAdmin = userData?.role === 'admin';
-  const isReviewer = userData?.role === 'reviewer';
+  const isReviewer = userData?.role === 'reviewer' || userData?.role === 'senior_accountant';
 
   const membersQuery = useMemoFirebase(() => {
     if (!isAdmin && !isReviewer) return null;
@@ -406,6 +406,7 @@ export default function MembersPage() {
                     <SelectItem value="admin">Administrator (Full Control)</SelectItem>
                     <SelectItem value="auditor">Auditor (Full Audit Trail &amp; PDF Reports)</SelectItem>
                     <SelectItem value="reviewer">Reviewer (Audit &amp; Compliance)</SelectItem>
+                    <SelectItem value="senior_accountant">Senior Accountant (Initiator &amp; Reviewer)</SelectItem>
                     <SelectItem value="accountant">Accountant (Payroll &amp; Uploads)</SelectItem>
                     <SelectItem value="management">Management (Approvals Only)</SelectItem>
                     <SelectItem value="member">General Member</SelectItem>

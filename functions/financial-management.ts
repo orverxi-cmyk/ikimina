@@ -230,7 +230,7 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
     const callerSnap = await db.collection('users').doc(callerUid).get();
     const callerData = callerSnap.data();
 
-    if (callerData?.role !== 'admin' && callerData?.role !== 'accountant') {
+    if (callerData?.role !== 'admin' && callerData?.role !== 'accountant' && callerData?.role !== 'senior_accountant') {
         throw new HttpsError('permission-denied', 'Only an accountant or administrator can initiate an interest distribution.');
     }
 

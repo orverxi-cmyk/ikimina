@@ -58,7 +58,7 @@ export default function ContributionsPage() {
   const [activeTab, setActiveTab] = useState('history');
 
   const role = userData?.role || 'member';
-  const isManagement = role === 'management' || role === 'admin' || role === 'accountant';
+  const isManagement = role === 'management' || role === 'admin' || role === 'accountant' || role === 'senior_accountant';
   const isAccountantOrAdmin = role === 'admin' || role === 'accountant';
   const isLoading = userDataLoading;
 

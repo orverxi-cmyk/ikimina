@@ -390,8 +390,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   // 3. Authenticated: Console Layout
   const userRole = effectiveRole;
   const isSuperAdmin = userRole === 'admin';
-  const isAccountant = userRole === 'accountant';
-  const isReviewer = userRole === 'reviewer' || userRole === 'management';
+  const isAccountant = userRole === 'accountant' || userRole === 'senior_accountant';
+  const isReviewer = userRole === 'reviewer' || userRole === 'management' || userRole === 'senior_accountant';
   const isAuditor = userRole === 'auditor';
 
   const batchLabel = isSuperAdmin ? 'Batch Approvals' : isAccountant ? 'Batch Upload' : 'Review Batches';

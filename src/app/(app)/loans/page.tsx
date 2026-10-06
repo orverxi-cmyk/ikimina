@@ -122,7 +122,7 @@ function LoansPageContent() {
   }, []);
 
   const role = userData?.role || 'member';
-  const isManagement = role === 'admin' || role === 'management' || role === 'accountant';
+  const isManagement = role === 'admin' || role === 'management' || role === 'accountant' || role === 'senior_accountant';
   
   const loansQuery = useMemoFirebase(() => {
     if (!user || userDataLoading || !userData) return null;

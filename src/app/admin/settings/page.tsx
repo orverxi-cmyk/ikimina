@@ -188,7 +188,7 @@ export default function AdminSettingsPage() {
 
   const isAdmin = userData?.role === 'admin';
   const isSuperAdmin = userData?.isSuperAdmin === true || user?.email === 'tharushyamagara@gmail.com';
-  const isAccountant = userData?.role === 'accountant' || isAdmin;
+  const isAccountant = (userData?.role === 'accountant' || userData?.role === 'senior_accountant') || isAdmin;
 
   const parsedDistributeAmount = Number(distributeAmountInput) || 0;
   const isAmountValid = parsedDistributeAmount > 0 && parsedDistributeAmount <= poolMetrics.availableUndistributedInterest;

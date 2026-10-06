@@ -96,8 +96,8 @@ export function AppSidebar() {
   }
 
   const isSuperAdmin = role === 'admin';
-  const isAccountant = role === 'accountant';
-  const isReviewer = role === 'reviewer' || role === 'management';
+  const isAccountant = role === 'accountant' || role === 'senior_accountant';
+  const isReviewer = role === 'reviewer' || role === 'management' || role === 'senior_accountant';
   const isAuditor = role === 'auditor';
 
   // 1. Member Services Navigation (Available to all authenticated members & staff)

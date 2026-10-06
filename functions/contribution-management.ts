@@ -55,7 +55,7 @@ export const recordContribution = onCall({ cors: true }, async (request) => {
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
 
-    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant') {
+    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant' && adminData?.role !== 'senior_accountant') {
         throw new HttpsError('permission-denied', 'Only authorized personnel can record contributions.');
     }
 
@@ -164,7 +164,7 @@ export const rejectContribution = onCall({ cors: true }, async (request) => {
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
 
-    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant') {
+    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant' && adminData?.role !== 'senior_accountant') {
         throw new HttpsError('permission-denied', 'Only authorized personnel can reject contributions.');
     }
 
@@ -992,7 +992,7 @@ export const bulkVerifyContributions = onCall({ cors: true }, async (request) =>
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
 
-    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant' && adminData?.role !== 'reviewer') {
+    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant' && adminData?.role !== 'senior_accountant' && adminData?.role !== 'reviewer' && adminData?.role !== 'senior_accountant') {
         throw new HttpsError('permission-denied', 'Only authorized personnel can verify contributions.');
     }
 
@@ -1049,7 +1049,7 @@ export const bulkRejectContributions = onCall({ cors: true }, async (request) =>
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
 
-    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant' && adminData?.role !== 'reviewer') {
+    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant' && adminData?.role !== 'senior_accountant' && adminData?.role !== 'reviewer' && adminData?.role !== 'senior_accountant') {
         throw new HttpsError('permission-denied', 'Only authorized personnel can reject contributions.');
     }
 
