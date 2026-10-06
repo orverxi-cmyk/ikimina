@@ -875,7 +875,7 @@ exports.adminActivateMember = (0, https_1.onCall)({ cors: true }, async (request
         throw new https_1.HttpsError('not-found', 'Member profile not found.');
     }
     const memberData = memberSnap.data();
-    if (memberData.status !== 'reviewed') {
+    if (memberData.status !== 'reviewed' && memberData.role !== 'reviewer' && memberData.role !== 'auditor') {
         throw new https_1.HttpsError('failed-precondition', 'Member account must be reviewed by a reviewer before admin activation. Current status: ' + memberData.status);
     }
     if (!memberData.passwordSet) {

@@ -600,7 +600,7 @@ export default function MembersPage() {
                                 Review
                               </Button>
                             )}
-                            {isAdmin && member.passwordSet && member.status === 'reviewed' && (
+                            {isAdmin && member.passwordSet && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor') && member.status === 'pending')) && (
                               <Button 
                                 size="sm" 
                                 onClick={() => handleActivateMember(member)}
@@ -635,7 +635,7 @@ export default function MembersPage() {
                               >
                                 <Eye className="h-4 w-4" /> Review Membership
                               </DropdownMenuItem>
-                            ) : (isAdmin && member.passwordSet && member.status === 'reviewed') ? (
+                            ) : (isAdmin && member.passwordSet && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor') && member.status === 'pending'))) ? (
                               <DropdownMenuItem 
                                 className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
                                 onClick={() => handleActivateMember(member)}
