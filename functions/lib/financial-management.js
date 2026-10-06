@@ -241,7 +241,7 @@ exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async
     const db = admin.firestore();
     const callerSnap = await db.collection('users').doc(callerUid).get();
     const callerData = callerSnap.data();
-    if ((callerData === null || callerData === void 0 ? void 0 : callerData.role) !== 'admin' && (callerData === null || callerData === void 0 ? void 0 : callerData.role) !== 'accountant') {
+    if ((callerData === null || callerData === void 0 ? void 0 : callerData.role) !== 'admin' && (callerData === null || callerData === void 0 ? void 0 : callerData.role) !== 'accountant' && (callerData === null || callerData === void 0 ? void 0 : callerData.role) !== 'senior_accountant') {
         throw new https_1.HttpsError('permission-denied', 'Only an accountant or administrator can initiate an interest distribution.');
     }
     const { totalInterestToDistribute, justification } = request.data || {};

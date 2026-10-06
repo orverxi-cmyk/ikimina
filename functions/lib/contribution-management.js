@@ -82,7 +82,7 @@ exports.recordContribution = (0, https_1.onCall)({ cors: true }, async (request)
     const db = admin.firestore();
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
-    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant') {
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'senior_accountant') {
         throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can record contributions.');
     }
     const { memberId, amount, period, justification } = request.data;
@@ -177,7 +177,7 @@ exports.rejectContribution = (0, https_1.onCall)({ cors: true }, async (request)
     const db = admin.firestore();
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
-    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant') {
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'senior_accountant') {
         throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can reject contributions.');
     }
     const { contributionId, rejectionReason } = request.data;
@@ -902,7 +902,7 @@ exports.bulkVerifyContributions = (0, https_1.onCall)({ cors: true }, async (req
     const db = admin.firestore();
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
-    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'reviewer') {
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'senior_accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'reviewer' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'senior_accountant') {
         throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can verify contributions.');
     }
     const { contributionIds, justification } = request.data || {};
@@ -948,7 +948,7 @@ exports.bulkRejectContributions = (0, https_1.onCall)({ cors: true }, async (req
     const db = admin.firestore();
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
-    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'reviewer') {
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'senior_accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'reviewer' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'senior_accountant') {
         throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can reject contributions.');
     }
     const { contributionIds, rejectionReason } = request.data || {};
