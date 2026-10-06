@@ -134,6 +134,7 @@ export function AppSidebar() {
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (isReviewer) {
     adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/members', label: 'Members Directory', icon: Users });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   }

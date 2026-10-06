@@ -407,8 +407,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         { href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus },
       ] : []),
       { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck },
-      ...(isSuperAdmin ? [
+      ...(isSuperAdmin || isReviewer ? [
         { href: '/members', label: 'Members Directory', icon: Users },
+      ] : []),
+      ...(isSuperAdmin ? [
         { href: '/reports', label: 'Financial Reports', icon: FileText },
         { href: '/admin/settings', label: 'Settings', icon: Settings },
       ] : [

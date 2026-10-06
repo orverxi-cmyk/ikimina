@@ -96,8 +96,10 @@ export default function MorePage() {
         ] : []),
         { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck, description: 'Immutable action logs' },
         { href: '/reports', label: 'Financial Reports', icon: ChartBar, description: 'Audits and yearly standing' },
-        ...(isAdmin ? [
+        ...(isAdmin || role === 'reviewer' ? [
           { href: '/members', label: 'Member Directory', icon: Users, description: 'Manage system access' },
+        ] : []),
+        ...(isAdmin ? [
           { href: '/admin/settings', label: 'System Settings', icon: Settings, description: 'Global financial policies' }
         ] : []),
       ]
