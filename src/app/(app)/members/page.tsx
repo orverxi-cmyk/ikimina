@@ -193,7 +193,7 @@ export default function MembersPage() {
     const memberData = {
       firstName: formData.get('firstName') as string,
       surname: formData.get('surname') as string,
-      email: (formData.get('email') as string).toLowerCase(),
+      email: (formData.get('email') as string || selectedMember?.email || '').toLowerCase(),
       phone: formData.get('phone') as string,
       role: formData.get('role') as string,
       justification: formData.get('justification') as string,
