@@ -875,6 +875,9 @@ exports.adminActivateMember = (0, https_1.onCall)({ cors: true }, async (request
         throw new https_1.HttpsError('not-found', 'Member profile not found.');
     }
     const memberData = memberSnap.data();
+    if (!memberData.passwordSet) {
+        throw new https_1.HttpsError('failed-precondition', 'Cannot activate a member account before the member has confirmed their email and set a password.');
+    }
     try {
         await memberRef.update({
             status: 'active',

@@ -950,6 +950,10 @@ export const adminActivateMember = onCall({ cors: true }, async (request) => {
 
     const memberData = memberSnap.data()!;
 
+    if (!memberData.passwordSet) {
+        throw new HttpsError('failed-precondition', 'Cannot activate a member account before the member has confirmed their email and set a password.');
+    }
+
     try {
         await memberRef.update({
             status: 'active',
