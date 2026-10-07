@@ -353,7 +353,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   // 2. Authenticated but NOT an Admin, Reviewer, Accountant, or Auditor: Access Denied Screen
-  const hasAccess = isPrimaryAdmin || effectiveRole === 'admin' || effectiveRole === 'accountant' || effectiveRole === 'reviewer' || effectiveRole === 'management' || effectiveRole === 'auditor';
+  const hasAccess = isPrimaryAdmin || effectiveRole === 'admin' || effectiveRole === 'accountant' || effectiveRole === 'senior_accountant' || effectiveRole === 'reviewer' || effectiveRole === 'management' || effectiveRole === 'auditor';
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">

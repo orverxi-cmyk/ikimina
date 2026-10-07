@@ -656,8 +656,8 @@ export const reviewLoan = onCall({ cors: true }, async (request) => {
     const callerSnap = await db.collection('users').doc(request.auth.uid).get();
     const callerRole = callerSnap.data()?.role;
 
-    if (callerRole !== 'reviewer') {
-        throw new HttpsError('permission-denied', 'Only users with the reviewer role can review loans.');
+    if (callerRole !== 'reviewer' && callerRole !== 'senior_accountant' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only designated Reviewers or Senior Accountants can review loans.');
     }
 
     const { loanId, justification } = request.data;
@@ -668,6 +668,9 @@ export const reviewLoan = onCall({ cors: true }, async (request) => {
     if (!loanSnap.exists) throw new HttpsError('not-found', 'Loan not found.');
     
     const loanData = loanSnap.data()!;
+    if (loanData.memberId === request.auth.uid) {
+        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. Another authorized reviewer must review it.');
+    }
     if (loanData.status !== 'requested') {
         throw new HttpsError('failed-precondition', 'Loan is currently in ' + loanData.status + ' status, cannot be reviewed.');
     }

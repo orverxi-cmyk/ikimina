@@ -75,7 +75,7 @@ export default function ReportsPage() {
   const role = userData?.role || 'member';
   const isAdmin = role === 'admin';
   const isSuperAdmin = userData?.isSuperAdmin === true || user?.email === 'tharushyamagara@gmail.com';
-  const isAuthorized = role === 'admin' || role === 'management' || role === 'auditor';
+  const isAuthorized = role === 'admin' || role === 'management' || role === 'auditor' || role === 'senior_accountant' || role === 'reviewer';
 
   const membersQuery = useMemoFirebase(() => {
     if (!isAuthorized) return null;
@@ -308,7 +308,7 @@ export default function ReportsPage() {
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <ShieldAlert className="h-12 w-12 text-destructive" />
         <h2 className="text-base sm:text-lg font-bold font-headline">Access Restricted</h2>
-        <p className="text-muted-foreground">Only administrators, auditors, and management can view financial reports.</p>
+        <p className="text-muted-foreground">Only authorized finance personnel, reviewers, auditors, and administrators can view financial reports.</p>
       </div>
     );
   }

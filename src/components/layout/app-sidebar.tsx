@@ -128,6 +128,7 @@ export function AppSidebar() {
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (isAccountant) {
     adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/members', label: 'Members Directory', icon: Users });
     adminItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
     adminItems.push({ href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });

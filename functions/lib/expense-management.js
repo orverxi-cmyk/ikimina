@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rejectExpense = exports.approveExpense = exports.lodgeExpense = void 0;
+exports.rejectExpense = exports.approveExpense = exports.reviewExpense = exports.lodgeExpense = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 /**
@@ -49,9 +49,9 @@ exports.lodgeExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
     const userSnap = await db.collection('users').doc(callerId).get();
     const userData = userSnap.data();
     const callerRole = userData === null || userData === void 0 ? void 0 : userData.role;
-    const allowedRoles = ['accountant', 'admin', 'management'];
+    const allowedRoles = ['accountant', 'senior_accountant'];
     if (!allowedRoles.includes(callerRole)) {
-        throw new https_1.HttpsError('permission-denied', 'Only the Accountant or Administrators can lodge operational expenses.');
+        throw new https_1.HttpsError('permission-denied', 'Only the Accountant or Senior Accountant can lodge operational expenses. Administrators cannot initiate expenses.');
     }
     const { title, category, amount, description, expenseDate, receiptUrl, receiptFileName } = request.data || {};
     const numericAmount = Number(amount);
@@ -76,12 +76,16 @@ exports.lodgeExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
         expenseDate: expenseDate || new Date().toISOString().split('T')[0],
         receiptUrl: receiptUrl.trim(),
         receiptFileName: (receiptFileName && typeof receiptFileName === 'string') ? receiptFileName.trim() : 'receipt_document',
-        status: 'pending',
+        status: 'pending_review',
         lodgedBy: callerId,
         lodgedByName: (userData === null || userData === void 0 ? void 0 : userData.name) || (userData === null || userData === void 0 ? void 0 : userData.email) || 'Accountant',
         lodgedByEmail: (userData === null || userData === void 0 ? void 0 : userData.email) || '',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         lodgedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewedByName: null,
+        reviewNotes: null,
         approvedAt: null,
         approvedBy: null,
         approvedByName: null,
@@ -109,11 +113,82 @@ exports.lodgeExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
     return {
         success: true,
         expenseId: expenseRef.id,
-        message: 'Expense successfully lodged and submitted for administrator approval.'
+        message: 'Expense successfully lodged and submitted for review.'
     };
 });
 /**
- * Approves a lodged operational expense.
+ * Step 2: Reviewer or Senior Accountant reviews the lodged expense.
+ * Endorsement advances status to 'pending_approval' for Administrator approval.
+ */
+exports.reviewExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerId = request.auth.uid;
+    const userSnap = await db.collection('users').doc(callerId).get();
+    const userData = userSnap.data();
+    const callerRole = userData === null || userData === void 0 ? void 0 : userData.role;
+    const allowedRoles = ['reviewer', 'senior_accountant', 'management'];
+    if (!allowedRoles.includes(callerRole)) {
+        throw new https_1.HttpsError('permission-denied', 'Only Reviewers or Senior Accountants can review operational expenses. Administrators cannot review expenses.');
+    }
+    const { expenseId, decision, reviewNotes } = request.data || {};
+    if (!expenseId || typeof expenseId !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', 'Expense ID is required.');
+    }
+    if (!decision || !['endorse', 'request_changes', 'reject'].includes(decision)) {
+        throw new https_1.HttpsError('invalid-argument', 'Valid review decision (endorse, request_changes, or reject) is required.');
+    }
+    const expenseRef = db.collection('expenses').doc(expenseId);
+    const expenseSnap = await expenseRef.get();
+    if (!expenseSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Expense record not found.');
+    }
+    const expense = expenseSnap.data();
+    if (expense.lodgedBy === callerId || expense.recordedBy === callerId) {
+        throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review an expense you initiated. Another authorized officer must review it.');
+    }
+    if (expense.status !== 'pending_review' && expense.status !== 'pending' && expense.status !== 'revision_requested') {
+        throw new https_1.HttpsError('failed-precondition', `Cannot review expense with status '${expense.status}'.`);
+    }
+    let nextStatus = 'pending_approval';
+    let actionName = 'REVIEW_EXPENSE_ENDORSED';
+    if (decision === 'request_changes') {
+        nextStatus = 'revision_requested';
+        actionName = 'REVIEW_EXPENSE_REVISION_REQUESTED';
+    }
+    else if (decision === 'reject') {
+        nextStatus = 'rejected';
+        actionName = 'REVIEW_EXPENSE_REJECTED';
+    }
+    const reviewerName = (userData === null || userData === void 0 ? void 0 : userData.name) || (userData === null || userData === void 0 ? void 0 : userData.email) || 'Reviewer';
+    await expenseRef.update({
+        status: nextStatus,
+        reviewedBy: callerId,
+        reviewedByName: reviewerName,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewNotes: (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null
+    });
+    await db.collection('audit_logs').add({
+        action: actionName,
+        performedBy: callerId,
+        performedByName: reviewerName,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: {
+            expenseId,
+            decision,
+            nextStatus,
+            reviewNotes: reviewNotes || null
+        }
+    });
+    return {
+        success: true,
+        expenseId,
+        status: nextStatus
+    };
+});
+/**
+ * Step 3: Administrator Approves a lodged operational expense.
  * Restricted strictly to Administrators and Management.
  * Approved expenses are authoritatively deducted from total institutional assets.
  */
@@ -138,11 +213,11 @@ exports.approveExpense = (0, https_1.onCall)({ cors: true }, async (request) => 
         throw new https_1.HttpsError('not-found', 'Expense record not found.');
     }
     const expense = expenseSnap.data();
-    if (expense.recordedBy === callerId || expense.createdBy === callerId) {
+    if (expense.lodgedBy === callerId || expense.recordedBy === callerId || expense.createdBy === callerId) {
         throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve an expense you initiated. Another administrator must approve it.');
     }
-    if (expense.status !== 'pending') {
-        throw new https_1.HttpsError('failed-precondition', `Cannot approve expense with status '${expense.status}'. Only pending expenses can be approved.`);
+    if (expense.status !== 'pending_approval' && expense.status !== 'pending') {
+        throw new https_1.HttpsError('failed-precondition', `Cannot approve expense with status '${expense.status}'. It must be reviewed and endorsed first.`);
     }
     const approverName = (userData === null || userData === void 0 ? void 0 : userData.name) || (userData === null || userData === void 0 ? void 0 : userData.email) || 'Administrator';
     await expenseRef.update({
@@ -204,8 +279,11 @@ exports.rejectExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
         throw new https_1.HttpsError('not-found', 'Expense record not found.');
     }
     const expense = expenseSnap.data();
-    if (expense.status !== 'pending') {
-        throw new https_1.HttpsError('failed-precondition', `Cannot reject expense with status '${expense.status}'. Only pending expenses can be rejected.`);
+    if (expense.lodgedBy === callerId || expense.recordedBy === callerId || expense.createdBy === callerId) {
+        throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot reject an expense you initiated. Another administrator must reject it.');
+    }
+    if (!['pending', 'pending_review', 'pending_approval', 'revision_requested'].includes(expense.status)) {
+        throw new https_1.HttpsError('failed-precondition', `Cannot reject expense with status '${expense.status}'.`);
     }
     const rejecterName = (userData === null || userData === void 0 ? void 0 : userData.name) || (userData === null || userData === void 0 ? void 0 : userData.email) || 'Administrator';
     await expenseRef.update({

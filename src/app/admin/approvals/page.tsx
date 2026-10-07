@@ -76,13 +76,18 @@ import {
   bulkRejectContributionsAction,
   approveLoanAction,
   rejectLoanAction,
+  reviewExpenseAction,
   approveExpenseAction,
   rejectExpenseAction,
+  reviewInterestDistributionAction,
   approveInterestDistributionAction,
   rejectInterestDistributionAction,
   approveAccountDeletionAction,
   rejectAccountDeletionAction,
-  deleteMemberAction
+  deleteMemberAction,
+  initiateBulkMembersAction,
+  reviewBulkMembersAction,
+  approveBulkMembersAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { safeFormatDate } from '@/lib/loan-utils';
@@ -117,15 +122,24 @@ export default function ApprovalsHubPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const userRole = userData?.role || 'member';
-  const isAuthorized = Boolean(user && !userDataLoading && ['admin', 'management', 'accountant', 'reviewer', 'auditor'].includes(userRole));
-  const isSuperAdmin = userRole === 'admin';
-  const isReviewer = userRole === 'reviewer';
-  const isAccountant = userRole === 'accountant' || userRole === 'admin';
+  const isAuthorized = Boolean(user && !userDataLoading && ['admin', 'management', 'accountant', 'senior_accountant', 'reviewer', 'auditor'].includes(userRole));
+  const isSuperAdmin = userRole === 'admin' || userRole === 'management';
+  const isReviewer = userRole === 'reviewer' || userRole === 'senior_accountant' || userRole === 'management';
+  const isAccountant = userRole === 'accountant' || userRole === 'senior_accountant';
+  const canInitiate = userRole === 'accountant' || userRole === 'senior_accountant';
+  const canReview = userRole === 'reviewer' || userRole === 'senior_accountant' || userRole === 'management';
+  const canApprove = userRole === 'admin' || userRole === 'management';
 
-  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'deletions' | 'upload'>('batches');
+  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'members' | 'deletions' | 'upload'>('batches');
   const [batchSubTab, setBatchSubTab] = useState<'pending' | 'all'>('pending');
   const [interestSubTab, setInterestSubTab] = useState<'pending' | 'all'>('pending');
   const [deletionSubTab, setDeletionSubTab] = useState<'pending' | 'all'>('pending');
+  const [memberBatchSubTab, setMemberBatchSubTab] = useState<'pending' | 'all'>('pending');
+  const [interestReviewNotes, setInterestReviewNotes] = useState('');
+  const [inspectMemberBatch, setInspectMemberBatch] = useState<any | null>(null);
+  const [isMemberBatchModalOpen, setIsMemberBatchModalOpen] = useState(false);
+  const [memberBatchReviewNotes, setMemberBatchReviewNotes] = useState('');
+  const [memberBatchApprovalNotes, setMemberBatchApprovalNotes] = useState('');
 
   // New Batch Upload States (Accountant / Admin)
   const [batchTitle, setBatchTitle] = useState<string>('Staff Contributions Population');
@@ -195,7 +209,7 @@ export default function ApprovalsHubPage() {
   const pendingLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans'), where('status', '==', 'requested'), limit(50)) : null, [firestore, isAuthorized]);
   const { data: pendingLoansSnap, loading: loadingLoans } = useCollection(pendingLoansQuery);
 
-  const pendingExpensesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'expenses'), where('status', '==', 'pending'), limit(50)) : null, [firestore, isAuthorized]);
+  const pendingExpensesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'expenses'), where('status', 'in', ['pending', 'pending_review', 'pending_approval']), limit(50)) : null, [firestore, isAuthorized]);
   const { data: pendingExpensesSnap, loading: loadingExpenses } = useCollection(pendingExpensesQuery);
 
   const interestRequestsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'interest_distribution_requests'), orderBy('createdAt', 'desc'), limit(50)) : null, [firestore, isAuthorized]);
@@ -203,6 +217,9 @@ export default function ApprovalsHubPage() {
 
   const deletionRequestsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'account_deletion_requests'), orderBy('requestedAt', 'desc'), limit(50)) : null, [firestore, isAuthorized]);
   const { data: deletionRequestsSnap, loading: loadingDeletionRequests } = useCollection(deletionRequestsQuery);
+
+  const memberBatchesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'member_registration_batches'), orderBy('initiatedAt', 'desc'), limit(50)) : null, [firestore, isAuthorized]);
+  const { data: memberBatchesSnap, loading: loadingMemberBatches } = useCollection(memberBatchesQuery);
 
   // Queries for Financial Metric Cards
   const allLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans')) : null, [firestore, isAuthorized]);
@@ -235,12 +252,15 @@ export default function ApprovalsHubPage() {
   const pendingExpenses = useMemo(() => pendingExpensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [pendingExpensesSnap]);
 
   const allInterestRequests = useMemo(() => interestRequestsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [interestRequestsSnap]);
-  const pendingInterestRequests = useMemo(() => allInterestRequests.filter((r: any) => r.status === 'pending'), [allInterestRequests]);
+  const pendingInterestRequests = useMemo(() => allInterestRequests.filter((r: any) => r.status === 'pending' || r.status === 'pending_review' || r.status === 'pending_approval'), [allInterestRequests]);
 
   const allDeletionRequests = useMemo(() => deletionRequestsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [deletionRequestsSnap]);
   const pendingDeletionRequests = useMemo(() => allDeletionRequests.filter((r: any) => r.status === 'pending'), [allDeletionRequests]);
 
-  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingExpenses.length + pendingInterestRequests.length + pendingDeletionRequests.length;
+  const allMemberBatches = useMemo(() => memberBatchesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [memberBatchesSnap]);
+  const pendingMemberBatches = useMemo(() => allMemberBatches.filter((b: any) => b.status === 'pending_review' || b.status === 'pending_approval' || b.status === 'revision_requested'), [allMemberBatches]);
+
+  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingExpenses.length + pendingInterestRequests.length + pendingDeletionRequests.length + pendingMemberBatches.length;
 
   // -------------------------------------------------------------
   // FINANCIAL KPI METRICS (SCREENSHOT 1)
@@ -299,6 +319,7 @@ export default function ApprovalsHubPage() {
   const isLoanInitiatedByCurrentUser = (loan: any) => Boolean(user && loan && loan.memberId === user.uid);
   const isExpenseInitiatedByCurrentUser = (exp: any) => Boolean(user && exp && (exp.recordedBy === user.uid || exp.createdBy === user.uid));
   const isInterestInitiatedByCurrentUser = (req: any) => Boolean(user && req && req.initiatedBy === user.uid);
+  const isMemberBatchInitiatedByCurrentUser = (batch: any) => Boolean(user && batch && batch.initiatedBy === user.uid);
 
   // -------------------------------------------------------------
   // Excel File Parsing Handlers
@@ -547,32 +568,55 @@ export default function ApprovalsHubPage() {
   };
 
   // -------------------------------------------------------------
-  // Operating Expense Action
+  // Operating Expense Action (3-Tier Governance: Review & Approve)
   // -------------------------------------------------------------
-  const handleActionExpense = async (decision: 'approve' | 'reject') => {
+  const handleActionExpense = async (decision: 'endorse' | 'request_changes' | 'reject' | 'approve') => {
     if (!inspectExpense || !user) return;
     if (isExpenseInitiatedByCurrentUser(inspectExpense)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
-        description: "You cannot approve an operational expense you initiated. Another administrator must sign off."
+        description: "You cannot review or approve an operational expense you initiated. Another officer must sign off."
       });
     }
 
     setIsSubmitting(true);
     try {
-      if (decision === 'approve') {
+      if (decision === 'endorse' || decision === 'request_changes') {
+        await reviewExpenseAction({
+          expenseId: inspectExpense.id,
+          decision,
+          reviewNotes: expenseNotes.trim() || undefined
+        });
+        toast({ 
+          title: decision === 'endorse' ? "Expense Endorsed" : "Revision Requested", 
+          description: decision === 'endorse' 
+            ? `Expense of ${formatCurrency(inspectExpense.amount, currency)} endorsed. Staged for Administrator approval.`
+            : "Revision requested from initiator."
+        });
+      } else if (decision === 'approve') {
         await approveExpenseAction({
           expenseId: inspectExpense.id,
-          adminNotes: expenseNotes.trim()
+          adminNotes: expenseNotes.trim() || undefined
         });
-        toast({ title: "Expense Approved", description: `Expense of ${formatCurrency(inspectExpense.amount, currency)} ratified.` });
-      } else {
-        await rejectExpenseAction({
-          expenseId: inspectExpense.id,
-          rejectionReason: expenseNotes.trim() || 'Rejected during audit review'
+        toast({ 
+          title: "Expense Approved", 
+          description: `Expense of ${formatCurrency(inspectExpense.amount, currency)} ratified and deducted from institutional assets.` 
         });
-        toast({ title: "Expense Rejected", description: "Expense item rejected." });
+      } else if (decision === 'reject') {
+        if (inspectExpense.status === 'pending_approval') {
+          await rejectExpenseAction({
+            expenseId: inspectExpense.id,
+            rejectionReason: expenseNotes.trim() || 'Rejected during Administrator audit'
+          });
+        } else {
+          await reviewExpenseAction({
+            expenseId: inspectExpense.id,
+            decision: 'reject',
+            reviewNotes: expenseNotes.trim() || 'Rejected during review'
+          });
+        }
+        toast({ title: "Expense Rejected", description: "Expense item turned down." });
       }
       setIsExpenseModalOpen(false);
       setInspectExpense(null);
@@ -586,21 +630,33 @@ export default function ApprovalsHubPage() {
   };
 
   // -------------------------------------------------------------
-  // Interest Distribution Proposal Approval Action
+  // Interest Distribution Proposal Action (3-Tier Governance)
   // -------------------------------------------------------------
-  const handleActionInterest = async (decision: 'approve' | 'reject') => {
+  const handleActionInterest = async (decision: 'endorse' | 'request_changes' | 'reject' | 'approve') => {
     if (!inspectInterest || !user) return;
     if (isInterestInitiatedByCurrentUser(inspectInterest)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
-        description: "You initiated this distribution proposal. Another Super Administrator must approve it."
+        description: "You initiated this distribution proposal. Another authorized officer must review or approve it."
       });
     }
 
     setIsSubmitting(true);
     try {
-      if (decision === 'approve') {
+      if (decision === 'endorse' || decision === 'request_changes') {
+        await reviewInterestDistributionAction({
+          requestId: inspectInterest.id,
+          decision,
+          reviewNotes: interestReviewNotes.trim() || undefined
+        });
+        toast({
+          title: decision === 'endorse' ? "Proposal Endorsed" : "Revision Requested",
+          description: decision === 'endorse' 
+            ? "Interest distribution proposal endorsed. Staged for Administrator approval."
+            : "Revision requested from accountant."
+        });
+      } else if (decision === 'approve') {
         await approveInterestDistributionAction({
           requestId: inspectInterest.id,
           approvalNotes: interestApprovalNotes.trim() || undefined
@@ -609,11 +665,19 @@ export default function ApprovalsHubPage() {
           title: "Interest Distribution Approved & Committed",
           description: `Successfully allocated ${formatCurrency(inspectInterest.totalInterestToDistribute, currency)} to ${inspectInterest.recipientsCount || 0} active savers.`,
         });
-      } else {
-        await rejectInterestDistributionAction({
-          requestId: inspectInterest.id,
-          rejectionReason: interestApprovalNotes.trim() || 'Rejected during Super Administrator audit'
-        });
+      } else if (decision === 'reject') {
+        if (inspectInterest.status === 'pending_approval') {
+          await rejectInterestDistributionAction({
+            requestId: inspectInterest.id,
+            rejectionReason: interestApprovalNotes.trim() || 'Rejected during Super Administrator audit'
+          });
+        } else {
+          await reviewInterestDistributionAction({
+            requestId: inspectInterest.id,
+            decision: 'reject',
+            reviewNotes: (interestReviewNotes || interestApprovalNotes).trim() || 'Rejected during review'
+          });
+        }
         toast({
           title: "Distribution Proposal Rejected",
           description: "Interest distribution proposal has been rejected."
@@ -622,6 +686,76 @@ export default function ApprovalsHubPage() {
       setIsInterestModalOpen(false);
       setInspectInterest(null);
       setInterestApprovalNotes('');
+      setInterestReviewNotes('');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({ variant: "destructive", title: parsed.title, description: parsed.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Member Registration Batch Action (3-Tier Governance)
+  // -------------------------------------------------------------
+  const handleActionMemberBatch = async (decision: 'endorse' | 'request_changes' | 'reject' | 'approve') => {
+    if (!inspectMemberBatch || !user) return;
+    if (isMemberBatchInitiatedByCurrentUser(inspectMemberBatch)) {
+      return toast({
+        variant: "destructive",
+        title: "Segregation of Duties Violation",
+        description: "You initiated this member enrollment batch. Another authorized officer must review or approve it."
+      });
+    }
+
+    setIsSubmitting(true);
+    try {
+      const batchId = inspectMemberBatch.batchId || inspectMemberBatch.id;
+      if (decision === 'endorse' || decision === 'request_changes') {
+        await reviewBulkMembersAction({
+          batchId,
+          decision,
+          reviewNotes: memberBatchReviewNotes.trim() || 'Reviewed by compliance'
+        });
+        toast({
+          title: decision === 'endorse' ? "Enrollment Batch Endorsed" : "Revision Requested",
+          description: decision === 'endorse'
+            ? "Member enrollment batch verified and endorsed. Staged for Administrator final approval."
+            : "Revision requested from initiator."
+        });
+      } else if (decision === 'approve') {
+        await approveBulkMembersAction({
+          batchId,
+          decision: 'approve',
+          approvalNotes: memberBatchApprovalNotes.trim() || undefined
+        });
+        toast({
+          title: "Member Accounts Generated & Activated",
+          description: `Successfully approved enrollment batch. Member profiles created and activation notifications dispatched.`
+        });
+      } else if (decision === 'reject') {
+        if (inspectMemberBatch.status === 'pending_approval') {
+          await approveBulkMembersAction({
+            batchId,
+            decision: 'reject',
+            approvalNotes: memberBatchApprovalNotes.trim() || 'Rejected by Administrator'
+          });
+        } else {
+          await reviewBulkMembersAction({
+            batchId,
+            decision: 'reject',
+            reviewNotes: memberBatchReviewNotes.trim() || 'Rejected during review'
+          });
+        }
+        toast({
+          title: "Enrollment Batch Rejected",
+          description: "Member enrollment batch has been rejected."
+        });
+      }
+      setIsMemberBatchModalOpen(false);
+      setInspectMemberBatch(null);
+      setMemberBatchReviewNotes('');
+      setMemberBatchApprovalNotes('');
     } catch (err: any) {
       const parsed = parseAppError(err);
       toast({ variant: "destructive", title: parsed.title, description: parsed.message });
@@ -830,26 +964,30 @@ export default function ApprovalsHubPage() {
 
         {/* Action Button: Download Template / New Batch */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Button 
-            variant="outline" 
-            onClick={() => downloadStaffContributionTemplate({ prefillMembers: registeredMembers, period: selectedPeriod, defaultAmount: settings.contributionInterestRate || 50000 })}
-            className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-border shadow-sm gap-1.5"
-          >
-            <Download className="h-4 w-4 text-primary" /> Template (.xlsx)
-          </Button>
-          <Button 
-            onClick={() => setMainTab('upload')}
-            className="rounded-xl h-10 px-4 font-bold text-[12px] shadow-sm bg-primary text-primary-foreground gap-1.5"
-          >
-            <Upload className="h-4 w-4" /> New Batch Upload
-          </Button>
+          {canInitiate && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => downloadStaffContributionTemplate({ prefillMembers: registeredMembers, period: selectedPeriod, defaultAmount: settings.contributionInterestRate || 50000 })}
+                className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-border shadow-sm gap-1.5"
+              >
+                <Download className="h-4 w-4 text-primary" /> Template (.xlsx)
+              </Button>
+              <Button 
+                onClick={() => setMainTab('upload')}
+                className="rounded-xl h-10 px-4 font-bold text-[12px] shadow-sm bg-primary text-primary-foreground gap-1.5"
+              >
+                <Upload className="h-4 w-4" /> New Batch Upload
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Main Approvals Tabs */}
       <Tabs value={mainTab} onValueChange={(val: any) => setMainTab(val)} className="w-full space-y-4">
         <div className="w-full overflow-x-auto no-scrollbar pb-1">
-          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 sm:grid sm:grid-cols-7 h-11">
+          <TabsList className={cn("inline-flex w-full min-w-max sm:min-w-0 h-11", canInitiate ? "sm:grid sm:grid-cols-8" : "sm:grid sm:grid-cols-7")}>
             <TabsTrigger value="batches" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Layers className="h-3.5 w-3.5" /> Batches {pendingBatches.length > 0 && `(${pendingBatches.length})`}
             </TabsTrigger>
@@ -865,12 +1003,17 @@ export default function ApprovalsHubPage() {
             <TabsTrigger value="interest" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <TrendingUp className="h-3.5 w-3.5" /> Interest {pendingInterestRequests.length > 0 && `(${pendingInterestRequests.length})`}
             </TabsTrigger>
+            <TabsTrigger value="members" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
+              <Users className="h-3.5 w-3.5" /> Member Enrolls {pendingMemberBatches.length > 0 && `(${pendingMemberBatches.length})`}
+            </TabsTrigger>
             <TabsTrigger value="deletions" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5 text-destructive/90 data-[state=active]:text-destructive">
               <UserX className="h-3.5 w-3.5" /> Deletions {pendingDeletionRequests.length > 0 && `(${pendingDeletionRequests.length})`}
             </TabsTrigger>
-            <TabsTrigger value="upload" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
-              <Upload className="h-3.5 w-3.5" /> Upload Excel
-            </TabsTrigger>
+            {canInitiate && (
+              <TabsTrigger value="upload" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
+                <Upload className="h-3.5 w-3.5" /> Upload Excel
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -1137,14 +1280,15 @@ export default function ApprovalsHubPage() {
                       <TableHead className="px-4 py-3 text-xs font-bold uppercase">Category</TableHead>
                       <TableHead className="px-4 py-3 text-xs font-bold uppercase">Recorded By</TableHead>
                       <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Amount</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Status</TableHead>
                       <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingExpenses ? (
-                      <TableRow><TableCell colSpan={5} className="h-28 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="h-28 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                     ) : pendingExpenses.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="h-28 text-center text-muted-foreground italic">No operational expenses pending approval.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="h-28 text-center text-muted-foreground italic">No operational expenses pending approval.</TableCell></TableRow>
                     ) : (
                       pendingExpenses.map((exp: any) => {
                         const isSelf = isExpenseInitiatedByCurrentUser(exp);
@@ -1167,6 +1311,18 @@ export default function ApprovalsHubPage() {
                             </TableCell>
                             <TableCell className="px-4 py-3 text-right font-bold text-sm text-foreground">
                               {formatCurrency(exp.amount, currency)}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-center">
+                              <Badge className={cn(
+                                "text-[9px] uppercase font-bold border-none",
+                                exp.status === 'pending_review' && "bg-blue-500/10 text-blue-700",
+                                exp.status === 'pending_approval' && "bg-primary/10 text-primary",
+                                exp.status === 'revision_requested' && "bg-amber-500/10 text-amber-700",
+                                exp.status === 'approved' && "bg-green-600/10 text-green-700",
+                                exp.status === 'rejected' && "bg-destructive/10 text-destructive"
+                              )}>
+                                {exp.status === 'pending_review' ? 'Pending Review' : exp.status === 'pending_approval' ? 'Pending Approval' : exp.status}
+                              </Badge>
                             </TableCell>
                             <TableCell className="px-4 py-3 text-right">
                               <Button 
@@ -1371,7 +1527,105 @@ export default function ApprovalsHubPage() {
           </Card>
         </TabsContent>
 
-        {/* 6. NEW BATCH UPLOAD TAB */}
+        {/* 6. MEMBER REGISTRATION BATCHES TAB */}
+        <TabsContent value="members" className="space-y-4">
+          <Card className="border border-border shadow-md rounded-2xl overflow-hidden bg-card">
+            <CardHeader className="bg-blue-600 text-white p-4 sm:p-5 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                <CardTitle className="text-[13px] font-bold text-white">Staged Member Enrollment Batches</CardTitle>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="secondary" 
+                  onClick={() => setMemberBatchSubTab(memberBatchSubTab === 'pending' ? 'all' : 'pending')}
+                  className="h-7 text-xs font-bold rounded-lg bg-white/20 text-white hover:bg-white/30 border-none"
+                >
+                  {memberBatchSubTab === 'pending' ? 'Show All History' : 'Show Pending Only'}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto no-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b hover:bg-transparent">
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Batch Title / Ref</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Initiator</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Staged Members</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Date Staged</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Status</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingMemberBatches ? (
+                      <TableRow><TableCell colSpan={6} className="h-28 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                    ) : (memberBatchSubTab === 'pending' ? pendingMemberBatches : allMemberBatches).length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="h-28 text-center text-muted-foreground italic">No member enrollment batches in this view.</TableCell></TableRow>
+                    ) : (
+                      (memberBatchSubTab === 'pending' ? pendingMemberBatches : allMemberBatches).map((batch: any) => {
+                        const isInitiatedByMe = isMemberBatchInitiatedByCurrentUser(batch);
+                        return (
+                          <TableRow key={batch.id} className="hover:bg-muted/30">
+                            <TableCell className="px-4 py-3 font-bold text-sm">
+                              <div>{batch.title || `Enrollment #${batch.id.slice(0, 10)}`}</div>
+                              <div className="text-[11px] font-mono text-muted-foreground">{batch.id}</div>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs">
+                              <div className="font-semibold text-foreground">{batch.initiatedByName || 'Senior Accountant'}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Badge variant="secondary" className="text-[8px] uppercase font-bold">{batch.initiatedByRole || 'Staff'}</Badge>
+                                {isInitiatedByMe && (
+                                  <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[8px] font-bold">
+                                    Initiated by you
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-center text-xs">
+                              <Badge variant="outline" className="font-mono text-xs">
+                                {batch.members?.length || batch.totalMembers || 0} Members
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs text-muted-foreground">
+                              {safeFormatDate(batch.initiatedAt, 'PPp')}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-center">
+                              <Badge className={cn(
+                                "text-[9px] uppercase font-bold border-none",
+                                batch.status === 'pending_review' && "bg-blue-500/10 text-blue-700",
+                                batch.status === 'pending_approval' && "bg-primary/10 text-primary",
+                                batch.status === 'revision_requested' && "bg-amber-500/10 text-amber-700",
+                                batch.status === 'approved' && "bg-green-600/10 text-green-700",
+                                batch.status === 'rejected' && "bg-destructive/10 text-destructive"
+                              )}>
+                                {batch.status === 'pending_review' ? 'Pending Review' : batch.status === 'pending_approval' ? 'Pending Approval' : batch.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => { setInspectMemberBatch(batch); setIsMemberBatchModalOpen(true); }}
+                                className="h-8 rounded-xl font-bold text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Details
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 7. NEW BATCH UPLOAD TAB */}
         <TabsContent value="upload" className="space-y-4">
           <Card className="border border-border shadow-sm rounded-2xl bg-card">
             <CardHeader className="border-b p-4 sm:p-6">
@@ -1925,16 +2179,19 @@ export default function ApprovalsHubPage() {
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center justify-between">
               <span>Operating Expense Details</span>
-              <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase font-bold">
-                Pending Sign-Off
-              </Badge>
+              <Badge className={cn("border-none text-[10px] uppercase font-bold",
+                inspectExpense?.status === 'pending_review' || inspectExpense?.status === 'pending' ? "bg-blue-500/10 text-blue-700" :
+                inspectExpense?.status === 'pending_approval' ? "bg-primary/10 text-primary" :
+                inspectExpense?.status === 'approved' ? "bg-green-600/10 text-green-700" :
+                "bg-destructive/10 text-destructive"
+              )}>{inspectExpense?.status}</Badge>
             </DialogTitle>
           </DialogHeader>
 
           {isExpenseInitiatedByCurrentUser(inspectExpense) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>You initiated this expense. Another administrator must review and sign off.</span>
+              <span>You initiated this expense. Another officer must review and sign off.</span>
             </div>
           )}
 
@@ -1955,43 +2212,39 @@ export default function ApprovalsHubPage() {
               <span className="text-muted-foreground">Recorded By:</span>
               <span className="font-semibold">{inspectExpense?.recordedByName || getMemberName(inspectExpense?.recordedBy)}</span>
             </div>
-            {!isExpenseInitiatedByCurrentUser(inspectExpense) && (
-              <div className="space-y-2 pt-2">
-                <Label className="text-xs font-bold uppercase tracking-wider">Audit Sign-Off Notes (Optional)</Label>
-                <Input 
-                  value={expenseNotes} 
-                  onChange={e => setExpenseNotes(e.target.value)} 
-                  placeholder="e.g. Receipt verified, ratified for operational debit"
-                  className="rounded-xl text-xs h-10"
-                />
-              </div>
-            )}
           </div>
 
-          <DialogFooter className="flex items-center justify-between gap-2 pt-3">
-            <Button variant="ghost" onClick={() => setIsExpenseModalOpen(false)} className="rounded-xl text-xs font-bold">
-              Cancel
-            </Button>
-            {!isExpenseInitiatedByCurrentUser(inspectExpense) && (
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleActionExpense('reject')} 
-                  disabled={isSubmitting}
-                  className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
-                >
-                  Reject
-                </Button>
-                <Button 
-                  onClick={() => handleActionExpense('approve')} 
-                  disabled={isSubmitting}
-                  className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white"
-                >
+          {/* Phase 1: Reviewer / Senior Accountant endorsement */}
+          {!isExpenseInitiatedByCurrentUser(inspectExpense) && canReview &&
+            (inspectExpense?.status === 'pending_review' || inspectExpense?.status === 'pending') && (
+            <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Reviewer Endorsement</p>
+              <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter review notes or change requirements..." className="rounded-xl text-xs h-10" />
+              <div className="flex items-center gap-2 justify-end">
+                <Button size="sm" variant="outline" onClick={() => handleActionExpense('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
+                <Button size="sm" variant="outline" onClick={() => handleActionExpense('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject</Button>
+                <Button size="sm" onClick={() => handleActionExpense('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse for Approval</Button>
+              </div>
+            </div>
+          )}
+
+          {/* Phase 2: Admin final approval */}
+          {!isExpenseInitiatedByCurrentUser(inspectExpense) && canApprove && inspectExpense?.status === 'pending_approval' && (
+            <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 2: Administrator Final Sign-Off</p>
+              <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter final approval notes..." className="rounded-xl text-xs h-10" />
+              <div className="flex items-center gap-2 justify-end">
+                <Button size="sm" variant="outline" onClick={() => handleActionExpense('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject</Button>
+                <Button size="sm" onClick={() => handleActionExpense('approve')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
                   {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
                   Approve Expense
                 </Button>
               </div>
-            )}
+            </div>
+          )}
+
+          <DialogFooter className="flex items-center justify-between gap-2 pt-3">
+            <Button variant="ghost" onClick={() => setIsExpenseModalOpen(false)} className="rounded-xl text-xs font-bold">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2151,11 +2404,31 @@ export default function ApprovalsHubPage() {
             </CardContent>
             </Card>
 
-            {/* Approval Controls */}
-            {!isInterestInitiatedByCurrentUser(inspectInterest) && isSuperAdmin && inspectInterest?.status === 'pending' && (
+            {/* Phase 1: Reviewer endorsement controls (pending_review) */}
+            {!isInterestInitiatedByCurrentUser(inspectInterest) && canReview &&
+              (inspectInterest?.status === 'pending_review' || inspectInterest?.status === 'pending') && (
+              <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 dark:border-blue-900/50 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Reviewer Endorsement</p>
+                <Textarea
+                  value={interestReviewNotes}
+                  onChange={e => setInterestReviewNotes(e.target.value)}
+                  placeholder="Enter review findings or change requirements for the accountant..."
+                  className="text-xs rounded-xl bg-background"
+                  rows={2}
+                />
+                <div className="flex items-center gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => handleActionInterest('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleActionInterest('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Proposal</Button>
+                  <Button size="sm" onClick={() => handleActionInterest('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse for Approval</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Phase 2: Admin final approval (pending_approval) */}
+            {!isInterestInitiatedByCurrentUser(inspectInterest) && canApprove && inspectInterest?.status === 'pending_approval' && (
               <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-900/50 space-y-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
-                  Super Administrator Ratification &amp; Ledger Execution
+                  Phase 2: Super Administrator Ratification &amp; Ledger Execution
                 </p>
                 <Textarea 
                   value={interestApprovalNotes} 
@@ -2172,7 +2445,7 @@ export default function ApprovalsHubPage() {
             <Button variant="outline" onClick={() => setIsInterestModalOpen(false)} className="rounded-xl text-xs font-bold">
               Close
             </Button>
-            {!isInterestInitiatedByCurrentUser(inspectInterest) && isSuperAdmin && inspectInterest?.status === 'pending' && (
+            {!isInterestInitiatedByCurrentUser(inspectInterest) && canApprove && inspectInterest?.status === 'pending_approval' && (
               <div className="flex items-center gap-2">
                 <Button 
                   variant="outline" 
@@ -2189,6 +2462,111 @@ export default function ApprovalsHubPage() {
                 >
                   {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
                   Approve &amp; Distribute {formatCurrency(inspectInterest?.totalInterestToDistribute || 0, currency)}
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 8. MEMBER ENROLLMENT BATCH MODAL */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog open={isMemberBatchModalOpen} onOpenChange={setIsMemberBatchModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 rounded-2xl overflow-hidden bg-card border border-border shadow-2xl">
+          <DialogHeader className="p-5 bg-blue-600 text-white border-b border-blue-700/30 shrink-0">
+            <DialogTitle className="text-base font-bold text-white flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-white" />
+                {inspectMemberBatch?.title || 'Member Enrollment Batch'}
+              </span>
+              <Badge className="bg-white/20 text-white border-none text-[10px] font-bold uppercase">
+                {inspectMemberBatch?.status}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-blue-100 text-xs mt-1">
+              Initiated by <strong>{inspectMemberBatch?.initiatedByName || 'Senior Accountant'}</strong> on {safeFormatDate(inspectMemberBatch?.initiatedAt, 'PPP')} &bull; {inspectMemberBatch?.members?.length || 0} staged members
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-5 overflow-y-auto space-y-4 flex-1">
+            {isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>You initiated this enrollment batch. Another officer must review and approve it.</span>
+              </div>
+            )}
+
+            {/* Staged members table */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Staged Members</p>
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs font-bold">Name</TableHead>
+                      <TableHead className="text-xs font-bold">Email</TableHead>
+                      <TableHead className="text-xs font-bold">Phone</TableHead>
+                      <TableHead className="text-xs font-bold">Role</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(inspectMemberBatch?.members || []).map((m: any, idx: number) => (
+                      <TableRow key={idx} className="text-xs">
+                        <TableCell className="font-semibold">{m.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{m.email}</TableCell>
+                        <TableCell className="text-muted-foreground">{m.phone || '-'}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[9px] uppercase font-bold">{m.role || 'member'}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Phase 1: Reviewer endorsement (pending_review) */}
+            {!isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) && canReview &&
+              (inspectMemberBatch?.status === 'pending_review' || inspectMemberBatch?.status === 'revision_requested') && (
+              <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Reviewer Endorsement</p>
+                <Textarea
+                  value={memberBatchReviewNotes}
+                  onChange={e => setMemberBatchReviewNotes(e.target.value)}
+                  placeholder="Enter compliance review notes or required corrections..."
+                  className="text-xs rounded-xl bg-background"
+                  rows={2}
+                />
+                <div className="flex items-center gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Batch</Button>
+                  <Button size="sm" onClick={() => handleActionMemberBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse for Approval</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Phase 2: Admin final approval (pending_approval) */}
+            {!isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) && canApprove && inspectMemberBatch?.status === 'pending_approval' && (
+              <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 2: Administrator Final Approval — Generate Accounts</p>
+                <Textarea
+                  value={memberBatchApprovalNotes}
+                  onChange={e => setMemberBatchApprovalNotes(e.target.value)}
+                  placeholder="Enter approval rationale. Member accounts will be created and activation emails dispatched."
+                  className="text-xs rounded-xl bg-background"
+                  rows={2}
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-4 bg-muted/20 border-t shrink-0 flex items-center justify-between gap-2">
+            <Button variant="outline" onClick={() => setIsMemberBatchModalOpen(false)} className="rounded-xl text-xs font-bold">Close</Button>
+            {!isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) && canApprove && inspectMemberBatch?.status === 'pending_approval' && (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => handleActionMemberBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Batch</Button>
+                <Button onClick={() => handleActionMemberBatch('approve')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white gap-1.5 shadow-md">
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+                  Approve &amp; Create Accounts
                 </Button>
               </div>
             )}

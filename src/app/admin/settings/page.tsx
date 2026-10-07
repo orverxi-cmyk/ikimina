@@ -188,7 +188,7 @@ export default function AdminSettingsPage() {
 
   const isAdmin = userData?.role === 'admin';
   const isSuperAdmin = userData?.isSuperAdmin === true || user?.email === 'tharushyamagara@gmail.com';
-  const isAccountant = (userData?.role === 'accountant' || userData?.role === 'senior_accountant') || isAdmin;
+  const isAccountant = userData?.role === 'accountant' || userData?.role === 'senior_accountant';
 
   const parsedDistributeAmount = Number(distributeAmountInput) || 0;
   const isAmountValid = parsedDistributeAmount > 0 && parsedDistributeAmount <= poolMetrics.availableUndistributedInterest;
@@ -929,10 +929,19 @@ export default function AdminSettingsPage() {
                       </p>
                     </div>
 
+                    {!isAccountant && (
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <p className="leading-relaxed">
+                          <strong>Dual-Control Requirement:</strong> Interest distribution proposals must be initiated by an Accountant or Senior Accountant. Administrators review and approve proposals in the <Link href="/admin/approvals" className="font-bold underline text-primary">Approvals Hub</Link>.
+                        </p>
+                      </div>
+                    )}
+
                     {/* Submit Action */}
                     <Button
                       type="submit"
-                      disabled={!isAmountValid || !justificationInput.trim() || isInitiatingDistribution}
+                      disabled={!isAccountant || !isAmountValid || !justificationInput.trim() || isInitiatingDistribution}
                       className="w-full h-11 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-all gap-2"
                     >
                       {isInitiatingDistribution ? (

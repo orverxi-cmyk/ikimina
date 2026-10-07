@@ -51,6 +51,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeFirebase } from '@/firebase';
 import { 
   lodgeExpenseAction, 
+  reviewExpenseAction,
   approveExpenseAction, 
   rejectExpenseAction 
 } from '@/lib/finance-client';
@@ -100,7 +101,10 @@ export default function ExpensesAdminPage() {
 
   const effectiveRole = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
   const isAdmin = effectiveRole === 'admin' || effectiveRole === 'management' || isPrimaryAdmin;
-  const isAccountant = effectiveRole === 'accountant' || isAdmin;
+  const isAccountant = effectiveRole === 'accountant' || effectiveRole === 'senior_accountant';
+  const canInitiate = effectiveRole === 'accountant' || effectiveRole === 'senior_accountant';
+  const canReview = effectiveRole === 'reviewer' || effectiveRole === 'senior_accountant' || effectiveRole === 'management';
+  const canApprove = effectiveRole === 'admin' || effectiveRole === 'management' || isPrimaryAdmin;
 
   // Query expenses collection directly without field restrictions (ensures no documents are omitted by Firestore)
   const expensesQuery = useMemoFirebase(() => {
@@ -146,10 +150,11 @@ export default function ExpensesAdminPage() {
   // Action state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
+  const [reviewNotes, setReviewNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
 
   // Segregated Expense Lists
-  const pendingExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'pending'), [expenses]);
+  const pendingExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'pending' || e.status === 'pending_review' || e.status === 'pending_approval'), [expenses]);
   const approvedExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'approved'), [expenses]);
   const rejectedExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'rejected'), [expenses]);
 
@@ -262,11 +267,41 @@ export default function ExpensesAdminPage() {
       setIsSubmitting(false);
       setIsUploadingFile(false);
     }
+  // Review Expense Handler (Reviewer / Senior Accountant)
+  const handleReview = async (decision: 'endorse' | 'request_changes' | 'reject') => {
+    if (!selectedExpense || !canReview) return;
+    setIsSubmitting(true);
+    try {
+      await reviewExpenseAction({
+        expenseId: selectedExpense.id,
+        decision,
+        reviewNotes: reviewNotes.trim() || undefined
+      });
+
+      toast({
+        title: decision === 'endorse' ? "Expense Endorsed" : decision === 'request_changes' ? "Revision Requested" : "Expense Rejected",
+        description: decision === 'endorse' 
+          ? "Expense endorsed and forwarded to Administrator for final asset deduction approval."
+          : `Expense review decision recorded: ${decision}.`
+      });
+
+      setIsReviewOpen(false);
+      setSelectedExpense(null);
+      setReviewNotes('');
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Review Failed",
+        description: err.message || "Could not submit review."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Approve Expense Handler
+  // Approve Expense Handler (Administrator)
   const handleApprove = async () => {
-    if (!selectedExpense || !isAdmin) return;
+    if (!selectedExpense || !canApprove) return;
     setIsSubmitting(true);
     try {
       await approveExpenseAction({
@@ -358,7 +393,7 @@ export default function ExpensesAdminPage() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          {isAccountant && (
+          {canInitiate && (
             <Button 
               onClick={() => setIsLodgeOpen(true)}
               className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 bg-primary text-primary-foreground flex-1 sm:flex-none"
@@ -496,6 +531,7 @@ export default function ExpensesAdminPage() {
                     <TableHead className="font-bold text-[12px] uppercase">Date &amp; Payee</TableHead>
                     <TableHead className="font-bold text-[12px] uppercase">Category</TableHead>
                     <TableHead className="font-bold text-[12px] uppercase">Amount</TableHead>
+                    <TableHead className="font-bold text-[12px] uppercase">Stage</TableHead>
                     <TableHead className="font-bold text-[12px] uppercase">Lodged By</TableHead>
                     <TableHead className="font-bold text-[12px] uppercase">Supporting Proof</TableHead>
                     <TableHead className="font-bold text-[12px] uppercase text-right">Actions</TableHead>
@@ -504,13 +540,13 @@ export default function ExpensesAdminPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center">
+                      <TableCell colSpan={7} className="h-32 text-center">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                       </TableCell>
                     </TableRow>
                   ) : pendingExpenses.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-40 text-center text-muted-foreground italic">
+                      <TableCell colSpan={7} className="h-40 text-center text-muted-foreground italic">
                         No pending expenses awaiting approval.
                       </TableCell>
                     </TableRow>
@@ -530,6 +566,17 @@ export default function ExpensesAdminPage() {
                         </TableCell>
                         <TableCell className="font-bold text-sm text-foreground">
                           {formatCurrency(exp.amount, currency)}
+                        </TableCell>
+                        <TableCell>
+                          {exp.status === 'pending_approval' ? (
+                            <Badge className="bg-amber-500/10 text-amber-600 border border-amber-200 text-[10px] font-semibold">
+                              Pending Admin Sign-Off
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-500/10 text-blue-600 border border-blue-200 text-[10px] font-semibold">
+                              Pending Review
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <p className="text-xs font-medium text-foreground">{exp.lodgedByName || 'Accountant'}</p>
@@ -562,7 +609,11 @@ export default function ExpensesAdminPage() {
                             }}
                             className="rounded-xl font-bold text-xs h-8 px-3 gap-1 shadow-sm"
                           >
-                            Review &amp; Authorize
+                            {exp.status === 'pending_approval' ? (
+                              canApprove ? 'Authorize & Sign-Off' : 'View Details'
+                            ) : (
+                              canReview ? (exp.lodgedBy === user?.uid ? 'View (Self-Lodged)' : 'Review & Endorse') : 'View Details'
+                            )}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -1031,53 +1082,147 @@ export default function ExpensesAdminPage() {
                   )}
                 </div>
 
-                {/* Administrator Audit Note */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold uppercase tracking-wider">
-                    Administrator Review Notes (Optional)
-                  </Label>
-                  <Input 
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    placeholder="e.g., Verified against physical invoice, approved for debit..."
-                    className="h-10 rounded-xl bg-muted/40 text-xs w-full"
-                  />
-                </div>
+                {/* Note Field & Stage Instructions */}
+                {selectedExpense.status === 'pending_approval' ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider">
+                      Administrator Approval Notes (Optional)
+                    </Label>
+                    <Input 
+                      value={adminNotes}
+                      onChange={(e) => setAdminNotes(e.target.value)}
+                      placeholder="e.g., Verified against physical invoice, approved for debit..."
+                      className="h-10 rounded-xl bg-muted/40 text-xs w-full"
+                      disabled={!canApprove}
+                    />
+                  </div>
+                ) : selectedExpense.lodgedBy === user?.uid ? (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-700 text-xs font-semibold">
+                    Dual-Control Guardrail: You lodged this expense and cannot self-review. A separate reviewer must endorse it.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider">
+                      Reviewer Endorsement Notes (Optional)
+                    </Label>
+                    <Input 
+                      value={reviewNotes}
+                      onChange={(e) => setReviewNotes(e.target.value)}
+                      placeholder="e.g., Cross-referenced with vendor receipt, figures verified..."
+                      className="h-10 rounded-xl bg-muted/40 text-xs w-full"
+                      disabled={!canReview}
+                    />
+                  </div>
+                )}
               </div>
 
               <DialogFooter className="p-4 sm:p-6 pt-3 sm:pt-4 bg-muted/30 border-t flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsRejectOpen(true)}
-                  className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1 w-full md:w-auto shrink-0"
-                >
-                  <Ban className="mr-2 h-4 w-4" /> Reject Expense
-                </Button>
+                {selectedExpense.status === 'pending_approval' ? (
+                  canApprove ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsRejectOpen(true)}
+                        className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1 w-full md:w-auto shrink-0"
+                      >
+                        <Ban className="mr-2 h-4 w-4" /> Reject Expense
+                      </Button>
 
-                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 order-1 md:order-2 w-full md:w-auto">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setIsReviewOpen(false)}
-                    className="rounded-xl font-bold h-11 px-4 w-full sm:w-auto"
-                  >
-                    Close
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={handleApprove}
-                    className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                    Approve &amp; Deduct from Assets
-                  </Button>
-                </div>
+                      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 order-1 md:order-2 w-full md:w-auto">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setIsReviewOpen(false)}
+                          className="rounded-xl font-bold h-11 px-4 w-full sm:w-auto"
+                        >
+                          Close
+                        </Button>
+                        <Button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={handleApprove}
+                          className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4" />
+                          )}
+                          Authorize &amp; Deduct from Assets
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between w-full">
+                      <p className="text-xs text-muted-foreground font-medium">Stage 3: Endorsed. Awaiting Administrator sign-off.</p>
+                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                        Close
+                      </Button>
+                    </div>
+                  )
+                ) : (
+                  selectedExpense.lodgedBy === user?.uid ? (
+                    <div className="flex items-center justify-between w-full">
+                      <p className="text-xs text-muted-foreground font-medium">Self-lodged proposal awaiting another reviewer.</p>
+                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                        Close
+                      </Button>
+                    </div>
+                  ) : canReview ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleReview('reject')}
+                        disabled={isSubmitting}
+                        className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1 w-full md:w-auto shrink-0"
+                      >
+                        <Ban className="mr-2 h-4 w-4" /> Reject
+                      </Button>
+
+                      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 order-1 md:order-2 w-full md:w-auto">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setIsReviewOpen(false)}
+                          className="rounded-xl font-bold h-11 px-4 w-full sm:w-auto"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={isSubmitting}
+                          onClick={() => handleReview('request_changes')}
+                          className="rounded-xl font-bold border-amber-500/30 text-amber-600 hover:bg-amber-500/10 h-11 px-4"
+                        >
+                          Request Changes
+                        </Button>
+                        <Button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => handleReview('endorse')}
+                          className="rounded-xl font-bold bg-primary text-primary-foreground shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4" />
+                          )}
+                          Endorse to Administrator
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between w-full">
+                      <p className="text-xs text-muted-foreground font-medium">Stage 2: Maker-Checker. Awaiting Reviewer or Senior Accountant endorsement.</p>
+                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                        Close
+                      </Button>
+                    </div>
+                  )
+                )}
               </DialogFooter>
             </div>
           )}

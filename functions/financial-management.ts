@@ -230,8 +230,8 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
     const callerSnap = await db.collection('users').doc(callerUid).get();
     const callerData = callerSnap.data();
 
-    if (callerData?.role !== 'admin' && callerData?.role !== 'accountant' && callerData?.role !== 'senior_accountant') {
-        throw new HttpsError('permission-denied', 'Only an accountant or administrator can initiate an interest distribution.');
+    if (callerData?.role !== 'accountant' && callerData?.role !== 'senior_accountant') {
+        throw new HttpsError('permission-denied', 'Only Accountants or Senior Accountants can initiate an interest distribution proposal. Administrators cannot initiate proposals.');
     }
 
     const { totalInterestToDistribute, justification } = request.data || {};
@@ -351,7 +351,7 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
         const reqRef = db.collection('interest_distribution_requests').doc();
         const requestPayload = {
             id: reqRef.id,
-            status: 'pending',
+            status: 'pending_review',
             totalInterestToDistribute: parsedAmount,
             totalPool,
             totalRealizedInterest,
@@ -421,7 +421,88 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
 });
 
 /**
- * Step 2: Super Administrator Approves and Commits the Interest Distribution.
+ * Step 2: Reviewer or Senior Accountant reviews the interest distribution proposal and member preference campaign.
+ * Endorsement advances proposal to 'pending_approval' for Administrator approval.
+ */
+export const reviewInterestDistribution = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    const callerUid = request.auth.uid;
+
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(callerUid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData?.role;
+
+    const allowedRoles = ['reviewer', 'senior_accountant', 'management'];
+    if (!allowedRoles.includes(callerRole)) {
+        throw new HttpsError('permission-denied', 'Only Reviewers or Senior Accountants can review interest distribution proposals. Administrators cannot review proposals.');
+    }
+
+    const { requestId, decision, reviewNotes } = request.data || {};
+    if (!requestId) {
+        throw new HttpsError('invalid-argument', 'Distribution request ID is required.');
+    }
+    if (!decision || !['endorse', 'request_changes', 'reject'].includes(decision)) {
+        throw new HttpsError('invalid-argument', 'Valid review decision (endorse, request_changes, reject) is required.');
+    }
+
+    const reqRef = db.collection('interest_distribution_requests').doc(requestId);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists) {
+        throw new HttpsError('not-found', 'Interest distribution request not found.');
+    }
+
+    const reqData = reqSnap.data()!;
+    if (reqData.initiatedBy === callerUid) {
+        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a proposal you initiated. Another authorized officer must review it.');
+    }
+
+    if (reqData.status !== 'pending_review' && reqData.status !== 'pending' && reqData.status !== 'revision_requested') {
+        throw new HttpsError('failed-precondition', `Cannot review request with status '${reqData.status}'.`);
+    }
+
+    let nextStatus = 'pending_approval';
+    let actionName = 'REVIEW_INTEREST_DISTRIBUTION_ENDORSED';
+    if (decision === 'request_changes') {
+        nextStatus = 'revision_requested';
+        actionName = 'REVIEW_INTEREST_DISTRIBUTION_REVISION_REQUESTED';
+    } else if (decision === 'reject') {
+        nextStatus = 'rejected';
+        actionName = 'REVIEW_INTEREST_DISTRIBUTION_REJECTED';
+    }
+
+    const reviewerName = callerData?.name || callerData?.email || 'Reviewer';
+
+    await reqRef.update({
+        status: nextStatus,
+        reviewedBy: callerUid,
+        reviewedByName: reviewerName,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewNotes: (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null
+    });
+
+    await db.collection('audit_logs').add({
+        action: actionName,
+        performedBy: callerUid,
+        performedByName: reviewerName,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: {
+            requestId,
+            decision,
+            nextStatus,
+            reviewNotes: reviewNotes || null
+        }
+    });
+
+    return {
+        success: true,
+        requestId,
+        status: nextStatus
+    };
+});
+
+/**
+ * Step 3: Administrator Approves and Commits the Interest Distribution.
  * Dual-Control Rule strictly enforced: The initiator CANNOT approve their own distribution request.
  */
 export const approveInterestDistribution = onCall({ cors: true }, async (request) => {
@@ -448,8 +529,8 @@ export const approveInterestDistribution = onCall({ cors: true }, async (request
     }
 
     const reqData = reqSnap.data()!;
-    if (reqData.status !== 'pending') {
-        throw new HttpsError('failed-precondition', `This request has already been ${reqData.status}.`);
+    if (reqData.status !== 'pending_approval' && reqData.status !== 'pending') {
+        throw new HttpsError('failed-precondition', `Cannot approve distribution request with status '${reqData.status}'. It must be reviewed and endorsed first.`);
     }
 
     // SEGREGATION OF DUTIES (4-EYES / DUAL-CONTROL PRINCIPLE)
@@ -937,11 +1018,182 @@ export const getSystemSettings = onCall({ cors: true }, async (request) => {
  * Admin Action: Opens an active member interest payout election campaign.
  * Broadcasts in-app for all members to elect whether to add profit to contributions or receive cash.
  */
+/**
+ * Step 1: Accountant / Senior Accountant initiates a request for members' preferences
+ * (Interest Payout / Capitalization Campaign).
+ */
+export const initiateInterestPayoutCampaign = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerSnap.data()?.role;
+
+    if (callerRole !== 'accountant' && callerRole !== 'senior_accountant') {
+        throw new HttpsError('permission-denied', 'Only accountants or senior accountants can initiate preference campaigns. Administrators and reviewers cannot initiate.');
+    }
+
+    const { targetAmount, announcement, justification } = request.data || {};
+    const campaignRef = db.collection('campaign_requests').doc();
+
+    const campaignData = {
+        id: campaignRef.id,
+        targetAmount: targetAmount ? Number(targetAmount) : null,
+        announcement: announcement ? String(announcement).trim() : 'Annual / Periodic Profit Distribution is being prepared. Please elect your payout preference.',
+        justification: justification ? String(justification).trim() : 'Initiated member preference election window',
+        status: 'pending_review',
+        initiatedBy: request.auth.uid,
+        initiatedByName: callerSnap.data()?.name || 'Accountant',
+        initiatedByEmail: callerSnap.data()?.email || '',
+        initiatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await campaignRef.set(campaignData);
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'INITIATE_INTEREST_PAYOUT_CAMPAIGN',
+        justification: campaignData.justification,
+        details: { campaignId: campaignRef.id, targetAmount, announcement },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, campaignId: campaignRef.id, status: 'pending_review' };
+});
+
+/**
+ * Step 2: Reviewer / Senior Accountant reviews and endorses the payout preference campaign request.
+ */
+export const reviewInterestPayoutCampaign = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerSnap.data()?.role;
+
+    if (callerRole !== 'reviewer' && callerRole !== 'senior_accountant' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only reviewers or senior accountants can review preference campaigns. Administrators cannot review.');
+    }
+
+    const { campaignId, decision, reviewNotes } = request.data || {};
+    if (!campaignId) throw new HttpsError('invalid-argument', 'Campaign ID is required.');
+    if (!['endorse', 'request_changes', 'reject'].includes(decision)) {
+        throw new HttpsError('invalid-argument', 'Decision must be endorse, request_changes, or reject.');
+    }
+
+    const campaignRef = db.collection('campaign_requests').doc(campaignId);
+    const campaignSnap = await campaignRef.get();
+    if (!campaignSnap.exists) throw new HttpsError('not-found', 'Campaign request not found.');
+
+    const campaignData = campaignSnap.data()!;
+    if (campaignData.initiatedBy === request.auth.uid) {
+        throw new HttpsError('failed-precondition', 'Dual-control violation: You cannot review a preference campaign you initiated.');
+    }
+    if (campaignData.status !== 'pending_review') {
+        throw new HttpsError('failed-precondition', `Cannot review campaign in status '${campaignData.status}'. Must be pending_review.`);
+    }
+
+    let nextStatus = 'pending_approval';
+    if (decision === 'request_changes') nextStatus = 'revision_requested';
+    if (decision === 'reject') nextStatus = 'rejected';
+
+    await campaignRef.update({
+        status: nextStatus,
+        reviewedBy: request.auth.uid,
+        reviewedByName: callerSnap.data()?.name || 'Reviewer',
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewNotes: reviewNotes || ''
+    });
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REVIEW_INTEREST_PAYOUT_CAMPAIGN',
+        justification: `Reviewed campaign with decision: ${decision}`,
+        details: { campaignId, decision, reviewNotes },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, campaignId, status: nextStatus, message: `Campaign ${nextStatus}` };
+});
+
+/**
+ * Step 3: Administrator / Management approves and opens the payout preference election campaign.
+ */
+export const approveInterestPayoutCampaign = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    const adminRole = adminSnap.data()?.role;
+
+    if (adminRole !== 'admin' && adminRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only administrators or executive management can approve preference campaigns.');
+    }
+
+    const { campaignId, decision = 'approve', approvalNotes } = request.data || {};
+    if (!campaignId) throw new HttpsError('invalid-argument', 'Campaign ID is required.');
+
+    const campaignRef = db.collection('campaign_requests').doc(campaignId);
+    const campaignSnap = await campaignRef.get();
+    if (!campaignSnap.exists) throw new HttpsError('not-found', 'Campaign request not found.');
+
+    const campaignData = campaignSnap.data()!;
+    if (campaignData.initiatedBy === request.auth.uid) {
+        throw new HttpsError('failed-precondition', 'Dual-control violation: You cannot approve a campaign request you initiated.');
+    }
+    if (campaignData.reviewedBy === request.auth.uid) {
+        throw new HttpsError('failed-precondition', 'Dual-control violation: You cannot approve a campaign request you personally reviewed.');
+    }
+    if (campaignData.status !== 'pending_approval') {
+        throw new HttpsError('failed-precondition', `Cannot approve campaign in status '${campaignData.status}'. Must be pending_approval.`);
+    }
+
+    if (decision === 'reject') {
+        await campaignRef.update({
+            status: 'rejected',
+            rejectedBy: request.auth.uid,
+            rejectedByName: adminSnap.data()?.name || 'Admin',
+            rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            approvalNotes: approvalNotes || ''
+        });
+        return { success: true, campaignId, status: 'rejected' };
+    }
+
+    // Activate campaign in settings/financials
+    const settingsRef = db.collection('settings').doc('financials');
+    await settingsRef.set({
+        payoutCampaign: {
+            status: 'open',
+            targetAmount: campaignData.targetAmount,
+            announcement: campaignData.announcement,
+            openedAt: admin.firestore.FieldValue.serverTimestamp(),
+            openedBy: campaignData.initiatedBy,
+            approvedBy: request.auth.uid,
+            campaignRequestId: campaignId
+        }
+    }, { merge: true });
+
+    await campaignRef.update({
+        status: 'open',
+        approvedBy: request.auth.uid,
+        approvedByName: adminSnap.data()?.name || 'Admin',
+        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        approvalNotes: approvalNotes || ''
+    });
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'APPROVE_INTEREST_PAYOUT_CAMPAIGN',
+        justification: approvalNotes || 'Approved member payout preference election campaign',
+        details: { campaignId, targetAmount: campaignData.targetAmount },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, campaignId, status: 'open' };
+});
+
 export const openInterestPayoutCampaign = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
-    if (adminSnap.data()?.role !== 'admin') {
+    if (adminSnap.data()?.role !== 'admin' && adminSnap.data()?.role !== 'management') {
         throw new HttpsError('permission-denied', 'Admin privileges required.');
     }
 

@@ -202,7 +202,79 @@ export async function rejectInterestDistributionAction(data: {
 }
 
 /**
- * Opens an active member interest payout election campaign.
+ * Step 2: Reviewer / Senior Accountant reviews interest distribution proposal.
+ */
+export async function reviewInterestDistributionAction(data: {
+  requestId: string;
+  decision: 'endorse' | 'request_changes' | 'reject';
+  reviewNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const revFn = httpsCallable(functions, 'reviewInterestDistribution');
+  try {
+    const result = await revFn(data);
+    return result.data as { success: boolean; requestId: string; status: string; message: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review interest distribution.');
+  }
+}
+
+/**
+ * Step 1: Accountant / Senior Accountant initiates a preference election campaign proposal.
+ */
+export async function initiateInterestPayoutCampaignAction(data: {
+  targetAmount?: number | null;
+  announcement?: string;
+  justification?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'initiateInterestPayoutCampaign');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; campaignId: string; status: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to initiate preference campaign.');
+  }
+}
+
+/**
+ * Step 2: Reviewer / Senior Accountant reviews the preference election campaign proposal.
+ */
+export async function reviewInterestPayoutCampaignAction(data: {
+  campaignId: string;
+  decision: 'endorse' | 'request_changes' | 'reject';
+  reviewNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'reviewInterestPayoutCampaign');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; campaignId: string; status: string; message: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review preference campaign.');
+  }
+}
+
+/**
+ * Step 3: Admin / Management approves the preference election campaign proposal.
+ */
+export async function approveInterestPayoutCampaignAction(data: {
+  campaignId: string;
+  decision?: 'approve' | 'reject';
+  approvalNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'approveInterestPayoutCampaign');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; campaignId: string; status: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to approve preference campaign.');
+  }
+}
+
+/**
+ * Opens an active member interest payout election campaign directly.
  */
 export async function openInterestPayoutCampaignAction(data: {
   targetAmount?: number | null;
@@ -615,7 +687,7 @@ export async function registerMemberAction(uid: string, memberData: any) {
 }
 
 /**
- * Bulk registers members in Cloud Functions.
+ * Bulk registers members in Cloud Functions (legacy direct admin call).
  */
 export async function bulkRegisterMembersAction(uid: string, members: any[], justification: string) {
   const functions = getFinanceFunctions();
@@ -626,6 +698,61 @@ export async function bulkRegisterMembersAction(uid: string, members: any[], jus
     return result.data as any;
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed bulk registration');
+  }
+}
+
+/**
+ * Step 1: Initiates a bulk member enrollment batch (Senior Accountant / Accountant).
+ */
+export async function initiateBulkMembersAction(data: {
+  members: any[];
+  justification: string;
+  title?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'initiateBulkMembers');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; batchId: string; count: number; status: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to stage member enrollment batch');
+  }
+}
+
+/**
+ * Step 2: Reviews a staged member enrollment batch (Reviewer / Senior Accountant).
+ */
+export async function reviewBulkMembersAction(data: {
+  batchId: string;
+  decision: 'endorse' | 'request_changes' | 'reject';
+  reviewNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'reviewBulkMembers');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; batchId: string; status: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review member enrollment batch');
+  }
+}
+
+/**
+ * Step 3: Approves or rejects a staged member enrollment batch (Administrator).
+ */
+export async function approveBulkMembersAction(data: {
+  batchId: string;
+  decision?: 'approve' | 'reject';
+  approvalNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'approveBulkMembers');
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
+  try {
+    const result = await fn({ ...data, appUrl });
+    return result.data as { success: boolean; batchId: string; count?: number; status: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to approve member enrollment batch');
   }
 }
 
@@ -951,6 +1078,24 @@ export async function lodgeExpenseAction(data: {
     return result.data as { success: boolean; expenseId: string; message: string };
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed to lodge expense');
+  }
+}
+
+/**
+ * Step 2: Reviewer / Senior Accountant reviews an operational expense.
+ */
+export async function reviewExpenseAction(data: {
+  expenseId: string;
+  decision: 'endorse' | 'request_changes' | 'reject';
+  reviewNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'reviewExpense');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; expenseId: string; status: string; message: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review expense');
   }
 }
 

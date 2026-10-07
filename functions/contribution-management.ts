@@ -215,8 +215,8 @@ export const bulkUploadContributions = onCall({ cors: true }, async (request) =>
     const callerData = callerSnap.data();
     const callerRole = callerData?.role;
 
-    if (callerRole !== 'admin' && callerRole !== 'accountant' && callerRole !== 'management') {
-        throw new HttpsError('permission-denied', 'Only administrators or accountants can perform bulk contribution uploads.');
+    if (callerRole !== 'accountant' && callerRole !== 'senior_accountant') {
+        throw new HttpsError('permission-denied', 'Only Accountants or Senior Accountants can perform contribution uploads. Administrators cannot initiate operational batches.');
     }
 
     const { items, defaultPeriod, justification } = request.data || {};
@@ -345,8 +345,8 @@ export const initiateContributionBatch = onCall({ cors: true }, async (request) 
     const callerData = callerSnap.data();
     const callerRole = callerData?.role;
 
-    if (callerRole !== 'accountant' && callerRole !== 'admin') {
-        throw new HttpsError('permission-denied', 'Only accountants or administrators can initiate contribution upload batches.');
+    if (callerRole !== 'accountant' && callerRole !== 'senior_accountant') {
+        throw new HttpsError('permission-denied', 'Only Accountants or Senior Accountants can initiate contribution batches. Administrators cannot initiate operational batches.');
     }
 
     const { items, title, defaultPeriod, type, justification } = request.data || {};
@@ -454,8 +454,8 @@ export const reviewContributionBatch = onCall({ cors: true }, async (request) =>
     const callerData = callerSnap.data();
     const callerRole = callerData?.role;
 
-    if (callerRole !== 'reviewer' && callerRole !== 'management' && callerRole !== 'admin') {
-        throw new HttpsError('permission-denied', 'Only designated reviewers, management, or administrators can review contribution batches.');
+    if (callerRole !== 'reviewer' && callerRole !== 'senior_accountant' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only designated Reviewers or Senior Accountants can review contribution batches. Administrators cannot review batches.');
     }
 
     const { batchId, decision, reviewNotes } = request.data || {};
@@ -1237,10 +1237,9 @@ export const reviewContribution = onCall({ cors: true }, async (request) => {
     
     const db = admin.firestore();
     const callerSnap = await db.collection('users').doc(request.auth.uid).get();
-    const callerRole = callerSnap.data()?.role;
-
-    if (callerRole !== 'reviewer') {
-        throw new HttpsError('permission-denied', 'Only users with the reviewer role can review contributions.');
+    const callerRole = callerSnap.data()?.role || 'member';
+    if (callerRole !== 'reviewer' && callerRole !== 'senior_accountant' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only designated Reviewers or Senior Accountants can review contributions.');
     }
 
     const { contributionId, justification } = request.data;
@@ -1251,6 +1250,9 @@ export const reviewContribution = onCall({ cors: true }, async (request) => {
     if (!contribSnap.exists) throw new HttpsError('not-found', 'Contribution not found.');
     
     const contribData = contribSnap.data()!;
+    if (contribData.memberId === request.auth.uid || contribData.recordedBy === request.auth.uid) {
+        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own deposit submission or a transaction you recorded.');
+    }
     if (contribData.status !== 'pending') {
         throw new HttpsError('failed-precondition', 'Contribution is currently in ' + contribData.status + ' status, cannot be reviewed.');
     }

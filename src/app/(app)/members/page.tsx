@@ -41,6 +41,7 @@ import Link from 'next/link';
 import { 
   registerMemberAction, 
   bulkRegisterMembersAction, 
+  initiateBulkMembersAction,
   updateUserRoleAction,
   updateMemberProfileAction,
   deleteMemberAction,
@@ -74,13 +75,16 @@ export default function MembersPage() {
   const [deleteJustification, setDeleteJustification] = useState('');
   const [isDeletingMember, setIsDeletingMember] = useState(false);
 
-  const isAdmin = userData?.role === 'admin';
+  const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
+  const isAdmin = userData?.role === 'admin' || isPrimaryAdmin;
   const isReviewer = userData?.role === 'reviewer' || userData?.role === 'senior_accountant';
+  const canInitiateMembers = userData?.role === 'senior_accountant' || userData?.role === 'accountant';
+  const isAuthorizedToView = isAdmin || isReviewer || canInitiateMembers;
 
   const membersQuery = useMemoFirebase(() => {
-    if (!isAdmin && !isReviewer) return null;
+    if (!isAuthorizedToView) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'asc'));
-  }, [isAdmin, isReviewer]);
+  }, [isAuthorizedToView]);
 
   const { data: membersSnap, loading: membersLoading } = useCollection(membersQuery);
 
@@ -283,8 +287,20 @@ export default function MembersPage() {
         });
 
         try {
-          await bulkRegisterMembersAction(user.uid, data, justification);
-          toast({ title: "Success", description: `${data.length} members processed for system enrollment.` });
+          if (canInitiateMembers) {
+            await initiateBulkMembersAction({
+              members: data,
+              justification: justification?.trim() || 'Staged bulk member registration',
+              title: `Member Enrollment Batch (${data.length} records)`
+            });
+            toast({
+              title: "Enrollment Batch Staged for Review",
+              description: `${data.length} member records submitted for verification and administrative sign-off in the Approvals Hub.`
+            });
+          } else {
+            await bulkRegisterMembersAction(user.uid, data, justification);
+            toast({ title: "Success", description: `${data.length} members processed for system enrollment.` });
+          }
           setIsBulkDialogOpen(false);
         } catch (innerError: any) {
           const parsed = parseAppError(innerError);
@@ -343,16 +359,16 @@ export default function MembersPage() {
     }
   };
 
-  if (userLoading || ((isAdmin || isReviewer) && membersLoading)) {
+  if (userLoading || (isAuthorizedToView && membersLoading)) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  if (!isAdmin && !isReviewer) {
+  if (!isAuthorizedToView) {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <ShieldAlert className="h-12 w-12 text-destructive" />
         <h2 className="text-2xl font-bold font-headline">Access Restricted</h2>
-        <p className="text-muted-foreground">Only administrators can manage system roles.</p>
+        <p className="text-muted-foreground">Only authorized finance personnel, reviewers, and administrators can manage members.</p>
       </div>
     );
   }
@@ -365,12 +381,16 @@ export default function MembersPage() {
           <p className="text-[12px] font-bold text-muted-foreground">Assign roles and manage participant access</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-           <Button variant="outline" onClick={() => setIsBulkDialogOpen(true)} className="rounded-xl border-primary/20 text-primary font-bold text-[12px] h-10 flex-1 sm:flex-none">
-             <Upload className="mr-2 h-4 w-4" /> Bulk Enrollment
-           </Button>
-           <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setIsAddDialogOpen(true); }} className="rounded-xl shadow-sm font-bold text-[12px] h-10 flex-1 sm:flex-none">
-             <UserPlus className="mr-2 h-4 w-4" /> Add Member
-           </Button>
+           {canInitiateMembers && (
+             <Button variant="outline" onClick={() => setIsBulkDialogOpen(true)} className="rounded-xl border-primary/20 text-primary font-bold text-[12px] h-10 flex-1 sm:flex-none">
+               <Upload className="mr-2 h-4 w-4" /> Bulk Enrollment
+             </Button>
+           )}
+           {isAdmin && (
+             <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setIsAddDialogOpen(true); }} className="rounded-xl shadow-sm font-bold text-[12px] h-10 flex-1 sm:flex-none">
+               <UserPlus className="mr-2 h-4 w-4" /> Add Member
+             </Button>
+           )}
         </div>
       </div>
 
@@ -626,7 +646,9 @@ export default function MembersPage() {
                           <Button variant="ghost" size="icon" className="rounded-lg h-9 w-9"><MoreVertical className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl w-52 shadow-xl">
-                          <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
+                          {isAdmin && (
+                            <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
+                          )}
                           {member.status !== 'active' ? (
                             (isReviewer && member.passwordSet && member.status === 'pending') ? (
                               <DropdownMenuItem 

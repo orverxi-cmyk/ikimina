@@ -159,6 +159,268 @@ export const bulkRegisterMembers = onCall({ cors: true }, async (request) => {
 });
 
 /**
+ * Step 1: Accountant or Senior Accountant initiates a Bulk Member Registration batch.
+ * Stages the applicant records in 'pending_review' state awaiting checker review.
+ */
+export const initiateBulkMembers = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData?.role;
+
+    if (callerRole !== 'accountant' && callerRole !== 'senior_accountant') {
+        throw new HttpsError('permission-denied', 'Only Accountants or Senior Accountants can initiate member enrollment batches. Administrators cannot initiate enrollment batches.');
+    }
+
+    const { members, justification, title } = request.data || {};
+    if (!Array.isArray(members) || members.length === 0) {
+        throw new HttpsError('invalid-argument', 'A list of members is required.');
+    }
+
+    if (members.length > 500) {
+        throw new HttpsError('invalid-argument', 'Maximum 500 members per enrollment batch.');
+    }
+
+    const cleanMembers = members.map((m: any) => ({
+        name: (m.name || `${m.firstName || ''} ${m.surname || ''}`).trim() || 'Member',
+        email: (m.email || '').toLowerCase().trim(),
+        phone: m.phone || '',
+        role: m.role || 'member'
+    })).filter((m: any) => m.email);
+
+    if (cleanMembers.length === 0) {
+        throw new HttpsError('invalid-argument', 'At least one valid member with an email address is required.');
+    }
+
+    const batchDocRef = db.collection('member_registration_batches').doc();
+    const batchId = batchDocRef.id;
+
+    await batchDocRef.set({
+        batchId,
+        title: title?.trim() || `Member Enrollment Batch - ${new Date().toLocaleDateString()}`,
+        status: 'pending_review',
+        members: cleanMembers,
+        totalCount: cleanMembers.length,
+        justification: justification?.trim() || 'Staged bulk member registration',
+        initiatedBy: request.auth.uid,
+        initiatorName: callerData?.name || callerData?.email || 'Senior Accountant',
+        initiatorRole: callerRole,
+        initiatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        auditTrail: [
+            {
+                action: 'INITIATED',
+                performedBy: request.auth.uid,
+                performerName: callerData?.name || callerData?.email || 'Senior Accountant',
+                performerRole: callerRole,
+                timestamp: new Date().toISOString(),
+                notes: justification?.trim() || 'Batch initiated and submitted for review.'
+            }
+        ]
+    });
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'INITIATE_BULK_MEMBERS',
+        justification: justification?.trim() || 'Initiated bulk member registration batch',
+        details: { batchId, count: cleanMembers.length, status: 'pending_review' },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return {
+        success: true,
+        batchId,
+        count: cleanMembers.length,
+        status: 'pending_review'
+    };
+});
+
+/**
+ * Step 2: Reviewer or Senior Accountant reviews the staged bulk member enrollment batch.
+ * Endorsement advances status to 'pending_approval' for Administrator approval.
+ */
+export const reviewBulkMembers = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData?.role;
+
+    if (callerRole !== 'reviewer' && callerRole !== 'senior_accountant' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only designated Reviewers or Senior Accountants can review member registration batches. Administrators cannot review batches.');
+    }
+
+    const { batchId, decision, reviewNotes } = request.data || {};
+    if (!batchId) throw new HttpsError('invalid-argument', 'Batch ID is required.');
+    if (!decision || !['endorse', 'request_changes', 'reject'].includes(decision)) {
+        throw new HttpsError('invalid-argument', 'Valid decision (endorse, request_changes, reject) is required.');
+    }
+
+    const batchRef = db.collection('member_registration_batches').doc(batchId);
+    const batchSnap = await batchRef.get();
+    if (!batchSnap.exists) {
+        throw new HttpsError('not-found', 'Member registration batch not found.');
+    }
+
+    const batchData = batchSnap.data()!;
+    if (batchData.initiatedBy === request.auth.uid) {
+        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review an enrollment batch you initiated.');
+    }
+
+    if (batchData.status !== 'pending_review' && batchData.status !== 'pending' && batchData.status !== 'revision_requested') {
+        throw new HttpsError('failed-precondition', `Cannot review batch with status '${batchData.status}'.`);
+    }
+
+    let nextStatus = 'pending_approval';
+    let actionName = 'REVIEW_BULK_MEMBERS_ENDORSED';
+    if (decision === 'request_changes') {
+        nextStatus = 'revision_requested';
+        actionName = 'REVIEW_BULK_MEMBERS_REVISION_REQUESTED';
+    } else if (decision === 'reject') {
+        nextStatus = 'rejected';
+        actionName = 'REVIEW_BULK_MEMBERS_REJECTED';
+    }
+
+    const reviewerName = callerData?.name || callerData?.email || 'Reviewer';
+
+    await batchRef.update({
+        status: nextStatus,
+        reviewedBy: request.auth.uid,
+        reviewerName,
+        reviewerRole: callerRole,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewNotes: (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null
+    });
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: actionName,
+        justification: reviewNotes?.trim() || 'Reviewed member registration batch',
+        details: { batchId, decision, nextStatus },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, batchId, status: nextStatus };
+});
+
+/**
+ * Step 3: Administrator Approves the bulk member enrollment batch.
+ * Creates member user profiles, triggers activation links/emails, and closes batch as 'approved'.
+ */
+export const approveBulkMembers = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    const adminData = adminSnap.data();
+
+    if (adminData?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Only Administrators can approve and finalize member registration batches.');
+    }
+
+    const { batchId, approvalNotes, appUrl, decision } = request.data || {};
+    if (!batchId) throw new HttpsError('invalid-argument', 'Batch ID is required.');
+
+    const batchRef = db.collection('member_registration_batches').doc(batchId);
+    const batchSnap = await batchRef.get();
+    if (!batchSnap.exists) {
+        throw new HttpsError('not-found', 'Member registration batch not found.');
+    }
+
+    const batchData = batchSnap.data()!;
+    if (batchData.initiatedBy === request.auth.uid) {
+        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve an enrollment batch you initiated.');
+    }
+    if (batchData.status !== 'pending_approval' && batchData.status !== 'pending') {
+        throw new HttpsError('failed-precondition', `Cannot process batch with status '${batchData.status}'. It must be reviewed and endorsed first.`);
+    }
+
+    if (decision === 'reject') {
+        await batchRef.update({
+            status: 'rejected',
+            rejectedBy: request.auth.uid,
+            rejecterName: adminData?.name || adminData?.email || 'Administrator',
+            rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            rejectionReason: approvalNotes?.trim() || 'Rejected by Administrator'
+        });
+        await db.collection('audit_logs').add({
+            adminId: request.auth.uid,
+            action: 'REJECT_BULK_MEMBERS',
+            justification: approvalNotes?.trim() || 'Rejected bulk member registration batch',
+            details: { batchId },
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return { success: true, batchId, status: 'rejected' };
+    }
+
+    const members: any[] = batchData.members || [];
+    const batchSize = 500;
+    const totalBatches = Math.ceil(members.length / batchSize);
+    const createdMembers: Array<{ id: string; name: string; email: string }> = [];
+
+    for (let i = 0; i < totalBatches; i++) {
+        const writeBatch = db.batch();
+        const chunk = members.slice(i * batchSize, (i + 1) * batchSize);
+
+        chunk.forEach(m => {
+            const userRef = db.collection('users').doc();
+            const cleanEmail = (m.email || '').toLowerCase().trim();
+            writeBatch.set(userRef, {
+                name: m.name,
+                email: cleanEmail,
+                phone: m.phone || '',
+                role: m.role || 'member',
+                joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+                status: 'pending',
+                batchId
+            });
+            createdMembers.push({ id: userRef.id, name: m.name, email: cleanEmail });
+        });
+
+        await writeBatch.commit();
+    }
+
+    // Asynchronously dispatch activation emails for each created member
+    const emailDispatches = createdMembers.map(async (m) => {
+        if (!m.email) return;
+        try {
+            return await generateAndSendActivationEmail({
+                email: m.email,
+                name: m.name,
+                memberDocId: m.id,
+                requestedBy: request.auth?.uid,
+                appUrl,
+            });
+        } catch (err) {
+            console.error(`Bulk registration email dispatch failed for ${m.email}:`, err);
+            return null;
+        }
+    });
+
+    await Promise.allSettled(emailDispatches);
+
+    await batchRef.update({
+        status: 'approved',
+        approvedBy: request.auth.uid,
+        approverName: adminData?.name || adminData?.email || 'Administrator',
+        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        approvalNotes: approvalNotes?.trim() || 'Approved and activated by Administrator'
+    });
+
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'APPROVE_BULK_MEMBERS',
+        justification: approvalNotes?.trim() || 'Approved bulk member registration batch',
+        details: { batchId, count: createdMembers.length },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, batchId, count: createdMembers.length, status: 'approved' };
+});
+
+/**
  * Updates a user's role and applies custom claims for security.
  */
 export const updateUserRole = onCall({ cors: true }, async (request) => {
@@ -1046,8 +1308,8 @@ export const reviewMember = onCall({ cors: true }, async (request) => {
     const callerSnap = await db.collection('users').doc(request.auth.uid).get();
     const callerRole = callerSnap.data()?.role;
 
-    if (callerRole !== 'reviewer') {
-        throw new HttpsError('permission-denied', 'Only users with the reviewer role can review member accounts.');
+    if (callerRole !== 'reviewer' && callerRole !== 'senior_accountant' && callerRole !== 'management') {
+        throw new HttpsError('permission-denied', 'Only reviewers and senior accountants can review member accounts.');
     }
 
     const { memberId, justification } = request.data || {};
