@@ -339,17 +339,6 @@ export default function ContributionsPage() {
                         Payroll
                       </Badge>
                     )}
-                    {h.status === 'verified' && isManagement && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => { setSelectedContribution(h); setIsReverseOpen(true); }}
-                        className="h-6 px-1.5 text-[9px] font-bold text-destructive border-destructive/30 hover:bg-destructive/10 rounded-md gap-1 shrink-0"
-                        title="Reverse Approval"
-                      >
-                        <RotateCcw className="h-2.5 w-2.5" /> Reverse
-                      </Button>
-                    )}
                     {h.status === 'rejected' && !isManagement && (
                       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setSelectedContribution(h); setIsVerifyOpen(true); }}>
                          <AlertCircle className="h-3.5 w-3.5 text-destructive" />
@@ -378,7 +367,7 @@ export default function ContributionsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-wider">
-              {isManagement ? "Administrative Console" : "Member Savings Portfolio"}
+              {isManagement ? "Administrative Portal" : "Member Savings Portfolio"}
             </Badge>
           </div>
           <h1 className="text-[13px] font-bold font-headline text-foreground">Savings &amp; Contributions</h1>

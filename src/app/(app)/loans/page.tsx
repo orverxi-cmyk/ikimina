@@ -121,8 +121,31 @@ function LoansPageContent() {
     loadLiquidityMetrics();
   }, []);
 
-  const role = userData?.role || 'member';
-  const isManagement = role === 'admin' || role === 'management' || role === 'accountant' || role === 'senior_accountant';
+  const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
+  const [cachedRole, setCachedRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.uid) {
+      const stored = localStorage.getItem(`ikimina_role_${user.uid}`);
+      if (stored) setCachedRole(stored);
+    }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (userData?.role && user?.uid) {
+      setCachedRole(userData.role);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`ikimina_role_${user.uid}`, userData.role);
+      }
+    }
+  }, [userData?.role, user?.uid]);
+
+  const role = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
+  const isManagement = role === 'admin' || role === 'management' || role === 'accountant' || role === 'senior_accountant' || role === 'reviewer' || role === 'auditor';
+  const isAuditor = role === 'auditor';
+  const isSuperAdmin = role === 'admin' || isPrimaryAdmin;
+  const isSeniorAccountant = role === 'senior_accountant';
+  const isReviewer = role === 'reviewer' || role === 'management';
   
   const loansQuery = useMemoFirebase(() => {
     if (!user || userDataLoading || !userData) return null;

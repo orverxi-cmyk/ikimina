@@ -238,13 +238,20 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
         }
     }
 
+    const userRole = userSnap.data()?.role;
+    const isSeniorAcct = userRole === 'senior_accountant';
+
     // 5. Create loan application
     const loanRef = db.collection('loans').doc();
     await loanRef.set({
         memberId,
         amount: loanAmount,
         description: description || (isTopUp ? `Loan Top-Up against facility #${parentLoanId.slice(0, 7)}` : 'Member capital loan application'),
-        status: 'requested',
+        status: isSeniorAcct ? 'pending_reviewer' : 'requested',
+        seniorReviewed: isSeniorAcct ? true : false,
+        seniorReviewedBy: isSeniorAcct ? memberId : null,
+        seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
+        seniorReviewJustification: isSeniorAcct ? 'Self-applied by Senior Accountant (Forwarded directly to Reviewer for compliance check)' : null,
         requestDate: admin.firestore.FieldValue.serverTimestamp(),
         balance: 0,
         interestAmount: 0,
@@ -671,6 +678,9 @@ export const reviewLoan = onCall({ cors: true }, async (request) => {
     const isSeniorAcct = callerRole === 'senior_accountant';
 
     if (isSeniorAcct) {
+        if (loanData.memberId === request.auth.uid) {
+            throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. The Reviewer must review it.');
+        }
         if (loanData.status !== 'requested') {
             throw new HttpsError('failed-precondition', 'Loan is currently in ' + loanData.status + ' status, cannot be reviewed.');
         }

@@ -28,7 +28,10 @@ import {
   FileText,
   MessageSquare,
   UserX,
-  UserMinus
+  UserMinus,
+  CheckCircle2,
+  Layers,
+  Coins,
 } from 'lucide-react';
 import { ReactNode } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -204,7 +207,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <ShieldCheck className="h-10 w-10 text-primary" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-headline font-bold">Admin Console</CardTitle>
+            <CardTitle className="text-2xl font-headline font-bold">Admin Portal</CardTitle>
             <CardDescription>
               Sign in with your Administrator credentials
             </CardDescription>
@@ -274,7 +277,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 ) : (
                   <ArrowRight className="mr-2 h-5 w-5" />
                 )}
-                Sign In to Admin Console
+                Sign In to Admin Portal
               </Button>
             </form>
           </CardContent>
@@ -387,7 +390,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // 3. Authenticated: Console Layout
+  // 3. Authenticated: Portal Layout
   const userRole = effectiveRole;
   const isSuperAdmin = userRole === 'admin';
   const isAccountant = userRole === 'accountant' || userRole === 'senior_accountant';
@@ -398,7 +401,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const adminMenuItems = [
     { href: '/admin', label: 'Dashboard', icon: Home },
+    ...(isAuditor ? [] : [
+      { href: '/admin/contributions', label: 'Contributions', icon: Layers },
+    ]),
     { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck },
+    { href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 },
+    { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
+    { href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins },
     ...(isAuditor ? [
       { href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck },
       { href: '/reports', label: 'Financial Reports', icon: FileText },
@@ -496,12 +505,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <ShieldCheck className="h-4 w-4 text-white shrink-0" />
               <h2 className="text-xs font-bold uppercase tracking-wider text-white">
                 {isAuditor 
-                  ? 'Auditor Console' 
+                  ? 'Auditor Portal' 
                   : isAccountant 
-                  ? 'Accountant Console' 
+                  ? 'Accountant Portal' 
                   : isReviewer 
-                  ? 'Reviewer Console' 
-                  : 'Administrator Console'}
+                  ? 'Reviewer Portal' 
+                  : 'Administrator Portal'}
               </h2>
             </div>
 
@@ -516,7 +525,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     const isActive = pathname === item.href;
                     return (
                       <Link
-                        key={item.href}
+                        key={item.label}
                         href={item.href}
                         className={cn(
                           'flex items-center gap-3 rounded-[10px] px-3.5 py-2 text-xs font-bold transition-all duration-200',
@@ -541,7 +550,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     const isActive = pathname === item.href;
                     return (
                       <Link
-                        key={item.href}
+                        key={item.label}
                         href={item.href}
                         className={cn(
                           'flex items-center gap-3 rounded-[10px] px-3.5 py-2 text-xs font-bold transition-all duration-200',

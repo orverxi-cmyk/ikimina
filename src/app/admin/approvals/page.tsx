@@ -131,7 +131,8 @@ export default function ApprovalsHubPage() {
   const canReview = isReviewer || isSeniorAccountant;
   const canApprove = userRole === 'admin' || userRole === 'management';
 
-  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'members' | 'deletions' | 'upload'>('batches');
+  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'members' | 'deletions'>('batches');
+  const [isBatchUploadOpen, setIsBatchUploadOpen] = useState(false);
   const [batchSubTab, setBatchSubTab] = useState<'pending' | 'all'>('pending');
   const [interestSubTab, setInterestSubTab] = useState<'pending' | 'all'>('pending');
   const [deletionSubTab, setDeletionSubTab] = useState<'pending' | 'all'>('pending');
@@ -343,6 +344,122 @@ export default function ApprovalsHubPage() {
     if (!id) return 'Unknown Member';
     if (id === user?.uid) return userData?.name || 'Me';
     return (memberMap.get(id) as any)?.name || 'Unknown Member';
+  };
+
+  // Format role slug into human-readable label
+  const formatRoleLabel = (roleSlug: string | undefined): string => {
+    if (!roleSlug) return 'Staff';
+    const map: Record<string, string> = {
+      admin: 'Administrator',
+      management: 'Management',
+      senior_accountant: 'Senior Accountant',
+      accountant: 'Accountant',
+      reviewer: 'Reviewer',
+      auditor: 'Auditor',
+      member: 'Member',
+    };
+    return map[roleSlug] || roleSlug.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  // Render the review/audit trail for an operation record
+  const renderReviewTrail = (record: any) => {
+    if (!record) return null;
+    const trails: { label: string; name: string; role: string; date?: any; notes?: string }[] = [];
+
+    // Tier 1: Senior Accountant review
+    if (record.seniorReviewedBy || record.seniorReviewed) {
+      const reviewer = record.seniorReviewedBy ? memberMap.get(record.seniorReviewedBy) as any : null;
+      trails.push({
+        label: 'Reviewed by',
+        name: record.seniorReviewedByName || reviewer?.name || (record.seniorReviewedBy ? getMemberName(record.seniorReviewedBy) : 'Senior Accountant'),
+        role: formatRoleLabel(reviewer?.role || 'senior_accountant'),
+        date: record.seniorReviewedAt,
+        notes: record.seniorReviewNotes || record.seniorReviewJustification,
+      });
+    }
+
+    // Tier 2: Compliance Reviewer
+    if (record.reviewedBy || record.complianceReviewed) {
+      const reviewer = record.reviewedBy ? memberMap.get(record.reviewedBy) as any : null;
+      trails.push({
+        label: 'Reviewed by',
+        name: record.reviewedByName || record.reviewerName || reviewer?.name || (record.reviewedBy ? getMemberName(record.reviewedBy) : 'Reviewer'),
+        role: formatRoleLabel(record.reviewerRole || reviewer?.role || 'reviewer'),
+        date: record.reviewedAt,
+        notes: record.reviewNotes || record.reviewJustification,
+      });
+    }
+
+    // Tier 3: Final Approval
+    if (record.approvedBy) {
+      const approver = memberMap.get(record.approvedBy) as any;
+      trails.push({
+        label: 'Approved by',
+        name: record.approvedByName || record.approverName || approver?.name || getMemberName(record.approvedBy),
+        role: formatRoleLabel(approver?.role || 'admin'),
+        date: record.approvedAt,
+        notes: record.approvalNotes || record.approvalJustification,
+      });
+    }
+
+    // If there is an auditTrail array on the record (e.g. batches) with items not already captured
+    if (Array.isArray(record.auditTrail) && trails.length === 0) {
+      record.auditTrail.forEach((evt: any) => {
+        if (evt.action?.includes('ENDORSE') || evt.action?.includes('REVIEW') || evt.action?.includes('APPROVE') || evt.action?.includes('COMMITTED')) {
+          trails.push({
+            label: evt.action.includes('APPROVE') || evt.action.includes('COMMITTED') ? 'Approved by' : 'Reviewed by',
+            name: evt.performerName || getMemberName(evt.performedBy),
+            role: formatRoleLabel(evt.performerRole),
+            date: evt.timestamp,
+            notes: evt.notes,
+          });
+        }
+      });
+    }
+
+    if (trails.length === 0) return null;
+
+    return (
+      <div className="mt-2.5 p-3.5 rounded-xl bg-muted/40 border border-border/80 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <History className="h-3 w-3 text-primary" /> Review &amp; Approval Audit Trail
+          </p>
+          <Badge variant="outline" className="text-[9px] uppercase font-bold text-muted-foreground">
+            {trails.length} Signed Stage{trails.length > 1 ? 's' : ''}
+          </Badge>
+        </div>
+        <div className="space-y-2">
+          {trails.map((t, i) => (
+            <div key={i} className="p-2.5 rounded-lg bg-background border border-border/70 text-xs space-y-1 shadow-xs">
+              <div className="flex items-center justify-between flex-wrap gap-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-muted-foreground font-medium">{t.label}</span>
+                  <span className="font-bold text-foreground">{t.name}</span>
+                  <Badge className="text-[10px] px-1.5 py-0 font-bold bg-primary/10 text-primary border border-primary/20">
+                    {t.role}
+                  </Badge>
+                </div>
+                {t.date && (
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    {safeFormatDate(t.date, 'PPp')}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground font-medium">
+                {t.label} <strong className="text-foreground">{t.name}</strong>, <span className="font-bold text-primary">{t.role}</span>
+              </p>
+              {t.notes && (
+                <div className="text-[11px] text-muted-foreground bg-muted/30 p-2 rounded border border-border/40 mt-1 italic">
+                  <span className="font-bold not-italic text-foreground text-[10px] uppercase">Notes: </span>
+                  &ldquo;{t.notes}&rdquo;
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   // -------------------------------------------------------------
@@ -1017,10 +1134,10 @@ export default function ApprovalsHubPage() {
                 <Download className="h-4 w-4 text-primary" /> Template (.xlsx)
               </Button>
               <Button 
-                onClick={() => setMainTab('upload')}
+                onClick={() => { setMainTab('batches'); setIsBatchUploadOpen(prev => !prev); }}
                 className="rounded-xl h-10 px-4 font-bold text-[12px] shadow-sm bg-primary text-primary-foreground gap-1.5"
               >
-                <Upload className="h-4 w-4" /> New Batch Upload
+                <Upload className="h-4 w-4" /> {isBatchUploadOpen ? 'Hide Upload Form' : 'New Batch Upload'}
               </Button>
             </>
           )}
@@ -1030,7 +1147,7 @@ export default function ApprovalsHubPage() {
       {/* Main Approvals Tabs */}
       <Tabs value={mainTab} onValueChange={(val: any) => setMainTab(val)} className="w-full space-y-4">
         <div className="w-full overflow-x-auto no-scrollbar pb-1">
-          <TabsList className={cn("inline-flex w-full min-w-max sm:min-w-0 h-11", canInitiate ? "sm:grid sm:grid-cols-8" : "sm:grid sm:grid-cols-7")}>
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 h-11 sm:grid sm:grid-cols-7">
             <TabsTrigger value="batches" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Layers className="h-3.5 w-3.5" /> Batches {pendingBatches.length > 0 && `(${pendingBatches.length})`}
             </TabsTrigger>
@@ -1052,16 +1169,101 @@ export default function ApprovalsHubPage() {
             <TabsTrigger value="deletions" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <UserX className="h-3.5 w-3.5" /> Deletions {pendingDeletionRequests.length > 0 && `(${pendingDeletionRequests.length})`}
             </TabsTrigger>
-            {canInitiate && (
-              <TabsTrigger value="upload" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
-                <Upload className="h-3.5 w-3.5" /> Upload Excel
-              </TabsTrigger>
-            )}
           </TabsList>
         </div>
 
         {/* 1. CONTRIBUTION BATCHES TAB */}
         <TabsContent value="batches" className="space-y-4">
+          {/* Inline Batch Upload Form (toggle via header button) */}
+          {isBatchUploadOpen && canInitiate && (
+            <Card className="border border-border shadow-sm rounded-2xl bg-card">
+              <CardHeader className="border-b p-4 sm:p-6 flex flex-row items-start justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                    <Upload className="h-5 w-5 text-primary" /> Initiate New Contribution Batch
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Upload an Excel sheet (.xlsx) of staff source-deducted contributions. Once initiated, the batch will be submitted for dual-control review &amp; approval.
+                  </CardDescription>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setIsBatchUploadOpen(false)}
+                  className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider">Batch Title</Label>
+                    <Input value={batchTitle} onChange={e => setBatchTitle(e.target.value)} placeholder="e.g. October 2026 Staff Payroll Deduction" className="h-10 rounded-xl" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider">Default Period</Label>
+                    <Input value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)} placeholder="e.g. October 2026" className="h-10 rounded-xl" />
+                  </div>
+                </div>
+
+                {/* Upload Drop Zone */}
+                <div className="border-2 border-dashed border-border rounded-2xl p-6 text-center bg-muted/20 hover:bg-muted/40 transition-colors">
+                  <input ref={fileInputRef} type="file" accept=".xlsx, .xls" onChange={handleFileChange} className="hidden" id="batch-excel-upload" />
+                  <label htmlFor="batch-excel-upload" className="cursor-pointer flex flex-col items-center justify-center gap-2">
+                    <FileSpreadsheet className="h-10 w-10 text-primary" />
+                    <span className="font-bold text-sm text-foreground">Select or Drag Excel Spreadsheet</span>
+                    <span className="text-xs text-muted-foreground">Supported format: .xlsx with Member ID, Amount, Period</span>
+                  </label>
+                </div>
+
+                {/* Parsed Preview Table */}
+                {activeRows.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm">Parsed Preview ({activeRows.filter(r => r.status === 'valid').length} valid, {activeRows.filter(r => r.status !== 'valid').length} issues)</span>
+                      <span className="font-bold text-primary text-sm">Total: {formatCurrency(activeRows.filter(r => r.status === 'valid').reduce((sum, r) => sum + r.amount, 0), currency)}</span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto rounded-xl border border-border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs font-bold">Staff / Member</TableHead>
+                            <TableHead className="text-xs font-bold">Period</TableHead>
+                            <TableHead className="text-xs font-bold text-right">Amount</TableHead>
+                            <TableHead className="text-xs font-bold text-center">Validation</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {activeRows.map((row, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="text-xs font-semibold">{row.staffName || row.memberId}</TableCell>
+                              <TableCell className="text-xs">{row.period}</TableCell>
+                              <TableCell className="text-xs text-right font-bold">{formatCurrency(row.amount, currency)}</TableCell>
+                              <TableCell className="text-xs text-center">
+                                <Badge variant={row.status === 'valid' ? 'default' : 'destructive'} className="text-[8px] font-bold">
+                                  {row.status}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <Button 
+                      onClick={handleInitiateBatch} 
+                      disabled={isSubmitting || activeRows.filter(r => r.status === 'valid').length === 0} 
+                      className="w-full h-12 rounded-xl font-bold text-sm bg-primary text-primary-foreground gap-2"
+                    >
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      Initiate Batch for Dual-Control Approval
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border border-border shadow-md rounded-2xl overflow-hidden bg-card">
             <CardHeader className="bg-blue-600 text-white p-4 sm:p-5 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1668,85 +1870,7 @@ export default function ApprovalsHubPage() {
           </Card>
         </TabsContent>
 
-        {/* 7. NEW BATCH UPLOAD TAB */}
-        <TabsContent value="upload" className="space-y-4">
-          <Card className="border border-border shadow-sm rounded-2xl bg-card">
-            <CardHeader className="border-b p-4 sm:p-6">
-              <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
-                <Upload className="h-5 w-5 text-primary" /> Initiate New Contribution Batch
-              </CardTitle>
-              <CardDescription>
-                Upload an Excel sheet (.xlsx) of staff source-deducted contributions. Once initiated, the batch will be submitted for dual-control review &amp; approval.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider">Batch Title</Label>
-                  <Input value={batchTitle} onChange={e => setBatchTitle(e.target.value)} placeholder="e.g. October 2026 Staff Payroll Deduction" className="h-10 rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider">Default Period</Label>
-                  <Input value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)} placeholder="e.g. October 2026" className="h-10 rounded-xl" />
-                </div>
-              </div>
 
-              {/* Upload Drop Zone */}
-              <div className="border-2 border-dashed border-border rounded-2xl p-6 text-center bg-muted/20 hover:bg-muted/40 transition-colors">
-                <input ref={fileInputRef} type="file" accept=".xlsx, .xls" onChange={handleFileChange} className="hidden" id="batch-excel-upload" />
-                <label htmlFor="batch-excel-upload" className="cursor-pointer flex flex-col items-center justify-center gap-2">
-                  <FileSpreadsheet className="h-10 w-10 text-primary" />
-                  <span className="font-bold text-sm text-foreground">Select or Drag Excel Spreadsheet</span>
-                  <span className="text-xs text-muted-foreground">Supported format: .xlsx with Member ID, Amount, Period</span>
-                </label>
-              </div>
-
-              {/* Parsed Preview Table */}
-              {activeRows.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">Parsed Preview ({activeRows.filter(r => r.status === 'valid').length} valid, {activeRows.filter(r => r.status !== 'valid').length} issues)</span>
-                    <span className="font-bold text-primary text-sm">Total: {formatCurrency(activeRows.filter(r => r.status === 'valid').reduce((sum, r) => sum + r.amount, 0), currency)}</span>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto rounded-xl border border-border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs font-bold">Staff / Member</TableHead>
-                          <TableHead className="text-xs font-bold">Period</TableHead>
-                          <TableHead className="text-xs font-bold text-right">Amount</TableHead>
-                          <TableHead className="text-xs font-bold text-center">Validation</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {activeRows.map((row, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="text-xs font-semibold">{row.staffName || row.memberId}</TableCell>
-                            <TableCell className="text-xs">{row.period}</TableCell>
-                            <TableCell className="text-xs text-right font-bold">{formatCurrency(row.amount, currency)}</TableCell>
-                            <TableCell className="text-xs text-center">
-                              <Badge variant={row.status === 'valid' ? 'default' : 'destructive'} className="text-[8px] font-bold">
-                                {row.status}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <Button 
-                    onClick={handleInitiateBatch} 
-                    disabled={isSubmitting || activeRows.filter(r => r.status === 'valid').length === 0} 
-                    className="w-full h-12 rounded-xl font-bold text-sm bg-primary text-primary-foreground gap-2"
-                  >
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Initiate Batch for Dual-Control Approval
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* 6. ACCOUNT DELETIONS TAB (SUPER ADMIN REQUEST TABLE) */}
         <TabsContent value="deletions" className="space-y-4">
@@ -1969,6 +2093,9 @@ export default function ApprovalsHubPage() {
               </div>
             </div>
 
+            {/* Review & Approval Audit Trail */}
+            {renderReviewTrail(inspectBatch)}
+
             {/* Review & Approval Controls */}
             <div className="space-y-4 pt-4 border-t">
               {isSeniorAccountant && (inspectBatch?.status === 'pending_review' || inspectBatch?.status === 'revision_requested') && (
@@ -2104,6 +2231,16 @@ export default function ApprovalsHubPage() {
                 </a>
               </div>
             )}
+
+            {/* Operation Description */}
+            <div className="p-3 bg-muted/20 rounded-xl border border-border/60 text-xs space-y-1">
+              <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Operation Description:</span>
+              <p className="text-foreground leading-relaxed">
+                Deposit contribution of {formatCurrency(inspectSlip?.amount || 0, currency)} submitted by {getMemberName(inspectSlip?.memberId)} for period &ldquo;{inspectSlip?.period}&rdquo;.
+              </p>
+            </div>
+
+            {renderReviewTrail(inspectSlip)}
             {((isSeniorAccountant && inspectSlip?.status === 'pending') ||
               (isReviewer && !isSuperAdmin && inspectSlip?.status === 'pending_reviewer' && !isSlipInitiatedByCurrentUser(inspectSlip)) ||
               (isSuperAdmin && inspectSlip?.status === 'reviewed' && !isSlipInitiatedByCurrentUser(inspectSlip))) && (
@@ -2228,6 +2365,16 @@ export default function ApprovalsHubPage() {
               <span className="text-muted-foreground">Purpose:</span>
               <span className="font-semibold">{inspectLoan?.description}</span>
             </div>
+
+            {/* Operation Description */}
+            <div className="p-3 bg-muted/20 rounded-xl border border-border/60 text-xs space-y-1">
+              <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Operation Description:</span>
+              <p className="text-foreground leading-relaxed">
+                Loan facility request of {formatCurrency(inspectLoan?.amount || 0, currency)} applied by {getMemberName(inspectLoan?.memberId)} for purpose: &ldquo;{inspectLoan?.description || 'Credit facility'}&rdquo;.
+              </p>
+            </div>
+
+            {renderReviewTrail(inspectLoan)}
             {((isSeniorAccountant && inspectLoan?.status === 'requested') ||
               (isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer' && !isLoanInitiatedByCurrentUser(inspectLoan)) ||
               (isSuperAdmin && inspectLoan?.status === 'reviewed' && !isLoanInitiatedByCurrentUser(inspectLoan))) && (
@@ -2360,6 +2507,16 @@ export default function ApprovalsHubPage() {
               <span className="font-semibold">{inspectExpense?.recordedByName || getMemberName(inspectExpense?.recordedBy)}</span>
             </div>
           </div>
+
+          {/* Operation Description */}
+          <div className="p-3 bg-muted/20 rounded-xl border border-border/60 text-xs space-y-1">
+            <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Operation Description:</span>
+            <p className="text-foreground leading-relaxed">
+              Operating expense of {formatCurrency(inspectExpense?.amount || 0, currency)} under category &ldquo;{inspectExpense?.category}&rdquo; - &ldquo;{inspectExpense?.title}&rdquo;.
+            </p>
+          </div>
+
+          {renderReviewTrail(inspectExpense)}
 
           {/* Phase 1: Senior Accountant initial review */}
           {isSeniorAccountant && (inspectExpense?.status === 'pending_review' || inspectExpense?.status === 'pending') && (
@@ -2575,6 +2732,9 @@ export default function ApprovalsHubPage() {
             </CardContent>
             </Card>
 
+            {/* Review & Approval Audit Trail */}
+            {renderReviewTrail(inspectInterest)}
+
             {/* Phase 1: Senior Accountant initial review (pending / pending_review) */}
             {isSeniorAccountant &&
               (inspectInterest?.status === 'pending_review' || inspectInterest?.status === 'pending' || inspectInterest?.status === 'revision_requested') && (
@@ -2725,6 +2885,9 @@ export default function ApprovalsHubPage() {
                 </Table>
               </div>
             </div>
+
+            {/* Review & Approval Audit Trail */}
+            {renderReviewTrail(inspectMemberBatch)}
 
             {/* Phase 1: Senior Accountant initial review */}
             {isSeniorAccountant && (inspectMemberBatch?.status === 'pending_review' || inspectMemberBatch?.status === 'revision_requested') && (

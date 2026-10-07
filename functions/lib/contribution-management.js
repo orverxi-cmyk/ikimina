@@ -41,6 +41,7 @@ const admin = __importStar(require("firebase-admin"));
  * Server authoritatively binds memberId to auth.uid and forces status to 'pending'.
  */
 exports.submitContribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const { amount, period, proofUrl } = request.data || {};
@@ -56,6 +57,9 @@ exports.submitContribution = (0, https_1.onCall)({ cors: true }, async (request)
     }
     try {
         const db = admin.firestore();
+        const userSnap = await db.collection('users').doc(request.auth.uid).get();
+        const userRole = (_a = userSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+        const isSeniorAcct = userRole === 'senior_accountant';
         const contributionRef = db.collection('contributions').doc();
         await contributionRef.set({
             memberId: request.auth.uid,
@@ -63,7 +67,11 @@ exports.submitContribution = (0, https_1.onCall)({ cors: true }, async (request)
             period: period.trim(),
             date: admin.firestore.FieldValue.serverTimestamp(),
             proofUrl: proofUrl.trim(),
-            status: 'pending',
+            status: isSeniorAcct ? 'pending_reviewer' : 'pending',
+            seniorReviewed: isSeniorAcct ? true : false,
+            seniorReviewedBy: isSeniorAcct ? request.auth.uid : null,
+            seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
+            seniorReviewJustification: isSeniorAcct ? 'Self-submitted by Senior Accountant (Forwarded directly to Reviewer)' : null,
             justification: `Self-submitted contribution for ${period.trim()}`
         });
         return { success: true, id: contributionRef.id };
@@ -1137,6 +1145,9 @@ exports.reviewContribution = (0, https_1.onCall)({ cors: true }, async (request)
     const contribData = contribSnap.data();
     const isSeniorAcct = callerRole === 'senior_accountant';
     if (isSeniorAcct) {
+        if (contribData.memberId === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own deposit submission. The Reviewer must review it.');
+        }
         if (contribData.status !== 'pending') {
             throw new https_1.HttpsError('failed-precondition', 'Contribution is currently in ' + contribData.status + ' status, cannot be reviewed.');
         }

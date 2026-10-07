@@ -21,6 +21,9 @@ import {
   User,
   LogOut,
   UserMinus,
+  CheckCircle2,
+  Layers,
+  Coins,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
@@ -110,12 +113,16 @@ export function AppSidebar() {
     { href: '/profile/me?tab=account', label: 'Delete Account', icon: UserX, isDestructive: true },
   ];
 
-  // 2. Executive Administrator & Console Tools (Persistently accessible to authorized roles)
+  // 2. Executive Administrator & Portal Tools (Persistently accessible to authorized roles)
   const adminItems: { href: string; label: string; icon: any }[] = [];
 
   if (isSuperAdmin) {
     adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
+    adminItems.push({ href: '/admin/contributions', label: 'Contributions', icon: Layers });
     adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 });
+    adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
+    adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });
     adminItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
     adminItems.push({ href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
@@ -124,17 +131,30 @@ export function AppSidebar() {
     adminItems.push({ href: '/admin/settings', label: 'Settings', icon: Settings });
   } else if (isAuditor) {
     adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 });
+    adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
+    adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF Report', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (isAccountant) {
+    adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
+    adminItems.push({ href: '/admin/contributions', label: 'Contributions', icon: Layers });
     adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 });
+    adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
+    adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });
     adminItems.push({ href: '/members', label: 'Members Directory', icon: Users });
     adminItems.push({ href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt });
     adminItems.push({ href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   } else if (isReviewer) {
+    adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
+    adminItems.push({ href: '/admin/contributions', label: 'Contributions', icon: Layers });
     adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 });
+    adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
+    adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });
     adminItems.push({ href: '/members', label: 'Members Directory', icon: Users });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
@@ -148,13 +168,13 @@ export function AppSidebar() {
       <div className="bg-blue-600 px-5 py-3.5 border-b border-blue-700/60 flex items-center justify-between">
         <h2 className="text-xs font-bold uppercase tracking-wider text-white">
           {isSuperAdmin
-            ? 'Administrator Console'
+            ? 'Administrator Portal'
             : isAuditor
-            ? 'Auditor Console'
+            ? 'Auditor Portal'
             : isAccountant
-            ? 'Accountant Console'
+            ? 'Accountant Portal'
             : isReviewer
-            ? 'Reviewer Console'
+            ? 'Reviewer Portal'
             : 'Member Portal'}
         </h2>
         {isSuperAdmin && (

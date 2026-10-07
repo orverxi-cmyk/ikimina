@@ -115,7 +115,7 @@ exports.getGroupLiquidityMetrics = (0, https_1.onCall)({ cors: true }, async (re
  * 6. No existing active or pending loans
  */
 exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a;
+    var _a, _b;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
@@ -223,13 +223,19 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             throw new https_1.HttpsError('failed-precondition', `Your current borrowing limit of ${effectiveLimit.toLocaleString()} is below the minimum allowed loan amount of ${minLoanAmount.toLocaleString()}. Attach management approval to apply for this amount.`);
         }
     }
+    const userRole = (_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.role;
+    const isSeniorAcct = userRole === 'senior_accountant';
     // 5. Create loan application
     const loanRef = db.collection('loans').doc();
     await loanRef.set({
         memberId,
         amount: loanAmount,
         description: description || (isTopUp ? `Loan Top-Up against facility #${parentLoanId.slice(0, 7)}` : 'Member capital loan application'),
-        status: 'requested',
+        status: isSeniorAcct ? 'pending_reviewer' : 'requested',
+        seniorReviewed: isSeniorAcct ? true : false,
+        seniorReviewedBy: isSeniorAcct ? memberId : null,
+        seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
+        seniorReviewJustification: isSeniorAcct ? 'Self-applied by Senior Accountant (Forwarded directly to Reviewer for compliance check)' : null,
         requestDate: admin.firestore.FieldValue.serverTimestamp(),
         balance: 0,
         interestAmount: 0,
@@ -593,6 +599,9 @@ exports.reviewLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     const loanData = loanSnap.data();
     const isSeniorAcct = callerRole === 'senior_accountant';
     if (isSeniorAcct) {
+        if (loanData.memberId === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. The Reviewer must review it.');
+        }
         if (loanData.status !== 'requested') {
             throw new https_1.HttpsError('failed-precondition', 'Loan is currently in ' + loanData.status + ' status, cannot be reviewed.');
         }

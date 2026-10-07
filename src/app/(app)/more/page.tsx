@@ -18,7 +18,11 @@ import {
   Scale,
   Lock,
   UserX,
-  UserMinus
+  UserMinus,
+  CheckCircle2,
+  Coins,
+  Landmark,
+  Layers,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -64,7 +68,7 @@ export default function MorePage() {
   const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
   const role = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
   const isAdmin = role === 'admin';
-  const isManagement = role === 'admin' || role === 'management' || (role === 'accountant' || role === 'senior_accountant') || role === 'auditor';
+  const isManagement = role === 'admin' || role === 'management' || role === 'accountant' || role === 'senior_accountant' || role === 'reviewer' || role === 'auditor';
 
   const sections = [
     {
@@ -88,7 +92,13 @@ export default function MorePage() {
       items: [
         ...(isAdmin ? [
           { href: '/admin', label: 'Dashboard', icon: Home, description: 'Balance sheet and metrics' },
-          { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck, description: 'Audit and approve pending requests' },
+        ] : []),
+        { href: '/admin/contributions', label: 'Contributions', icon: Layers, description: 'Individual slips and batch contributions' },
+        { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck, description: 'Audit and approve pending requests' },
+        { href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2, description: 'Complete ledger of approved operations' },
+        { href: '/loans', label: 'Loan Portfolio', icon: Landmark, description: 'Scheme lending and repayment portfolio' },
+        { href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins, description: 'Pro-rata dividend allocation and ledger' },
+        ...(isAdmin || role === 'accountant' || role === 'senior_accountant' ? [
           { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt, description: 'Manage operational costs' },
         ] : []),
         ...(isAdmin || role === 'accountant' || role === 'senior_accountant' ? [

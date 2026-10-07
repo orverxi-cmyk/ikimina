@@ -26,6 +26,10 @@ export const submitContribution = onCall({ cors: true }, async (request) => {
 
     try {
         const db = admin.firestore();
+        const userSnap = await db.collection('users').doc(request.auth.uid).get();
+        const userRole = userSnap.data()?.role;
+        const isSeniorAcct = userRole === 'senior_accountant';
+
         const contributionRef = db.collection('contributions').doc();
 
         await contributionRef.set({
@@ -34,7 +38,11 @@ export const submitContribution = onCall({ cors: true }, async (request) => {
             period: period.trim(),
             date: admin.firestore.FieldValue.serverTimestamp(),
             proofUrl: proofUrl.trim(),
-            status: 'pending',
+            status: isSeniorAcct ? 'pending_reviewer' : 'pending',
+            seniorReviewed: isSeniorAcct ? true : false,
+            seniorReviewedBy: isSeniorAcct ? request.auth.uid : null,
+            seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
+            seniorReviewJustification: isSeniorAcct ? 'Self-submitted by Senior Accountant (Forwarded directly to Reviewer)' : null,
             justification: `Self-submitted contribution for ${period.trim()}`
         });
 
@@ -1276,6 +1284,9 @@ export const reviewContribution = onCall({ cors: true }, async (request) => {
     const isSeniorAcct = callerRole === 'senior_accountant';
 
     if (isSeniorAcct) {
+        if (contribData.memberId === request.auth.uid) {
+            throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own deposit submission. The Reviewer must review it.');
+        }
         if (contribData.status !== 'pending') {
             throw new HttpsError('failed-precondition', 'Contribution is currently in ' + contribData.status + ' status, cannot be reviewed.');
         }
