@@ -2231,8 +2231,8 @@ export default function ApprovalsHubPage() {
 
             {renderReviewTrail(inspectSlip)}
             {((isSeniorAccountant && inspectSlip?.status === 'pending') ||
-              (isReviewer && !isSuperAdmin && inspectSlip?.status === 'pending_reviewer' && !isSlipInitiatedByCurrentUser(inspectSlip)) ||
-              (isSuperAdmin && inspectSlip?.status === 'reviewed' && !isSlipInitiatedByCurrentUser(inspectSlip))) && (
+              (isReviewer && !isSuperAdmin && inspectSlip?.status === 'pending_reviewer') ||
+              (isSuperAdmin && inspectSlip?.status === 'reviewed')) && (
               <div className="space-y-2 pt-2">
                 <Label className="text-xs font-bold uppercase tracking-wider">Audit Justification *</Label>
                 <Input 
@@ -2273,7 +2273,7 @@ export default function ApprovalsHubPage() {
               )}
 
               {/* Reviewer: Compliance Review */}
-              {isReviewer && !isSuperAdmin && inspectSlip?.status === 'pending_reviewer' && !isSlipInitiatedByCurrentUser(inspectSlip) && (
+              {isReviewer && !isSuperAdmin && inspectSlip?.status === 'pending_reviewer' && (
                 <>
                   <Button 
                     variant="outline" 
@@ -2295,7 +2295,7 @@ export default function ApprovalsHubPage() {
               )}
 
               {/* Super Admin: Final Approval */}
-              {isSuperAdmin && inspectSlip?.status === 'reviewed' && !isSlipInitiatedByCurrentUser(inspectSlip) && (
+              {isSuperAdmin && inspectSlip?.status === 'reviewed' && (
                 <>
                   <Button 
                     variant="outline" 
