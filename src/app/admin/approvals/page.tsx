@@ -528,7 +528,16 @@ export default function ApprovalsHubPage() {
 
     setIsSubmitting(true);
     try {
-      if (decision === 'verify') {
+      if (decision === 'review') {
+        await reviewContributionAction({
+          contributionId: inspectSlip.id,
+          justification: slipJustification.trim()
+        });
+        toast({
+          title: isSeniorAccountant ? "Deposit Endorsed to Reviewer" : "Deposit Endorsed to Administrator",
+          description: `Contribution of ${formatCurrency(inspectSlip.amount, currency)} reviewed and forwarded.`
+        });
+      } else if (decision === 'verify') {
         await verifyContributionAction(user.uid, {
           contributionId: inspectSlip.id,
           justification: slipJustification.trim()

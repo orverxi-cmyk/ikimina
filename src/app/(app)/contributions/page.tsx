@@ -18,6 +18,7 @@ import { format, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { 
   verifyContributionAction, 
+  reviewContributionAction,
   rejectContributionAction, 
   recordContributionAction, 
   submitContributionAction,
@@ -240,11 +241,22 @@ export default function ContributionsPage() {
 
     try {
       if (type === 'verify') {
-        await verifyContributionAction(user.uid, {
-          contributionId: selectedContribution.id,
-          justification
-        });
-        toast({ title: "Verified", description: "Contribution has been officially verified." });
+        if (role === 'senior_accountant' || role === 'reviewer') {
+          await reviewContributionAction({
+            contributionId: selectedContribution.id,
+            justification
+          });
+          toast({
+            title: role === 'senior_accountant' ? "Deposit Endorsed to Reviewer" : "Deposit Endorsed to Administrator",
+            description: "Contribution reviewed and forwarded."
+          });
+        } else {
+          await verifyContributionAction(user.uid, {
+            contributionId: selectedContribution.id,
+            justification
+          });
+          toast({ title: "Verified", description: "Contribution has been officially verified." });
+        }
       } else {
         await rejectContributionAction(user.uid, {
           contributionId: selectedContribution.id,
@@ -780,7 +792,8 @@ export default function ContributionsPage() {
                   value="verify" 
                   disabled={isSubmitting}
                 >
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Verify Funds
+                  <CheckCircle2 className="mr-2 h-4 w-4" /> 
+                  {role === 'senior_accountant' ? 'Endorse to Reviewer' : role === 'reviewer' ? 'Endorse to Administrator' : 'Verify Funds'}
                 </Button>
               </DialogFooter>
             </form>
