@@ -243,9 +243,9 @@ export default function AdminContributionsPage() {
       const safeIdx = Math.min(quickCardIndex, slipsAwaitingReview.length - 1);
       return slipsAwaitingReview[safeIdx >= 0 ? safeIdx : 0];
     }
-    // Fallback: latest overall slip
-    return allSlips[0] || null;
-  }, [userActionableSlips, isSuperAdmin, slipsAwaitingReview, quickCardIndex, allSlips]);
+    // No pending items — return null so the card shows an "up to date" state
+    return null;
+  }, [userActionableSlips, isSuperAdmin, slipsAwaitingReview, quickCardIndex]);
 
   // KPI numbers
   const totalContributedSlips = useMemo(() => approvedSlips.reduce((s, c) => s + (Number(c.amount) || 0), 0), [approvedSlips]);
@@ -300,14 +300,6 @@ export default function AdminContributionsPage() {
       return;
     }
 
-    if (isSlipInitiatedByCurrentUser(actionSlip) && !isSeniorAccountant) {
-      toast({
-        variant: 'destructive',
-        title: 'Segregation of Duties Violation',
-        description: 'You cannot approve or review your own contribution submission. Another officer must sign off.',
-      });
-      return;
-    }
 
     if (!actionJustification.trim()) {
       toast({
@@ -448,8 +440,13 @@ export default function AdminContributionsPage() {
         </div>
       </div>
 
-      {/* QUICK APPROVAL / QUICK REVIEW CARD */}
-      <Card className="border border-primary/20 bg-gradient-to-br from-card via-card to-primary/[0.03] shadow-md rounded-2xl overflow-hidden">
+      {/* MAIN CONTENT: Quick Card (left) + KPIs & Table (right) */}
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
+
+        {/* LEFT: QUICK APPROVAL / QUICK REVIEW CARD */}
+        {(activeQuickSlip || userActionableSlips.length > 0 || (isSuperAdmin && slipsAwaitingReview.length > 0)) && (
+          <div className="w-full xl:w-[340px] shrink-0">
+          <Card className="border border-primary/20 bg-gradient-to-br from-card via-card to-primary/[0.03] shadow-md rounded-2xl overflow-hidden">
         <CardHeader className="bg-primary/10 border-b border-primary/15 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className={cn(
@@ -705,7 +702,6 @@ export default function AdminContributionsPage() {
                     <>
                       <Button
                         onClick={() => openReviewModal(activeQuickSlip)}
-                        disabled={isSlipInitiatedByCurrentUser(activeQuickSlip) && !isSeniorAccountant}
                         className="rounded-xl font-bold text-xs h-9 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 gap-1.5 w-full"
                       >
                         <Eye className="h-3.5 w-3.5" /> Review Deposit
@@ -753,9 +749,13 @@ export default function AdminContributionsPage() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+          </div>
+        )}{/* end left quick card */}
 
-      {/* KPI METRIC CARDS */}
+        {/* RIGHT: KPIs + Table */}
+        <div className="flex-1 min-w-0 space-y-4 sm:space-y-6">
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'Total Verified Savings', value: formatCurrency(totalContributed, currency), icon: TrendingUp, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/10' },
@@ -862,8 +862,10 @@ export default function AdminContributionsPage() {
               onReview={openReviewModal}
             />
           )}
-        </div>
-      </div>
+        </div>{/* end tab contents space-y-6 */}
+      </div>{/* end filter+tabs space-y-4 */}
+        </div>{/* end right column flex-1 */}
+      </div>{/* end flex row */}
 
       {/* ACTION DIALOG: APPROVE (SUPER ADMIN) OR REVIEW (SENIOR ACCOUNTANT/REVIEWER) */}
       <Dialog open={!!actionSlip} onOpenChange={open => !open && setActionSlip(null)}>
@@ -891,13 +893,7 @@ export default function AdminContributionsPage() {
 
           {actionSlip && (
             <div className="space-y-4 text-xs py-2">
-              {/* Segregation of duties warning if applicable */}
-              {isSlipInitiatedByCurrentUser(actionSlip) && !isSeniorAccountant && (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                  <span>You initiated this deposit submission. Another officer must sign off.</span>
-                </div>
-              )}
+
 
               <div className="p-3 bg-muted/40 rounded-xl border border-border/50 space-y-1.5">
                 <div className="flex justify-between items-center">
