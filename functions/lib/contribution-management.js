@@ -452,43 +452,65 @@ exports.reviewContributionBatch = (0, https_1.onCall)({ cors: true }, async (req
         throw new https_1.HttpsError('not-found', `Contribution batch ${batchId} was not found.`);
     }
     const batchData = batchSnap.data();
-    if (batchData.initiatedBy === request.auth.uid) {
-        throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a batch you initiated. Another authorized officer must conduct the review.');
+    const isSeniorAcct = callerRole === 'senior_accountant';
+    if (isSeniorAcct) {
+        // Senior Accountant does the initial review
+        if (batchData.status !== 'pending_review' && batchData.status !== 'revision_requested') {
+            throw new https_1.HttpsError('failed-precondition', `Cannot perform initial review on batch with status '${batchData.status}'. Must be 'pending_review'.`);
+        }
     }
-    if (batchData.status !== 'pending_review' && batchData.status !== 'revision_requested') {
-        throw new https_1.HttpsError('failed-precondition', `Cannot review batch with status '${batchData.status}'. Must be 'pending_review'.`);
+    else {
+        // Reviewer or Management: ONLY reviews batches that have been reviewed by Senior Accountant
+        if (batchData.status !== 'pending_reviewer' && !batchData.seniorReviewed) {
+            throw new https_1.HttpsError('failed-precondition', 'Reviewers can only review contribution batches that have been initiated and initially reviewed by the Senior Accountant.');
+        }
+        if (batchData.initiatedBy === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a batch you initiated. Another authorized officer must conduct the review.');
+        }
     }
     let nextStatus;
     let actionName;
     if (decision === 'endorse') {
-        nextStatus = 'pending_approval';
-        actionName = 'REVIEW_ENDORSED';
+        nextStatus = isSeniorAcct ? 'pending_reviewer' : 'pending_approval';
+        actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_INITIAL_REVIEW_ENDORSED' : 'REVIEW_ENDORSED';
     }
     else if (decision === 'request_changes') {
         nextStatus = 'revision_requested';
-        actionName = 'REVIEW_REVISION_REQUESTED';
+        actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_REVISION_REQUESTED' : 'REVIEW_REVISION_REQUESTED';
     }
     else {
         nextStatus = 'rejected';
-        actionName = 'REVIEW_REJECTED';
+        actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_REJECTED' : 'REVIEW_REJECTED';
     }
+    const performerName = (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || (isSeniorAcct ? 'Senior Accountant' : 'Reviewer');
     const newAuditEvent = {
         action: actionName,
         performedBy: request.auth.uid,
-        performerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Reviewer',
+        performerName,
         performerRole: callerRole,
         timestamp: new Date().toISOString(),
         notes: reviewNotes.trim()
     };
-    await batchRef.update({
+    const updatePayload = {
         status: nextStatus,
-        reviewedBy: request.auth.uid,
-        reviewerName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Reviewer',
-        reviewerRole: callerRole,
-        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        reviewNotes: reviewNotes.trim(),
         auditTrail: admin.firestore.FieldValue.arrayUnion(newAuditEvent)
-    });
+    };
+    if (isSeniorAcct) {
+        updatePayload.seniorReviewed = true;
+        updatePayload.seniorReviewedBy = request.auth.uid;
+        updatePayload.seniorReviewedByName = performerName;
+        updatePayload.seniorReviewedAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.seniorReviewNotes = reviewNotes.trim();
+    }
+    else {
+        updatePayload.complianceReviewed = true;
+        updatePayload.reviewedBy = request.auth.uid;
+        updatePayload.reviewerName = performerName;
+        updatePayload.reviewerRole = callerRole;
+        updatePayload.reviewedAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.reviewNotes = reviewNotes.trim();
+    }
+    await batchRef.update(updatePayload);
     const auditRef = db.collection('audit_logs').doc();
     await auditRef.set({
         adminId: request.auth.uid,
@@ -1113,18 +1135,34 @@ exports.reviewContribution = (0, https_1.onCall)({ cors: true }, async (request)
     if (!contribSnap.exists)
         throw new https_1.HttpsError('not-found', 'Contribution not found.');
     const contribData = contribSnap.data();
-    if (contribData.memberId === request.auth.uid || contribData.recordedBy === request.auth.uid) {
-        throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own deposit submission or a transaction you recorded.');
+    const isSeniorAcct = callerRole === 'senior_accountant';
+    if (isSeniorAcct) {
+        if (contribData.status !== 'pending') {
+            throw new https_1.HttpsError('failed-precondition', 'Contribution is currently in ' + contribData.status + ' status, cannot be reviewed.');
+        }
+        await contributionRef.update({
+            status: 'pending_reviewer',
+            seniorReviewed: true,
+            seniorReviewedBy: request.auth.uid,
+            seniorReviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+            seniorReviewJustification: justification || 'Initial review completed'
+        });
     }
-    if (contribData.status !== 'pending') {
-        throw new https_1.HttpsError('failed-precondition', 'Contribution is currently in ' + contribData.status + ' status, cannot be reviewed.');
+    else {
+        // Reviewer or Management: ONLY reviews after Senior Accountant
+        if (contribData.status !== 'pending_reviewer' && !contribData.seniorReviewed) {
+            throw new https_1.HttpsError('failed-precondition', 'Reviewers can only review deposits that have been initially reviewed by the Senior Accountant.');
+        }
+        if (contribData.memberId === request.auth.uid || contribData.recordedBy === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own deposit submission or a transaction you recorded.');
+        }
+        await contributionRef.update({
+            status: 'reviewed',
+            reviewedBy: request.auth.uid,
+            reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+            reviewJustification: justification || 'Compliance review completed'
+        });
     }
-    await contributionRef.update({
-        status: 'reviewed',
-        reviewedBy: request.auth.uid,
-        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        reviewJustification: justification || 'Reviewed'
-    });
     await db.collection('audit_logs').add({
         adminId: request.auth.uid,
         action: 'REVIEW_CONTRIBUTION',

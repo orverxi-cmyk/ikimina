@@ -16,7 +16,7 @@ import * as admin from 'firebase-admin';
  * this workflow is the only path to remove them.
  */
 
-const INITIATOR_ROLES = ['accountant', 'admin', 'management'];
+const INITIATOR_ROLES = ['accountant', 'senior_accountant', 'admin', 'management'];
 const BATCH_LIMIT = 450;
 
 export type MemberFinancialPosition = {

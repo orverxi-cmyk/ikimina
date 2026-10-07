@@ -52,7 +52,7 @@ const admin = __importStar(require("firebase-admin"));
  * A member holding a positive contribution balance can never be deleted directly;
  * this workflow is the only path to remove them.
  */
-const INITIATOR_ROLES = ['accountant', 'admin', 'management'];
+const INITIATOR_ROLES = ['accountant', 'senior_accountant', 'admin', 'management'];
 const BATCH_LIMIT = 450;
 /**
  * Computes a member's authoritative financial position from the ledgers.

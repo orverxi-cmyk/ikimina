@@ -124,10 +124,11 @@ export default function ApprovalsHubPage() {
   const userRole = userData?.role || 'member';
   const isAuthorized = Boolean(user && !userDataLoading && ['admin', 'management', 'accountant', 'senior_accountant', 'reviewer', 'auditor'].includes(userRole));
   const isSuperAdmin = userRole === 'admin' || userRole === 'management';
-  const isReviewer = userRole === 'reviewer' || userRole === 'senior_accountant' || userRole === 'management';
+  const isSeniorAccountant = userRole === 'senior_accountant';
+  const isReviewer = userRole === 'reviewer' || userRole === 'management';
   const isAccountant = userRole === 'accountant' || userRole === 'senior_accountant';
   const canInitiate = userRole === 'accountant' || userRole === 'senior_accountant';
-  const canReview = userRole === 'reviewer' || userRole === 'senior_accountant' || userRole === 'management';
+  const canReview = isReviewer || isSeniorAccountant;
   const canApprove = userRole === 'admin' || userRole === 'management';
 
   const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'members' | 'deletions' | 'upload'>('batches');
@@ -246,19 +247,52 @@ export default function ApprovalsHubPage() {
   }, [members]);
 
   const allBatches = useMemo(() => batchesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [batchesSnap]);
-  const pendingBatches = useMemo(() => allBatches.filter((b: any) => b.status === 'pending_review' || b.status === 'pending_approval' || b.status === 'revision_requested'), [allBatches]);
-  const pendingSlips = useMemo(() => pendingSlipsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [pendingSlipsSnap]);
-  const pendingLoans = useMemo(() => pendingLoansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [pendingLoansSnap]);
-  const pendingExpenses = useMemo(() => pendingExpensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [pendingExpensesSnap]);
+  const pendingBatches = useMemo(() => allBatches.filter((b: any) => {
+    if (isReviewer && !isSuperAdmin) return b.status === 'pending_reviewer';
+    if (isSeniorAccountant) return b.status === 'pending_review' || b.status === 'revision_requested';
+    if (isSuperAdmin) return b.status === 'pending_approval';
+    return b.status === 'pending_review' || b.status === 'pending_reviewer' || b.status === 'pending_approval' || b.status === 'revision_requested';
+  }), [allBatches, isReviewer, isSeniorAccountant, isSuperAdmin]);
+
+  const pendingSlips = useMemo(() => (pendingSlipsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []).filter((s: any) => {
+    if (isReviewer && !isSuperAdmin) return s.status === 'pending_reviewer';
+    if (isSeniorAccountant) return s.status === 'pending';
+    if (isSuperAdmin) return s.status === 'reviewed';
+    return s.status === 'pending' || s.status === 'pending_reviewer' || s.status === 'reviewed';
+  }), [pendingSlipsSnap, isReviewer, isSeniorAccountant, isSuperAdmin]);
+
+  const pendingLoans = useMemo(() => (pendingLoansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []).filter((l: any) => {
+    if (isReviewer && !isSuperAdmin) return l.status === 'pending_reviewer';
+    if (isSeniorAccountant) return l.status === 'requested';
+    if (isSuperAdmin) return l.status === 'reviewed';
+    return l.status === 'requested' || l.status === 'pending_reviewer' || l.status === 'reviewed';
+  }), [pendingLoansSnap, isReviewer, isSeniorAccountant, isSuperAdmin]);
+
+  const pendingExpenses = useMemo(() => (pendingExpensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []).filter((e: any) => {
+    if (isReviewer && !isSuperAdmin) return e.status === 'pending_reviewer';
+    if (isSeniorAccountant) return e.status === 'pending' || e.status === 'pending_review';
+    if (isSuperAdmin) return e.status === 'pending_approval';
+    return e.status === 'pending' || e.status === 'pending_review' || e.status === 'pending_reviewer' || e.status === 'pending_approval';
+  }), [pendingExpensesSnap, isReviewer, isSeniorAccountant, isSuperAdmin]);
 
   const allInterestRequests = useMemo(() => interestRequestsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [interestRequestsSnap]);
-  const pendingInterestRequests = useMemo(() => allInterestRequests.filter((r: any) => r.status === 'pending' || r.status === 'pending_review' || r.status === 'pending_approval'), [allInterestRequests]);
+  const pendingInterestRequests = useMemo(() => allInterestRequests.filter((r: any) => {
+    if (isReviewer && !isSuperAdmin) return r.status === 'pending_reviewer';
+    if (isSeniorAccountant) return r.status === 'pending' || r.status === 'pending_review' || r.status === 'revision_requested';
+    if (isSuperAdmin) return r.status === 'pending_approval';
+    return r.status === 'pending' || r.status === 'pending_review' || r.status === 'pending_reviewer' || r.status === 'pending_approval';
+  }), [allInterestRequests, isReviewer, isSeniorAccountant, isSuperAdmin]);
 
   const allDeletionRequests = useMemo(() => deletionRequestsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [deletionRequestsSnap]);
   const pendingDeletionRequests = useMemo(() => allDeletionRequests.filter((r: any) => r.status === 'pending'), [allDeletionRequests]);
 
   const allMemberBatches = useMemo(() => memberBatchesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [memberBatchesSnap]);
-  const pendingMemberBatches = useMemo(() => allMemberBatches.filter((b: any) => b.status === 'pending_review' || b.status === 'pending_approval' || b.status === 'revision_requested'), [allMemberBatches]);
+  const pendingMemberBatches = useMemo(() => allMemberBatches.filter((b: any) => {
+    if (isReviewer && !isSuperAdmin) return b.status === 'pending_reviewer';
+    if (isSeniorAccountant) return b.status === 'pending_review' || b.status === 'revision_requested';
+    if (isSuperAdmin) return b.status === 'pending_approval';
+    return b.status === 'pending_review' || b.status === 'pending_reviewer' || b.status === 'pending_approval' || b.status === 'revision_requested';
+  }), [allMemberBatches, isReviewer, isSeniorAccountant, isSuperAdmin]);
 
   const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingExpenses.length + pendingInterestRequests.length + pendingDeletionRequests.length + pendingMemberBatches.length;
 
@@ -406,11 +440,11 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleReviewBatch = async (decision: 'endorse' | 'request_changes' | 'reject') => {
     if (!inspectBatch || !user) return;
-    if (isBatchInitiatedByCurrentUser(inspectBatch)) {
+    if (!isSeniorAccountant && isBatchInitiatedByCurrentUser(inspectBatch)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
-        description: "You initiated this batch. Another reviewer or administrator must conduct the review."
+        description: "You initiated this batch. Another reviewer must conduct the compliance review."
       });
     }
     if (!reviewNotes.trim()) {
@@ -425,7 +459,7 @@ export default function ApprovalsHubPage() {
         reviewNotes: reviewNotes.trim()
       });
       toast({
-        title: decision === 'endorse' ? "Batch Endorsed" : decision === 'request_changes' ? "Revision Requested" : "Batch Rejected",
+        title: decision === 'endorse' ? (isSeniorAccountant ? "Batch Endorsed to Reviewer" : "Batch Endorsed to Administrator") : decision === 'request_changes' ? "Revision Requested" : "Batch Rejected",
         description: `Batch #${inspectBatch.batchId || inspectBatch.id} status has been updated.`,
       });
       setIsBatchModalOpen(false);
@@ -1927,15 +1961,39 @@ export default function ApprovalsHubPage() {
             </div>
 
             {/* Review & Approval Controls */}
-            {!isBatchInitiatedByCurrentUser(inspectBatch) && (
-              <div className="space-y-4 pt-4 border-t">
-                {isReviewer && (inspectBatch?.status === 'pending_review' || inspectBatch?.status === 'revision_requested') && (
-                  <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 dark:border-blue-900/50 space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Reviewer Endorsement</p>
+            <div className="space-y-4 pt-4 border-t">
+              {isSeniorAccountant && (inspectBatch?.status === 'pending_review' || inspectBatch?.status === 'revision_requested') && (
+                <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 dark:border-blue-900/50 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review &amp; Endorsement</p>
+                  <Textarea 
+                    value={reviewNotes} 
+                    onChange={e => setReviewNotes(e.target.value)} 
+                    placeholder="Enter reconciliation verification findings and initial sign-off notes..." 
+                    className="text-xs rounded-xl bg-background"
+                    rows={2}
+                  />
+                  <div className="flex items-center gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => handleReviewBatch('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">
+                      Request Changes
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleReviewBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">
+                      Reject Batch
+                    </Button>
+                    <Button size="sm" onClick={() => handleReviewBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                      Endorse to Reviewer
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {isReviewer && inspectBatch?.status === 'pending_reviewer' && (
+                !isBatchInitiatedByCurrentUser(inspectBatch) ? (
+                  <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/50 dark:border-indigo-900/50 space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Reviewer Verification</p>
                     <Textarea 
                       value={reviewNotes} 
                       onChange={e => setReviewNotes(e.target.value)} 
-                      placeholder="Enter audit review findings, reconciliation notes, or change requirements..." 
+                      placeholder="Enter compliance and regulatory audit notes..." 
                       className="text-xs rounded-xl bg-background"
                       rows={2}
                     />
@@ -1946,16 +2004,22 @@ export default function ApprovalsHubPage() {
                       <Button size="sm" variant="outline" onClick={() => handleReviewBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">
                         Reject Batch
                       </Button>
-                      <Button size="sm" onClick={() => handleReviewBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
-                        Endorse for Final Approval
+                      <Button size="sm" onClick={() => handleReviewBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">
+                        Endorse to Administrator
                       </Button>
                     </div>
                   </div>
-                )}
+                ) : (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                    You initiated this batch. Another compliance reviewer must review it.
+                  </div>
+                )
+              )}
 
-                {isSuperAdmin && (
+              {isSuperAdmin && inspectBatch?.status === 'pending_approval' && (
+                !isBatchInitiatedByCurrentUser(inspectBatch) ? (
                   <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-900/50 space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 2: Super Administrator Final Sign-Off</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 3: Super Administrator Final Sign-Off</p>
                     <Textarea 
                       value={approvalNotes} 
                       onChange={e => setApprovalNotes(e.target.value)} 
@@ -1969,13 +2033,17 @@ export default function ApprovalsHubPage() {
                       </Button>
                       <Button size="sm" onClick={() => handleApproveBatch('approve')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
-                        Approve & Commit to Ledger
+                        Approve &amp; Commit to Ledger
                       </Button>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                ) : (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                    You initiated this batch. A different administrator must give final approval.
+                  </div>
+                )
+              )}
+            </div>
           </div>
 
           <DialogFooter className="p-4 bg-muted/20 border-t shrink-0">
@@ -2404,40 +2472,71 @@ export default function ApprovalsHubPage() {
             </CardContent>
             </Card>
 
-            {/* Phase 1: Reviewer endorsement controls (pending_review) */}
-            {!isInterestInitiatedByCurrentUser(inspectInterest) && canReview &&
-              (inspectInterest?.status === 'pending_review' || inspectInterest?.status === 'pending') && (
+            {/* Phase 1: Senior Accountant initial review (pending / pending_review) */}
+            {isSeniorAccountant &&
+              (inspectInterest?.status === 'pending_review' || inspectInterest?.status === 'pending' || inspectInterest?.status === 'revision_requested') && (
               <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 dark:border-blue-900/50 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Reviewer Endorsement</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review &amp; Endorsement</p>
                 <Textarea
                   value={interestReviewNotes}
                   onChange={e => setInterestReviewNotes(e.target.value)}
-                  placeholder="Enter review findings or change requirements for the accountant..."
+                  placeholder="Enter initial allocation verification findings and justification..."
                   className="text-xs rounded-xl bg-background"
                   rows={2}
                 />
                 <div className="flex items-center gap-2 justify-end">
                   <Button size="sm" variant="outline" onClick={() => handleActionInterest('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                   <Button size="sm" variant="outline" onClick={() => handleActionInterest('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Proposal</Button>
-                  <Button size="sm" onClick={() => handleActionInterest('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse for Approval</Button>
+                  <Button size="sm" onClick={() => handleActionInterest('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse to Reviewer</Button>
                 </div>
               </div>
             )}
 
-            {/* Phase 2: Admin final approval (pending_approval) */}
-            {!isInterestInitiatedByCurrentUser(inspectInterest) && canApprove && inspectInterest?.status === 'pending_approval' && (
-              <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-900/50 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
-                  Phase 2: Super Administrator Ratification &amp; Ledger Execution
-                </p>
-                <Textarea 
-                  value={interestApprovalNotes} 
-                  onChange={e => setInterestApprovalNotes(e.target.value)} 
-                  placeholder="Enter final executive ratification justification to distribute profits and credit member accounts..." 
-                  className="text-xs rounded-xl bg-background"
-                  rows={2}
-                />
-              </div>
+            {/* Phase 2: Compliance Reviewer audit & verification (pending_reviewer) */}
+            {isReviewer && inspectInterest?.status === 'pending_reviewer' && (
+              !isInterestInitiatedByCurrentUser(inspectInterest) ? (
+                <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/50 dark:border-indigo-900/50 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Reviewer Audit &amp; Verification</p>
+                  <Textarea
+                    value={interestReviewNotes}
+                    onChange={e => setInterestReviewNotes(e.target.value)}
+                    placeholder="Enter compliance and regulatory review notes..."
+                    className="text-xs rounded-xl bg-background"
+                    rows={2}
+                  />
+                  <div className="flex items-center gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => handleActionInterest('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleActionInterest('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Proposal</Button>
+                    <Button size="sm" onClick={() => handleActionInterest('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Endorse to Administrator</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                  You initiated this proposal. Another compliance reviewer must review it.
+                </div>
+              )
+            )}
+
+            {/* Phase 3: Super Admin final approval (pending_approval) */}
+            {canApprove && inspectInterest?.status === 'pending_approval' && (
+              !isInterestInitiatedByCurrentUser(inspectInterest) ? (
+                <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-900/50 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
+                    Phase 3: Super Administrator Ratification &amp; Ledger Execution
+                  </p>
+                  <Textarea 
+                    value={interestApprovalNotes} 
+                    onChange={e => setInterestApprovalNotes(e.target.value)} 
+                    placeholder="Enter final executive ratification justification to distribute profits and credit member accounts..." 
+                    className="text-xs rounded-xl bg-background"
+                    rows={2}
+                  />
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                  You initiated this proposal. A different administrator must approve and commit it.
+                </div>
+              )
             )}
           </div>
 

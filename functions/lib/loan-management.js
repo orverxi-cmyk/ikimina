@@ -591,18 +591,35 @@ exports.reviewLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     if (!loanSnap.exists)
         throw new https_1.HttpsError('not-found', 'Loan not found.');
     const loanData = loanSnap.data();
-    if (loanData.memberId === request.auth.uid) {
-        throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. Another authorized reviewer must review it.');
+    const isSeniorAcct = callerRole === 'senior_accountant';
+    if (isSeniorAcct) {
+        if (loanData.status !== 'requested') {
+            throw new https_1.HttpsError('failed-precondition', 'Loan is currently in ' + loanData.status + ' status, cannot be reviewed.');
+        }
+        await loanRef.update({
+            status: 'pending_reviewer',
+            seniorReviewed: true,
+            seniorReviewedBy: request.auth.uid,
+            seniorReviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+            seniorReviewJustification: justification || 'Initial review completed'
+        });
     }
-    if (loanData.status !== 'requested') {
-        throw new https_1.HttpsError('failed-precondition', 'Loan is currently in ' + loanData.status + ' status, cannot be reviewed.');
+    else {
+        // Reviewer or Management: ONLY reviews loans that have been reviewed by Senior Accountant
+        if (loanData.status !== 'pending_reviewer' && !loanData.seniorReviewed) {
+            throw new https_1.HttpsError('failed-precondition', 'Reviewers can only review loan facilities that have been initially reviewed by the Senior Accountant.');
+        }
+        if (loanData.memberId === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. Another authorized reviewer must review it.');
+        }
+        await loanRef.update({
+            status: 'reviewed',
+            complianceReviewed: true,
+            reviewedBy: request.auth.uid,
+            reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+            reviewJustification: justification || 'Compliance review completed'
+        });
     }
-    await loanRef.update({
-        status: 'reviewed',
-        reviewedBy: request.auth.uid,
-        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        reviewJustification: justification || 'Reviewed'
-    });
     await db.collection('audit_logs').add({
         adminId: request.auth.uid,
         action: 'REVIEW_LOAN',

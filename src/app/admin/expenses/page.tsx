@@ -103,7 +103,9 @@ export default function ExpensesAdminPage() {
   const isAdmin = effectiveRole === 'admin' || effectiveRole === 'management' || isPrimaryAdmin;
   const isAccountant = effectiveRole === 'accountant' || effectiveRole === 'senior_accountant';
   const canInitiate = effectiveRole === 'accountant' || effectiveRole === 'senior_accountant';
-  const canReview = effectiveRole === 'reviewer' || effectiveRole === 'senior_accountant' || effectiveRole === 'management';
+  const isSeniorAcct = effectiveRole === 'senior_accountant';
+  const isComplianceReviewer = effectiveRole === 'reviewer' || effectiveRole === 'management';
+  const canReview = isSeniorAcct || isComplianceReviewer;
   const canApprove = effectiveRole === 'admin' || effectiveRole === 'management' || isPrimaryAdmin;
 
   // Query expenses collection directly without field restrictions (ensures no documents are omitted by Firestore)
@@ -154,7 +156,7 @@ export default function ExpensesAdminPage() {
   const [rejectionReason, setRejectionReason] = useState('');
 
   // Segregated Expense Lists
-  const pendingExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'pending' || e.status === 'pending_review' || e.status === 'pending_approval'), [expenses]);
+  const pendingExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'pending' || e.status === 'pending_review' || e.status === 'pending_reviewer' || e.status === 'pending_approval'), [expenses]);
   const approvedExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'approved'), [expenses]);
   const rejectedExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'rejected'), [expenses]);
 
@@ -613,8 +615,10 @@ export default function ExpensesAdminPage() {
                           >
                             {exp.status === 'pending_approval' ? (
                               canApprove ? 'Authorize & Sign-Off' : 'View Details'
+                            ) : exp.status === 'pending_reviewer' ? (
+                              isComplianceReviewer ? 'Review & Endorse' : 'Awaiting Reviewer'
                             ) : (
-                              canReview ? (exp.lodgedBy === user?.uid ? 'View (Self-Lodged)' : 'Review & Endorse') : 'View Details'
+                              isSeniorAcct ? 'Initial Review & Endorse' : 'Awaiting Senior Acct'
                             )}
                           </Button>
                         </TableCell>
@@ -1157,21 +1161,77 @@ export default function ExpensesAdminPage() {
                     </>
                   ) : (
                     <div className="flex items-center justify-between w-full">
-                      <p className="text-xs text-muted-foreground font-medium">Stage 3: Endorsed. Awaiting Administrator sign-off.</p>
+                      <p className="text-xs text-muted-foreground font-medium">Stage 3: Endorsed by Compliance Reviewer. Awaiting Administrator sign-off.</p>
+                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                        Close
+                      </Button>
+                    </div>
+                  )
+                ) : selectedExpense.status === 'pending_reviewer' ? (
+                  isComplianceReviewer ? (
+                    selectedExpense.lodgedBy === user?.uid ? (
+                      <div className="flex items-center justify-between w-full">
+                        <p className="text-xs text-muted-foreground font-medium">You lodged this expense. Another compliance reviewer must review it.</p>
+                        <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                          Close
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleReview('reject')}
+                          disabled={isSubmitting}
+                          className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1 w-full md:w-auto shrink-0"
+                        >
+                          <Ban className="mr-2 h-4 w-4" /> Reject
+                        </Button>
+
+                        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 order-1 md:order-2 w-full md:w-auto">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setIsReviewOpen(false)}
+                            className="rounded-xl font-bold h-11 px-4 w-full sm:w-auto"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isSubmitting}
+                            onClick={() => handleReview('request_changes')}
+                            className="rounded-xl font-bold border-amber-500/30 text-amber-600 hover:bg-amber-500/10 h-11 px-4"
+                          >
+                            Request Changes
+                          </Button>
+                          <Button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => handleReview('endorse')}
+                            className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
+                          >
+                            {isSubmitting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4" />
+                            )}
+                            Endorse to Administrator
+                          </Button>
+                        </div>
+                      </>
+                    )
+                  ) : (
+                    <div className="flex items-center justify-between w-full">
+                      <p className="text-xs text-muted-foreground font-medium">Stage 2: Endorsed by Senior Accountant. Awaiting Compliance Reviewer.</p>
                       <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
                         Close
                       </Button>
                     </div>
                   )
                 ) : (
-                  selectedExpense.lodgedBy === user?.uid ? (
-                    <div className="flex items-center justify-between w-full">
-                      <p className="text-xs text-muted-foreground font-medium">Self-lodged proposal awaiting another reviewer.</p>
-                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
-                        Close
-                      </Button>
-                    </div>
-                  ) : canReview ? (
+                  isSeniorAcct ? (
                     <>
                       <Button
                         type="button"
@@ -1212,13 +1272,13 @@ export default function ExpensesAdminPage() {
                           ) : (
                             <CheckCircle2 className="h-4 w-4" />
                           )}
-                          Endorse to Administrator
+                          Endorse to Reviewer
                         </Button>
                       </div>
                     </>
                   ) : (
                     <div className="flex items-center justify-between w-full">
-                      <p className="text-xs text-muted-foreground font-medium">Stage 2: Maker-Checker. Awaiting Reviewer or Senior Accountant endorsement.</p>
+                      <p className="text-xs text-muted-foreground font-medium">Stage 1: Lodged. Awaiting Senior Accountant initial review.</p>
                       <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
                         Close
                       </Button>

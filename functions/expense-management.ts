@@ -134,33 +134,53 @@ export const reviewExpense = onCall({ cors: true }, async (request) => {
     }
 
     const expense = expenseSnap.data()!;
-    if (expense.lodgedBy === callerId || expense.recordedBy === callerId) {
-        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review an expense you initiated. Another authorized officer must review it.');
+    const isSeniorAcct = callerRole === 'senior_accountant';
+
+    if (isSeniorAcct) {
+        if (expense.status !== 'pending_review' && expense.status !== 'pending' && expense.status !== 'revision_requested') {
+            throw new HttpsError('failed-precondition', `Cannot perform initial review on expense with status '${expense.status}'.`);
+        }
+    } else {
+        // Reviewer or Management: ONLY reviews expenses that have been reviewed by Senior Accountant
+        if (expense.status !== 'pending_reviewer' && !expense.seniorReviewed) {
+            throw new HttpsError('failed-precondition', 'Reviewers can only review expenses that have been initiated and initially reviewed by the Senior Accountant.');
+        }
+        if (expense.lodgedBy === callerId || expense.recordedBy === callerId) {
+            throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review an expense you initiated. Another authorized officer must review it.');
+        }
     }
 
-    if (expense.status !== 'pending_review' && expense.status !== 'pending' && expense.status !== 'revision_requested') {
-        throw new HttpsError('failed-precondition', `Cannot review expense with status '${expense.status}'.`);
-    }
-
-    let nextStatus = 'pending_approval';
-    let actionName = 'REVIEW_EXPENSE_ENDORSED';
+    let nextStatus = isSeniorAcct ? 'pending_reviewer' : 'pending_approval';
+    let actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_EXPENSE_ENDORSED' : 'REVIEW_EXPENSE_ENDORSED';
     if (decision === 'request_changes') {
         nextStatus = 'revision_requested';
-        actionName = 'REVIEW_EXPENSE_REVISION_REQUESTED';
+        actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_EXPENSE_REVISION_REQUESTED' : 'REVIEW_EXPENSE_REVISION_REQUESTED';
     } else if (decision === 'reject') {
         nextStatus = 'rejected';
-        actionName = 'REVIEW_EXPENSE_REJECTED';
+        actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_EXPENSE_REJECTED' : 'REVIEW_EXPENSE_REJECTED';
     }
 
-    const reviewerName = userData?.name || userData?.email || 'Reviewer';
+    const reviewerName = userData?.name || userData?.email || (isSeniorAcct ? 'Senior Accountant' : 'Reviewer');
 
-    await expenseRef.update({
-        status: nextStatus,
-        reviewedBy: callerId,
-        reviewedByName: reviewerName,
-        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        reviewNotes: (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null
-    });
+    const updatePayload: any = {
+        status: nextStatus
+    };
+
+    if (isSeniorAcct) {
+        updatePayload.seniorReviewed = true;
+        updatePayload.seniorReviewedBy = callerId;
+        updatePayload.seniorReviewedByName = reviewerName;
+        updatePayload.seniorReviewedAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.seniorReviewNotes = (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null;
+    } else {
+        updatePayload.complianceReviewed = true;
+        updatePayload.reviewedBy = callerId;
+        updatePayload.reviewedByName = reviewerName;
+        updatePayload.reviewedAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.reviewNotes = (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null;
+    }
+
+    await expenseRef.update(updatePayload);
 
     await db.collection('audit_logs').add({
         action: actionName,
@@ -216,8 +236,8 @@ export const approveExpense = onCall({ cors: true }, async (request) => {
     if (expense.lodgedBy === callerId || expense.recordedBy === callerId || expense.createdBy === callerId) {
         throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve an expense you initiated. Another administrator must approve it.');
     }
-    if (expense.status !== 'pending_approval' && expense.status !== 'pending') {
-        throw new HttpsError('failed-precondition', `Cannot approve expense with status '${expense.status}'. It must be reviewed and endorsed first.`);
+    if (expense.status !== 'pending_approval') {
+        throw new HttpsError('failed-precondition', `Cannot approve expense with status '${expense.status}'. It must be reviewed and endorsed by both Senior Accountant and Compliance Reviewer first.`);
     }
 
     const approverName = userData?.name || userData?.email || 'Administrator';

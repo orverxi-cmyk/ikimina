@@ -453,33 +453,53 @@ export const reviewInterestDistribution = onCall({ cors: true }, async (request)
     }
 
     const reqData = reqSnap.data()!;
-    if (reqData.initiatedBy === callerUid) {
-        throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a proposal you initiated. Another authorized officer must review it.');
+    const isSeniorAcct = callerRole === 'senior_accountant';
+
+    if (isSeniorAcct) {
+        if (reqData.status !== 'pending_review' && reqData.status !== 'pending' && reqData.status !== 'revision_requested') {
+            throw new HttpsError('failed-precondition', `Cannot perform initial review on distribution proposal with status '${reqData.status}'.`);
+        }
+    } else {
+        // Reviewer or Management: ONLY reviews proposals that have been reviewed by Senior Accountant
+        if (reqData.status !== 'pending_reviewer' && !reqData.seniorReviewed) {
+            throw new HttpsError('failed-precondition', 'Reviewers can only review interest proposals that have been initiated and initially reviewed by the Senior Accountant.');
+        }
+        if (reqData.initiatedBy === callerUid) {
+            throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a proposal you initiated. Another authorized officer must review it.');
+        }
     }
 
-    if (reqData.status !== 'pending_review' && reqData.status !== 'pending' && reqData.status !== 'revision_requested') {
-        throw new HttpsError('failed-precondition', `Cannot review request with status '${reqData.status}'.`);
-    }
-
-    let nextStatus = 'pending_approval';
-    let actionName = 'REVIEW_INTEREST_DISTRIBUTION_ENDORSED';
+    let nextStatus = isSeniorAcct ? 'pending_reviewer' : 'pending_approval';
+    let actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_INTEREST_ENDORSED' : 'REVIEW_INTEREST_DISTRIBUTION_ENDORSED';
     if (decision === 'request_changes') {
         nextStatus = 'revision_requested';
-        actionName = 'REVIEW_INTEREST_DISTRIBUTION_REVISION_REQUESTED';
+        actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_INTEREST_REVISION_REQUESTED' : 'REVIEW_INTEREST_DISTRIBUTION_REVISION_REQUESTED';
     } else if (decision === 'reject') {
         nextStatus = 'rejected';
-        actionName = 'REVIEW_INTEREST_DISTRIBUTION_REJECTED';
+        actionName = isSeniorAcct ? 'SENIOR_ACCOUNTANT_INTEREST_REJECTED' : 'REVIEW_INTEREST_DISTRIBUTION_REJECTED';
     }
 
-    const reviewerName = callerData?.name || callerData?.email || 'Reviewer';
+    const reviewerName = callerData?.name || callerData?.email || (isSeniorAcct ? 'Senior Accountant' : 'Reviewer');
 
-    await reqRef.update({
-        status: nextStatus,
-        reviewedBy: callerUid,
-        reviewedByName: reviewerName,
-        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        reviewNotes: (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null
-    });
+    const updatePayload: any = {
+        status: nextStatus
+    };
+
+    if (isSeniorAcct) {
+        updatePayload.seniorReviewed = true;
+        updatePayload.seniorReviewedBy = callerUid;
+        updatePayload.seniorReviewedByName = reviewerName;
+        updatePayload.seniorReviewedAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.seniorReviewNotes = (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null;
+    } else {
+        updatePayload.complianceReviewed = true;
+        updatePayload.reviewedBy = callerUid;
+        updatePayload.reviewedByName = reviewerName;
+        updatePayload.reviewedAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.reviewNotes = (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null;
+    }
+
+    await reqRef.update(updatePayload);
 
     await db.collection('audit_logs').add({
         action: actionName,
@@ -529,8 +549,8 @@ export const approveInterestDistribution = onCall({ cors: true }, async (request
     }
 
     const reqData = reqSnap.data()!;
-    if (reqData.status !== 'pending_approval' && reqData.status !== 'pending') {
-        throw new HttpsError('failed-precondition', `Cannot approve distribution request with status '${reqData.status}'. It must be reviewed and endorsed first.`);
+    if (reqData.status !== 'pending_approval') {
+        throw new HttpsError('failed-precondition', `Cannot approve distribution request with status '${reqData.status}'. It must be reviewed and endorsed by both Senior Accountant and Compliance Reviewer first.`);
     }
 
     // SEGREGATION OF DUTIES (4-EYES / DUAL-CONTROL PRINCIPLE)
