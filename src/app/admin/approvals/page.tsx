@@ -1049,7 +1049,7 @@ export default function ApprovalsHubPage() {
             <TabsTrigger value="members" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Users className="h-3.5 w-3.5" /> Member Enrolls {pendingMemberBatches.length > 0 && `(${pendingMemberBatches.length})`}
             </TabsTrigger>
-            <TabsTrigger value="deletions" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5 text-destructive/90 data-[state=active]:text-destructive">
+            <TabsTrigger value="deletions" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <UserX className="h-3.5 w-3.5" /> Deletions {pendingDeletionRequests.length > 0 && `(${pendingDeletionRequests.length})`}
             </TabsTrigger>
             {canInitiate && (
