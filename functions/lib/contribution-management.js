@@ -150,8 +150,11 @@ exports.verifyContribution = (0, https_1.onCall)({ cors: true }, async (request)
         if (contribData.status !== 'reviewed') {
             throw new https_1.HttpsError('failed-precondition', 'Cannot approve. Contribution must be reviewed first. (Current status: ' + contribData.status + ')');
         }
-        if (contribData.memberId === request.auth.uid || contribData.recordedBy === request.auth.uid) {
-            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot verify your own deposit submission or a transaction you recorded.');
+        // Admin can approve their own submission — the Senior Accountant + Reviewer have already
+        // provided dual-control checks, eliminating the self-approval risk.
+        // However, an admin may NOT approve a transaction that was recorded BY them on behalf of a member.
+        if (contribData.recordedBy === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve a transaction you recorded on behalf of a member.');
         }
         const batch = db.batch();
         batch.update(contributionRef, {
@@ -1164,8 +1167,11 @@ exports.reviewContribution = (0, https_1.onCall)({ cors: true }, async (request)
         if (contribData.status !== 'pending_reviewer' && !contribData.seniorReviewed) {
             throw new https_1.HttpsError('failed-precondition', 'Reviewers can only review deposits that have been initially reviewed by the Senior Accountant.');
         }
-        if (contribData.memberId === request.auth.uid || contribData.recordedBy === request.auth.uid) {
-            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own deposit submission or a transaction you recorded.');
+        // Reviewer can review their own submission — the Senior Accountant has already reviewed
+        // it before it reached this stage, providing the required segregation of duties.
+        // However, a reviewer may NOT review a transaction they recorded on behalf of a member.
+        if (contribData.recordedBy === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a transaction you recorded on behalf of a member.');
         }
         await contributionRef.update({
             status: 'reviewed',

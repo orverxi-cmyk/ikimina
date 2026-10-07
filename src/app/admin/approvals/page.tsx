@@ -632,13 +632,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleActionSlip = async (decision: 'review' | 'verify' | 'reject') => {
     if (!inspectSlip || !user) return;
-    if (!isSeniorAccountant && isSlipInitiatedByCurrentUser(inspectSlip)) {
-      return toast({
-        variant: "destructive",
-        title: "Segregation of Duties Violation",
-        description: "You cannot verify your own deposit submission. Another administrator must verify it."
-      });
-    }
+
     if (!slipJustification.trim()) {
       return toast({ variant: "destructive", title: "Justification Required", description: "Please provide audit justification." });
     }
@@ -2204,12 +2198,7 @@ export default function ApprovalsHubPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {!isSeniorAccountant && isSlipInitiatedByCurrentUser(inspectSlip) && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>You cannot verify your own deposit submission. Another administrator must verify it.</span>
-            </div>
-          )}
+
 
           <div className="space-y-3 text-sm">
             <div className="flex justify-between py-1 border-b">
