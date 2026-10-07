@@ -233,10 +233,10 @@ export function AppSidebar() {
           {user && (
             <div className="p-2.5 bg-muted/60 hover:bg-muted rounded-xl border border-border/80 transition-colors">
               <div className="flex items-center justify-between mb-1.5 px-1">
-                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Logged In As</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Active Account</p>
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-[9px] text-primary font-bold uppercase tracking-tight">{role}</span>
+                  <span className="text-[9px] text-muted-foreground font-semibold">Online</span>
                 </div>
               </div>
 
@@ -306,6 +306,16 @@ export function AppSidebar() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+
+              {/* Bottom-left Logout Button */}
+              <Button
+                variant="ghost"
+                onClick={() => signOut(getAuth())}
+                className="w-full mt-2.5 justify-start text-xs font-bold text-destructive hover:bg-destructive/10 hover:text-destructive rounded-lg gap-2 h-9 px-2 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Log Out</span>
+              </Button>
             </div>
           )}
         </div>

@@ -482,11 +482,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         <div className="flex items-center justify-end">
-          <div className="hidden sm:flex items-center gap-2 text-[10px] font-bold text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/20">
-            <ShieldCheck className="h-3 w-3" />
-            {userRole.toUpperCase()} ACCESS
-          </div>
-          <Button variant="ghost" size="icon" onClick={handleLogout} className="sm:hidden text-white hover:bg-white/10">
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="md:hidden text-white hover:bg-white/10" title="Sign Out">
              <LogOut className="h-5 w-5" />
           </Button>
         </div>
@@ -561,6 +557,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   })}
                 </div>
               </nav>
+            </div>
+
+            {/* Bottom-left Logout Button (Desktop View) */}
+            <div className="p-3 border-t border-border/80 bg-muted/20 shrink-0 mt-auto">
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className="w-full justify-start text-xs font-bold text-destructive hover:bg-destructive/10 hover:text-destructive rounded-[10px] gap-2.5 h-10 px-3 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Log Out</span>
+              </Button>
             </div>
           </aside>
           
