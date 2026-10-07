@@ -77,13 +77,23 @@ export const recordContribution = onCall({ cors: true }, async (request) => {
         const batch = db.batch();
         const contributionRef = db.collection('contributions').doc();
 
+        const callerRole = adminData?.role;
+        const isSeniorAcct = callerRole === 'senior_accountant';
+        const isSelfSubmission = memberId === request.auth.uid;
+
         batch.set(contributionRef, {
             memberId,
             amount: Number(amount),
             period,
             date: admin.firestore.FieldValue.serverTimestamp(),
             recordedBy: request.auth.uid,
-            status: 'verified'
+            status: (isSeniorAcct && isSelfSubmission) ? 'pending_reviewer' : 'pending',
+            seniorReviewed: (isSeniorAcct && isSelfSubmission) ? true : false,
+            seniorReviewedBy: (isSeniorAcct && isSelfSubmission) ? request.auth.uid : null,
+            seniorReviewedAt: (isSeniorAcct && isSelfSubmission) ? admin.firestore.FieldValue.serverTimestamp() : null,
+            seniorReviewJustification: (isSeniorAcct && isSelfSubmission) ? 'Self-recorded by Senior Accountant' : null,
+            justification: justification.trim(),
+            entryMethod: 'manual'
         });
 
         // Log the action
@@ -135,8 +145,8 @@ export const verifyContribution = onCall({ cors: true }, async (request) => {
         }
         // Admin can approve their own submission — the Senior Accountant + Reviewer have already
         // provided dual-control checks, eliminating the self-approval risk.
-        // However, an admin may NOT approve a transaction that was recorded BY them on behalf of a member.
-        if (contribData.recordedBy === request.auth.uid) {
+        // However, an admin may NOT approve a transaction that was recorded BY them on behalf of another member.
+        if (contribData.recordedBy === request.auth.uid && contribData.memberId !== request.auth.uid) {
             throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve a transaction you recorded on behalf of a member.');
         }
 
@@ -1307,8 +1317,8 @@ export const reviewContribution = onCall({ cors: true }, async (request) => {
         }
         // Reviewer can review their own submission — the Senior Accountant has already reviewed
         // it before it reached this stage, providing the required segregation of duties.
-        // However, a reviewer may NOT review a transaction they recorded on behalf of a member.
-        if (contribData.recordedBy === request.auth.uid) {
+        // However, a reviewer may NOT review a transaction they recorded on behalf of another member.
+        if (contribData.recordedBy === request.auth.uid && contribData.memberId !== request.auth.uid) {
             throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a transaction you recorded on behalf of a member.');
         }
         await contributionRef.update({

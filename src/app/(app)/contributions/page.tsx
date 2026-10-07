@@ -213,7 +213,7 @@ export default function ContributionsPage() {
 
     try {
       await recordContributionAction(user.uid, data);
-      toast({ title: "Recorded", description: "Manual contribution has been officially added to the ledger." });
+      toast({ title: "Recorded", description: "Manual contribution submitted for audit review." });
       setIsManualEntryOpen(false);
     } catch (error: any) {
       const parsed = parseAppError(error);
@@ -398,6 +398,9 @@ export default function ContributionsPage() {
               <Plus className="mr-1.5 h-4 w-4 shrink-0" /> Manual Entry
             </Button>
           )}
+          <Button onClick={() => setIsSubmitOpen(true)} className="rounded-xl h-10 px-4 font-bold text-[12px] shadow-sm justify-center bg-blue-600 hover:bg-blue-700 text-white">
+            <Upload className="mr-1.5 h-4 w-4 shrink-0" /> Submit Contribution
+          </Button>
         </div>
       </div>
 
@@ -584,16 +587,14 @@ export default function ContributionsPage() {
       )}
 
       {/* Bottom Submit Contribution Action - Floating on Mobile, Integrated on Desktop */}
-      {!isManagement && (
-        <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-4 sm:flex sm:justify-end">
-          <Button 
-            onClick={() => setIsSubmitOpen(true)} 
-            className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 border border-blue-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
-          >
-            <Upload className="h-4 w-4" /> Submit Contribution
-          </Button>
-        </div>
-      )}
+      <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-4 sm:flex sm:justify-end">
+        <Button 
+          onClick={() => setIsSubmitOpen(true)} 
+          className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 border border-blue-500/40 backdrop-blur-md active:scale-[0.98] transition-all"
+        >
+          <Upload className="h-4 w-4" /> Submit Contribution
+        </Button>
+      </div>
 
       {/* Submit Contribution Modal Dialog (Members) */}
       <Dialog open={isSubmitOpen} onOpenChange={setIsSubmitOpen}>
@@ -713,7 +714,7 @@ export default function ContributionsPage() {
             <DialogFooter>
                <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-xl font-bold shadow-lg">
                  {isSubmitting ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : <ShieldCheck className="h-5 w-5 mr-2" />}
-                 Post to Ledger
+                 Submit for Review
                </Button>
             </DialogFooter>
           </form>
