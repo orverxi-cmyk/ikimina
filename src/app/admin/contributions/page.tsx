@@ -33,6 +33,7 @@ import {
   User,
   Calendar,
   AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, doc } from 'firebase/firestore';
@@ -232,20 +233,29 @@ export default function AdminContributionsPage() {
     return [];
   }, [isSuperAdmin, isSeniorAccountant, isReviewer, slipsReadyForAdminApproval, allSlips]);
 
+  // Active list for the quick action card: actionable slips take precedence;
+  // if Admin has no slips ready for approval, display pending slips awaiting review.
+  const currentQuickCardList = useMemo(() => {
+    if (userActionableSlips.length > 0) return userActionableSlips;
+    if (isSuperAdmin && slipsAwaitingReview.length > 0) return slipsAwaitingReview;
+    return [];
+  }, [userActionableSlips, isSuperAdmin, slipsAwaitingReview]);
+
+  // Keep quickCardIndex within bounds
+  useEffect(() => {
+    if (quickCardIndex >= currentQuickCardList.length && currentQuickCardList.length > 0) {
+      setQuickCardIndex(currentQuickCardList.length - 1);
+    }
+  }, [currentQuickCardList.length, quickCardIndex]);
+
   // Active slip for the top Quick Card
   const activeQuickSlip = useMemo(() => {
-    if (userActionableSlips.length > 0) {
-      const safeIdx = Math.min(quickCardIndex, userActionableSlips.length - 1);
-      return userActionableSlips[safeIdx >= 0 ? safeIdx : 0];
+    if (currentQuickCardList.length > 0) {
+      const safeIdx = Math.min(quickCardIndex, currentQuickCardList.length - 1);
+      return currentQuickCardList[safeIdx >= 0 ? safeIdx : 0];
     }
-    // If Admin has no slips ready for approval, but there are unreviewed slips pending:
-    if (isSuperAdmin && slipsAwaitingReview.length > 0) {
-      const safeIdx = Math.min(quickCardIndex, slipsAwaitingReview.length - 1);
-      return slipsAwaitingReview[safeIdx >= 0 ? safeIdx : 0];
-    }
-    // No pending items — return null so the card shows an "up to date" state
     return null;
-  }, [userActionableSlips, isSuperAdmin, slipsAwaitingReview, quickCardIndex]);
+  }, [currentQuickCardList, quickCardIndex]);
 
   // KPI numbers
   const totalContributedSlips = useMemo(() => approvedSlips.reduce((s, c) => s + (Number(c.amount) || 0), 0), [approvedSlips]);
@@ -347,6 +357,7 @@ export default function AdminContributionsPage() {
       }
       setActionSlip(null);
       setActionJustification('');
+      setQuickCardIndex(0);
     } catch (err: any) {
       const parsed = parseAppError(err);
       toast({
@@ -444,344 +455,388 @@ export default function AdminContributionsPage() {
       <div className="flex flex-col xl:flex-row gap-6 items-start">
 
         {/* LEFT: QUICK APPROVAL / QUICK REVIEW CARD */}
-        {(activeQuickSlip || userActionableSlips.length > 0 || (isSuperAdmin && slipsAwaitingReview.length > 0)) && (
-          <div className="w-full xl:w-[340px] shrink-0">
-          <Card className="border border-primary/20 bg-gradient-to-br from-card via-card to-primary/[0.03] shadow-md rounded-2xl overflow-hidden">
-        <CardHeader className="bg-primary/10 border-b border-primary/15 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "p-2 rounded-xl text-white shadow-sm",
-              isSuperAdmin ? "bg-emerald-600" : "bg-primary"
-            )}>
-              {isSuperAdmin ? <CheckCircle2 className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <CardTitle className="text-sm font-bold text-foreground">
-                  {isSuperAdmin
-                    ? 'Quick Approval — Latest Contribution Deposit'
-                    : 'Quick Review — Latest Contribution Deposit'}
-                </CardTitle>
-                {isSuperAdmin ? (
-                  activeQuickSlip?.status === 'reviewed' ? (
-                    <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-400/40 text-[9px] uppercase font-bold animate-pulse">
-                      Ready for Your Approval
-                    </Badge>
-                  ) : activeQuickSlip && (activeQuickSlip.status === 'pending' || activeQuickSlip.status === 'pending_reviewer') ? (
-                    <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-400/40 text-[9px] uppercase font-bold">
-                      Awaiting Initial Review
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-400/40 text-[9px] uppercase font-bold">
-                      Up To Date
-                    </Badge>
-                  )
-                ) : (
-                  activeQuickSlip && PENDING_STATUSES.includes(activeQuickSlip.status) ? (
-                    <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-400/40 text-[9px] uppercase font-bold animate-pulse">
-                      Action Required
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-400/40 text-[9px] uppercase font-bold">
-                      Up To Date
-                    </Badge>
-                  )
-                )}
-              </div>
-              <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                {isSuperAdmin ? (
-                  userActionableSlips.length > 0
-                    ? `Showing reviewed deposits awaiting executive ratification (${quickCardIndex + 1} of ${userActionableSlips.length})`
-                    : slipsAwaitingReview.length > 0
-                    ? `No deposits currently awaiting your approval. ${slipsAwaitingReview.length} deposit(s) must first be reviewed by a Senior Accountant / Reviewer.`
-                    : 'All incoming deposits have been ratified and committed into the official ledger.'
-                ) : (
-                  userActionableSlips.length > 0
-                    ? `Showing pending deposits awaiting dual-control verification (${quickCardIndex + 1} of ${userActionableSlips.length})`
-                    : 'All incoming deposits assigned to your review queue are completed.'
-                )}
-              </CardDescription>
-            </div>
-          </div>
+        {(activeQuickSlip || currentQuickCardList.length > 0) && (
+          <div className="w-full xl:w-[350px] 2xl:w-[380px] shrink-0">
+            <Card className="border border-border/80 bg-card shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader className="bg-muted/40 border-b border-border/60 p-4 sm:p-5 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={cn(
+                      "p-2 rounded-xl text-white shadow-2xs shrink-0",
+                      isSuperAdmin ? "bg-emerald-600" : "bg-primary"
+                    )}>
+                      {isSuperAdmin ? <CheckCircle2 className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-sm font-bold text-foreground truncate">
+                        {isSuperAdmin ? 'Quick Approval' : 'Quick Review'}
+                      </CardTitle>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {isSuperAdmin ? 'Executive approval queue' : 'Dual-control review queue'}
+                      </p>
+                    </div>
+                  </div>
 
-          {/* Stepper controls if multiple actionable deposits exist */}
-          {userActionableSlips.length > 1 && (
-            <div className="flex items-center gap-1.5 self-start sm:self-center bg-background/80 border border-border rounded-xl p-1 shadow-xs">
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={quickCardIndex === 0}
-                onClick={() => setQuickCardIndex(prev => Math.max(0, prev - 1))}
-                className="h-7 w-7 rounded-lg"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-              <span className="text-[11px] font-bold px-2 text-muted-foreground">
-                {quickCardIndex + 1} / {userActionableSlips.length}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={quickCardIndex >= userActionableSlips.length - 1}
-                onClick={() => setQuickCardIndex(prev => Math.min(userActionableSlips.length - 1, prev + 1))}
-                className="h-7 w-7 rounded-lg"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          )}
-        </CardHeader>
+                  {/* Stepper controls if multiple items exist */}
+                  {currentQuickCardList.length > 1 && (
+                    <div className="flex items-center gap-1 bg-background border border-border/70 rounded-xl p-0.5 shadow-2xs shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={quickCardIndex === 0}
+                        onClick={() => setQuickCardIndex(prev => Math.max(0, prev - 1))}
+                        className="h-6 w-6 rounded-lg"
+                      >
+                        <ChevronLeft className="h-3 w-3" />
+                      </Button>
+                      <span className="text-[10px] font-bold px-1.5 text-muted-foreground whitespace-nowrap">
+                        {quickCardIndex + 1}/{currentQuickCardList.length}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={quickCardIndex >= currentQuickCardList.length - 1}
+                        onClick={() => setQuickCardIndex(prev => Math.min(currentQuickCardList.length - 1, prev + 1))}
+                        className="h-6 w-6 rounded-lg"
+                      >
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
-        <CardContent className="p-4 sm:p-6">
-          {isLoading ? (
-            <div className="py-8 text-center space-y-2">
-              <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
-              <p className="text-xs text-muted-foreground">Loading contribution deposit details…</p>
-            </div>
-          ) : !activeQuickSlip ? (
-            <div className="py-8 text-center text-xs text-muted-foreground italic">
-              No contribution deposits found in the system.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              {/* Member Profile & Slip Info */}
-              <div className="lg:col-span-5 flex items-start gap-4">
-                {(() => {
-                  const member = getMemberData(activeQuickSlip.memberId);
-                  const memberName = member?.name || activeQuickSlip.memberId || 'Unknown Member';
-                  const initials = memberName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-                  const isSelf = isSlipInitiatedByCurrentUser(activeQuickSlip);
-                  return (
-                    <>
-                      <Avatar className="h-12 w-12 border-2 border-primary/20 shadow-sm shrink-0">
-                        {member?.avatarUrl && <AvatarImage src={member.avatarUrl} alt={memberName} />}
-                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">{initials}</AvatarFallback>
-                      </Avatar>
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-bold text-sm text-foreground truncate">{memberName}</p>
-                          <StatusBadge status={activeQuickSlip.status} />
-                          {isSelf && (
-                            <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[8px] font-bold">
-                              Initiated by you
-                            </Badge>
-                          )}
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {isSuperAdmin ? (
+                      activeQuickSlip?.status === 'reviewed' ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-400/40 text-[9px] uppercase font-bold animate-pulse">
+                          Ready for Your Approval
+                        </Badge>
+                      ) : activeQuickSlip && (activeQuickSlip.status === 'pending' || activeQuickSlip.status === 'pending_reviewer') ? (
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-400/40 text-[9px] uppercase font-bold">
+                          Awaiting Initial Review
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-400/40 text-[9px] uppercase font-bold">
+                          Up To Date
+                        </Badge>
+                      )
+                    ) : (
+                      activeQuickSlip && PENDING_STATUSES.includes(activeQuickSlip.status) ? (
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-400/40 text-[9px] uppercase font-bold animate-pulse">
+                          Action Required
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-400/40 text-[9px] uppercase font-bold">
+                          Up To Date
+                        </Badge>
+                      )
+                    )}
+                  </div>
+                  <CardDescription className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                    {isSuperAdmin ? (
+                      userActionableSlips.length > 0
+                        ? `Reviewed deposit awaiting executive ratification (${quickCardIndex + 1} of ${userActionableSlips.length}).`
+                        : slipsAwaitingReview.length > 0
+                        ? `${slipsAwaitingReview.length} deposit(s) must first be reviewed by Senior Accountant / Reviewer.`
+                        : 'All incoming deposits have been ratified into the official ledger.'
+                    ) : (
+                      userActionableSlips.length > 0
+                        ? `Pending deposit awaiting dual-control verification (${quickCardIndex + 1} of ${userActionableSlips.length}).`
+                        : 'All incoming deposits assigned to your review queue are completed.'
+                    )}
+                  </CardDescription>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5">
+                {isLoading ? (
+                  <div className="py-8 text-center space-y-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+                    <p className="text-xs text-muted-foreground">Loading deposit details…</p>
+                  </div>
+                ) : !activeQuickSlip ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground italic">
+                    No contribution deposits found in the system.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {/* Member Profile Box */}
+                    {(() => {
+                      const member = getMemberData(activeQuickSlip.memberId);
+                      const memberName = member?.name || activeQuickSlip.memberId || 'Unknown Member';
+                      const initials = memberName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                      const isSelf = isSlipInitiatedByCurrentUser(activeQuickSlip);
+                      return (
+                        <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 border border-border/60">
+                          <Avatar className="h-10 w-10 border border-primary/20 shadow-2xs shrink-0">
+                            {member?.avatarUrl && <AvatarImage src={member.avatarUrl} alt={memberName} />}
+                            <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">{initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <p className="font-bold text-sm text-foreground truncate">{memberName}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <StatusBadge status={activeQuickSlip.status} />
+                              {isSelf && (
+                                <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[9px] font-bold">
+                                  Initiated by you
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {member?.email || member?.phone || `ID: ${activeQuickSlip.memberId?.slice(0, 10)}`}
+                            </p>
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                              <Calendar className="h-3 w-3 text-primary shrink-0" />
+                              <span className="truncate">Submitted: {formatDate(activeQuickSlip.createdAt || activeQuickSlip.date)}</span>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {member?.email || member?.phone || `ID: ${activeQuickSlip.memberId?.slice(0, 10)}`}
+                      );
+                    })()}
+
+                    {/* Amount & Period Card */}
+                    <div className="p-3.5 rounded-xl bg-card border border-border/80 shadow-2xs space-y-2">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                          Deposit Amount
+                        </span>
+                        <p className="text-xl sm:text-2xl font-black text-primary tracking-tight font-headline mt-0.5 break-words">
+                          {formatCurrency(Number(activeQuickSlip.amount) || 0, currency)}
                         </p>
-                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-1">
-                          <Calendar className="h-3 w-3 text-primary shrink-0" />
-                          <span>Submitted: {formatDate(activeQuickSlip.createdAt || activeQuickSlip.date)}</span>
-                        </div>
-                        {activeQuickSlip.proofUrl && (
+                      </div>
+
+                      <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-2 text-xs">
+                        <span className="text-muted-foreground font-semibold">Period:</span>
+                        <span className="font-bold text-foreground truncate">{activeQuickSlip.period || 'General Contribution'}</span>
+                      </div>
+
+                      {activeQuickSlip.reviewedByName && (
+                        <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold truncate pt-0.5 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 shrink-0" /> Reviewed by {activeQuickSlip.reviewedByName}
+                        </p>
+                      )}
+
+                      {activeQuickSlip.proofUrl && (
+                        <div className="pt-1">
                           <a
                             href={activeQuickSlip.proofUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline pt-0.5"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
                           >
-                            <ExternalLink className="h-3 w-3" /> View Deposit Receipt Slip
+                            <ExternalLink className="h-3 w-3 shrink-0" /> View Deposit Receipt Slip
                           </a>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
+                        </div>
+                      )}
 
-              {/* Amount & Period */}
-              <div className="lg:col-span-3 border-y lg:border-y-0 lg:border-x border-border/60 py-3 lg:py-0 lg:px-6 space-y-1">
-                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
-                  Deposit Amount
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-primary tracking-tight">
-                  {formatCurrency(Number(activeQuickSlip.amount) || 0, currency)}
-                </p>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">Period:</span>
-                  <span>{activeQuickSlip.period || 'General Contribution'}</span>
-                </div>
-                {activeQuickSlip.reviewedByName && (
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold truncate pt-0.5">
-                    ✓ Reviewed by {activeQuickSlip.reviewedByName}
-                  </p>
-                )}
-                {activeQuickSlip.notes && (
-                  <p className="text-[11px] text-muted-foreground italic truncate">
-                    &ldquo;{activeQuickSlip.notes}&rdquo;
-                  </p>
-                )}
-              </div>
+                      {activeQuickSlip.notes && (
+                        <p className="text-[11px] text-muted-foreground italic bg-muted/40 p-2 rounded-lg border border-border/40 mt-1">
+                          &ldquo;{activeQuickSlip.notes}&rdquo;
+                        </p>
+                      )}
+                    </div>
 
-              {/* Action Buttons Column */}
-              <div className="lg:col-span-4 flex flex-col gap-2 justify-center">
-                {/* 1. SUPER ADMIN: Can only APPROVE reviewed slips. CAN NEVER REVIEW. */}
-                {isSuperAdmin ? (
-                  activeQuickSlip.status === 'reviewed' ? (
-                    <>
-                      <Button
-                        onClick={() => openApproveModal(activeQuickSlip)}
-                        disabled={isSlipInitiatedByCurrentUser(activeQuickSlip)}
-                        className="rounded-xl font-bold text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm gap-1.5 w-full"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Approve Deposit
-                      </Button>
-                      <div className="flex items-center gap-2 w-full">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setInspectSlip(activeQuickSlip)}
-                          className="rounded-xl text-xs font-bold gap-1 flex-1 h-8"
-                        >
-                          <Eye className="h-3.5 w-3.5" /> Details
-                        </Button>
-                        <Link href="/admin/approvals" className="flex-1">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="rounded-xl text-xs font-bold gap-1 w-full h-8"
-                          >
-                            <ArrowUpRight className="h-3.5 w-3.5" /> Approvals Hub
-                          </Button>
-                        </Link>
-                      </div>
-                    </>
-                  ) : activeQuickSlip.status === 'pending' || activeQuickSlip.status === 'pending_reviewer' ? (
-                    <div className="space-y-2 w-full">
-                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                          Dual-Control Segregation
-                        </p>
-                        <p className="text-[11px] mt-0.5">
-                          Requires initial review by Senior Accountant / Reviewer before you can approve.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 w-full">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setInspectSlip(activeQuickSlip)}
-                          className="rounded-xl text-xs font-bold gap-1 flex-1 h-8"
-                        >
-                          <Eye className="h-3.5 w-3.5" /> Details
-                        </Button>
-                        <Link href="/admin/approvals" className="flex-1">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="rounded-xl text-xs font-bold gap-1 w-full h-8"
-                          >
-                            <ArrowUpRight className="h-3.5 w-3.5" /> Approvals Hub
-                          </Button>
-                        </Link>
-                      </div>
+                    {/* Workflow / Segregation Callout & Action Buttons */}
+                    <div className="flex flex-col gap-2 pt-1">
+                      {isSuperAdmin ? (
+                        activeQuickSlip.status === 'reviewed' ? (
+                          <>
+                            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-900 dark:text-emerald-200">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> Ready For Ratification
+                              </p>
+                              <p className="text-[11px] mt-0.5">
+                                Senior review completed. You can approve and commit this deposit into the ledger.
+                              </p>
+                            </div>
+                            <Button
+                              onClick={() => openApproveModal(activeQuickSlip)}
+                              disabled={isSlipInitiatedByCurrentUser(activeQuickSlip)}
+                              className="rounded-xl font-bold text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm gap-1.5 w-full"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Approve Deposit
+                            </Button>
+                            <div className="grid grid-cols-2 gap-2 w-full">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setInspectSlip(activeQuickSlip)}
+                                className="rounded-xl text-xs font-bold gap-1 w-full h-8"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Details
+                              </Button>
+                              <Link href="/admin/approvals" className="w-full">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="rounded-xl text-xs font-bold gap-1 w-full h-8"
+                                >
+                                  <ArrowUpRight className="h-3.5 w-3.5" /> Approvals
+                                </Button>
+                              </Link>
+                            </div>
+                          </>
+                        ) : activeQuickSlip.status === 'pending' || activeQuickSlip.status === 'pending_reviewer' ? (
+                          <div className="space-y-2.5 w-full">
+                            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200">
+                              <div className="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                                <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+                                <span>Dual-Control Segregation</span>
+                              </div>
+                              <p className="text-[11px] mt-1 leading-relaxed text-amber-800 dark:text-amber-300">
+                                Requires initial review by Senior Accountant / Reviewer before you can approve.
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 w-full">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setInspectSlip(activeQuickSlip)}
+                                className="rounded-xl text-xs font-bold gap-1 w-full h-8"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Details
+                              </Button>
+                              <Link href="/admin/approvals" className="w-full">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="rounded-xl text-xs font-bold gap-1 w-full h-8"
+                                >
+                                  <ArrowUpRight className="h-3.5 w-3.5" /> Approvals
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 w-full">
+                            <div className="p-2.5 rounded-xl bg-muted/40 border border-border/50 text-xs space-y-0.5">
+                              <p className="text-[10px] font-bold uppercase text-muted-foreground">Ledger Record</p>
+                              <p className="text-foreground font-semibold">
+                                {activeQuickSlip.approvedByName || activeQuickSlip.verifiedByName || 'Official Ledger Committed'}
+                              </p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setInspectSlip(activeQuickSlip)}
+                              className="w-full rounded-xl text-xs font-bold gap-1 h-8"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> View Audit Trail
+                            </Button>
+                          </div>
+                        )
+                      ) : (
+                        (isSeniorAccountant && activeQuickSlip.status === 'pending') ||
+                        (isReviewer && !isSuperAdmin && activeQuickSlip.status === 'pending_reviewer') ? (
+                          <>
+                            <Button
+                              onClick={() => openReviewModal(activeQuickSlip)}
+                              className="rounded-xl font-bold text-xs h-9 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 gap-1.5 w-full"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> Review Deposit
+                            </Button>
+                            <div className="grid grid-cols-2 gap-2 w-full">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setInspectSlip(activeQuickSlip)}
+                                className="rounded-xl text-xs font-bold gap-1 w-full h-8"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Details
+                              </Button>
+                              <Link href="/admin/approvals" className="w-full">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="rounded-xl text-xs font-bold gap-1 w-full h-8"
+                                >
+                                  <ArrowUpRight className="h-3.5 w-3.5" /> Approvals
+                                </Button>
+                              </Link>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-2 w-full">
+                            <div className="p-2.5 rounded-xl bg-muted/40 border border-border/50 text-xs space-y-0.5">
+                              <p className="text-[10px] font-bold uppercase text-muted-foreground">Status</p>
+                              <p className="text-foreground font-semibold">
+                                {STATUS_CONFIG[activeQuickSlip.status]?.label || activeQuickSlip.status}
+                              </p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setInspectSlip(activeQuickSlip)}
+                              className="w-full rounded-xl text-xs font-bold gap-1 h-8"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> View Audit Trail
+                            </Button>
+                          </div>
+                        )
+                      )}
                     </div>
-                  ) : (
-                    <div className="space-y-2 w-full">
-                      <div className="p-2.5 rounded-xl bg-muted/40 border border-border/50 text-xs space-y-0.5">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Ledger Record</p>
-                        <p className="text-foreground font-semibold">
-                          {activeQuickSlip.approvedByName || activeQuickSlip.verifiedByName || 'Official Ledger Committed'}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInspectSlip(activeQuickSlip)}
-                        className="w-full rounded-xl text-xs font-bold gap-1 h-8"
-                      >
-                        <Eye className="h-3.5 w-3.5" /> View Audit Trail
-                      </Button>
-                    </div>
-                  )
-                ) : (
-                  /* 2. SENIOR ACCOUNTANT / REVIEWER: Reviews initial pending slips. */
-                  (isSeniorAccountant && activeQuickSlip.status === 'pending') ||
-                  (isReviewer && !isSuperAdmin && activeQuickSlip.status === 'pending_reviewer') ? (
-                    <>
-                      <Button
-                        onClick={() => openReviewModal(activeQuickSlip)}
-                        className="rounded-xl font-bold text-xs h-9 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 gap-1.5 w-full"
-                      >
-                        <Eye className="h-3.5 w-3.5" /> Review Deposit
-                      </Button>
-                      <div className="flex items-center gap-2 w-full">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setInspectSlip(activeQuickSlip)}
-                          className="rounded-xl text-xs font-bold gap-1 flex-1 h-8"
-                        >
-                          <Eye className="h-3.5 w-3.5" /> Details
-                        </Button>
-                        <Link href="/admin/approvals" className="flex-1">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="rounded-xl text-xs font-bold gap-1 w-full h-8"
-                          >
-                            <ArrowUpRight className="h-3.5 w-3.5" /> Approvals Hub
-                          </Button>
-                        </Link>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="space-y-2 w-full">
-                      <div className="p-2.5 rounded-xl bg-muted/40 border border-border/50 text-xs space-y-0.5">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Status</p>
-                        <p className="text-foreground font-semibold">
-                          {STATUS_CONFIG[activeQuickSlip.status]?.label || activeQuickSlip.status}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInspectSlip(activeQuickSlip)}
-                        className="w-full rounded-xl text-xs font-bold gap-1 h-8"
-                      >
-                        <Eye className="h-3.5 w-3.5" /> View Audit Trail
-                      </Button>
-                    </div>
-                  )
+                  </div>
                 )}
-              </div>
-            </div>
-          )}
-        </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
           </div>
         )}{/* end left quick card */}
 
         {/* RIGHT: KPIs + Table */}
         <div className="flex-1 min-w-0 space-y-4 sm:space-y-6">
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        {[
-          { label: 'Total Verified Savings', value: formatCurrency(totalContributed, currency), icon: TrendingUp, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/10' },
-          {
-            label: isSuperAdmin ? 'Ready For Approval' : 'Pending Review',
-            value: isSuperAdmin ? String(slipsReadyForAdminApproval.length) : String(pendingSlips.length + pendingBatches.length),
-            icon: Clock,
-            color: 'text-amber-600 dark:text-amber-400',
-            bg: 'bg-amber-500/10'
-          },
-          { label: 'Approved Slips', value: String(approvedSlips.length), icon: CheckCircle2, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500/10' },
-          { label: 'Approved Batches', value: String(approvedBatches.length), icon: Layers, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-500/10' },
-        ].map(k => (
-          <Card key={k.label} className="border border-border rounded-2xl shadow-sm bg-card">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={cn('p-2.5 rounded-xl shrink-0', k.bg)}>
-                <k.icon className={cn('h-5 w-5', k.color)} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider truncate">{k.label}</p>
-                <p className="text-base sm:text-lg font-bold text-foreground truncate mt-0.5">{k.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+          {/* RESPONSIVE KPI CARDS */}
+          <div className="grid grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4 gap-3 sm:gap-4">
+            {[
+              {
+                label: 'Total Verified Savings',
+                value: formatCurrency(totalContributed, currency),
+                icon: TrendingUp,
+                color: 'text-emerald-600 dark:text-emerald-400',
+                bg: 'bg-emerald-500/10 dark:bg-emerald-500/20'
+              },
+              {
+                label: isSuperAdmin ? 'Ready For Approval' : 'Pending Review',
+                value: isSuperAdmin ? String(slipsReadyForAdminApproval.length) : String(pendingSlips.length + pendingBatches.length),
+                icon: Clock,
+                color: 'text-amber-600 dark:text-amber-400',
+                bg: 'bg-amber-500/10 dark:bg-amber-500/20'
+              },
+              {
+                label: 'Approved Slips',
+                value: String(approvedSlips.length),
+                icon: CheckCircle2,
+                color: 'text-blue-600 dark:text-blue-400',
+                bg: 'bg-blue-500/10 dark:bg-blue-500/20'
+              },
+              {
+                label: 'Approved Batches',
+                value: String(approvedBatches.length),
+                icon: Layers,
+                color: 'text-violet-600 dark:text-violet-400',
+                bg: 'bg-violet-500/10 dark:bg-violet-500/20'
+              },
+            ].map(k => (
+              <Card key={k.label} className="border border-border/80 rounded-2xl shadow-2xs bg-card hover:border-primary/30 transition-all duration-200">
+                <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground leading-snug">
+                      {k.label}
+                    </span>
+                    <div className={cn('p-2 rounded-xl shrink-0', k.bg)}>
+                      <k.icon className={cn('h-4 w-4', k.color)} />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xl sm:text-2xl font-black font-headline text-foreground tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                      {k.value}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
       {/* FILTER SEARCH & TABS */}
       <div className="space-y-4">

@@ -57,6 +57,7 @@ import {
   recordRepaymentAction, 
   verifyRepaymentAction, 
   approveLoanAction, 
+  reviewLoanAction,
   rejectLoanAction,
   withdrawLoanApplicationAction,
   getGroupLiquidityMetricsAction 
@@ -395,48 +396,72 @@ function LoansPageContent() {
     }
   };
 
-  const handleApproveLoan = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleReviewOrApproveLoan = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedLoan || !isManagement) return;
     if (isBrowserOffline()) {
       toast({
         variant: "destructive",
         title: "Network Connection Lost",
-        description: "Unable to disburse funds while offline. Please check your connection."
+        description: "Unable to process request while offline. Please check your connection."
       });
       return;
     }
 
-    const requestedAmt = Number(selectedLoan.amount) || 0;
-    const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : Infinity;
-    if (requestedAmt > availableGroupPool) {
+    const formData = new FormData(e.currentTarget);
+    const justification = formData.get('justification') as string;
+
+    if (!justification || !justification.trim()) {
       toast({
         variant: "destructive",
-        title: "No Funds Available to Loan From",
-        description: `This loan of ${formatCurrency(requestedAmt, currency)} exceeds the lending pool ceiling of ${liquidityMetrics?.maxLendingPoolPercentage ?? 90}% (${formatCurrency(availableGroupPool, currency)} currently available).`
+        title: "Justification Required",
+        description: "Please provide an audit justification note."
       });
       return;
     }
 
     setIsSubmitting(true);
-    
-    const calculatedInterest = Math.round(selectedLoan.amount * (globalRate / 100));
-
-    const terms = {
-      interestAmount: calculatedInterest,
-      durationMonths: Number(new FormData(e.currentTarget).get('durationMonths')),
-      startDate: new FormData(e.currentTarget).get('startDate') as string,
-      interestType: globalInterestType || 'immediate',
-      penaltyRate: globalPenaltyRate,
-      checkUrl: ''
-    };
-    const justification = new FormData(e.currentTarget).get('justification') as string;
 
     try {
-      await approveLoanAction({ loanId: selectedLoan.id, terms, justification });
-      toast({ title: "Loan Approved", description: "Borrower has been notified and funds released." });
-      setIsApproveOpen(false);
+      if (isSuperAdmin) {
+        // Administrator: Final approval and disbursement
+        const requestedAmt = Number(selectedLoan.amount) || 0;
+        const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : Infinity;
+        if (requestedAmt > availableGroupPool) {
+          toast({
+            variant: "destructive",
+            title: "No Funds Available to Loan From",
+            description: `This loan of ${formatCurrency(requestedAmt, currency)} exceeds the lending pool ceiling of ${liquidityMetrics?.maxLendingPoolPercentage ?? 90}% (${formatCurrency(availableGroupPool, currency)} currently available).`
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        const calculatedInterest = Math.round(selectedLoan.amount * (globalRate / 100));
+        const terms = {
+          interestAmount: calculatedInterest,
+          durationMonths: Number(formData.get('durationMonths')) || (Number(selectedLoan.durationMonths) || 12),
+          startDate: (formData.get('startDate') as string) || new Date().toISOString().split('T')[0],
+          interestType: globalInterestType || 'immediate',
+          penaltyRate: globalPenaltyRate,
+          checkUrl: ''
+        };
+
+        await approveLoanAction({ loanId: selectedLoan.id, terms, justification: justification.trim() });
+        toast({ title: "Loan Approved", description: "Facility approved and funds released to member." });
+      } else {
+        // Senior Accountant or Reviewer: Reviews loan facility
+        await reviewLoanAction({ loanId: selectedLoan.id, justification: justification.trim() });
+        toast({
+          title: "Loan Reviewed",
+          description: isSeniorAccountant 
+            ? "Initial review completed and application forwarded to Reviewer."
+            : "Compliance review completed and application forwarded for Admin approval."
+        });
+      }
+
       setIsReviewOpen(false);
+      setIsApproveOpen(false);
       await loadLiquidityMetrics();
     } catch (error: any) {
       const appErr = parseAppError(error);
@@ -1244,21 +1269,25 @@ function LoansPageContent() {
             const currentActiveLoanBalance = liquidityMetrics?.currentActiveLoanBalance ?? 0;
 
             return (
-              <form onSubmit={handleApproveLoan} className="flex flex-col max-h-[90vh]">
+              <form onSubmit={handleReviewOrApproveLoan} className="flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <DialogHeader className="bg-blue-600 text-white p-4 sm:p-6 pb-4 border-b border-blue-700/30">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className="mb-1.5">
                         <Badge className="bg-white/20 text-white hover:bg-white/30 border-none text-[9px] uppercase font-bold tracking-widest">
-                          Credit Review
+                          {isSuperAdmin ? "Credit Approval" : isSeniorAccountant ? "Senior Accountant Review" : "Compliance Review"}
                         </Badge>
                       </div>
-                      <DialogTitle className="text-xl sm:text-2xl font-bold font-headline text-white">
+                      <DialogTitle className="text-lg sm:text-xl font-bold text-white tracking-tight">
                         Loan Application &amp; Borrowing Status
                       </DialogTitle>
                       <DialogDescription className="text-xs sm:text-sm text-blue-100 mt-1">
-                        Review applicant verified savings, borrowing capacity, and terms prior to approval.
+                        {isSuperAdmin 
+                          ? "Review applicant verified savings, capacity, and disburse approved facility."
+                          : isSeniorAccountant 
+                            ? "Review applicant verified savings, borrowing capacity, and terms."
+                            : "Verify compliance and terms prior to final administrative approval."}
                       </DialogDescription>
                     </div>
                   </div>
@@ -1289,12 +1318,12 @@ function LoansPageContent() {
                   {/* 4 Core Metric Cards: Requested Amount, Current Contribution, Borrowing Power, Group Lending Pool */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
                     {/* Requested Amount */}
-                    <div className="p-3.5 sm:p-4 rounded-xl bg-blue-600 text-white border border-blue-700/50 shadow-sm flex flex-col justify-between min-w-0">
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-blue-600 text-white border border-blue-500/40 shadow-sm flex flex-col justify-between min-w-0">
                       <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-100 block truncate">
+                        <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-blue-100 block truncate">
                           Requested Loan
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-white font-mono mt-1 truncate">
+                        <p className="text-sm sm:text-base font-bold text-white tracking-tight mt-1 truncate">
                           {formatCurrency(requestedAmt, currency)}
                         </p>
                       </div>
@@ -1304,12 +1333,12 @@ function LoansPageContent() {
                     </div>
 
                     {/* Current Contribution */}
-                    <div className="p-3.5 sm:p-4 rounded-xl bg-blue-600 text-white border border-blue-700/50 shadow-sm flex flex-col justify-between min-w-0">
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-blue-600 text-white border border-blue-500/40 shadow-sm flex flex-col justify-between min-w-0">
                       <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-100 block truncate">
+                        <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-blue-100 block truncate">
                           Member Savings
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-white font-mono mt-1 truncate">
+                        <p className="text-sm sm:text-base font-bold text-white tracking-tight mt-1 truncate">
                           {formatCurrency(verifiedContributions, currency)}
                         </p>
                       </div>
@@ -1319,12 +1348,12 @@ function LoansPageContent() {
                     </div>
 
                     {/* Borrowing Power */}
-                    <div className="p-3.5 sm:p-4 rounded-xl bg-blue-600 text-white border border-blue-700/50 shadow-sm flex flex-col justify-between min-w-0">
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-blue-600 text-white border border-blue-500/40 shadow-sm flex flex-col justify-between min-w-0">
                       <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-100 block truncate">
+                        <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-blue-100 block truncate">
                           Borrow Power ({maxLoanPercentage}%)
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-white font-mono mt-1 truncate">
+                        <p className="text-sm sm:text-base font-bold text-white tracking-tight mt-1 truncate">
                           {formatCurrency(borrowingPower, currency)}
                         </p>
                       </div>
@@ -1334,12 +1363,12 @@ function LoansPageContent() {
                     </div>
 
                     {/* Lending Pool */}
-                    <div className="p-3.5 sm:p-4 rounded-xl bg-blue-600 text-white border border-blue-700/50 shadow-sm flex flex-col justify-between min-w-0">
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-blue-600 text-white border border-blue-500/40 shadow-sm flex flex-col justify-between min-w-0">
                       <div>
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-100 block truncate">
+                        <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-blue-100 block truncate">
                           Lending Pool ({lendingPoolCeilingPct}%)
                         </span>
-                        <p className="text-base sm:text-lg lg:text-xl font-bold text-white font-mono mt-1 truncate">
+                        <p className="text-sm sm:text-base font-bold text-white tracking-tight mt-1 truncate">
                           {loadingLiquidity ? "..." : formatCurrency(availableGroupPool, currency)}
                         </p>
                       </div>
@@ -1534,12 +1563,14 @@ function LoansPageContent() {
                     </div>
                   </div>
 
-                  {/* Audit Justification */}
+                  {/* Audit Justification / Review Assessment */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold uppercase tracking-wider">Audit Approval / Credit Note</Label>
+                    <Label className="text-xs font-bold uppercase tracking-wider">
+                      {isSuperAdmin ? "Audit Approval / Credit Note" : "Review Assessment / Audit Note"}
+                    </Label>
                     <Textarea 
                       name="justification" 
-                      placeholder="Credit committee approval rationale, e.g. Approved within 200% savings limit..." 
+                      placeholder={isSuperAdmin ? "Credit committee approval rationale, e.g. Approved within 200% savings limit..." : "Compliance review notes, audit observations..."} 
                       required 
                       rows={2}
                       className="rounded-xl bg-muted/40 border-border text-xs resize-none" 
@@ -1570,25 +1601,97 @@ function LoansPageContent() {
                     >
                       Close
                     </Button>
-                    <Button
-                      type="submit"
-                      disabled={isSubmitting || isPoolExhausted}
-                      className={cn(
-                        "rounded-xl font-bold text-white shadow-lg h-10 sm:h-11 px-6 flex-1 sm:flex-none",
-                        isPoolExhausted 
-                          ? "bg-muted text-muted-foreground cursor-not-allowed border border-border" 
-                          : "bg-green-600 hover:bg-green-700"
-                      )}
-                    >
-                      {isSubmitting ? (
-                        <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                      ) : isPoolExhausted ? (
-                        <AlertOctagon className="mr-2 h-4 w-4" />
-                      ) : (
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                      )}
-                      {isPoolExhausted ? "No Funds Available in Pool" : "Approve & Disburse"}
-                    </Button>
+                    {(() => {
+                      if (isSuperAdmin) {
+                        const isAwaitingReview = selectedLoan.status !== 'reviewed';
+                        const disabled = isSubmitting || isPoolExhausted || isAwaitingReview;
+                        let label = "Approve & Disburse";
+                        if (isPoolExhausted) label = "No Funds Available in Pool";
+                        else if (selectedLoan.status === 'requested') label = "Awaiting Senior Accountant Review";
+                        else if (selectedLoan.status === 'pending_reviewer') label = "Awaiting Reviewer Review";
+
+                        return (
+                          <Button
+                            type="submit"
+                            disabled={disabled}
+                            className={cn(
+                              "rounded-xl font-bold text-white shadow-lg h-10 sm:h-11 px-6 flex-1 sm:flex-none",
+                              disabled
+                                ? "bg-muted text-muted-foreground cursor-not-allowed border border-border"
+                                : "bg-green-600 hover:bg-green-700"
+                            )}
+                          >
+                            {isSubmitting ? (
+                              <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                            ) : disabled && !isPoolExhausted ? (
+                              <Clock className="mr-2 h-4 w-4" />
+                            ) : isPoolExhausted ? (
+                              <AlertOctagon className="mr-2 h-4 w-4" />
+                            ) : (
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                            )}
+                            {label}
+                          </Button>
+                        );
+                      }
+
+                      if (isSeniorAccountant) {
+                        const canReview = selectedLoan.status === 'requested';
+                        const disabled = isSubmitting || !canReview;
+                        let label = "Review Request";
+                        if (selectedLoan.status === 'pending_reviewer') label = "Reviewed (Awaiting Reviewer)";
+                        else if (selectedLoan.status === 'reviewed') label = "Reviewed (Ready for Approval)";
+                        else if (selectedLoan.status === 'approved') label = "Already Approved";
+
+                        return (
+                          <Button
+                            type="submit"
+                            disabled={disabled}
+                            className={cn(
+                              "rounded-xl font-bold text-white shadow-lg h-10 sm:h-11 px-6 flex-1 sm:flex-none",
+                              disabled
+                                ? "bg-muted text-muted-foreground cursor-not-allowed border border-border"
+                                : "bg-blue-600 hover:bg-blue-700"
+                            )}
+                          >
+                            {isSubmitting ? (
+                              <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                            ) : (
+                              <Eye className="mr-2 h-4 w-4" />
+                            )}
+                            {label}
+                          </Button>
+                        );
+                      }
+
+                      // Reviewer / Management
+                      const canReview = selectedLoan.status === 'pending_reviewer';
+                      const disabled = isSubmitting || !canReview;
+                      let label = "Review Request";
+                      if (selectedLoan.status === 'requested') label = "Awaiting Senior Accountant Review";
+                      else if (selectedLoan.status === 'reviewed') label = "Reviewed (Ready for Approval)";
+                      else if (selectedLoan.status === 'approved') label = "Already Approved";
+
+                      return (
+                        <Button
+                          type="submit"
+                          disabled={disabled}
+                          className={cn(
+                            "rounded-xl font-bold text-white shadow-lg h-10 sm:h-11 px-6 flex-1 sm:flex-none",
+                            disabled
+                              ? "bg-muted text-muted-foreground cursor-not-allowed border border-border"
+                              : "bg-blue-600 hover:bg-blue-700"
+                          )}
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                          ) : (
+                            <Eye className="mr-2 h-4 w-4" />
+                          )}
+                          {label}
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </DialogFooter>
               </form>
@@ -1605,7 +1708,7 @@ function LoansPageContent() {
             const availableGroupPool = liquidityMetrics ? Number(liquidityMetrics.availableLendingPool) : Infinity;
 
             return (
-              <form onSubmit={handleApproveLoan}>
+              <form onSubmit={handleReviewOrApproveLoan}>
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold">Approve Loan Request</DialogTitle>
                   <DialogDescription>Define the legal repayment terms for this request.</DialogDescription>

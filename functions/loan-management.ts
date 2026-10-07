@@ -365,9 +365,6 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         if (!loanSnap.exists) throw new HttpsError('not-found', 'Loan record not found.');
         
         const loanData = loanSnap.data()!;
-        if (loanData.memberId === request.auth.uid) {
-            throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve your own loan application. Another administrator must approve it.');
-        }
         if (loanData.status !== 'reviewed') {
             throw new HttpsError('failed-precondition', `Loan must be reviewed by a reviewer before approval. Current status: ${loanData.status}`);
         }
@@ -620,7 +617,7 @@ export const rejectLoan = onCall({ cors: true }, async (request) => {
     const db = admin.firestore();
     const userSnap = await db.collection('users').doc(request.auth.uid).get();
     
-    if (userSnap.data()?.role !== 'admin' && userSnap.data()?.role !== 'management') {
+    if (userSnap.data()?.role !== 'admin' && userSnap.data()?.role !== 'management' && userSnap.data()?.role !== 'senior_accountant' && userSnap.data()?.role !== 'reviewer') {
         throw new HttpsError('permission-denied', 'Management authority required.');
     }
 
@@ -695,9 +692,6 @@ export const reviewLoan = onCall({ cors: true }, async (request) => {
         // Reviewer or Management: ONLY reviews loans that have been reviewed by Senior Accountant
         if (loanData.status !== 'pending_reviewer' && !loanData.seniorReviewed) {
             throw new HttpsError('failed-precondition', 'Reviewers can only review loan facilities that have been initially reviewed by the Senior Accountant.');
-        }
-        if (loanData.memberId === request.auth.uid) {
-            throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. Another authorized reviewer must review it.');
         }
         await loanRef.update({
             status: 'reviewed',

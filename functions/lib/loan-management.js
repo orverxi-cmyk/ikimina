@@ -334,9 +334,6 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         if (!loanSnap.exists)
             throw new https_1.HttpsError('not-found', 'Loan record not found.');
         const loanData = loanSnap.data();
-        if (loanData.memberId === request.auth.uid) {
-            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot approve your own loan application. Another administrator must approve it.');
-        }
         if (loanData.status !== 'reviewed') {
             throw new https_1.HttpsError('failed-precondition', `Loan must be reviewed by a reviewer before approval. Current status: ${loanData.status}`);
         }
@@ -544,12 +541,12 @@ exports.verifyRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
  * Rejects a loan request.
  */
 exports.rejectLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a, _b;
+    var _a, _b, _c, _d;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
     const userSnap = await db.collection('users').doc(request.auth.uid).get();
-    if (((_a = userSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin' && ((_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.role) !== 'management') {
+    if (((_a = userSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin' && ((_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.role) !== 'management' && ((_c = userSnap.data()) === null || _c === void 0 ? void 0 : _c.role) !== 'senior_accountant' && ((_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.role) !== 'reviewer') {
         throw new https_1.HttpsError('permission-denied', 'Management authority required.');
     }
     const { loanId, justification } = request.data;
@@ -617,9 +614,6 @@ exports.reviewLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         // Reviewer or Management: ONLY reviews loans that have been reviewed by Senior Accountant
         if (loanData.status !== 'pending_reviewer' && !loanData.seniorReviewed) {
             throw new https_1.HttpsError('failed-precondition', 'Reviewers can only review loan facilities that have been initially reviewed by the Senior Accountant.');
-        }
-        if (loanData.memberId === request.auth.uid) {
-            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. Another authorized reviewer must review it.');
         }
         await loanRef.update({
             status: 'reviewed',
