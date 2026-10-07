@@ -44,13 +44,15 @@ const final_payout_management_1 = require("./final-payout-management");
  * and automatically dispatches an account activation link to their email address.
  */
 exports.registerMember = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a;
+    var _a, _b;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
-    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
-    if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
-        throw new https_1.HttpsError('permission-denied', 'Only administrators can register members.');
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = (_a = callerSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+    const isPrimaryAdmin = ((_b = request.auth.token.email) === null || _b === void 0 ? void 0 : _b.toLowerCase()) === 'tharushyamagara@gmail.com';
+    if (callerRole !== 'admin' && callerRole !== 'senior_accountant' && callerRole !== 'accountant' && !isPrimaryAdmin) {
+        throw new https_1.HttpsError('permission-denied', 'Only administrators, senior accountants, and accountants can register members.');
     }
     const { memberData, justification, appUrl } = request.data || {};
     if (!(memberData === null || memberData === void 0 ? void 0 : memberData.email)) {
@@ -59,13 +61,16 @@ exports.registerMember = (0, https_1.onCall)({ cors: true }, async (request) => 
     const name = `${memberData.firstName || ''} ${memberData.surname || ''}`.trim() || 'Member';
     const email = memberData.email.toLowerCase().trim();
     try {
+        const assignedRole = (callerRole === 'admin' || isPrimaryAdmin) ? (memberData.role || 'member') : 'member';
         const docRef = await db.collection('users').add({
             name,
             email,
             phone: memberData.phone || '',
-            role: memberData.role || 'member',
+            role: assignedRole,
             joinedAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'pending',
+            registeredBy: request.auth.uid,
+            registeredByRole: callerRole || 'staff',
         });
         // Automatically generate activation link and dispatch activation email
         let emailSent = false;
@@ -87,11 +92,14 @@ exports.registerMember = (0, https_1.onCall)({ cors: true }, async (request) => 
         // Log the administrative action
         await db.collection('audit_logs').add({
             adminId: request.auth.uid,
+            performedByRole: callerRole || 'staff',
             action: 'REGISTER_MEMBER',
-            justification,
+            justification: justification || 'Registered member account',
             details: {
                 memberId: docRef.id,
+                name,
                 email,
+                role: assignedRole,
                 emailSent,
                 activationLink
             },

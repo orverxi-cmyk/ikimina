@@ -15,10 +15,11 @@ service cloud.firestore {
         request.auth.token.admin == true || 
         request.auth.token.management == true ||
         request.auth.token.accountant == true ||
+        request.auth.token.senior_accountant == true ||
         request.auth.token.reviewer == true ||
         request.auth.token.auditor == true ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (getUserData().role in ['admin', 'management', 'accountant', 'reviewer', 'auditor']))
+         (getUserData().role in ['admin', 'management', 'accountant', 'senior_accountant', 'reviewer', 'auditor']))
       );
     }
 
@@ -42,6 +43,12 @@ service cloud.firestore {
     // Contribution upload batches (Three-tier migration & payroll batches)
     match /contribution_batches/{batchId} {
       allow read: if isSignedIn();
+      allow write: if false; // Managed exclusively via Cloud Functions
+    }
+
+    // Member registration batches (bulk member onboarding - Three-tier governance)
+    match /member_registration_batches/{batchId} {
+      allow read: if isSignedIn() && isStaff();
       allow write: if false; // Managed exclusively via Cloud Functions
     }
 

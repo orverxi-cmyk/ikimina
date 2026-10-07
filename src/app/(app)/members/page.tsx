@@ -76,9 +76,10 @@ export default function MembersPage() {
   const [isDeletingMember, setIsDeletingMember] = useState(false);
 
   const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
-  const isAdmin = userData?.role === 'admin' || isPrimaryAdmin;
-  const isReviewer = userData?.role === 'reviewer' || userData?.role === 'senior_accountant';
-  const canInitiateMembers = userData?.role === 'senior_accountant' || userData?.role === 'accountant';
+  const effectiveRole = userData?.role || (typeof window !== 'undefined' && user?.uid ? localStorage.getItem(`ikimina_role_${user.uid}`) : null);
+  const isAdmin = effectiveRole === 'admin' || isPrimaryAdmin;
+  const isReviewer = effectiveRole === 'reviewer' || effectiveRole === 'senior_accountant';
+  const canInitiateMembers = effectiveRole === 'senior_accountant' || effectiveRole === 'accountant';
   const isAuthorizedToView = isAdmin || isReviewer || canInitiateMembers;
 
   const membersQuery = useMemoFirebase(() => {
@@ -386,7 +387,7 @@ export default function MembersPage() {
                <Upload className="mr-2 h-4 w-4" /> Bulk Enrollment
              </Button>
            )}
-           {isAdmin && (
+           {(isAdmin || canInitiateMembers) && (
              <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setIsAddDialogOpen(true); }} className="rounded-xl shadow-sm font-bold text-[12px] h-10 flex-1 sm:flex-none">
                <UserPlus className="mr-2 h-4 w-4" /> Add Member
              </Button>
@@ -416,23 +417,27 @@ export default function MembersPage() {
                 <Label className="text-xs font-bold uppercase tracking-wider">Email Address</Label>
                 <Input name="email" type="email" defaultValue={selectedMember?.email} required disabled={isEditing} className="h-11 rounded-xl bg-muted border-none" />
               </div>
-              <div className="grid gap-2">
-                <Label className="text-xs font-bold uppercase tracking-wider">System Access Role</Label>
-                <Select name="role" defaultValue={selectedMember?.role || 'member'}>
-                  <SelectTrigger className="h-11 rounded-xl bg-muted border-none">
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Administrator (Full Control)</SelectItem>
-                    <SelectItem value="auditor">Auditor (Full Audit Trail &amp; PDF Reports)</SelectItem>
-                    <SelectItem value="reviewer">Reviewer (Audit &amp; Compliance)</SelectItem>
-                    <SelectItem value="senior_accountant">Senior Accountant (Initiator &amp; Reviewer)</SelectItem>
-                    <SelectItem value="accountant">Accountant (Payroll &amp; Uploads)</SelectItem>
-                    <SelectItem value="management">Management (Approvals Only)</SelectItem>
-                    <SelectItem value="member">General Member</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {isAdmin ? (
+                <div className="grid gap-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider">System Access Role</Label>
+                  <Select name="role" defaultValue={selectedMember?.role || 'member'}>
+                    <SelectTrigger className="h-11 rounded-xl bg-muted border-none">
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrator (Full Control)</SelectItem>
+                      <SelectItem value="auditor">Auditor (Full Audit Trail &amp; PDF Reports)</SelectItem>
+                      <SelectItem value="reviewer">Reviewer (Audit &amp; Compliance)</SelectItem>
+                      <SelectItem value="senior_accountant">Senior Accountant (Initiator &amp; Reviewer)</SelectItem>
+                      <SelectItem value="accountant">Accountant (Payroll &amp; Uploads)</SelectItem>
+                      <SelectItem value="management">Management (Approvals Only)</SelectItem>
+                      <SelectItem value="member">General Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <input type="hidden" name="role" value="member" />
+              )}
               <div className="grid gap-2">
                 <Label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider">Audit Justification <AlertCircle className="h-3 w-3 text-destructive" /></Label>
                 <Textarea name="justification" placeholder="Reason for this role assignment or profile change..." required className="rounded-xl min-h-[80px] bg-muted border-none" />
@@ -587,6 +592,7 @@ export default function MembersPage() {
                           member.role === 'admin' && "bg-primary/10 text-primary",
                           member.role === 'auditor' && "bg-purple-600/10 text-purple-700 dark:text-purple-400",
                           member.role === 'reviewer' && "bg-green-600/10 text-green-700 dark:text-green-400",
+                          member.role === 'senior_accountant' && "bg-indigo-600/10 text-indigo-700 dark:text-indigo-400",
                           member.role === 'accountant' && "bg-blue-500/10 text-blue-600",
                           member.role === 'management' && "bg-foreground/10 text-foreground",
                           (!member.role || member.role === 'member') && "bg-muted text-muted-foreground"

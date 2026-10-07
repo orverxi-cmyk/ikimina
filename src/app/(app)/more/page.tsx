@@ -91,7 +91,7 @@ export default function MorePage() {
           { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck, description: 'Audit and approve pending requests' },
           { href: '/admin/expenses', label: 'Operating Expenses', icon: Receipt, description: 'Manage operational costs' },
         ] : []),
-        ...(isAdmin || role === 'accountant' ? [
+        ...(isAdmin || role === 'accountant' || role === 'senior_accountant' ? [
           { href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus, description: 'Member exit settlements & account closure' },
         ] : []),
         { href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck, description: 'Immutable action logs' },

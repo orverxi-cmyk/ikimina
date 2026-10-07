@@ -59,7 +59,7 @@ export default function ContributionsPage() {
 
   const role = userData?.role || 'member';
   const isManagement = role === 'management' || role === 'admin' || role === 'accountant' || role === 'senior_accountant';
-  const isAccountantOrAdmin = role === 'admin' || role === 'accountant';
+  const isAccountantOrAdmin = role === 'admin' || role === 'accountant' || role === 'senior_accountant';
   const isLoading = userDataLoading;
 
   // Firestore Subscriptions
@@ -380,7 +380,7 @@ export default function ContributionsPage() {
           {isAccountantOrAdmin && (
             <Button asChild variant="outline" className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-primary/30 text-primary hover:bg-primary/10 shadow-sm justify-center">
               <Link href="/admin/approvals">
-                {role === 'accountant' ? (
+                {(role === 'accountant' || role === 'senior_accountant') ? (
                   <>
                     <FileSpreadsheet className="mr-1.5 h-4 w-4 shrink-0" /> Upload in Batches
                   </>

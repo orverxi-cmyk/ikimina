@@ -12,10 +12,12 @@ export const registerMember = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
     
     const db = admin.firestore();
-    const adminSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerSnap.data()?.role;
+    const isPrimaryAdmin = request.auth.token.email?.toLowerCase() === 'tharushyamagara@gmail.com';
     
-    if (adminSnap.data()?.role !== 'admin') {
-        throw new HttpsError('permission-denied', 'Only administrators can register members.');
+    if (callerRole !== 'admin' && callerRole !== 'senior_accountant' && callerRole !== 'accountant' && !isPrimaryAdmin) {
+        throw new HttpsError('permission-denied', 'Only administrators, senior accountants, and accountants can register members.');
     }
 
     const { memberData, justification, appUrl } = request.data || {};
@@ -27,13 +29,16 @@ export const registerMember = onCall({ cors: true }, async (request) => {
     const email = memberData.email.toLowerCase().trim();
 
     try {
+        const assignedRole = (callerRole === 'admin' || isPrimaryAdmin) ? (memberData.role || 'member') : 'member';
         const docRef = await db.collection('users').add({
             name,
             email,
             phone: memberData.phone || '',
-            role: memberData.role || 'member',
+            role: assignedRole,
             joinedAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'pending',
+            registeredBy: request.auth.uid,
+            registeredByRole: callerRole || 'staff',
         });
 
         // Automatically generate activation link and dispatch activation email
@@ -56,12 +61,15 @@ export const registerMember = onCall({ cors: true }, async (request) => {
         // Log the administrative action
         await db.collection('audit_logs').add({
             adminId: request.auth.uid,
+            performedByRole: callerRole || 'staff',
             action: 'REGISTER_MEMBER',
-            justification,
+            justification: justification || 'Registered member account',
             details: { 
                 memberId: docRef.id, 
+                name,
                 email, 
-                emailSent,
+                role: assignedRole,
+                emailSent, 
                 activationLink 
             },
             timestamp: admin.firestore.FieldValue.serverTimestamp()

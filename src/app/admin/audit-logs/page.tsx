@@ -114,7 +114,7 @@ export default function AuditLogsPage() {
   const { data: userData, loading: userLoading } = useDoc(userRef);
 
   const role = userData?.role || 'member';
-  const isAuthorized = ['admin', 'auditor', 'reviewer', 'management', 'accountant'].includes(role);
+  const isAuthorized = ['admin', 'auditor', 'reviewer', 'management', 'accountant', 'senior_accountant'].includes(role);
 
   // Filter States
   const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');

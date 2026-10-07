@@ -79,7 +79,7 @@ export default function AdminDashboard() {
   const { data: currentUserData } = useDoc(currentUserRef);
   const currentRole = currentUserData?.role || 'admin';
   const isSuperAdmin = currentRole === 'admin';
-  const isAccountant = currentRole === 'accountant';
+  const isAccountant = currentRole === 'accountant' || currentRole === 'senior_accountant';
 
   // Role Assignment State
   const [roleModalMember, setRoleModalMember] = useState<any | null>(null);

@@ -267,6 +267,8 @@ export default function ExpensesAdminPage() {
       setIsSubmitting(false);
       setIsUploadingFile(false);
     }
+  };
+
   // Review Expense Handler (Reviewer / Senior Accountant)
   const handleReview = async (decision: 'endorse' | 'request_changes' | 'reject') => {
     if (!selectedExpense || !canReview) return;

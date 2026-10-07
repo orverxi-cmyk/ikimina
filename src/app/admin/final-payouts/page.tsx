@@ -59,8 +59,10 @@ export default function FinalPayoutsPage() {
   const { data: userData } = useDoc<any>(userRef);
   const role = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
   const isSuperAdmin = role === 'admin';
-  const canInitiate = ['accountant', 'admin', 'management'].includes(role);
-  const canView = canInitiate || ['reviewer', 'auditor'].includes(role);
+  const canInitiate = ['accountant', 'senior_accountant', 'admin', 'management'].includes(role);
+  const canReview = ['senior_accountant', 'reviewer', 'management'].includes(role);
+  const canApprove = ['admin', 'management'].includes(role) || isPrimaryAdmin;
+  const canView = canInitiate || canReview || canApprove || ['auditor'].includes(role);
 
   // ---------- Data ----------
   const payoutsQuery = useMemoFirebase(() => (canView ? collection(firestore, 'final_payouts') : null), [canView]);
@@ -400,12 +402,12 @@ export default function FinalPayoutsPage() {
                           <Badge className="bg-amber-500/10 text-amber-700 border-none text-[10px] font-bold uppercase gap-1">
                             <Loader2 className="h-3 w-3 animate-spin" /> Processing
                           </Badge>
-                        ) : isSuperAdmin ? (
+                        ) : (canReview || canApprove) ? (
                           <Button size="sm" onClick={() => openReview(p)} className="rounded-xl font-bold text-xs h-8 px-3 shadow-sm">
-                            Review &amp; Decide
+                            {canApprove ? 'Review & Decide' : 'Review'}
                           </Button>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] font-bold uppercase">Awaiting Admin</Badge>
+                          <Badge variant="outline" className="text-[10px] font-bold uppercase">Awaiting Review</Badge>
                         )}
                       </TableCell>
                     </TableRow>
@@ -679,8 +681,12 @@ export default function FinalPayoutsPage() {
                   <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">Executive Review</Badge>
                   <Badge variant="outline" className="text-[9px] font-mono">ID: {selected.id.slice(0, 8)}</Badge>
                 </div>
-                <DialogTitle className="text-lg sm:text-xl font-bold font-headline">Approve Final Payout</DialogTitle>
-                <DialogDescription className="text-xs">Inspect the supporting document before approving.</DialogDescription>
+                <DialogTitle className="text-lg sm:text-xl font-bold font-headline">
+                  {canApprove ? 'Approve Final Payout' : 'Review Final Payout'}
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  {canApprove ? 'Inspect the supporting document before approving.' : 'Review the payout details. Final approval requires an Administrator.'}
+                </DialogDescription>
               </DialogHeader>
 
               <div className="p-4 sm:p-6 space-y-4 max-h-[65vh] overflow-y-auto">
@@ -741,23 +747,34 @@ export default function FinalPayoutsPage() {
               </div>
 
               <DialogFooter className="p-4 sm:p-6 pt-3 bg-muted/30 border-t flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                <Button type="button" variant="outline" onClick={() => { setRejectionReason(''); setIsRejectOpen(true); }} className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1">
-                  <Ban className="mr-2 h-4 w-4" /> Reject
-                </Button>
-                <div className="flex flex-col-reverse sm:flex-row gap-2 order-1 md:order-2">
-                  <Button type="button" variant="ghost" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-11 px-4">Close</Button>
-                  <Button
-                    id="approve-final-payout-btn"
-                    type="button"
-                    variant="destructive"
-                    disabled={isSubmitting || isOwnRequest || !confirmDeletion}
-                    onClick={handleApprove}
-                    className="rounded-xl font-bold shadow-lg h-11 px-5 gap-2"
-                  >
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    Approve Payout &amp; Delete Member
-                  </Button>
-                </div>
+                {canApprove ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => { setRejectionReason(''); setIsRejectOpen(true); }} className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1">
+                      <Ban className="mr-2 h-4 w-4" /> Reject
+                    </Button>
+                    <div className="flex flex-col-reverse sm:flex-row gap-2 order-1 md:order-2">
+                      <Button type="button" variant="ghost" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-11 px-4">Close</Button>
+                      <Button
+                        id="approve-final-payout-btn"
+                        type="button"
+                        variant="destructive"
+                        disabled={isSubmitting || isOwnRequest || !confirmDeletion}
+                        onClick={handleApprove}
+                        className="rounded-xl font-bold shadow-lg h-11 px-5 gap-2"
+                      >
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                        Approve Payout & Delete Member
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex-1 text-xs text-muted-foreground p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                      <strong>Review only:</strong> You can inspect this payout. Final approval requires an Administrator.
+                    </div>
+                    <Button type="button" variant="ghost" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-11 px-4">Close</Button>
+                  </>
+                )}
               </DialogFooter>
             </div>
           )}
