@@ -1102,6 +1102,18 @@ export default function ExpensesAdminPage() {
                       disabled={!canApprove}
                     />
                   </div>
+                ) : isSeniorAcct ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider">
+                      Senior Accountant Initial Review Notes (Optional)
+                    </Label>
+                    <Input 
+                      value={reviewNotes}
+                      onChange={(e) => setReviewNotes(e.target.value)}
+                      placeholder="e.g., Cross-referenced with vendor receipt, figures verified..."
+                      className="h-10 rounded-xl bg-muted/40 text-xs w-full"
+                    />
+                  </div>
                 ) : selectedExpense.lodgedBy === user?.uid ? (
                   <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-700 text-xs font-semibold">
                     Dual-Control Guardrail: You lodged this expense and cannot self-review. A separate reviewer must endorse it.
@@ -1114,7 +1126,7 @@ export default function ExpensesAdminPage() {
                     <Input 
                       value={reviewNotes}
                       onChange={(e) => setReviewNotes(e.target.value)}
-                      placeholder="e.g., Cross-referenced with vendor receipt, figures verified..."
+                      placeholder="e.g., Compliance verification completed..."
                       className="h-10 rounded-xl bg-muted/40 text-xs w-full"
                       disabled={!canReview}
                     />

@@ -204,13 +204,13 @@ export default function ApprovalsHubPage() {
   const batchesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'contribution_batches'), orderBy('initiatedAt', 'desc'), limit(100)) : null, [firestore, isAuthorized]);
   const { data: batchesSnap, loading: loadingBatches } = useCollection(batchesQuery);
 
-  const pendingSlipsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'contributions'), where('status', '==', 'pending'), limit(100)) : null, [firestore, isAuthorized]);
+  const pendingSlipsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'contributions'), where('status', 'in', ['pending', 'pending_reviewer', 'reviewed']), limit(100)) : null, [firestore, isAuthorized]);
   const { data: pendingSlipsSnap, loading: loadingSlips } = useCollection(pendingSlipsQuery);
 
-  const pendingLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans'), where('status', '==', 'requested'), limit(50)) : null, [firestore, isAuthorized]);
+  const pendingLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans'), where('status', 'in', ['requested', 'pending_reviewer', 'reviewed']), limit(50)) : null, [firestore, isAuthorized]);
   const { data: pendingLoansSnap, loading: loadingLoans } = useCollection(pendingLoansQuery);
 
-  const pendingExpensesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'expenses'), where('status', 'in', ['pending', 'pending_review', 'pending_approval']), limit(50)) : null, [firestore, isAuthorized]);
+  const pendingExpensesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'expenses'), where('status', 'in', ['pending', 'pending_review', 'pending_reviewer', 'pending_approval']), limit(50)) : null, [firestore, isAuthorized]);
   const { data: pendingExpensesSnap, loading: loadingExpenses } = useCollection(pendingExpensesQuery);
 
   const interestRequestsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'interest_distribution_requests'), orderBy('createdAt', 'desc'), limit(50)) : null, [firestore, isAuthorized]);
@@ -515,7 +515,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleActionSlip = async (decision: 'review' | 'verify' | 'reject') => {
     if (!inspectSlip || !user) return;
-    if (isSlipInitiatedByCurrentUser(inspectSlip)) {
+    if (!isSeniorAccountant && isSlipInitiatedByCurrentUser(inspectSlip)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
@@ -557,7 +557,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleActionLoan = async (decision: 'review' | 'approve' | 'reject') => {
     if (!inspectLoan || !user) return;
-    if (isLoanInitiatedByCurrentUser(inspectLoan)) {
+    if (!isSeniorAccountant && isLoanInitiatedByCurrentUser(inspectLoan)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
@@ -606,7 +606,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleActionExpense = async (decision: 'endorse' | 'request_changes' | 'reject' | 'approve') => {
     if (!inspectExpense || !user) return;
-    if (isExpenseInitiatedByCurrentUser(inspectExpense)) {
+    if (!isSeniorAccountant && isExpenseInitiatedByCurrentUser(inspectExpense)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
@@ -668,7 +668,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleActionInterest = async (decision: 'endorse' | 'request_changes' | 'reject' | 'approve') => {
     if (!inspectInterest || !user) return;
-    if (isInterestInitiatedByCurrentUser(inspectInterest)) {
+    if (!isSeniorAccountant && isInterestInitiatedByCurrentUser(inspectInterest)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
@@ -684,8 +684,8 @@ export default function ApprovalsHubPage() {
           decision,
           reviewNotes: interestReviewNotes.trim() || undefined
         });
-        toast({
-          title: decision === 'endorse' ? "Proposal Endorsed" : "Revision Requested",
+        toast({ 
+          title: decision === 'endorse' ? "Proposal Endorsed" : "Revision Requested", 
           description: decision === 'endorse' 
             ? "Interest distribution proposal endorsed. Staged for Administrator approval."
             : "Revision requested from accountant."
@@ -695,8 +695,8 @@ export default function ApprovalsHubPage() {
           requestId: inspectInterest.id,
           approvalNotes: interestApprovalNotes.trim() || undefined
         });
-        toast({
-          title: "Interest Distribution Approved & Committed",
+        toast({ 
+          title: "Interest Distribution Approved & Committed", 
           description: `Successfully allocated ${formatCurrency(inspectInterest.totalInterestToDistribute, currency)} to ${inspectInterest.recipientsCount || 0} active savers.`,
         });
       } else if (decision === 'reject') {
@@ -712,9 +712,9 @@ export default function ApprovalsHubPage() {
             reviewNotes: (interestReviewNotes || interestApprovalNotes).trim() || 'Rejected during review'
           });
         }
-        toast({
-          title: "Distribution Proposal Rejected",
-          description: "Interest distribution proposal has been rejected."
+        toast({ 
+          title: "Distribution Proposal Rejected", 
+          description: "Interest distribution proposal has been rejected." 
         });
       }
       setIsInterestModalOpen(false);
@@ -734,7 +734,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleActionMemberBatch = async (decision: 'endorse' | 'request_changes' | 'reject' | 'approve') => {
     if (!inspectMemberBatch || !user) return;
-    if (isMemberBatchInitiatedByCurrentUser(inspectMemberBatch)) {
+    if (!isSeniorAccountant && isMemberBatchInitiatedByCurrentUser(inspectMemberBatch)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
@@ -2068,7 +2068,7 @@ export default function ApprovalsHubPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {isSlipInitiatedByCurrentUser(inspectSlip) && (
+          {!isSeniorAccountant && isSlipInitiatedByCurrentUser(inspectSlip) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <span>You cannot verify your own deposit submission. Another administrator must verify it.</span>
@@ -2095,7 +2095,9 @@ export default function ApprovalsHubPage() {
                 </a>
               </div>
             )}
-            {!isSlipInitiatedByCurrentUser(inspectSlip) && ((isReviewer && inspectSlip?.status === 'pending') || (isSuperAdmin && inspectSlip?.status === 'reviewed')) && (
+            {((isSeniorAccountant && inspectSlip?.status === 'pending') ||
+              (isReviewer && !isSuperAdmin && inspectSlip?.status === 'pending_reviewer' && !isSlipInitiatedByCurrentUser(inspectSlip)) ||
+              (isSuperAdmin && inspectSlip?.status === 'reviewed' && !isSlipInitiatedByCurrentUser(inspectSlip))) && (
               <div className="space-y-2 pt-2">
                 <Label className="text-xs font-bold uppercase tracking-wider">Audit Justification *</Label>
                 <Input 
@@ -2112,9 +2114,10 @@ export default function ApprovalsHubPage() {
             <Button variant="ghost" onClick={() => setIsSlipModalOpen(false)} className="rounded-xl text-xs font-bold">
               Cancel
             </Button>
-            {!isSlipInitiatedByCurrentUser(inspectSlip) && (
-              <div className="flex items-center gap-2">
-                {((isReviewer && inspectSlip?.status === 'pending') || (isSuperAdmin && inspectSlip?.status === 'reviewed')) && (
+            <div className="flex items-center gap-2">
+              {/* Senior Accountant: Initial Review & Endorsement */}
+              {isSeniorAccountant && inspectSlip?.status === 'pending' && (
+                <>
                   <Button 
                     variant="outline" 
                     onClick={() => handleActionSlip('reject')} 
@@ -2123,29 +2126,61 @@ export default function ApprovalsHubPage() {
                   >
                     Reject
                   </Button>
-                )}
-                {isReviewer && inspectSlip?.status === 'pending' && (
                   <Button 
                     onClick={() => handleActionSlip('review')} 
                     disabled={isSubmitting}
-                    className="rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white"
+                    className="rounded-xl text-xs font-bold bg-primary text-primary-foreground gap-1"
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
-                    Review Deposit
+                    Endorse to Reviewer
                   </Button>
-                )}
-                {isSuperAdmin && inspectSlip?.status === 'reviewed' && (
+                </>
+              )}
+
+              {/* Reviewer: Compliance Endorsement */}
+              {isReviewer && !isSuperAdmin && inspectSlip?.status === 'pending_reviewer' && !isSlipInitiatedByCurrentUser(inspectSlip) && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionSlip('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
+                  <Button 
+                    onClick={() => handleActionSlip('review')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    Endorse to Administrator
+                  </Button>
+                </>
+              )}
+
+              {/* Super Admin: Final Approval */}
+              {isSuperAdmin && inspectSlip?.status === 'reviewed' && !isSlipInitiatedByCurrentUser(inspectSlip) && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionSlip('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
                   <Button 
                     onClick={() => handleActionSlip('verify')} 
                     disabled={isSubmitting}
-                    className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
                     Approve Deposit
                   </Button>
-                )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2164,7 +2199,7 @@ export default function ApprovalsHubPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {isLoanInitiatedByCurrentUser(inspectLoan) && (
+          {!isSeniorAccountant && isLoanInitiatedByCurrentUser(inspectLoan) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <span>You cannot approve your own loan application. Another administrator must audit it.</span>
@@ -2184,7 +2219,9 @@ export default function ApprovalsHubPage() {
               <span className="text-muted-foreground">Purpose:</span>
               <span className="font-semibold">{inspectLoan?.description}</span>
             </div>
-            {!isLoanInitiatedByCurrentUser(inspectLoan) && ((isReviewer && inspectLoan?.status === 'requested') || (isSuperAdmin && inspectLoan?.status === 'reviewed')) && (
+            {((isSeniorAccountant && inspectLoan?.status === 'requested') ||
+              (isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer' && !isLoanInitiatedByCurrentUser(inspectLoan)) ||
+              (isSuperAdmin && inspectLoan?.status === 'reviewed' && !isLoanInitiatedByCurrentUser(inspectLoan))) && (
               <div className="space-y-2 pt-2">
                 <Label className="text-xs font-bold uppercase tracking-wider">Approval / Audit Justification *</Label>
                 <Input 
@@ -2201,9 +2238,10 @@ export default function ApprovalsHubPage() {
             <Button variant="ghost" onClick={() => setIsLoanModalOpen(false)} className="rounded-xl text-xs font-bold">
               Cancel
             </Button>
-            {!isLoanInitiatedByCurrentUser(inspectLoan) && (
-              <div className="flex items-center gap-2">
-                {((isReviewer && inspectLoan?.status === 'requested') || (isSuperAdmin && inspectLoan?.status === 'reviewed')) && (
+            <div className="flex items-center gap-2">
+              {/* Senior Accountant: Initial Review & Endorsement */}
+              {isSeniorAccountant && inspectLoan?.status === 'requested' && (
+                <>
                   <Button 
                     variant="outline" 
                     onClick={() => handleActionLoan('reject')} 
@@ -2212,29 +2250,61 @@ export default function ApprovalsHubPage() {
                   >
                     Reject
                   </Button>
-                )}
-                {isReviewer && inspectLoan?.status === 'requested' && (
                   <Button 
                     onClick={() => handleActionLoan('review')} 
                     disabled={isSubmitting}
-                    className="rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white"
+                    className="rounded-xl text-xs font-bold bg-primary text-primary-foreground gap-1"
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
-                    Review Loan
+                    Endorse to Reviewer
                   </Button>
-                )}
-                {isSuperAdmin && inspectLoan?.status === 'reviewed' && (
+                </>
+              )}
+
+              {/* Reviewer: Compliance Endorsement */}
+              {isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer' && !isLoanInitiatedByCurrentUser(inspectLoan) && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionLoan('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
+                  <Button 
+                    onClick={() => handleActionLoan('review')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    Endorse to Administrator
+                  </Button>
+                </>
+              )}
+
+              {/* Super Admin: Final Approval */}
+              {isSuperAdmin && inspectLoan?.status === 'reviewed' && !isLoanInitiatedByCurrentUser(inspectLoan) && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionLoan('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
                   <Button 
                     onClick={() => handleActionLoan('approve')} 
                     disabled={isSubmitting}
-                    className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
                     Approve Loan
                   </Button>
-                )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2256,7 +2326,7 @@ export default function ApprovalsHubPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {isExpenseInitiatedByCurrentUser(inspectExpense) && (
+          {!isSeniorAccountant && isExpenseInitiatedByCurrentUser(inspectExpense) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <span>You initiated this expense. Another officer must review and sign off.</span>
@@ -2282,33 +2352,57 @@ export default function ApprovalsHubPage() {
             </div>
           </div>
 
-          {/* Phase 1: Reviewer / Senior Accountant endorsement */}
-          {!isExpenseInitiatedByCurrentUser(inspectExpense) && canReview &&
-            (inspectExpense?.status === 'pending_review' || inspectExpense?.status === 'pending') && (
+          {/* Phase 1: Senior Accountant initial review & endorsement */}
+          {isSeniorAccountant && (inspectExpense?.status === 'pending_review' || inspectExpense?.status === 'pending') && (
             <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Reviewer Endorsement</p>
-              <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter review notes or change requirements..." className="rounded-xl text-xs h-10" />
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review &amp; Endorsement</p>
+              <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter initial review notes or change requirements..." className="rounded-xl text-xs h-10" />
               <div className="flex items-center gap-2 justify-end">
                 <Button size="sm" variant="outline" onClick={() => handleActionExpense('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                 <Button size="sm" variant="outline" onClick={() => handleActionExpense('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject</Button>
-                <Button size="sm" onClick={() => handleActionExpense('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse for Approval</Button>
+                <Button size="sm" onClick={() => handleActionExpense('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse to Reviewer</Button>
               </div>
             </div>
           )}
 
-          {/* Phase 2: Admin final approval */}
-          {!isExpenseInitiatedByCurrentUser(inspectExpense) && canApprove && inspectExpense?.status === 'pending_approval' && (
-            <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 2: Administrator Final Sign-Off</p>
-              <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter final approval notes..." className="rounded-xl text-xs h-10" />
-              <div className="flex items-center gap-2 justify-end">
-                <Button size="sm" variant="outline" onClick={() => handleActionExpense('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject</Button>
-                <Button size="sm" onClick={() => handleActionExpense('approve')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
-                  {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                  Approve Expense
-                </Button>
+          {/* Phase 2: Compliance Reviewer endorsement */}
+          {isReviewer && !isSuperAdmin && inspectExpense?.status === 'pending_reviewer' && (
+            !isExpenseInitiatedByCurrentUser(inspectExpense) ? (
+              <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/50 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Reviewer Verification</p>
+                <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter compliance audit notes..." className="rounded-xl text-xs h-10" />
+                <div className="flex items-center gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => handleActionExpense('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleActionExpense('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject</Button>
+                  <Button size="sm" onClick={() => handleActionExpense('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Endorse to Administrator</Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                You lodged this expense. Another compliance reviewer must review it.
+              </div>
+            )
+          )}
+
+          {/* Phase 3: Admin final approval */}
+          {isSuperAdmin && inspectExpense?.status === 'pending_approval' && (
+            !isExpenseInitiatedByCurrentUser(inspectExpense) ? (
+              <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 3: Administrator Final Sign-Off</p>
+                <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter final approval notes..." className="rounded-xl text-xs h-10" />
+                <div className="flex items-center gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => handleActionExpense('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject</Button>
+                  <Button size="sm" onClick={() => handleActionExpense('approve')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    Approve Expense
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                You lodged this expense. Another administrator must approve it.
+              </div>
+            )
           )}
 
           <DialogFooter className="flex items-center justify-between gap-2 pt-3">
@@ -2589,7 +2683,7 @@ export default function ApprovalsHubPage() {
           </DialogHeader>
 
           <div className="p-5 overflow-y-auto space-y-4 flex-1">
-            {isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) && (
+            {!isSeniorAccountant && isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) && (
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                 <span>You initiated this enrollment batch. Another officer must review and approve it.</span>
@@ -2623,38 +2717,68 @@ export default function ApprovalsHubPage() {
               </div>
             </div>
 
-            {/* Phase 1: Reviewer endorsement (pending_review) */}
-            {!isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) && canReview &&
-              (inspectMemberBatch?.status === 'pending_review' || inspectMemberBatch?.status === 'revision_requested') && (
+            {/* Phase 1: Senior Accountant initial review & endorsement */}
+            {isSeniorAccountant && (inspectMemberBatch?.status === 'pending_review' || inspectMemberBatch?.status === 'revision_requested') && (
               <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Reviewer Endorsement</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review &amp; Endorsement</p>
                 <Textarea
                   value={memberBatchReviewNotes}
                   onChange={e => setMemberBatchReviewNotes(e.target.value)}
-                  placeholder="Enter compliance review notes or required corrections..."
+                  placeholder="Enter initial review findings and endorsement justification..."
                   className="text-xs rounded-xl bg-background"
                   rows={2}
                 />
                 <div className="flex items-center gap-2 justify-end">
                   <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                   <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Batch</Button>
-                  <Button size="sm" onClick={() => handleActionMemberBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse for Approval</Button>
+                  <Button size="sm" onClick={() => handleActionMemberBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse to Reviewer</Button>
                 </div>
               </div>
             )}
 
-            {/* Phase 2: Admin final approval (pending_approval) */}
-            {!isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) && canApprove && inspectMemberBatch?.status === 'pending_approval' && (
-              <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 2: Administrator Final Approval — Generate Accounts</p>
-                <Textarea
-                  value={memberBatchApprovalNotes}
-                  onChange={e => setMemberBatchApprovalNotes(e.target.value)}
-                  placeholder="Enter approval rationale. Member accounts will be created and activation emails dispatched."
-                  className="text-xs rounded-xl bg-background"
-                  rows={2}
-                />
-              </div>
+            {/* Phase 2: Compliance Reviewer endorsement */}
+            {isReviewer && !isSuperAdmin && inspectMemberBatch?.status === 'pending_reviewer' && (
+              !isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) ? (
+                <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/50 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Reviewer Verification</p>
+                  <Textarea
+                    value={memberBatchReviewNotes}
+                    onChange={e => setMemberBatchReviewNotes(e.target.value)}
+                    placeholder="Enter compliance review notes or required corrections..."
+                    className="text-xs rounded-xl bg-background"
+                    rows={2}
+                  />
+                  <div className="flex items-center gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Batch</Button>
+                    <Button size="sm" onClick={() => handleActionMemberBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Endorse to Administrator</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                  You enrolled this batch. Another compliance reviewer must review it.
+                </div>
+              )
+            )}
+
+            {/* Phase 3: Admin final approval (pending_approval) */}
+            {isSuperAdmin && inspectMemberBatch?.status === 'pending_approval' && (
+              !isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) ? (
+                <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">Phase 3: Administrator Final Approval — Generate Accounts</p>
+                  <Textarea
+                    value={memberBatchApprovalNotes}
+                    onChange={e => setMemberBatchApprovalNotes(e.target.value)}
+                    placeholder="Enter approval rationale. Member accounts will be created and activation emails dispatched."
+                    className="text-xs rounded-xl bg-background"
+                    rows={2}
+                  />
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                  You enrolled this batch. Another administrator must approve it.
+                </div>
+              )
             )}
           </div>
 

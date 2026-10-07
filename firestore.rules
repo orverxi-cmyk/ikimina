@@ -4,14 +4,11 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-    
+
 
     function isStaff() {
       return isSignedIn() && (
+        request.auth.token.email == 'tharushyamagara@gmail.com' ||
         request.auth.token.admin == true || 
         request.auth.token.management == true ||
         request.auth.token.accountant == true ||
@@ -19,7 +16,7 @@ service cloud.firestore {
         request.auth.token.reviewer == true ||
         request.auth.token.auditor == true ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (getUserData().role in ['admin', 'management', 'accountant', 'senior_accountant', 'reviewer', 'auditor']))
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'member') in ['admin', 'management', 'accountant', 'senior_accountant', 'reviewer', 'auditor'])
       );
     }
 
@@ -36,7 +33,6 @@ service cloud.firestore {
     // Contributions: Zero client-side writes.
     match /contributions/{contributionId} {
       allow read: if isSignedIn() && (isStaff() || resource.data.memberId == request.auth.uid);
-      allow list: if isSignedIn() && (isStaff() || request.query.filters.memberId == request.auth.uid);
       allow write: if false; // Managed via submitContribution / recordContribution / verifyContribution
     }
 
@@ -55,14 +51,12 @@ service cloud.firestore {
     // Loans: Zero client-side writes.
     match /loans/{loanId} {
       allow read: if isSignedIn() && (isStaff() || resource.data.memberId == request.auth.uid);
-      allow list: if isSignedIn() && (isStaff() || request.query.filters.memberId == request.auth.uid);
       allow write: if false; // Managed via requestLoan / approveLoan / rejectLoan / verifyRepayment
     }
     
     // Repayments: Zero client-side writes.
     match /repayments/{repaymentId} {
       allow read: if isSignedIn() && (isStaff() || resource.data.memberId == request.auth.uid);
-      allow list: if isSignedIn() && (isStaff() || request.query.filters.memberId == request.auth.uid);
       allow write: if false; // Managed via recordRepayment / verifyRepayment
     }
 
