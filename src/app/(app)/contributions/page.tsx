@@ -247,7 +247,7 @@ export default function ContributionsPage() {
             justification
           });
           toast({
-            title: role === 'senior_accountant' ? "Deposit Endorsed to Reviewer" : "Deposit Endorsed to Administrator",
+            title: "Deposit Reviewed",
             description: "Contribution reviewed and forwarded."
           });
         } else {
@@ -793,7 +793,7 @@ export default function ContributionsPage() {
                   disabled={isSubmitting}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" /> 
-                  {role === 'senior_accountant' ? 'Endorse to Reviewer' : role === 'reviewer' ? 'Endorse to Administrator' : 'Verify Funds'}
+                  {role === 'senior_accountant' || role === 'reviewer' ? 'Review' : 'Verify Funds'}
                 </Button>
               </DialogFooter>
             </form>

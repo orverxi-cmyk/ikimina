@@ -459,7 +459,7 @@ export default function ApprovalsHubPage() {
         reviewNotes: reviewNotes.trim()
       });
       toast({
-        title: decision === 'endorse' ? (isSeniorAccountant ? "Batch Endorsed to Reviewer" : "Batch Endorsed to Administrator") : decision === 'request_changes' ? "Revision Requested" : "Batch Rejected",
+        title: decision === 'endorse' ? "Batch Reviewed" : decision === 'request_changes' ? "Revision Requested" : "Batch Rejected",
         description: `Batch #${inspectBatch.batchId || inspectBatch.id} status has been updated.`,
       });
       setIsBatchModalOpen(false);
@@ -534,7 +534,7 @@ export default function ApprovalsHubPage() {
           justification: slipJustification.trim()
         });
         toast({
-          title: isSeniorAccountant ? "Deposit Endorsed to Reviewer" : "Deposit Endorsed to Administrator",
+          title: "Deposit Reviewed",
           description: `Contribution of ${formatCurrency(inspectSlip.amount, currency)} reviewed and forwarded.`
         });
       } else if (decision === 'verify') {
@@ -632,9 +632,9 @@ export default function ApprovalsHubPage() {
           reviewNotes: expenseNotes.trim() || undefined
         });
         toast({ 
-          title: decision === 'endorse' ? "Expense Endorsed" : "Revision Requested", 
+          title: decision === 'endorse' ? "Expense Reviewed" : "Revision Requested", 
           description: decision === 'endorse' 
-            ? `Expense of ${formatCurrency(inspectExpense.amount, currency)} endorsed. Staged for Administrator approval.`
+            ? `Expense of ${formatCurrency(inspectExpense.amount, currency)} reviewed and forwarded.`
             : "Revision requested from initiator."
         });
       } else if (decision === 'approve') {
@@ -694,9 +694,9 @@ export default function ApprovalsHubPage() {
           reviewNotes: interestReviewNotes.trim() || undefined
         });
         toast({ 
-          title: decision === 'endorse' ? "Proposal Endorsed" : "Revision Requested", 
+          title: decision === 'endorse' ? "Proposal Reviewed" : "Revision Requested", 
           description: decision === 'endorse' 
-            ? "Interest distribution proposal endorsed. Staged for Administrator approval."
+            ? "Interest distribution proposal reviewed and forwarded."
             : "Revision requested from accountant."
         });
       } else if (decision === 'approve') {
@@ -761,9 +761,9 @@ export default function ApprovalsHubPage() {
           reviewNotes: memberBatchReviewNotes.trim() || 'Reviewed by compliance'
         });
         toast({
-          title: decision === 'endorse' ? "Enrollment Batch Endorsed" : "Revision Requested",
+          title: decision === 'endorse' ? "Enrollment Batch Reviewed" : "Revision Requested",
           description: decision === 'endorse'
-            ? "Member enrollment batch verified and endorsed. Staged for Administrator final approval."
+            ? "Member enrollment batch reviewed and forwarded."
             : "Revision requested from initiator."
         });
       } else if (decision === 'approve') {
@@ -1973,7 +1973,7 @@ export default function ApprovalsHubPage() {
             <div className="space-y-4 pt-4 border-t">
               {isSeniorAccountant && (inspectBatch?.status === 'pending_review' || inspectBatch?.status === 'revision_requested') && (
                 <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 dark:border-blue-900/50 space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review &amp; Endorsement</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review</p>
                   <Textarea 
                     value={reviewNotes} 
                     onChange={e => setReviewNotes(e.target.value)} 
@@ -1989,7 +1989,7 @@ export default function ApprovalsHubPage() {
                       Reject Batch
                     </Button>
                     <Button size="sm" onClick={() => handleReviewBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
-                      Endorse to Reviewer
+                      Review
                     </Button>
                   </div>
                 </div>
@@ -1998,7 +1998,7 @@ export default function ApprovalsHubPage() {
               {isReviewer && inspectBatch?.status === 'pending_reviewer' && (
                 !isBatchInitiatedByCurrentUser(inspectBatch) ? (
                   <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/50 dark:border-indigo-900/50 space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Reviewer Verification</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Review</p>
                     <Textarea 
                       value={reviewNotes} 
                       onChange={e => setReviewNotes(e.target.value)} 
@@ -2014,7 +2014,7 @@ export default function ApprovalsHubPage() {
                         Reject Batch
                       </Button>
                       <Button size="sm" onClick={() => handleReviewBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">
-                        Endorse to Administrator
+                        Review
                       </Button>
                     </div>
                   </div>
@@ -2124,7 +2124,7 @@ export default function ApprovalsHubPage() {
               Cancel
             </Button>
             <div className="flex items-center gap-2">
-              {/* Senior Accountant: Initial Review & Endorsement */}
+              {/* Senior Accountant: Initial Review */}
               {isSeniorAccountant && inspectSlip?.status === 'pending' && (
                 <>
                   <Button 
@@ -2141,12 +2141,12 @@ export default function ApprovalsHubPage() {
                     className="rounded-xl text-xs font-bold bg-primary text-primary-foreground gap-1"
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
-                    Endorse to Reviewer
+                    Review
                   </Button>
                 </>
               )}
 
-              {/* Reviewer: Compliance Endorsement */}
+              {/* Reviewer: Compliance Review */}
               {isReviewer && !isSuperAdmin && inspectSlip?.status === 'pending_reviewer' && !isSlipInitiatedByCurrentUser(inspectSlip) && (
                 <>
                   <Button 
@@ -2163,7 +2163,7 @@ export default function ApprovalsHubPage() {
                     className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                    Endorse to Administrator
+                    Review
                   </Button>
                 </>
               )}
@@ -2248,7 +2248,7 @@ export default function ApprovalsHubPage() {
               Cancel
             </Button>
             <div className="flex items-center gap-2">
-              {/* Senior Accountant: Initial Review & Endorsement */}
+              {/* Senior Accountant: Initial Review */}
               {isSeniorAccountant && inspectLoan?.status === 'requested' && (
                 <>
                   <Button 
@@ -2265,12 +2265,12 @@ export default function ApprovalsHubPage() {
                     className="rounded-xl text-xs font-bold bg-primary text-primary-foreground gap-1"
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
-                    Endorse to Reviewer
+                    Review
                   </Button>
                 </>
               )}
 
-              {/* Reviewer: Compliance Endorsement */}
+              {/* Reviewer: Compliance Review */}
               {isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer' && !isLoanInitiatedByCurrentUser(inspectLoan) && (
                 <>
                   <Button 
@@ -2287,7 +2287,7 @@ export default function ApprovalsHubPage() {
                     className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                    Endorse to Administrator
+                    Review
                   </Button>
                 </>
               )}
@@ -2361,29 +2361,29 @@ export default function ApprovalsHubPage() {
             </div>
           </div>
 
-          {/* Phase 1: Senior Accountant initial review & endorsement */}
+          {/* Phase 1: Senior Accountant initial review */}
           {isSeniorAccountant && (inspectExpense?.status === 'pending_review' || inspectExpense?.status === 'pending') && (
             <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review &amp; Endorsement</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review</p>
               <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter initial review notes or change requirements..." className="rounded-xl text-xs h-10" />
               <div className="flex items-center gap-2 justify-end">
                 <Button size="sm" variant="outline" onClick={() => handleActionExpense('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                 <Button size="sm" variant="outline" onClick={() => handleActionExpense('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject</Button>
-                <Button size="sm" onClick={() => handleActionExpense('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse to Reviewer</Button>
+                <Button size="sm" onClick={() => handleActionExpense('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Review</Button>
               </div>
             </div>
           )}
 
-          {/* Phase 2: Compliance Reviewer endorsement */}
+          {/* Phase 2: Compliance Review */}
           {isReviewer && !isSuperAdmin && inspectExpense?.status === 'pending_reviewer' && (
             !isExpenseInitiatedByCurrentUser(inspectExpense) ? (
               <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/50 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Reviewer Verification</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Review</p>
                 <Input value={expenseNotes} onChange={e => setExpenseNotes(e.target.value)} placeholder="Enter compliance audit notes..." className="rounded-xl text-xs h-10" />
                 <div className="flex items-center gap-2 justify-end">
                   <Button size="sm" variant="outline" onClick={() => handleActionExpense('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                   <Button size="sm" variant="outline" onClick={() => handleActionExpense('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject</Button>
-                  <Button size="sm" onClick={() => handleActionExpense('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Endorse to Administrator</Button>
+                  <Button size="sm" onClick={() => handleActionExpense('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Review</Button>
                 </div>
               </div>
             ) : (
@@ -2579,7 +2579,7 @@ export default function ApprovalsHubPage() {
             {isSeniorAccountant &&
               (inspectInterest?.status === 'pending_review' || inspectInterest?.status === 'pending' || inspectInterest?.status === 'revision_requested') && (
               <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 dark:border-blue-900/50 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review &amp; Endorsement</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review</p>
                 <Textarea
                   value={interestReviewNotes}
                   onChange={e => setInterestReviewNotes(e.target.value)}
@@ -2590,16 +2590,16 @@ export default function ApprovalsHubPage() {
                 <div className="flex items-center gap-2 justify-end">
                   <Button size="sm" variant="outline" onClick={() => handleActionInterest('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                   <Button size="sm" variant="outline" onClick={() => handleActionInterest('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Proposal</Button>
-                  <Button size="sm" onClick={() => handleActionInterest('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse to Reviewer</Button>
+                  <Button size="sm" onClick={() => handleActionInterest('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Review</Button>
                 </div>
               </div>
             )}
 
-            {/* Phase 2: Compliance Reviewer audit & verification (pending_reviewer) */}
+            {/* Phase 2: Compliance Review (pending_reviewer) */}
             {isReviewer && inspectInterest?.status === 'pending_reviewer' && (
               !isInterestInitiatedByCurrentUser(inspectInterest) ? (
                 <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/50 dark:border-indigo-900/50 space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Reviewer Audit &amp; Verification</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Review</p>
                   <Textarea
                     value={interestReviewNotes}
                     onChange={e => setInterestReviewNotes(e.target.value)}
@@ -2610,7 +2610,7 @@ export default function ApprovalsHubPage() {
                   <div className="flex items-center gap-2 justify-end">
                     <Button size="sm" variant="outline" onClick={() => handleActionInterest('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                     <Button size="sm" variant="outline" onClick={() => handleActionInterest('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Proposal</Button>
-                    <Button size="sm" onClick={() => handleActionInterest('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Endorse to Administrator</Button>
+                    <Button size="sm" onClick={() => handleActionInterest('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Review</Button>
                   </div>
                 </div>
               ) : (
@@ -2726,30 +2726,30 @@ export default function ApprovalsHubPage() {
               </div>
             </div>
 
-            {/* Phase 1: Senior Accountant initial review & endorsement */}
+            {/* Phase 1: Senior Accountant initial review */}
             {isSeniorAccountant && (inspectMemberBatch?.status === 'pending_review' || inspectMemberBatch?.status === 'revision_requested') && (
               <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200/50 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review &amp; Endorsement</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Phase 1: Senior Accountant Initial Review</p>
                 <Textarea
                   value={memberBatchReviewNotes}
                   onChange={e => setMemberBatchReviewNotes(e.target.value)}
-                  placeholder="Enter initial review findings and endorsement justification..."
+                  placeholder="Enter initial review findings and justification..."
                   className="text-xs rounded-xl bg-background"
                   rows={2}
                 />
                 <div className="flex items-center gap-2 justify-end">
                   <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                   <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Batch</Button>
-                  <Button size="sm" onClick={() => handleActionMemberBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Endorse to Reviewer</Button>
+                  <Button size="sm" onClick={() => handleActionMemberBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">Review</Button>
                 </div>
               </div>
             )}
 
-            {/* Phase 2: Compliance Reviewer endorsement */}
+            {/* Phase 2: Compliance Review */}
             {isReviewer && !isSuperAdmin && inspectMemberBatch?.status === 'pending_reviewer' && (
               !isMemberBatchInitiatedByCurrentUser(inspectMemberBatch) ? (
                 <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/50 space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Reviewer Verification</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">Phase 2: Compliance Review</p>
                   <Textarea
                     value={memberBatchReviewNotes}
                     onChange={e => setMemberBatchReviewNotes(e.target.value)}
@@ -2760,7 +2760,7 @@ export default function ApprovalsHubPage() {
                   <div className="flex items-center gap-2 justify-end">
                     <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('request_changes')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-amber-500/30 text-amber-700">Request Changes</Button>
                     <Button size="sm" variant="outline" onClick={() => handleActionMemberBatch('reject')} disabled={isSubmitting} className="rounded-xl text-xs font-bold border-destructive/30 text-destructive">Reject Batch</Button>
-                    <Button size="sm" onClick={() => handleActionMemberBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Endorse to Administrator</Button>
+                    <Button size="sm" onClick={() => handleActionMemberBatch('endorse')} disabled={isSubmitting} className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white">Review</Button>
                   </div>
                 </div>
               ) : (

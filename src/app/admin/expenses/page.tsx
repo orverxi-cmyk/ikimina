@@ -283,9 +283,9 @@ export default function ExpensesAdminPage() {
       });
 
       toast({
-        title: decision === 'endorse' ? "Expense Endorsed" : decision === 'request_changes' ? "Revision Requested" : "Expense Rejected",
+        title: decision === 'endorse' ? "Expense Reviewed" : decision === 'request_changes' ? "Revision Requested" : "Expense Rejected",
         description: decision === 'endorse' 
-          ? "Expense endorsed and forwarded to Administrator for final asset deduction approval."
+          ? "Expense reviewed and forwarded."
           : `Expense review decision recorded: ${decision}.`
       });
 
@@ -616,9 +616,9 @@ export default function ExpensesAdminPage() {
                             {exp.status === 'pending_approval' ? (
                               canApprove ? 'Authorize & Sign-Off' : 'View Details'
                             ) : exp.status === 'pending_reviewer' ? (
-                              isComplianceReviewer ? 'Review & Endorse' : 'Awaiting Reviewer'
+                              isComplianceReviewer ? 'Review' : 'Awaiting Reviewer'
                             ) : (
-                              isSeniorAcct ? 'Initial Review & Endorse' : 'Awaiting Senior Acct'
+                              isSeniorAcct ? 'Review' : 'Awaiting Senior Acct'
                             )}
                           </Button>
                         </TableCell>
@@ -1229,7 +1229,7 @@ export default function ExpensesAdminPage() {
                             ) : (
                               <CheckCircle2 className="h-4 w-4" />
                             )}
-                            Endorse to Administrator
+                            Review
                           </Button>
                         </div>
                       </>
@@ -1284,7 +1284,7 @@ export default function ExpensesAdminPage() {
                           ) : (
                             <CheckCircle2 className="h-4 w-4" />
                           )}
-                          Endorse to Reviewer
+                          Review
                         </Button>
                       </div>
                     </>
