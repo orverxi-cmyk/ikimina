@@ -283,9 +283,9 @@ export default function ExpensesAdminPage() {
       });
 
       toast({
-        title: decision === 'endorse' ? "Expense Reviewed" : decision === 'request_changes' ? "Revision Requested" : "Expense Rejected",
+        title: decision === 'endorse' ? "Expense Submitted for Review" : decision === 'request_changes' ? "Revision Requested" : "Expense Rejected",
         description: decision === 'endorse' 
-          ? "Expense reviewed and forwarded."
+          ? "Expense has been submitted for compliance review."
           : `Expense review decision recorded: ${decision}.`
       });
 
@@ -300,6 +300,32 @@ export default function ExpensesAdminPage() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Direct Submit for Review Handler (Senior Accountant table row action)
+  const [isDirectSubmitting, setIsDirectSubmitting] = useState<string | null>(null);
+  const handleDirectSubmitForReview = async (exp: any) => {
+    if (!isSeniorAcct) return;
+    setIsDirectSubmitting(exp.id);
+    try {
+      await reviewExpenseAction({
+        expenseId: exp.id,
+        decision: 'endorse',
+        reviewNotes: undefined
+      });
+      toast({
+        title: "Expense Submitted for Review",
+        description: "The expense has been endorsed and forwarded to the Compliance Reviewer."
+      });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Submission Failed",
+        description: err.message || "Could not submit expense for review."
+      });
+    } finally {
+      setIsDirectSubmitting(null);
     }
   };
 
@@ -605,22 +631,52 @@ export default function ExpensesAdminPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setSelectedExpense(exp);
-                              setIsReviewOpen(true);
-                            }}
-                            className="rounded-xl font-bold text-xs h-8 px-3 gap-1 shadow-sm"
-                          >
-                            {exp.status === 'pending_approval' ? (
-                              canApprove ? 'Authorize & Sign-Off' : 'View Details'
-                            ) : exp.status === 'pending_reviewer' ? (
-                              isComplianceReviewer ? 'Review' : 'Awaiting Reviewer'
-                            ) : (
-                              isSeniorAcct ? 'Review' : 'Awaiting Senior Acct'
-                            )}
-                          </Button>
+                          {/* Senior Accountant on a pending_review / pending / revision_requested expense gets a direct Submit for Review button */}
+                          {isSeniorAcct && (exp.status === 'pending_review' || exp.status === 'pending' || exp.status === 'revision_requested') ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedExpense(exp);
+                                  setIsReviewOpen(true);
+                                }}
+                                className="rounded-xl font-bold text-xs h-8 px-3 gap-1 text-muted-foreground hover:text-foreground"
+                              >
+                                View
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={isDirectSubmitting === exp.id}
+                                onClick={() => handleDirectSubmitForReview(exp)}
+                                className="rounded-xl font-bold text-xs h-8 px-3 gap-1 shadow-sm bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                {isDirectSubmitting === exp.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <FileCheck className="h-3 w-3" />
+                                )}
+                                Submit for Review
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedExpense(exp);
+                                setIsReviewOpen(true);
+                              }}
+                              className="rounded-xl font-bold text-xs h-8 px-3 gap-1 shadow-sm"
+                            >
+                              {exp.status === 'pending_approval' ? (
+                                canApprove ? 'Authorize & Sign-Off' : 'View Details'
+                              ) : exp.status === 'pending_reviewer' ? (
+                                isComplianceReviewer ? 'Review' : 'Awaiting Reviewer'
+                              ) : (
+                                'View Details'
+                              )}
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -1277,14 +1333,14 @@ export default function ExpensesAdminPage() {
                           type="button"
                           disabled={isSubmitting}
                           onClick={() => handleReview('endorse')}
-                          className="rounded-xl font-bold bg-primary text-primary-foreground shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
+                          className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
                         >
                           {isSubmitting ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <CheckCircle2 className="h-4 w-4" />
+                            <FileCheck className="h-4 w-4" />
                           )}
-                          Review
+                          Submit for Review
                         </Button>
                       </div>
                     </>
