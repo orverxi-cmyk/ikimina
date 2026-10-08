@@ -612,7 +612,7 @@ export default function MembersPage() {
                             <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 uppercase text-[9px] font-bold px-2.5 py-0.5 flex items-center gap-1">
                               <Clock className="h-3 w-3" /> Pending
                             </Badge>
-                            {isReviewer && member.passwordSet && member.status === 'pending' && (
+                            {isReviewer && member.passwordSet && (member.status === 'pending' || member.status === 'pending_reviewer') && (
                               <Button 
                                 size="sm" 
                                 onClick={() => handleReviewMember(member)}
@@ -656,7 +656,7 @@ export default function MembersPage() {
                             <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
                           )}
                           {member.status !== 'active' ? (
-                            (isReviewer && member.passwordSet && member.status === 'pending') ? (
+                            (isReviewer && member.passwordSet && (member.status === 'pending' || member.status === 'pending_reviewer')) ? (
                               <DropdownMenuItem 
                                 className="font-bold text-blue-600 flex items-center gap-1.5 focus:text-blue-600 focus:bg-blue-50 dark:focus:bg-blue-950/20 cursor-pointer" 
                                 onClick={() => handleReviewMember(member)}
