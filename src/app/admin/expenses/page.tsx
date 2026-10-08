@@ -1054,9 +1054,9 @@ export default function ExpensesAdminPage() {
 
       {/* MODAL 2: REVIEW & APPROVE (Administrator Only) */}
       <Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-xl md:max-w-2xl rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-xl md:max-w-2xl rounded-2xl bg-card border shadow-2xl p-0 overflow-x-hidden max-h-[90vh] flex flex-col">
           {selectedExpense && (
-            <div className="flex flex-col">
+            <div className="flex flex-col min-h-0 flex-1">
               <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/30 border-b">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">
@@ -1072,9 +1072,9 @@ export default function ExpensesAdminPage() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="p-4 sm:p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                 {/* Metric Summary */}
-                <div className="p-3.5 sm:p-4 rounded-xl bg-muted border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="p-3.5 sm:p-4 rounded-xl bg-muted border border-border flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Disbursement Amount
@@ -1083,7 +1083,7 @@ export default function ExpensesAdminPage() {
                       -{formatCurrency(selectedExpense.amount, currency)}
                     </p>
                   </div>
-                  <Badge variant="outline" className="font-semibold text-xs border-border text-foreground self-start sm:self-auto shrink-0 max-w-full truncate">
+                  <Badge variant="outline" className="font-semibold text-xs border-border text-foreground max-w-[160px] sm:max-w-[220px] truncate">
                     {selectedExpense.category}
                   </Badge>
                 </div>
@@ -1126,14 +1126,14 @@ export default function ExpensesAdminPage() {
                     Supporting Document (Proof)
                   </Label>
                   {selectedExpense.receiptUrl ? (
-                    <div className="p-3 bg-background rounded-xl border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="p-3 bg-background rounded-xl border border-primary/20 flex flex-col gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <FileText className="h-5 w-5 text-primary shrink-0" />
-                        <span className="text-xs font-bold truncate text-foreground min-w-0">
+                        <span className="text-xs font-bold break-all text-foreground min-w-0">
                           {selectedExpense.receiptFileName || 'Supporting_Receipt.pdf'}
                         </span>
                       </div>
-                      <Button asChild size="sm" className="h-8 rounded-lg font-bold text-xs gap-1.5 shrink-0 w-full sm:w-auto justify-center">
+                      <Button asChild size="sm" className="h-8 rounded-lg font-bold text-xs gap-1.5 w-full justify-center">
                         <a href={selectedExpense.receiptUrl} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="h-3.5 w-3.5" /> Inspect Document
                         </a>
@@ -1190,47 +1190,46 @@ export default function ExpensesAdminPage() {
                 )}
               </div>
 
-              <DialogFooter className="p-4 sm:p-6 pt-3 sm:pt-4 bg-muted/30 border-t flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <DialogFooter className="p-4 sm:p-6 pt-3 sm:pt-4 bg-muted/30 border-t flex flex-col gap-2 shrink-0">
                 {selectedExpense.status === 'pending_approval' ? (
                   canApprove ? (
                     <>
                       <Button
                         type="button"
-                        variant="outline"
-                        onClick={() => setIsRejectOpen(true)}
-                        className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1 w-full md:w-auto shrink-0"
+                        disabled={isSubmitting}
+                        onClick={handleApprove}
+                        className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 w-full gap-2 justify-center"
                       >
-                        <Ban className="mr-2 h-4 w-4" /> Reject Expense
+                        {isSubmitting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        Authorize &amp; Deduct from Assets
                       </Button>
-
-                      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 order-1 md:order-2 w-full md:w-auto">
+                      <div className="flex gap-2">
                         <Button
                           type="button"
                           variant="ghost"
                           onClick={() => setIsReviewOpen(false)}
-                          className="rounded-xl font-bold h-11 px-4 w-full sm:w-auto"
+                          className="rounded-xl font-bold h-10 px-4 flex-1"
                         >
                           Close
                         </Button>
                         <Button
                           type="button"
-                          disabled={isSubmitting}
-                          onClick={handleApprove}
-                          className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
+                          variant="outline"
+                          onClick={() => setIsRejectOpen(true)}
+                          className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-10 px-4 flex-1"
                         >
-                          {isSubmitting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4" />
-                          )}
-                          Authorize &amp; Deduct from Assets
+                          <Ban className="mr-1.5 h-3.5 w-3.5" /> Reject
                         </Button>
                       </div>
                     </>
                   ) : (
-                    <div className="flex items-center justify-between w-full">
-                      <p className="text-xs text-muted-foreground font-medium">Stage 3: Endorsed by Compliance Reviewer. Awaiting Administrator sign-off.</p>
-                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                    <div className="flex flex-col gap-2 w-full">
+                      <p className="text-xs text-muted-foreground font-medium text-center">Stage 3: Endorsed by Compliance Reviewer. Awaiting Administrator sign-off.</p>
+                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 w-full">
                         Close
                       </Button>
                     </div>
@@ -1238,9 +1237,9 @@ export default function ExpensesAdminPage() {
                 ) : selectedExpense.status === 'pending_reviewer' ? (
                   isComplianceReviewer ? (
                     selectedExpense.lodgedBy === user?.uid ? (
-                      <div className="flex items-center justify-between w-full">
-                        <p className="text-xs text-muted-foreground font-medium">You lodged this expense. Another compliance reviewer must review it.</p>
-                        <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                      <div className="flex flex-col gap-2 w-full">
+                        <p className="text-xs text-muted-foreground font-medium text-center">You lodged this expense. Another compliance reviewer must review it.</p>
+                        <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 w-full">
                           Close
                         </Button>
                       </div>
@@ -1248,20 +1247,23 @@ export default function ExpensesAdminPage() {
                       <>
                         <Button
                           type="button"
-                          variant="outline"
-                          onClick={() => handleReview('reject')}
                           disabled={isSubmitting}
-                          className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1 w-full md:w-auto shrink-0"
+                          onClick={() => handleReview('endorse')}
+                          className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg h-11 w-full gap-2 justify-center"
                         >
-                          <Ban className="mr-2 h-4 w-4" /> Reject
+                          {isSubmitting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4" />
+                          )}
+                          Endorse &amp; Forward to Admin
                         </Button>
-
-                        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 order-1 md:order-2 w-full md:w-auto">
+                        <div className="flex gap-2">
                           <Button
                             type="button"
                             variant="ghost"
                             onClick={() => setIsReviewOpen(false)}
-                            className="rounded-xl font-bold h-11 px-4 w-full sm:w-auto"
+                            className="rounded-xl font-bold h-10 flex-1"
                           >
                             Cancel
                           </Button>
@@ -1270,30 +1272,26 @@ export default function ExpensesAdminPage() {
                             variant="outline"
                             disabled={isSubmitting}
                             onClick={() => handleReview('request_changes')}
-                            className="rounded-xl font-bold border-amber-500/30 text-amber-600 hover:bg-amber-500/10 h-11 px-4"
+                            className="rounded-xl font-bold border-amber-500/30 text-amber-600 hover:bg-amber-500/10 h-10 flex-1"
                           >
                             Request Changes
                           </Button>
                           <Button
                             type="button"
+                            variant="outline"
+                            onClick={() => handleReview('reject')}
                             disabled={isSubmitting}
-                            onClick={() => handleReview('endorse')}
-                            className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
+                            className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-10 flex-1"
                           >
-                            {isSubmitting ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="h-4 w-4" />
-                            )}
-                            Review
+                            <Ban className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </>
                     )
                   ) : (
-                    <div className="flex items-center justify-between w-full">
-                      <p className="text-xs text-muted-foreground font-medium">Stage 2: Endorsed by Senior Accountant. Awaiting Compliance Reviewer.</p>
-                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                    <div className="flex flex-col gap-2 w-full">
+                      <p className="text-xs text-muted-foreground font-medium text-center">Stage 2: Endorsed by Senior Accountant. Awaiting Compliance Reviewer.</p>
+                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 w-full">
                         Close
                       </Button>
                     </div>
@@ -1303,20 +1301,23 @@ export default function ExpensesAdminPage() {
                     <>
                       <Button
                         type="button"
-                        variant="outline"
-                        onClick={() => handleReview('reject')}
                         disabled={isSubmitting}
-                        className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1 w-full md:w-auto shrink-0"
+                        onClick={() => handleReview('endorse')}
+                        className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 w-full gap-2 justify-center"
                       >
-                        <Ban className="mr-2 h-4 w-4" /> Reject
+                        {isSubmitting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileCheck className="h-4 w-4" />
+                        )}
+                        Submit for Review
                       </Button>
-
-                      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 order-1 md:order-2 w-full md:w-auto">
+                      <div className="flex gap-2">
                         <Button
                           type="button"
                           variant="ghost"
                           onClick={() => setIsReviewOpen(false)}
-                          className="rounded-xl font-bold h-11 px-4 w-full sm:w-auto"
+                          className="rounded-xl font-bold h-10 flex-1"
                         >
                           Cancel
                         </Button>
@@ -1325,29 +1326,25 @@ export default function ExpensesAdminPage() {
                           variant="outline"
                           disabled={isSubmitting}
                           onClick={() => handleReview('request_changes')}
-                          className="rounded-xl font-bold border-amber-500/30 text-amber-600 hover:bg-amber-500/10 h-11 px-4"
+                          className="rounded-xl font-bold border-amber-500/30 text-amber-600 hover:bg-amber-500/10 h-10 flex-1"
                         >
                           Request Changes
                         </Button>
                         <Button
                           type="button"
+                          variant="outline"
+                          onClick={() => handleReview('reject')}
                           disabled={isSubmitting}
-                          onClick={() => handleReview('endorse')}
-                          className="rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg h-11 px-5 w-full sm:w-auto gap-2 shrink-0 justify-center whitespace-nowrap"
+                          className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-10 px-3"
                         >
-                          {isSubmitting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <FileCheck className="h-4 w-4" />
-                          )}
-                          Submit for Review
+                          <Ban className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </>
                   ) : (
-                    <div className="flex items-center justify-between w-full">
-                      <p className="text-xs text-muted-foreground font-medium">Stage 1: Lodged. Awaiting Senior Accountant initial review.</p>
-                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 px-4">
+                    <div className="flex flex-col gap-2 w-full">
+                      <p className="text-xs text-muted-foreground font-medium text-center">Stage 1: Lodged. Awaiting Senior Accountant initial review.</p>
+                      <Button type="button" variant="outline" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-10 w-full">
                         Close
                       </Button>
                     </div>
