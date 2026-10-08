@@ -677,7 +677,7 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleActionLoan = async (decision: 'review' | 'approve' | 'reject') => {
     if (!inspectLoan || !user) return;
-    if (!isSeniorAccountant && isLoanInitiatedByCurrentUser(inspectLoan)) {
+    if (!isSeniorAccountant && !isSuperAdmin && isLoanInitiatedByCurrentUser(inspectLoan)) {
       return toast({
         variant: "destructive",
         title: "Segregation of Duties Violation",
@@ -2334,7 +2334,7 @@ export default function ApprovalsHubPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {!isSeniorAccountant && isLoanInitiatedByCurrentUser(inspectLoan) && (
+          {!isSeniorAccountant && !isSuperAdmin && isLoanInitiatedByCurrentUser(inspectLoan) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <span>You cannot approve your own loan application. Another administrator must audit it.</span>
@@ -2366,7 +2366,7 @@ export default function ApprovalsHubPage() {
             {renderReviewTrail(inspectLoan)}
             {((isSeniorAccountant && inspectLoan?.status === 'requested') ||
               (isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer' && !isLoanInitiatedByCurrentUser(inspectLoan)) ||
-              (isSuperAdmin && inspectLoan?.status === 'reviewed' && !isLoanInitiatedByCurrentUser(inspectLoan))) && (
+              (isSuperAdmin && inspectLoan?.status === 'reviewed')) && (
               <div className="space-y-2 pt-2">
                 <Label className="text-xs font-bold uppercase tracking-wider">Approval / Audit Justification *</Label>
                 <Input 
@@ -2429,7 +2429,7 @@ export default function ApprovalsHubPage() {
               )}
 
               {/* Super Admin: Final Approval */}
-              {isSuperAdmin && inspectLoan?.status === 'reviewed' && !isLoanInitiatedByCurrentUser(inspectLoan) && (
+              {isSuperAdmin && inspectLoan?.status === 'reviewed' && (
                 <>
                   <Button 
                     variant="outline" 
