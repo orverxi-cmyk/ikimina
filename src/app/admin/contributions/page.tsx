@@ -34,6 +34,8 @@ import {
   Calendar,
   AlertTriangle,
   ShieldAlert,
+  FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, doc } from 'firebase/firestore';
@@ -54,11 +56,22 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   reviewContributionAction,
   verifyContributionAction,
   rejectContributionAction,
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
+import {
+  canExportContributions,
+  exportContributionsToExcel,
+} from '@/lib/contributions-export';
+import { ExportContributionsDialog } from '@/components/admin/export-contributions-dialog';
 
 function safeDate(val: any): Date | null {
   if (!val) return null;
@@ -134,6 +147,10 @@ export default function AdminContributionsPage() {
   const isAuthorized = Boolean(
     user && ['admin', 'management', 'accountant', 'senior_accountant', 'reviewer', 'auditor'].includes(userRole)
   );
+
+  // Export permission check: Admins, Accountants, Senior Accountants, Reviewers, Management
+  const canExport = canExportContributions(userRole, user?.email);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'batches'>('all');
   const [search, setSearch] = useState('');
@@ -354,6 +371,55 @@ export default function AdminContributionsPage() {
     setActionJustification('');
   };
 
+  const handleQuickExport = () => {
+    if (!canExport) {
+      toast({
+        variant: 'destructive',
+        title: 'Access Denied',
+        description: 'Only Admins, Accountants, Reviewers, and Senior Accountants can export contributions.',
+      });
+      return;
+    }
+
+    try {
+      const listToExport = activeTab === 'batches' ? allSlips : filteredSlips;
+      const scopeName =
+        activeTab === 'all'
+          ? 'All Contributions'
+          : activeTab === 'pending'
+          ? 'Pending Contributions'
+          : activeTab === 'approved'
+          ? 'Approved Contributions'
+          : 'Contributions Ledger';
+
+      const result = exportContributionsToExcel({
+        slips: listToExport,
+        batches: allBatches,
+        memberMap,
+        currency,
+        exportedByName: userData?.name || user?.displayName || user?.email || 'Authorized Officer',
+        exportedByEmail: user?.email || '',
+        exportedByRole: userRole,
+        scopeLabel: search ? `${scopeName} (Search: "${search}")` : scopeName,
+        includeMemberSummary: true,
+        includePeriodSummary: true,
+        includeBatches: allBatches.length > 0,
+        includeMetadata: true,
+      });
+
+      toast({
+        title: 'Excel Export Complete',
+        description: `Exported ${result.totalExported} contribution records to ${result.fileName}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Export Failed',
+        description: err?.message || 'Failed to generate Excel file.',
+      });
+    }
+  };
+
   if (userDataLoading && !cachedRole && !isPrimaryAdmin) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -415,6 +481,30 @@ export default function AdminContributionsPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {canExport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="rounded-xl h-10 px-3.5 font-bold text-xs gap-2 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300 shadow-2xs transition-all"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Export Excel (.xlsx)</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl text-xs w-60 shadow-lg border-border">
+                <DropdownMenuItem onClick={handleQuickExport} className="gap-2 font-semibold cursor-pointer">
+                  <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Quick Export ({activeTab === 'batches' ? allSlips.length : filteredSlips.length} rows)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)} className="gap-2 font-semibold cursor-pointer">
+                  <Layers className="h-4 w-4 text-primary" />
+                  <span>Custom Export & Filters...</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           <Link href="/admin/approvals">
             <Button className="rounded-xl h-10 px-4 font-bold text-xs gap-2 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
               <ShieldCheck className="h-4 w-4" /> Open Approvals Hub
@@ -495,14 +585,28 @@ export default function AdminContributionsPage() {
             </TabsList>
           </Tabs>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search member, period, amount…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9 h-10 rounded-xl text-xs bg-card"
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search member, period, amount…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9 h-10 rounded-xl text-xs bg-card"
+              />
+            </div>
+            {canExport && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsExportDialogOpen(true)}
+                title="Export filtered contributions to Excel"
+                className="h-10 px-3 rounded-xl text-xs font-bold gap-1.5 border-border bg-card hover:bg-muted text-foreground shrink-0 shadow-2xs"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -823,6 +927,25 @@ export default function AdminContributionsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* EXPORT CONTRIBUTIONS MODAL (Admins, Accountants, Senior Accountants, Reviewers) */}
+      {canExport && (
+        <ExportContributionsDialog
+          open={isExportDialogOpen}
+          onOpenChange={setIsExportDialogOpen}
+          allSlips={allSlips}
+          allBatches={allBatches}
+          memberMap={memberMap}
+          currency={currency}
+          currentUser={{
+            name: userData?.name || user?.displayName || user?.email,
+            email: user?.email,
+            role: userRole,
+          }}
+          initialStatusFilter={activeTab === 'batches' ? 'all' : activeTab}
+          initialSearchQuery={search}
+        />
+      )}
     </div>
   );
 }

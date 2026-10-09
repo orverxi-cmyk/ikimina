@@ -94,7 +94,7 @@ export default function MorePage() {
           { href: '/admin', label: 'Dashboard', icon: Home, description: 'Balance sheet and metrics' },
         ] : []),
         { href: '/admin/contributions', label: 'Contributions', icon: Layers, description: 'Individual slips and batch contributions' },
-        { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck, description: 'Audit and approve pending requests' },
+        { href: '/admin/approvals', label: 'Approve', icon: ShieldCheck, description: 'Audit and approve pending requests' },
         { href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2, description: 'Complete ledger of approved operations' },
         { href: '/loans', label: 'Loan Portfolio', icon: Landmark, description: 'Scheme lending and repayment portfolio' },
         { href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins, description: 'Pro-rata dividend allocation and ledger' },

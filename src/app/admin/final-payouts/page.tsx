@@ -32,6 +32,10 @@ import {
   approveFinalPayoutAction,
   rejectFinalPayoutAction,
 } from '@/lib/finance-client';
+import { canExportFinalPayouts, exportFinalPayoutsToExcel } from '@/lib/final-payouts-export';
+import { ExportFinalPayoutsDialog } from '@/components/admin/export-final-payouts-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { FileSpreadsheet, Download } from 'lucide-react';
 
 const PAYOUT_METHODS = ['Bank Transfer', 'Mobile Money', 'Cheque', 'Cash'];
 
@@ -240,6 +244,37 @@ export default function FinalPayoutsPage() {
     }
   };
 
+  // Export Permissions & Modal state
+  const canExport = canExportFinalPayouts(role, user?.email);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+
+  const handleQuickExportFinalPayouts = () => {
+    if (!canExport) return;
+    try {
+      const result = exportFinalPayoutsToExcel({
+        payouts,
+        currency,
+        statusFilter: 'all',
+        exportedByName: userData?.name || user?.displayName || user?.email || 'Authorized Officer',
+        exportedByEmail: user?.email || '',
+        exportedByRole: role,
+        scopeLabel: 'Complete Final Payouts Register',
+        includeMetadata: true,
+      });
+
+      toast({
+        title: 'Final Payouts Exported',
+        description: `Exported ${result.totalExported} payout records to ${result.fileName}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Export Failed',
+        description: err?.message || 'Could not export final payouts.',
+      });
+    }
+  };
+
   if (!canView) {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] gap-3 text-center">
@@ -291,15 +326,41 @@ export default function FinalPayoutsPage() {
             Settle a member&apos;s full balance on exit. The Accountant initiates with a supporting document; Administrator approval pays out and permanently deletes the account.
           </p>
         </div>
-        {canInitiate && (
-          <Button
-            id="initiate-final-payout-btn"
-            onClick={() => { resetInitiate(); setIsInitiateOpen(true); }}
-            className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4" /> Initiate Final Payout
-          </Button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {canExport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="rounded-xl h-10 px-3.5 font-bold text-xs gap-2 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 shadow-2xs"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Export Excel</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl text-xs w-56 shadow-lg border-border">
+                <DropdownMenuItem onClick={handleQuickExportFinalPayouts} className="gap-2 font-semibold cursor-pointer">
+                  <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Quick Export ({payouts.length} records)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)} className="gap-2 font-semibold cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  <span>Custom Export &amp; Filters...</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {canInitiate && (
+            <Button
+              id="initiate-final-payout-btn"
+              onClick={() => { resetInitiate(); setIsInitiateOpen(true); }}
+              className="rounded-xl font-bold text-[12px] gap-2 shadow-sm h-10 px-4 w-full sm:w-auto"
+            >
+              <Plus className="h-4 w-4" /> Initiate Final Payout
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* KPIs */}
@@ -797,6 +858,22 @@ export default function FinalPayoutsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ===== EXPORT FINAL PAYOUTS DIALOG ===== */}
+      {canExport && (
+        <ExportFinalPayoutsDialog
+          open={isExportDialogOpen}
+          onOpenChange={setIsExportDialogOpen}
+          payouts={payouts}
+          currency={currency}
+          currentUser={{
+            name: userData?.name || user?.displayName || user?.email,
+            email: user?.email,
+            role: role,
+          }}
+          initialStatusFilter="all"
+        />
+      )}
     </div>
   );
 }

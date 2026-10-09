@@ -35,6 +35,8 @@ import {
   Info,
   Play,
   RotateCcw,
+  FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, doc } from 'firebase/firestore';
@@ -55,6 +57,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   initiateInterestDistributionAction,
   reviewInterestDistributionAction,
   approveInterestDistributionAction,
@@ -62,6 +70,8 @@ import {
   openInterestPayoutCampaignAction,
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
+import { canExportInterest, exportInterestToExcel } from '@/lib/interest-export';
+import { ExportInterestDialog } from '@/components/admin/export-interest-dialog';
 
 function safeDate(val: any): Date | null {
   if (!val) return null;
@@ -123,6 +133,11 @@ export default function DistributeInterestPage() {
   const isAuthorized = Boolean(
     user && ['admin', 'management', 'accountant', 'senior_accountant', 'reviewer', 'auditor'].includes(userRole)
   );
+
+  // Export permissions check: Admin, Accountant, Senior Accountant, Reviewer, Management
+  const canExport = canExportInterest(userRole, user?.email);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportTargetRunId, setExportTargetRunId] = useState<string>('all');
 
   const [activeTab, setActiveTab] = useState<'proposals' | 'runs' | 'campaign'>('proposals');
   const [search, setSearch] = useState('');
@@ -380,6 +395,82 @@ export default function DistributeInterestPage() {
     }
   };
 
+  const handleQuickExportInterest = () => {
+    if (!canExport) {
+      toast({
+        variant: 'destructive',
+        title: 'Access Denied',
+        description: 'Only authorized administrative roles can export interest distribution records.',
+      });
+      return;
+    }
+
+    try {
+      const result = exportInterestToExcel({
+        runs: allCompletedRuns,
+        proposals: allProposals,
+        memberMap,
+        currency,
+        poolMetrics,
+        selectedRunId: 'all',
+        exportedByName: userData?.name || user?.displayName || user?.email || 'Authorized Officer',
+        exportedByEmail: user?.email || '',
+        exportedByRole: userRole,
+        scopeLabel: 'Complete Interest Distribution Register',
+        includeAllocationsDetail: true,
+        includeMemberSummary: true,
+        includeProposals: allProposals.length > 0,
+        includePoolKPIs: true,
+        includeMetadata: true,
+      });
+
+      toast({
+        title: 'Interest Distribution Exported',
+        description: `Exported ${result.totalRunsExported} runs and ${result.totalAllocationsExported} allocations to ${result.fileName}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Export Failed',
+        description: err?.message || 'Could not export interest distributions.',
+      });
+    }
+  };
+
+  const handleExportRun = (run: any) => {
+    if (!canExport || !run) return;
+    try {
+      const result = exportInterestToExcel({
+        runs: [run],
+        proposals: [],
+        memberMap,
+        currency,
+        poolMetrics,
+        selectedRunId: run.id,
+        exportedByName: userData?.name || user?.displayName || user?.email || 'Authorized Officer',
+        exportedByEmail: user?.email || '',
+        exportedByRole: userRole,
+        scopeLabel: `Run_${run.id ? run.id.slice(0, 8) : 'Single'}`,
+        includeAllocationsDetail: true,
+        includeMemberSummary: false,
+        includeProposals: false,
+        includePoolKPIs: true,
+        includeMetadata: true,
+      });
+
+      toast({
+        title: 'Run Allocations Exported',
+        description: `Exported ${result.totalAllocationsExported} allocations to ${result.fileName}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Export Failed',
+        description: err?.message || 'Could not export run allocations.',
+      });
+    }
+  };
+
   // Filtered member breakdown inside inspect dialog
   const filteredBreakdown = useMemo(() => {
     if (!inspectRun || !Array.isArray(inspectRun.breakdown)) return [];
@@ -446,6 +537,30 @@ export default function DistributeInterestPage() {
 
         {/* Action CTAs */}
         <div className="flex items-center gap-2 flex-wrap">
+          {canExport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="rounded-xl h-10 px-3.5 font-bold text-xs gap-2 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 hover:text-amber-800 dark:hover:text-amber-300 shadow-2xs transition-all"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Export Excel (.xlsx)</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl text-xs w-60 shadow-lg border-border">
+                <DropdownMenuItem onClick={handleQuickExportInterest} className="gap-2 font-semibold cursor-pointer">
+                  <Download className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span>Quick Export ({allCompletedRuns.length} runs)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setExportTargetRunId('all'); setIsExportDialogOpen(true); }} className="gap-2 font-semibold cursor-pointer">
+                  <Coins className="h-4 w-4 text-primary" />
+                  <span>Custom Export & Filters...</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {!isAuditor && (
             <>
               {(isAccountant || isSuperAdmin) && (
@@ -1029,13 +1144,27 @@ export default function DistributeInterestPage() {
       <Dialog open={!!inspectRun} onOpenChange={open => !open && setInspectRun(null)}>
         <DialogContent className="sm:max-w-[760px] max-h-[85vh] flex flex-col rounded-2xl p-6">
           <DialogHeader>
-            <DialogTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-              <Coins className="h-4 w-4 text-primary" />
-              Interest Distribution Run Breakdown
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Total Pool: {formatCurrency(Number(inspectRun?.amountDistributed || inspectRun?.totalInterestToDistribute) || 0, currency)} &bull; {inspectRun?.recipientsCount || inspectRun?.breakdown?.length || 0} active savers
-            </DialogDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <DialogTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
+                  <Coins className="h-4 w-4 text-primary" />
+                  Interest Distribution Run Breakdown
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Total Pool: {formatCurrency(Number(inspectRun?.amountDistributed || inspectRun?.totalInterestToDistribute) || 0, currency)} &bull; {inspectRun?.recipientsCount || inspectRun?.breakdown?.length || 0} active savers
+                </DialogDescription>
+              </div>
+              {canExport && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleExportRun(inspectRun)}
+                  className="rounded-xl text-xs font-bold gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 shrink-0"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Export Run (.xlsx)
+                </Button>
+              )}
+            </div>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-4 py-2">
@@ -1191,6 +1320,25 @@ export default function DistributeInterestPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* EXPORT INTEREST DISTRIBUTION MODAL (Admins, Accountants, Senior Accountants, Reviewers) */}
+      {canExport && (
+        <ExportInterestDialog
+          open={isExportDialogOpen}
+          onOpenChange={setIsExportDialogOpen}
+          runs={allCompletedRuns}
+          proposals={allProposals}
+          memberMap={memberMap}
+          currency={currency}
+          poolMetrics={poolMetrics}
+          currentUser={{
+            name: userData?.name || user?.displayName || user?.email,
+            email: user?.email,
+            role: userRole,
+          }}
+          initialRunId={exportTargetRunId}
+        />
+      )}
     </div>
   );
 }

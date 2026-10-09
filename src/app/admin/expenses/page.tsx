@@ -37,7 +37,9 @@ import {
   Building2,
   Calendar,
   ShieldCheck,
-  Ban
+  Ban,
+  FileSpreadsheet,
+  Download,
 } from "lucide-react";
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
@@ -49,6 +51,12 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeFirebase } from '@/firebase';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   lodgeExpenseAction, 
   reviewExpenseAction,
@@ -56,6 +64,8 @@ import {
   rejectExpenseAction 
 } from '@/lib/finance-client';
 import Link from 'next/link';
+import { canExportExpenses, exportExpensesToExcel } from '@/lib/expenses-export';
+import { ExportExpensesDialog } from '@/components/admin/export-expenses-dialog';
 
 const EXPENSE_CATEGORIES = [
   "Office & Administrative",
@@ -107,6 +117,10 @@ export default function ExpensesAdminPage() {
   const isComplianceReviewer = effectiveRole === 'reviewer' || effectiveRole === 'management';
   const canReview = isSeniorAcct || isComplianceReviewer;
   const canApprove = effectiveRole === 'admin' || effectiveRole === 'management' || isPrimaryAdmin;
+
+  // Export permission check: Admin, Accountant, Senior Accountant, Reviewer, Management
+  const canExport = canExportExpenses(effectiveRole, user?.email);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   // Query expenses collection directly without field restrictions (ensures no documents are omitted by Firestore)
   const expensesQuery = useMemoFirebase(() => {
@@ -399,6 +413,45 @@ export default function ExpensesAdminPage() {
     }
   };
 
+  // Quick Export Handler
+  const handleQuickExportExpenses = () => {
+    if (!canExport) {
+      toast({
+        variant: 'destructive',
+        title: 'Access Denied',
+        description: 'Only authorized administrative roles can export operating expenses.',
+      });
+      return;
+    }
+
+    try {
+      const result = exportExpensesToExcel({
+        expenses,
+        currency,
+        categoryFilter: 'all',
+        statusFilter: 'all',
+        exportedByName: userData?.name || user?.displayName || user?.email || 'Authorized Officer',
+        exportedByEmail: user?.email || '',
+        exportedByRole: effectiveRole,
+        scopeLabel: 'Complete Operating Expenses Register',
+        includeCategorySummary: true,
+        includeStatusBreakdown: true,
+        includeMetadata: true,
+      });
+
+      toast({
+        title: 'Expenses Exported',
+        description: `Exported ${result.totalExported} expense items to ${result.fileName}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Export Failed',
+        description: err?.message || 'Could not export operating expenses.',
+      });
+    }
+  };
+
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-16">
       {/* Page Header */}
@@ -423,6 +476,29 @@ export default function ExpensesAdminPage() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          {canExport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="rounded-xl h-10 px-3.5 font-bold text-xs gap-2 border-violet-500/40 text-violet-700 dark:text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 hover:text-violet-800 dark:hover:text-violet-300 shadow-2xs transition-all flex-1 sm:flex-none"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Export Excel (.xlsx)</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl text-xs w-60 shadow-lg border-border">
+                <DropdownMenuItem onClick={handleQuickExportExpenses} className="gap-2 font-semibold cursor-pointer">
+                  <Download className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                  <span>Quick Export ({expenses.length} items)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)} className="gap-2 font-semibold cursor-pointer">
+                  <Receipt className="h-4 w-4 text-primary" />
+                  <span>Custom Export & Filters...</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {canInitiate && (
             <Button 
               onClick={() => setIsLodgeOpen(true)}
@@ -1401,6 +1477,22 @@ export default function ExpensesAdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* EXPORT OPERATING EXPENSES MODAL */}
+      {canExport && (
+        <ExportExpensesDialog
+          open={isExportDialogOpen}
+          onOpenChange={setIsExportDialogOpen}
+          expenses={expenses}
+          categories={EXPENSE_CATEGORIES}
+          currency={currency}
+          currentUser={{
+            name: userData?.name || user?.displayName || user?.email,
+            email: user?.email,
+            role: effectiveRole,
+          }}
+          initialStatusFilter="all"
+        />
+      )}
     </div>
   );
 }

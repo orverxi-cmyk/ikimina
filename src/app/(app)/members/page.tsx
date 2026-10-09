@@ -50,6 +50,8 @@ import {
   reviewMemberAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
+import { canExportMembers, exportMembersToExcel } from '@/lib/members-export';
+import { ExportMembersDialog } from '@/components/admin/export-members-dialog';
 
 export default function MembersPage() {
   const { toast } = useToast();
@@ -81,6 +83,36 @@ export default function MembersPage() {
   const isReviewer = effectiveRole === 'reviewer' || effectiveRole === 'senior_accountant';
   const canInitiateMembers = effectiveRole === 'senior_accountant' || effectiveRole === 'accountant';
   const isAuthorizedToView = isAdmin || isReviewer || canInitiateMembers;
+
+  const canExport = canExportMembers(effectiveRole, user?.email);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+
+  const handleQuickExportMembers = () => {
+    if (!canExport) return;
+    try {
+      const result = exportMembersToExcel({
+        members,
+        exportedByName: userData?.name || user?.displayName || user?.email || 'Authorized Officer',
+        exportedByEmail: user?.email || '',
+        exportedByRole: effectiveRole || 'Administrator',
+        scopeLabel: 'Complete Members Directory Register',
+        includeRoleSummary: true,
+        includeStatusSummary: true,
+        includeMetadata: true,
+      });
+
+      toast({
+        title: 'Members Directory Exported',
+        description: `Exported ${result.totalExported} member records to ${result.fileName}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Export Failed',
+        description: err?.message || 'Could not export members directory.',
+      });
+    }
+  };
 
   const membersQuery = useMemoFirebase(() => {
     if (!isAuthorizedToView) return null;
@@ -382,7 +414,30 @@ export default function MembersPage() {
           <p className="text-[12px] font-bold text-muted-foreground">Assign roles and manage participant access</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-           {canInitiateMembers && (
+          {canExport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="rounded-xl h-10 px-3.5 font-bold text-xs gap-2 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 shadow-2xs flex-1 sm:flex-none"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Export Excel</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl text-xs w-56 shadow-lg border-border">
+                <DropdownMenuItem onClick={handleQuickExportMembers} className="gap-2 font-semibold cursor-pointer">
+                  <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Quick Export ({members.length} members)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)} className="gap-2 font-semibold cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  <span>Custom Export &amp; Filters...</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {canInitiateMembers && (
              <Button variant="outline" onClick={() => setIsBulkDialogOpen(true)} className="rounded-xl border-primary/20 text-primary font-bold text-[12px] h-10 flex-1 sm:flex-none">
                <Upload className="mr-2 h-4 w-4" /> Bulk Enrollment
              </Button>
@@ -807,6 +862,23 @@ export default function MembersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* EXPORT MEMBERS DIRECTORY DIALOG */}
+      {canExport && (
+        <ExportMembersDialog
+          open={isExportDialogOpen}
+          onOpenChange={setIsExportDialogOpen}
+          members={members}
+          currency="RWF"
+          currentUser={{
+            name: userData?.name || user?.displayName || user?.email,
+            email: user?.email,
+            role: effectiveRole,
+          }}
+          initialStatusFilter="all"
+          initialRoleFilter="all"
+        />
+      )}
     </div>
   );
 }

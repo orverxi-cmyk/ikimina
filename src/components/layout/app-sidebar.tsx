@@ -119,7 +119,7 @@ export function AppSidebar() {
   if (isSuperAdmin) {
     adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
     adminItems.push({ href: '/admin/contributions', label: 'Contributions', icon: Layers });
-    adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/admin/approvals', label: 'Approve', icon: ShieldCheck });
     adminItems.push({ href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 });
     adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
     adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });
@@ -130,7 +130,7 @@ export function AppSidebar() {
     adminItems.push({ href: '/members', label: 'Members Directory', icon: Users });
     adminItems.push({ href: '/admin/settings', label: 'Settings', icon: Settings });
   } else if (isAuditor) {
-    adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/admin/approvals', label: 'Approve', icon: ShieldCheck });
     adminItems.push({ href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 });
     adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
     adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });
@@ -139,7 +139,7 @@ export function AppSidebar() {
   } else if (isAccountant) {
     adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
     adminItems.push({ href: '/admin/contributions', label: 'Contributions', icon: Layers });
-    adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/admin/approvals', label: 'Approve', icon: ShieldCheck });
     adminItems.push({ href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 });
     adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
     adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });
@@ -151,7 +151,7 @@ export function AppSidebar() {
   } else if (isReviewer) {
     adminItems.push({ href: '/admin', label: 'Dashboard', icon: Home });
     adminItems.push({ href: '/admin/contributions', label: 'Contributions', icon: Layers });
-    adminItems.push({ href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck });
+    adminItems.push({ href: '/admin/approvals', label: 'Approve', icon: ShieldCheck });
     adminItems.push({ href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 });
     adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
     adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });

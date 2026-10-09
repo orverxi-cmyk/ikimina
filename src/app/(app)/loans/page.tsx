@@ -29,11 +29,19 @@ import {
   ShieldAlert,
   FileText,
   ExternalLink,
-  AlertOctagon
+  AlertOctagon,
+  FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   Dialog, 
   DialogContent, 
@@ -67,6 +75,8 @@ import { formatCurrency } from '@/lib/currency';
 import { parseSafeDate, safeFormatDate } from '@/lib/loan-utils';
 import Link from 'next/link';
 import { useSettings } from '@/context/settings-context';
+import { canExportLoans, exportLoansToExcel } from '@/lib/loans-export';
+import { ExportLoansDialog } from '@/components/admin/export-loans-dialog';
 
 function LoansPageContent() {
   const { toast } = useToast();
@@ -147,6 +157,8 @@ function LoansPageContent() {
   const isSuperAdmin = role === 'admin' || isPrimaryAdmin;
   const isSeniorAccountant = role === 'senior_accountant';
   const isReviewer = role === 'reviewer' || role === 'management';
+  const canExport = canExportLoans(role, user?.email);
+  const [isExportLoansOpen, setIsExportLoansOpen] = useState(false);
   
   const loansQuery = useMemoFirebase(() => {
     if (!user || userDataLoading || !userData) return null;
@@ -186,7 +198,49 @@ function LoansPageContent() {
   const pendingRepayments = useMemo(() => repaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [repaymentsSnap]);
   const allVerifiedRepayments = useMemo(() => verifiedRepaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [verifiedRepaymentsSnap]);
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
+  const memberMap = useMemo(() => new Map(members.map((m: any) => [m.id, m])), [members]);
   const allContributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
+
+  const handleQuickExportLoans = () => {
+    if (!canExport) {
+      toast({
+        variant: 'destructive',
+        title: 'Access Denied',
+        description: 'Only authorized administrative roles can export the loan portfolio.',
+      });
+      return;
+    }
+
+    try {
+      const allReps = [...allVerifiedRepayments, ...pendingRepayments];
+      const result = exportLoansToExcel({
+        loans,
+        repayments: allReps,
+        memberMap,
+        currency,
+        liquidityMetrics,
+        exportedByName: userData?.name || user?.displayName || user?.email || 'Authorized Officer',
+        exportedByEmail: user?.email || '',
+        exportedByRole: role,
+        scopeLabel: 'Complete Loan Portfolio',
+        includeRepayments: allReps.length > 0,
+        includeBorrowerSummary: true,
+        includePortfolioKPIs: true,
+        includeMetadata: true,
+      });
+
+      toast({
+        title: 'Loan Portfolio Exported',
+        description: `Exported ${result.totalExported} facilities to ${result.fileName}.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Export Failed',
+        description: err?.message || 'Could not generate loan portfolio spreadsheet.',
+      });
+    }
+  };
 
   const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
 
@@ -545,6 +599,29 @@ function LoansPageContent() {
           <p className="text-[12px] font-bold text-muted-foreground">Manage borrowing cycles and repayment schedules</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+           {canExport && (
+             <DropdownMenu>
+               <DropdownMenuTrigger asChild>
+                 <Button
+                   variant="outline"
+                   className="rounded-[10px] font-bold text-[12px] h-10 px-3.5 border-blue-500/40 text-blue-700 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 hover:text-blue-800 dark:hover:text-blue-300 shadow-2xs gap-1.5"
+                 >
+                   <FileSpreadsheet className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                   <span>Export Portfolio (.xlsx)</span>
+                 </Button>
+               </DropdownMenuTrigger>
+               <DropdownMenuContent align="end" className="rounded-xl text-xs w-60 shadow-lg border-border">
+                 <DropdownMenuItem onClick={handleQuickExportLoans} className="gap-2 font-semibold cursor-pointer">
+                   <Download className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                   <span>Quick Export ({loans.length} facilities)</span>
+                 </DropdownMenuItem>
+                 <DropdownMenuItem onClick={() => setIsExportLoansOpen(true)} className="gap-2 font-semibold cursor-pointer">
+                   <Landmark className="h-4 w-4 text-primary" />
+                   <span>Custom Export & Filters...</span>
+                 </DropdownMenuItem>
+               </DropdownMenuContent>
+             </DropdownMenu>
+           )}
            {isManagement && (
              <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm">
                <Link href="/loans/apply">
@@ -1883,6 +1960,25 @@ function LoansPageContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* EXPORT LOAN PORTFOLIO MODAL (Admins, Accountants, Reviewers) */}
+      {canExport && (
+        <ExportLoansDialog
+          open={isExportLoansOpen}
+          onOpenChange={setIsExportLoansOpen}
+          allLoans={loans}
+          allRepayments={[...allVerifiedRepayments, ...pendingRepayments]}
+          memberMap={memberMap}
+          currency={currency}
+          liquidityMetrics={liquidityMetrics}
+          currentUser={{
+            name: userData?.name || user?.displayName || user?.email,
+            email: user?.email,
+            role,
+          }}
+          initialStatusFilter="all"
+        />
+      )}
     </div>
   );
 }

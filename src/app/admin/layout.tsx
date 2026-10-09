@@ -404,7 +404,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     ...(isAuditor ? [] : [
       { href: '/admin/contributions', label: 'Contributions', icon: Layers },
     ]),
-    { href: '/admin/approvals', label: 'Approvals', icon: ShieldCheck },
+    { href: '/admin/approvals', label: 'Approve', icon: ShieldCheck },
     { href: '/admin/operations', label: 'Approved Operations', icon: CheckCircle2 },
     { href: '/loans', label: 'Loan Portfolio', icon: Landmark },
     { href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins },

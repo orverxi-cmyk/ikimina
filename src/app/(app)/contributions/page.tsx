@@ -32,6 +32,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSettings } from '@/context/settings-context';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
+import { canExportContributions } from '@/lib/contributions-export';
+import { ExportContributionsDialog } from '@/components/admin/export-contributions-dialog';
 
 export default function ContributionsPage() {
   const { toast } = useToast();
@@ -61,6 +63,8 @@ export default function ContributionsPage() {
   const role = userData?.role || 'member';
   const isManagement = role === 'management' || role === 'admin' || role === 'accountant' || role === 'senior_accountant';
   const isAccountantOrAdmin = role === 'admin' || role === 'accountant' || role === 'senior_accountant';
+  const canExport = canExportContributions(role, user?.email);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const isLoading = userDataLoading;
 
   // Firestore Subscriptions
@@ -92,6 +96,10 @@ export default function ContributionsPage() {
   const members = useMemo(() => {
     return (membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []) as any[];
   }, [membersSnap]);
+
+  const memberMap = useMemo(() => {
+    return new Map(members.map((m: any) => [m.id, m]));
+  }, [members]);
   
   const contributions = useMemo(() => {
     return (contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []) as any[];
@@ -378,6 +386,16 @@ export default function ContributionsPage() {
 
         {/* Global Action CTAs */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {canExport && (
+            <Button
+              variant="outline"
+              onClick={() => setIsExportDialogOpen(true)}
+              className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300 shadow-2xs justify-center"
+            >
+              <FileSpreadsheet className="mr-1.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              Export Excel (.xlsx)
+            </Button>
+          )}
           {isAccountantOrAdmin && (
             <Button asChild variant="outline" className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-primary/30 text-primary hover:bg-primary/10 shadow-sm justify-center">
               <Link href="/admin/approvals">
@@ -885,6 +903,23 @@ export default function ContributionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* EXPORT CONTRIBUTIONS MODAL (Admins, Accountants, Senior Accountants, Reviewers) */}
+      {canExport && (
+        <ExportContributionsDialog
+          open={isExportDialogOpen}
+          onOpenChange={setIsExportDialogOpen}
+          allSlips={contributions}
+          memberMap={memberMap}
+          currency={currency}
+          currentUser={{
+            name: userData?.name || user?.displayName || user?.email,
+            email: user?.email,
+            role,
+          }}
+          initialStatusFilter="all"
+        />
+      )}
     </div>
   );
 }
