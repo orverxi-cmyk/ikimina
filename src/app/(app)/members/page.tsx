@@ -4,7 +4,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2, Mail, CheckCircle2, Clock, UserCheck, Ban, Check, UserMinus, Eye, EyeOff } from 'lucide-react';
+import { Search, MoreVertical, UserPlus, Loader2, ShieldAlert, Download, Calendar as CalendarIcon, Upload, AlertCircle, FileSpreadsheet, UserX, Trash2, Mail, CheckCircle2, Clock, UserCheck, Ban, Check, UserMinus, Eye, EyeOff, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -68,6 +68,7 @@ export default function MembersPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formEmail, setFormEmail] = useState('');
   const [activatingMemberId, setActivatingMemberId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active'>('all');
 
@@ -123,6 +124,13 @@ export default function MembersPage() {
   const { data: membersSnap, loading: membersLoading } = useCollection(membersQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
+
+  const normalizedFormEmail = formEmail.trim().toLowerCase();
+  const isValidEmailFormat = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedFormEmail);
+  const isEmailTaken = useMemo(() => {
+    if (!normalizedFormEmail || isEditing) return false;
+    return members.some((m: any) => m.email?.toLowerCase().trim() === normalizedFormEmail);
+  }, [members, normalizedFormEmail, isEditing]);
 
   const pendingMembers = useMemo(() => members.filter((m: any) => m.status === 'pending'), [members]);
   const pendingCount = pendingMembers.length;
@@ -463,7 +471,7 @@ export default function MembersPage() {
              </Button>
            )}
            {(isAdmin || canInitiateMembers) && (
-             <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setIsAddDialogOpen(true); }} className="rounded-xl shadow-sm font-bold text-[12px] h-10 flex-1 sm:flex-none">
+             <Button onClick={() => { setIsEditing(false); setSelectedMember(null); setFormEmail(''); setIsAddDialogOpen(true); }} className="rounded-xl shadow-sm font-bold text-[12px] h-10 flex-1 sm:flex-none">
                <UserPlus className="mr-2 h-4 w-4" /> Add Member
              </Button>
            )}
@@ -489,8 +497,45 @@ export default function MembersPage() {
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label className="text-xs font-bold uppercase tracking-wider">Email Address</Label>
-                <Input name="email" type="email" defaultValue={selectedMember?.email} required disabled={isEditing} className="h-11 rounded-xl bg-muted border-none" />
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase tracking-wider">Email Address</Label>
+                  {!isEditing && normalizedFormEmail && isValidEmailFormat && (
+                    isEmailTaken ? (
+                      <span className="text-[11px] font-bold text-destructive flex items-center gap-1">
+                        <XCircle className="h-3.5 w-3.5" /> Email not available
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Email is available
+                      </span>
+                    )
+                  )}
+                </div>
+                <div className="relative">
+                  <Input 
+                    name="email" 
+                    type="email" 
+                    value={isEditing ? selectedMember?.email : formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    required 
+                    disabled={isEditing} 
+                    className={cn(
+                      "h-11 rounded-xl bg-muted border-none pr-10",
+                      !isEditing && normalizedFormEmail && isValidEmailFormat && (
+                        isEmailTaken ? "ring-2 ring-destructive/40 bg-destructive/5" : "ring-2 ring-emerald-500/40 bg-emerald-500/5"
+                      )
+                    )} 
+                  />
+                  {!isEditing && normalizedFormEmail && isValidEmailFormat && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      {isEmailTaken ? (
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               {isAdmin ? (
                 <div className="grid gap-2">
@@ -519,7 +564,7 @@ export default function MembersPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-xl font-bold text-lg shadow-lg">
+              <Button type="submit" disabled={isSubmitting || (!isEditing && isEmailTaken)} className="w-full h-12 rounded-xl font-bold text-lg shadow-lg">
                 {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
                 {isEditing ? 'Save Changes' : 'Invite Member'}
               </Button>
@@ -728,7 +773,7 @@ export default function MembersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl w-52 shadow-xl">
                           {isAdmin && (
-                            <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
+                            <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setFormEmail(member.email || ''); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
                           )}
                           {member.status !== 'active' ? (
                             ((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer')) ? (
