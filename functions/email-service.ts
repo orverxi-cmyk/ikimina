@@ -264,7 +264,7 @@ export async function generateAndSendActivationEmail(params: {
 
     const baseUrl = (overrideUrl || config.appUrl || 'https://studio-1670844393-18cbb.web.app').replace(/\/$/, '');
     const actionCodeSettings: admin.auth.ActionCodeSettings = {
-        url: `${baseUrl}/login`,
+        url: `${baseUrl}/login?email=${encodeURIComponent(normalizedEmail)}&mode=set-password`,
         handleCodeInApp: true,
     };
 

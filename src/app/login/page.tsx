@@ -111,9 +111,10 @@ export default function LoginPage() {
     return () => { isCancelled = true; };
   }, [currentUser, userLoading, step, router, auth, firestore]);
 
-  const handleCheckEmail = async (e?: React.FormEvent) => {
+  const handleCheckEmail = async (e?: React.FormEvent, targetEmail?: string) => {
     if (e) e.preventDefault();
-    if (!email) return;
+    const emailToCheck = (targetEmail || email).trim().toLowerCase();
+    if (!emailToCheck) return;
     
     if (isBrowserOffline()) {
       return toast({
@@ -124,7 +125,7 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = emailToCheck;
     try {
       const q = query(
         collection(firestore, 'users'), 
@@ -174,6 +175,17 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const emailParam = params.get('email');
+    if (emailParam) {
+      const cleanEmail = emailParam.trim().toLowerCase();
+      setEmail(cleanEmail);
+      handleCheckEmail(undefined, cleanEmail);
+    }
+  }, []);
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
