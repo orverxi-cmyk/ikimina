@@ -78,6 +78,11 @@ export default function MembersPage() {
   const [deleteJustification, setDeleteJustification] = useState('');
   const [isDeletingMember, setIsDeletingMember] = useState(false);
 
+  // Member Review / Approve Confirmation Modal States
+  const [isReviewOrApproveModalOpen, setIsReviewOrApproveModalOpen] = useState(false);
+  const [memberToReviewOrApprove, setMemberToReviewOrApprove] = useState<any>(null);
+  const [reviewOrApproveMode, setReviewOrApproveMode] = useState<'review' | 'approve' | null>(null);
+
   const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
   const effectiveRole = userData?.role || (typeof window !== 'undefined' && user?.uid ? localStorage.getItem(`ikimina_role_${user.uid}`) : null);
   const isAdmin = effectiveRole === 'admin' || isPrimaryAdmin;
@@ -166,6 +171,8 @@ export default function MembersPage() {
         title: 'Member Reviewed',
         description: targetMember.name + ' has been reviewed successfully. Awaiting admin activation.'
       });
+      setIsReviewOrApproveModalOpen(false);
+      setMemberToReviewOrApprove(null);
     } catch (e: any) {
       const error = parseAppError(e);
       toast({ variant: 'destructive', title: error.title, description: error.message });
@@ -193,6 +200,8 @@ export default function MembersPage() {
         title: 'Membership Activated!',
         description: `${targetMember.name || targetMember.email}'s account is now active and ready to log in.`,
       });
+      setIsReviewOrApproveModalOpen(false);
+      setMemberToReviewOrApprove(null);
     } catch (err: any) {
       const parsed = parseAppError(err);
       toast({ variant: 'destructive', title: parsed.title || 'Activation Failed', description: parsed.message });
@@ -735,7 +744,11 @@ export default function MembersPage() {
                             {((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer')) && (
                               <Button 
                                 size="sm" 
-                                onClick={() => handleReviewMember(member)}
+                                onClick={() => {
+                                  setMemberToReviewOrApprove(member);
+                                  setReviewOrApproveMode('review');
+                                  setIsReviewOrApproveModalOpen(true);
+                                }}
                                 disabled={activatingMemberId === member.id}
                                 className="h-7 px-2.5 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1"
                               >
@@ -750,7 +763,11 @@ export default function MembersPage() {
                             {isAdmin && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor' || member.role === 'admin') && member.status === 'pending')) && (
                               <Button 
                                 size="sm" 
-                                onClick={() => handleActivateMember(member)}
+                                onClick={() => {
+                                  setMemberToReviewOrApprove(member);
+                                  setReviewOrApproveMode('approve');
+                                  setIsReviewOrApproveModalOpen(true);
+                                }}
                                 disabled={activatingMemberId === member.id}
                                 className="h-7 px-2.5 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1"
                               >
@@ -779,7 +796,11 @@ export default function MembersPage() {
                             ((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer')) ? (
                               <DropdownMenuItem 
                                 className="font-bold text-blue-600 flex items-center gap-1.5 focus:text-blue-600 focus:bg-blue-50 dark:focus:bg-blue-950/20 cursor-pointer" 
-                                onClick={() => handleReviewMember(member)}
+                                onClick={() => {
+                                  setMemberToReviewOrApprove(member);
+                                  setReviewOrApproveMode('review');
+                                  setIsReviewOrApproveModalOpen(true);
+                                }}
                                 disabled={activatingMemberId === member.id}
                               >
                                 <Eye className="h-4 w-4" /> Review Membership
@@ -787,7 +808,11 @@ export default function MembersPage() {
                             ) : (isAdmin && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor' || member.role === 'admin') && member.status === 'pending'))) ? (
                               <DropdownMenuItem 
                                 className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
-                                onClick={() => handleActivateMember(member)}
+                                onClick={() => {
+                                  setMemberToReviewOrApprove(member);
+                                  setReviewOrApproveMode('approve');
+                                  setIsReviewOrApproveModalOpen(true);
+                                }}
                                 disabled={activatingMemberId === member.id}
                               >
                                 <UserCheck className="h-4 w-4" /> Approve Membership
@@ -925,6 +950,143 @@ export default function MembersPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Member Review / Approve Confirmation Dialog */}
+      <Dialog open={isReviewOrApproveModalOpen} onOpenChange={setIsReviewOrApproveModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl bg-card border border-border shadow-2xl p-0 overflow-hidden">
+          <DialogHeader className={cn(
+            "p-5 text-white",
+            reviewOrApproveMode === 'review' ? "bg-blue-600" : "bg-emerald-600"
+          )}>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-white">
+              {reviewOrApproveMode === 'review' ? (
+                <>
+                  <Eye className="h-5 w-5" /> Review Member Registration
+                </>
+              ) : (
+                <>
+                  <UserCheck className="h-5 w-5" /> Approve &amp; Activate Member
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-white/80 text-xs mt-1">
+              {reviewOrApproveMode === 'review'
+                ? "Verify member identity and details before progressing to next review or approval stage."
+                : "Confirm member details before granting active account and login access."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-5 space-y-4">
+            <div className="p-4 bg-muted/40 rounded-xl border border-border space-y-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "p-2.5 rounded-xl shrink-0",
+                  reviewOrApproveMode === 'review' ? "bg-blue-500/10 text-blue-600" : "bg-emerald-500/10 text-emerald-600"
+                )}>
+                  {reviewOrApproveMode === 'review' ? <Eye className="h-5 w-5" /> : <UserCheck className="h-5 w-5" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-foreground text-sm truncate">{memberToReviewOrApprove?.name || 'N/A'}</p>
+                  <p className="text-muted-foreground text-xs truncate">{memberToReviewOrApprove?.email || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Full Name:</span>
+                  <span className="font-semibold text-foreground">{memberToReviewOrApprove?.name || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Email Address:</span>
+                  <span className="font-semibold text-foreground">{memberToReviewOrApprove?.email || 'N/A'}</span>
+                </div>
+                {memberToReviewOrApprove?.phone && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">Phone Number:</span>
+                    <span className="font-semibold text-foreground">{memberToReviewOrApprove.phone}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Assigned Role:</span>
+                  <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                    {memberToReviewOrApprove?.role || 'member'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Current Status:</span>
+                  <Badge variant="outline" className={cn(
+                    "text-[10px] uppercase font-bold",
+                    memberToReviewOrApprove?.status === 'active' ? "bg-emerald-500/10 text-emerald-700 border-emerald-300" : "bg-amber-500/10 text-amber-700 border-amber-300"
+                  )}>
+                    {memberToReviewOrApprove?.status || 'pending'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Password Setup:</span>
+                  <span className={cn(
+                    "font-semibold text-[11px]",
+                    memberToReviewOrApprove?.passwordSet ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                  )}>
+                    {memberToReviewOrApprove?.passwordSet ? 'Password Configured' : 'Awaiting Password Creation'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {reviewOrApproveMode === 'review' && isSeniorAccountant && !memberToReviewOrApprove?.passwordSet && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  Notice: Member has not yet confirmed their email and created a password. Senior Accountant review requires password configuration first.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-4 bg-muted/20 border-t flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsReviewOrApproveModalOpen(false);
+                setMemberToReviewOrApprove(null);
+              }}
+              className="rounded-xl text-xs font-bold"
+            >
+              Cancel
+            </Button>
+            {reviewOrApproveMode === 'review' ? (
+              <Button
+                type="button"
+                onClick={() => handleReviewMember(memberToReviewOrApprove)}
+                disabled={activatingMemberId === memberToReviewOrApprove?.id}
+                className="rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md gap-1.5"
+              >
+                {activatingMemberId === memberToReviewOrApprove?.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+                Review Member
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => handleActivateMember(memberToReviewOrApprove)}
+                disabled={activatingMemberId === memberToReviewOrApprove?.id}
+                className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md gap-1.5"
+              >
+                {activatingMemberId === memberToReviewOrApprove?.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UserCheck className="h-4 w-4" />
+                )}
+                Approve Member
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
