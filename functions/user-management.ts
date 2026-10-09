@@ -29,6 +29,11 @@ export const registerMember = onCall({ cors: true }, async (request) => {
     const email = memberData.email.toLowerCase().trim();
 
     try {
+        const existingUserSnap = await db.collection('users').where('email', '==', email).limit(1).get();
+        if (!existingUserSnap.empty) {
+            throw new HttpsError('already-exists', 'A member with this email address already exists.');
+        }
+
         const assignedRole = (callerRole === 'admin' || isPrimaryAdmin) ? (memberData.role || 'member') : 'member';
         const docRef = await db.collection('users').add({
             name,
@@ -1244,9 +1249,6 @@ export const adminActivateMember = onCall({ cors: true }, async (request) => {
         throw new HttpsError('failed-precondition', 'Member account must be reviewed by a reviewer before admin activation. Current status: ' + memberData.status);
     }
 
-    if (!memberData.passwordSet) {
-        throw new HttpsError('failed-precondition', 'Cannot activate a member account before the member has confirmed their email and set a password.');
-    }
 
     try {
         await memberRef.update({
@@ -1353,6 +1355,9 @@ export const reviewMember = onCall({ cors: true }, async (request) => {
     const isSeniorAcct = callerRole === 'senior_accountant';
 
     if (isSeniorAcct) {
+        if (!memberData.passwordSet) {
+            throw new HttpsError('failed-precondition', 'Cannot review a member account before the member has confirmed their email and set a password.');
+        }
         if (memberData.status !== 'pending') {
             throw new HttpsError('failed-precondition', 'Cannot review a member not in pending status.');
         }

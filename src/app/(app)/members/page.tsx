@@ -80,9 +80,10 @@ export default function MembersPage() {
   const isPrimaryAdmin = user?.email?.toLowerCase() === 'tharushyamagara@gmail.com';
   const effectiveRole = userData?.role || (typeof window !== 'undefined' && user?.uid ? localStorage.getItem(`ikimina_role_${user.uid}`) : null);
   const isAdmin = effectiveRole === 'admin' || isPrimaryAdmin;
-  const isReviewer = effectiveRole === 'reviewer' || effectiveRole === 'senior_accountant';
-  const canInitiateMembers = effectiveRole === 'senior_accountant' || effectiveRole === 'accountant';
-  const isAuthorizedToView = isAdmin || isReviewer || canInitiateMembers;
+  const isSeniorAccountant = effectiveRole === 'senior_accountant';
+  const isReviewer = effectiveRole === 'reviewer' || effectiveRole === 'management';
+  const canInitiateMembers = isSeniorAccountant || effectiveRole === 'accountant';
+  const isAuthorizedToView = isAdmin || isReviewer || isSeniorAccountant || canInitiateMembers;
 
   const canExport = canExportMembers(effectiveRole, user?.email);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -139,6 +140,14 @@ export default function MembersPage() {
   }), [members, searchTerm, statusFilter]);
 
   const handleReviewMember = async (targetMember: any) => {
+    if (isSeniorAccountant && !targetMember.passwordSet) {
+      return toast({
+        variant: 'destructive',
+        title: 'Action Not Allowed',
+        description: 'Cannot review account before the new member has confirmed their email and set a password.'
+      });
+    }
+
     setActivatingMemberId(targetMember.id);
     try {
       await reviewMemberAction({
@@ -249,6 +258,17 @@ export default function MembersPage() {
         
         toast({ title: "Profile Updated", description: "Member profile and role synchronization complete." });
       } else {
+        const isDuplicate = members.some((m: any) => m.email?.toLowerCase().trim() === memberData.email.toLowerCase().trim());
+        if (isDuplicate) {
+          toast({
+            variant: "destructive",
+            title: "Email Already In Use",
+            description: `A member with email "${memberData.email}" already exists. Each member must have a unique email address.`
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
         const res = await registerMemberAction(user.uid, memberData);
         toast({ 
           title: "Member Enrolled", 
@@ -667,7 +687,7 @@ export default function MembersPage() {
                             <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 uppercase text-[9px] font-bold px-2.5 py-0.5 flex items-center gap-1">
                               <Clock className="h-3 w-3" /> Pending
                             </Badge>
-                            {isReviewer && member.passwordSet && (member.status === 'pending' || member.status === 'pending_reviewer') && (
+                            {((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer')) && (
                               <Button 
                                 size="sm" 
                                 onClick={() => handleReviewMember(member)}
@@ -682,7 +702,7 @@ export default function MembersPage() {
                                 Review
                               </Button>
                             )}
-                            {isAdmin && member.passwordSet && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor' || member.role === 'admin') && member.status === 'pending')) && (
+                            {isAdmin && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor' || member.role === 'admin') && member.status === 'pending')) && (
                               <Button 
                                 size="sm" 
                                 onClick={() => handleActivateMember(member)}
@@ -694,7 +714,7 @@ export default function MembersPage() {
                                 ) : (
                                   <UserCheck className="h-3 w-3" />
                                 )}
-                                Activate
+                                Approve
                               </Button>
                             )}
                           </div>
@@ -711,7 +731,7 @@ export default function MembersPage() {
                             <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
                           )}
                           {member.status !== 'active' ? (
-                            (isReviewer && member.passwordSet && (member.status === 'pending' || member.status === 'pending_reviewer')) ? (
+                            ((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer')) ? (
                               <DropdownMenuItem 
                                 className="font-bold text-blue-600 flex items-center gap-1.5 focus:text-blue-600 focus:bg-blue-50 dark:focus:bg-blue-950/20 cursor-pointer" 
                                 onClick={() => handleReviewMember(member)}
@@ -719,13 +739,13 @@ export default function MembersPage() {
                               >
                                 <Eye className="h-4 w-4" /> Review Membership
                               </DropdownMenuItem>
-                            ) : (isAdmin && member.passwordSet && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor' || member.role === 'admin') && member.status === 'pending'))) ? (
+                            ) : (isAdmin && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor' || member.role === 'admin') && member.status === 'pending'))) ? (
                               <DropdownMenuItem 
                                 className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
                                 onClick={() => handleActivateMember(member)}
                                 disabled={activatingMemberId === member.id}
                               >
-                                <UserCheck className="h-4 w-4" /> Activate Membership
+                                <UserCheck className="h-4 w-4" /> Approve Membership
                               </DropdownMenuItem>
                             ) : null
                           ) : (

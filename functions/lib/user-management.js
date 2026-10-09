@@ -61,6 +61,10 @@ exports.registerMember = (0, https_1.onCall)({ cors: true }, async (request) => 
     const name = `${memberData.firstName || ''} ${memberData.surname || ''}`.trim() || 'Member';
     const email = memberData.email.toLowerCase().trim();
     try {
+        const existingUserSnap = await db.collection('users').where('email', '==', email).limit(1).get();
+        if (!existingUserSnap.empty) {
+            throw new https_1.HttpsError('already-exists', 'A member with this email address already exists.');
+        }
         const assignedRole = (callerRole === 'admin' || isPrimaryAdmin) ? (memberData.role || 'member') : 'member';
         const docRef = await db.collection('users').add({
             name,
@@ -1138,9 +1142,6 @@ exports.adminActivateMember = (0, https_1.onCall)({ cors: true }, async (request
     if (memberData.status !== 'reviewed' && memberData.role !== 'reviewer' && memberData.role !== 'senior_accountant' && memberData.role !== 'auditor') {
         throw new https_1.HttpsError('failed-precondition', 'Member account must be reviewed by a reviewer before admin activation. Current status: ' + memberData.status);
     }
-    if (!memberData.passwordSet) {
-        throw new https_1.HttpsError('failed-precondition', 'Cannot activate a member account before the member has confirmed their email and set a password.');
-    }
     try {
         await memberRef.update({
             status: 'active',
@@ -1237,6 +1238,9 @@ exports.reviewMember = (0, https_1.onCall)({ cors: true }, async (request) => {
     const memberData = memberSnap.data();
     const isSeniorAcct = callerRole === 'senior_accountant';
     if (isSeniorAcct) {
+        if (!memberData.passwordSet) {
+            throw new https_1.HttpsError('failed-precondition', 'Cannot review a member account before the member has confirmed their email and set a password.');
+        }
         if (memberData.status !== 'pending') {
             throw new https_1.HttpsError('failed-precondition', 'Cannot review a member not in pending status.');
         }
