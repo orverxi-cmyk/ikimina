@@ -38,6 +38,7 @@ const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const email_service_1 = require("./email-service");
 const final_payout_management_1 = require("./final-payout-management");
+const notification_service_1 = require("./notification-service");
 /**
  * Registers a new member securely.
  * Checks for admin privileges before adding to the users collection,
@@ -340,6 +341,29 @@ exports.reviewBulkMembers = (0, https_1.onCall)({ cors: true }, async (request) 
         details: { batchId, decision, nextStatus },
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
+    if (decision === 'endorse') {
+        if (isSeniorAcct) {
+            await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
+                title: 'Member Enrollment Batch Endorsed by Senior Reviewer',
+                message: `Member batch "${batchData.title}" (${batchData.totalCount} members) endorsed by Senior Accountant. Pending Compliance review.`,
+                type: 'system',
+                severity: 'info',
+                actionUrl: '/admin/approvals?tab=members',
+                metadata: { batchId }
+            });
+        }
+        else {
+            await (0, notification_service_1.createNotification)(db, {
+                recipientRole: 'admin',
+                title: 'Member Enrollment Batch Awaiting Executive Approval',
+                message: `Member batch "${batchData.title}" (${batchData.totalCount} members) endorsed by Compliance Reviewer. Ready for executive approval and credential dispatch.`,
+                type: 'system',
+                severity: 'warning',
+                actionUrl: '/admin/approvals?tab=members',
+                metadata: { batchId }
+            });
+        }
+    }
     return { success: true, batchId, status: nextStatus };
 });
 /**

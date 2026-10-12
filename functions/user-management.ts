@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { generateAndSendActivationEmail } from './email-service';
 import { assertMemberHasNoBalance } from './final-payout-management';
+import { createNotification, notifyRoles } from './notification-service';
 
 /**
  * Registers a new member securely.
@@ -334,6 +335,29 @@ export const reviewBulkMembers = onCall({ cors: true }, async (request) => {
         details: { batchId, decision, nextStatus },
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    if (decision === 'endorse') {
+        if (isSeniorAcct) {
+            await notifyRoles(db, ['reviewer', 'admin'], {
+                title: 'Member Enrollment Batch Endorsed by Senior Reviewer',
+                message: `Member batch "${batchData.title}" (${batchData.totalCount} members) endorsed by Senior Accountant. Pending Compliance review.`,
+                type: 'system',
+                severity: 'info',
+                actionUrl: '/admin/approvals?tab=members',
+                metadata: { batchId }
+            });
+        } else {
+            await createNotification(db, {
+                recipientRole: 'admin',
+                title: 'Member Enrollment Batch Awaiting Executive Approval',
+                message: `Member batch "${batchData.title}" (${batchData.totalCount} members) endorsed by Compliance Reviewer. Ready for executive approval and credential dispatch.`,
+                type: 'system',
+                severity: 'warning',
+                actionUrl: '/admin/approvals?tab=members',
+                metadata: { batchId }
+            });
+        }
+    }
 
     return { success: true, batchId, status: nextStatus };
 });

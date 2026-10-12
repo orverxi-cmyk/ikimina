@@ -107,5 +107,14 @@ service cloud.firestore {
       );
       allow delete: if isStaff();
     }
+
+    // Notifications: Server-managed alerts for members and administrative staff.
+    // Every member and admin strictly accesses their own notifications.
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+      allow create, delete: if false;
+    }
   }
 }

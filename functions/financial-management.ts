@@ -1,6 +1,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
+import { createNotification, notifyRoles } from './notification-service';
 
 /**
  * Allocates accumulated interest (profit) to members based on their 
@@ -405,6 +406,15 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
 
         await batch.commit();
 
+        await notifyRoles(db, ['reviewer', 'admin'], {
+            title: 'Interest Distribution Proposal Staged',
+            message: `Proposal to distribute ${parsedAmount.toLocaleString()} RWF to ${recipientsCount} members was initiated by ${callerData?.name || 'Accountant'}. Pending review.`,
+            type: 'interest',
+            severity: 'info',
+            actionUrl: '/admin/distribute-interest',
+            metadata: { requestId: reqRef.id, amount: parsedAmount }
+        });
+
         return {
             success: true,
             requestId: reqRef.id,
@@ -513,6 +523,29 @@ export const reviewInterestDistribution = onCall({ cors: true }, async (request)
             reviewNotes: reviewNotes || null
         }
     });
+
+    if (decision === 'endorse') {
+        if (isSeniorAcct) {
+            await notifyRoles(db, ['reviewer', 'admin'], {
+                title: 'Interest Proposal Endorsed by Senior Reviewer',
+                message: `Interest distribution proposal for ${(Number(reqData.totalInterestToDistribute) || 0).toLocaleString()} RWF was endorsed by Senior Accountant. Pending Compliance review.`,
+                type: 'interest',
+                severity: 'info',
+                actionUrl: '/admin/distribute-interest',
+                metadata: { requestId }
+            });
+        } else {
+            await createNotification(db, {
+                recipientRole: 'admin',
+                title: 'Interest Proposal Awaiting Executive Approval',
+                message: `Interest distribution proposal for ${(Number(reqData.totalInterestToDistribute) || 0).toLocaleString()} RWF is endorsed by Compliance Reviewer. Ready for final approval and allocation.`,
+                type: 'interest',
+                severity: 'warning',
+                actionUrl: '/admin/distribute-interest',
+                metadata: { requestId }
+            });
+        }
+    }
 
     return {
         success: true,
@@ -661,6 +694,31 @@ export const approveInterestDistribution = onCall({ cors: true }, async (request
         }, { merge: true });
 
         await batch.commit();
+
+        await createNotification(db, {
+            recipientRole: 'admin',
+            title: 'Interest Distribution Ratified',
+            message: `Interest distribution of ${(Number(reqData.totalInterestToDistribute) || 0).toLocaleString()} RWF for ${reqData.recipientsCount} members was committed to ledger.`,
+            type: 'interest',
+            severity: 'success',
+            actionUrl: '/admin/distribute-interest',
+            metadata: { distributionId: distRef.id }
+        });
+
+        // Notify member recipients
+        const memberNotifPromises = (breakdown || []).map((b: any) => {
+            if (!b.memberId) return Promise.resolve('');
+            return createNotification(db, {
+                recipientId: b.memberId,
+                title: 'Interest Dividend Distributed',
+                message: `You were credited ${(Number(b.distributedShare) || 0).toLocaleString()} RWF in interest dividends (${b.payoutType === 'add_to_contribution' ? 'added to savings' : 'accrued for payout'}).`,
+                type: 'interest',
+                severity: 'success',
+                actionUrl: '/dashboard',
+                metadata: { distributionId: distRef.id, amount: b.distributedShare }
+            });
+        });
+        await Promise.all(memberNotifPromises);
 
         return {
             success: true,

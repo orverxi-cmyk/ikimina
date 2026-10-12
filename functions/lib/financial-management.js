@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.setMemberPayoutPreference = exports.closeInterestPayoutCampaign = exports.openInterestPayoutCampaign = exports.approveInterestPayoutCampaign = exports.reviewInterestPayoutCampaign = exports.initiateInterestPayoutCampaign = exports.getSystemSettings = exports.resetFinancialData = exports.updateFinancialSettings = exports.rejectInterestDistribution = exports.approveInterestDistribution = exports.reviewInterestDistribution = exports.initiateInterestDistribution = exports.allocateInterest = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
+const notification_service_1 = require("./notification-service");
 /**
  * Allocates accumulated interest (profit) to members based on their
  * pro-rata contribution weight in the total pool.
@@ -398,6 +399,14 @@ exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
+        await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
+            title: 'Interest Distribution Proposal Staged',
+            message: `Proposal to distribute ${parsedAmount.toLocaleString()} RWF to ${recipientsCount} members was initiated by ${(callerData === null || callerData === void 0 ? void 0 : callerData.name) || 'Accountant'}. Pending review.`,
+            type: 'interest',
+            severity: 'info',
+            actionUrl: '/admin/distribute-interest',
+            metadata: { requestId: reqRef.id, amount: parsedAmount }
+        });
         return {
             success: true,
             requestId: reqRef.id,
@@ -498,6 +507,29 @@ exports.reviewInterestDistribution = (0, https_1.onCall)({ cors: true }, async (
             reviewNotes: reviewNotes || null
         }
     });
+    if (decision === 'endorse') {
+        if (isSeniorAcct) {
+            await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
+                title: 'Interest Proposal Endorsed by Senior Reviewer',
+                message: `Interest distribution proposal for ${(Number(reqData.totalInterestToDistribute) || 0).toLocaleString()} RWF was endorsed by Senior Accountant. Pending Compliance review.`,
+                type: 'interest',
+                severity: 'info',
+                actionUrl: '/admin/distribute-interest',
+                metadata: { requestId }
+            });
+        }
+        else {
+            await (0, notification_service_1.createNotification)(db, {
+                recipientRole: 'admin',
+                title: 'Interest Proposal Awaiting Executive Approval',
+                message: `Interest distribution proposal for ${(Number(reqData.totalInterestToDistribute) || 0).toLocaleString()} RWF is endorsed by Compliance Reviewer. Ready for final approval and allocation.`,
+                type: 'interest',
+                severity: 'warning',
+                actionUrl: '/admin/distribute-interest',
+                metadata: { requestId }
+            });
+        }
+    }
     return {
         success: true,
         requestId,
@@ -630,6 +662,30 @@ exports.approveInterestDistribution = (0, https_1.onCall)({ cors: true }, async 
             }
         }, { merge: true });
         await batch.commit();
+        await (0, notification_service_1.createNotification)(db, {
+            recipientRole: 'admin',
+            title: 'Interest Distribution Ratified',
+            message: `Interest distribution of ${(Number(reqData.totalInterestToDistribute) || 0).toLocaleString()} RWF for ${reqData.recipientsCount} members was committed to ledger.`,
+            type: 'interest',
+            severity: 'success',
+            actionUrl: '/admin/distribute-interest',
+            metadata: { distributionId: distRef.id }
+        });
+        // Notify member recipients
+        const memberNotifPromises = (breakdown || []).map((b) => {
+            if (!b.memberId)
+                return Promise.resolve('');
+            return (0, notification_service_1.createNotification)(db, {
+                recipientId: b.memberId,
+                title: 'Interest Dividend Distributed',
+                message: `You were credited ${(Number(b.distributedShare) || 0).toLocaleString()} RWF in interest dividends (${b.payoutType === 'add_to_contribution' ? 'added to savings' : 'accrued for payout'}).`,
+                type: 'interest',
+                severity: 'success',
+                actionUrl: '/dashboard',
+                metadata: { distributionId: distRef.id, amount: b.distributedShare }
+            });
+        });
+        await Promise.all(memberNotifPromises);
         return {
             success: true,
             distributionId: distRef.id,

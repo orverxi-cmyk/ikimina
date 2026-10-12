@@ -1,6 +1,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
+import { createNotification, notifyRoles } from './notification-service';
 
 /**
  * Submits a regular member contribution for management verification.
@@ -44,6 +45,16 @@ export const submitContribution = onCall({ cors: true }, async (request) => {
             seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
             seniorReviewJustification: isSeniorAcct ? 'Self-submitted by Senior Accountant (Forwarded directly to Reviewer)' : null,
             justification: `Self-submitted contribution for ${period.trim()}`
+        });
+
+        const memberName = userSnap.data()?.name || userSnap.data()?.email || 'A member';
+        await notifyRoles(db, ['accountant', 'senior_accountant', 'reviewer', 'admin'], {
+            title: 'New Contribution Slip Uploaded',
+            message: `${memberName} uploaded a contribution slip of ${parsedAmount.toLocaleString()} RWF for ${period.trim()}. Pending verification.`,
+            type: 'contribution',
+            severity: 'info',
+            actionUrl: '/admin/contributions',
+            metadata: { contributionId: contributionRef.id, amount: parsedAmount, period: period.trim() }
         });
 
         return { success: true, id: contributionRef.id };
@@ -169,6 +180,28 @@ export const verifyContribution = onCall({ cors: true }, async (request) => {
         });
 
         await batch.commit();
+
+        if (contribData.memberId) {
+            await createNotification(db, {
+                recipientId: contribData.memberId,
+                title: 'Savings Contribution Confirmed',
+                message: `Your contribution of ${(Number(contribData.amount) || 0).toLocaleString()} RWF for ${contribData.period || 'period'} has been verified and credited to your savings balance.`,
+                type: 'contribution',
+                severity: 'success',
+                actionUrl: '/contributions',
+                metadata: { contributionId, amount: contribData.amount }
+            });
+        }
+        await createNotification(db, {
+            recipientRole: 'admin',
+            title: 'Contribution Credited to Ledger',
+            message: `Contribution slip #${contributionId.slice(0, 7)} (${(Number(contribData.amount) || 0).toLocaleString()} RWF) verified and added to total assets.`,
+            type: 'contribution',
+            severity: 'info',
+            actionUrl: '/admin/contributions',
+            metadata: { contributionId }
+        });
+
         return { success: true };
     } catch (error: any) {
         throw new HttpsError('internal', error.message);
@@ -196,8 +229,11 @@ export const rejectContribution = onCall({ cors: true }, async (request) => {
     }
 
     try {
-        const batch = db.batch();
         const contributionRef = db.collection('contributions').doc(contributionId);
+        const contribSnap = await contributionRef.get();
+        const contribData = contribSnap.exists ? contribSnap.data()! : {};
+
+        const batch = db.batch();
         
         batch.update(contributionRef, {
             status: 'rejected',
@@ -217,6 +253,19 @@ export const rejectContribution = onCall({ cors: true }, async (request) => {
         });
 
         await batch.commit();
+
+        if (contribData.memberId) {
+            await createNotification(db, {
+                recipientId: contribData.memberId,
+                title: 'Contribution Slip Declined',
+                message: `Your contribution slip for ${contribData.period || 'period'} was rejected. Reason: ${rejectionReason.trim()}`,
+                type: 'contribution',
+                severity: 'destructive',
+                actionUrl: '/contributions',
+                metadata: { contributionId }
+            });
+        }
+
         return { success: true };
     } catch (error: any) {
         throw new HttpsError('internal', error.message);
@@ -577,6 +626,29 @@ export const reviewContributionBatch = onCall({ cors: true }, async (request) =>
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
+    if (decision === 'endorse') {
+        if (isSeniorAcct) {
+            await notifyRoles(db, ['reviewer', 'admin'], {
+                title: 'Contribution Batch Endorsed by Senior Reviewer',
+                message: `Contribution batch #${batchId} has been endorsed by Senior Accountant and awaits compliance review.`,
+                type: 'contribution',
+                severity: 'info',
+                actionUrl: '/admin/contributions',
+                metadata: { batchId }
+            });
+        } else {
+            await createNotification(db, {
+                recipientRole: 'admin',
+                title: 'Contribution Batch Awaiting Executive Approval',
+                message: `Contribution batch #${batchId} endorsed by Compliance Reviewer. Ready for executive approval and ledger entry.`,
+                type: 'contribution',
+                severity: 'warning',
+                actionUrl: '/admin/contributions',
+                metadata: { batchId }
+            });
+        }
+    }
+
     return {
         success: true,
         batchId,
@@ -729,6 +801,28 @@ export const approveContributionBatch = onCall({ cors: true }, async (request) =
         }
 
         await batch.commit();
+    }
+
+    await createNotification(db, {
+        recipientRole: 'admin',
+        title: 'Contribution Batch Ratified',
+        message: `Contribution batch #${batchId} (${items.length} items, ${(Number(batchData.totalAmount) || 0).toLocaleString()} RWF) approved and committed to the ledger.`,
+        type: 'contribution',
+        severity: 'success',
+        actionUrl: '/admin/contributions',
+        metadata: { batchId, count: items.length }
+    });
+
+    if (batchData.initiatedBy) {
+        await createNotification(db, {
+            recipientId: batchData.initiatedBy,
+            title: 'Contribution Batch Approved',
+            message: `Your contribution batch #${batchId} (${items.length} records) was approved by Administrator and posted.`,
+            type: 'contribution',
+            severity: 'success',
+            actionUrl: '/admin/contributions',
+            metadata: { batchId }
+        });
     }
 
     return {

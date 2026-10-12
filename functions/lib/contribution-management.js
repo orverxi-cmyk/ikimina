@@ -36,12 +36,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.reviewContribution = exports.bulkReverseContributions = exports.reverseContribution = exports.bulkRejectContributions = exports.bulkVerifyContributions = exports.bulkApproveContributionBatches = exports.bulkReviewContributionBatches = exports.approveContributionBatch = exports.reviewContributionBatch = exports.initiateContributionBatch = exports.bulkUploadContributions = exports.rejectContribution = exports.verifyContribution = exports.recordContribution = exports.submitContribution = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
+const notification_service_1 = require("./notification-service");
 /**
  * Submits a regular member contribution for management verification.
  * Server authoritatively binds memberId to auth.uid and forces status to 'pending'.
  */
 exports.submitContribution = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a;
+    var _a, _b, _c;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const { amount, period, proofUrl } = request.data || {};
@@ -73,6 +74,15 @@ exports.submitContribution = (0, https_1.onCall)({ cors: true }, async (request)
             seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
             seniorReviewJustification: isSeniorAcct ? 'Self-submitted by Senior Accountant (Forwarded directly to Reviewer)' : null,
             justification: `Self-submitted contribution for ${period.trim()}`
+        });
+        const memberName = ((_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.name) || ((_c = userSnap.data()) === null || _c === void 0 ? void 0 : _c.email) || 'A member';
+        await (0, notification_service_1.notifyRoles)(db, ['accountant', 'senior_accountant', 'reviewer', 'admin'], {
+            title: 'New Contribution Slip Uploaded',
+            message: `${memberName} uploaded a contribution slip of ${parsedAmount.toLocaleString()} RWF for ${period.trim()}. Pending verification.`,
+            type: 'contribution',
+            severity: 'info',
+            actionUrl: '/admin/contributions',
+            metadata: { contributionId: contributionRef.id, amount: parsedAmount, period: period.trim() }
         });
         return { success: true, id: contributionRef.id };
     }
@@ -182,6 +192,26 @@ exports.verifyContribution = (0, https_1.onCall)({ cors: true }, async (request)
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
         });
         await batch.commit();
+        if (contribData.memberId) {
+            await (0, notification_service_1.createNotification)(db, {
+                recipientId: contribData.memberId,
+                title: 'Savings Contribution Confirmed',
+                message: `Your contribution of ${(Number(contribData.amount) || 0).toLocaleString()} RWF for ${contribData.period || 'period'} has been verified and credited to your savings balance.`,
+                type: 'contribution',
+                severity: 'success',
+                actionUrl: '/contributions',
+                metadata: { contributionId, amount: contribData.amount }
+            });
+        }
+        await (0, notification_service_1.createNotification)(db, {
+            recipientRole: 'admin',
+            title: 'Contribution Credited to Ledger',
+            message: `Contribution slip #${contributionId.slice(0, 7)} (${(Number(contribData.amount) || 0).toLocaleString()} RWF) verified and added to total assets.`,
+            type: 'contribution',
+            severity: 'info',
+            actionUrl: '/admin/contributions',
+            metadata: { contributionId }
+        });
         return { success: true };
     }
     catch (error) {
@@ -205,8 +235,10 @@ exports.rejectContribution = (0, https_1.onCall)({ cors: true }, async (request)
         throw new https_1.HttpsError('invalid-argument', 'Contribution ID and rejection reason are required.');
     }
     try {
-        const batch = db.batch();
         const contributionRef = db.collection('contributions').doc(contributionId);
+        const contribSnap = await contributionRef.get();
+        const contribData = contribSnap.exists ? contribSnap.data() : {};
+        const batch = db.batch();
         batch.update(contributionRef, {
             status: 'rejected',
             rejectedBy: request.auth.uid,
@@ -223,6 +255,17 @@ exports.rejectContribution = (0, https_1.onCall)({ cors: true }, async (request)
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
         });
         await batch.commit();
+        if (contribData.memberId) {
+            await (0, notification_service_1.createNotification)(db, {
+                recipientId: contribData.memberId,
+                title: 'Contribution Slip Declined',
+                message: `Your contribution slip for ${contribData.period || 'period'} was rejected. Reason: ${rejectionReason.trim()}`,
+                type: 'contribution',
+                severity: 'destructive',
+                actionUrl: '/contributions',
+                metadata: { contributionId }
+            });
+        }
         return { success: true };
     }
     catch (error) {
@@ -543,6 +586,29 @@ exports.reviewContributionBatch = (0, https_1.onCall)({ cors: true }, async (req
         },
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
+    if (decision === 'endorse') {
+        if (isSeniorAcct) {
+            await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
+                title: 'Contribution Batch Endorsed by Senior Reviewer',
+                message: `Contribution batch #${batchId} has been endorsed by Senior Accountant and awaits compliance review.`,
+                type: 'contribution',
+                severity: 'info',
+                actionUrl: '/admin/contributions',
+                metadata: { batchId }
+            });
+        }
+        else {
+            await (0, notification_service_1.createNotification)(db, {
+                recipientRole: 'admin',
+                title: 'Contribution Batch Awaiting Executive Approval',
+                message: `Contribution batch #${batchId} endorsed by Compliance Reviewer. Ready for executive approval and ledger entry.`,
+                type: 'contribution',
+                severity: 'warning',
+                actionUrl: '/admin/contributions',
+                metadata: { batchId }
+            });
+        }
+    }
     return {
         success: true,
         batchId,
@@ -675,6 +741,26 @@ exports.approveContributionBatch = (0, https_1.onCall)({ cors: true }, async (re
             });
         }
         await batch.commit();
+    }
+    await (0, notification_service_1.createNotification)(db, {
+        recipientRole: 'admin',
+        title: 'Contribution Batch Ratified',
+        message: `Contribution batch #${batchId} (${items.length} items, ${(Number(batchData.totalAmount) || 0).toLocaleString()} RWF) approved and committed to the ledger.`,
+        type: 'contribution',
+        severity: 'success',
+        actionUrl: '/admin/contributions',
+        metadata: { batchId, count: items.length }
+    });
+    if (batchData.initiatedBy) {
+        await (0, notification_service_1.createNotification)(db, {
+            recipientId: batchData.initiatedBy,
+            title: 'Contribution Batch Approved',
+            message: `Your contribution batch #${batchId} (${items.length} records) was approved by Administrator and posted.`,
+            type: 'contribution',
+            severity: 'success',
+            actionUrl: '/admin/contributions',
+            metadata: { batchId }
+        });
     }
     return {
         success: true,

@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/firebase/auth/use-user';
-import { useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { doc } from 'firebase/firestore';
+import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
+import { doc, collection, query, where, orderBy, limit, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
-import { User, LogOut, LogIn, Wallet, ChevronLeft, UserX, Landmark } from 'lucide-react';
+import { useMemo } from 'react';
+import { User, LogOut, LogIn, Wallet, ChevronLeft, UserX, Landmark, Bell, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAuth, signOut } from 'firebase/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -28,6 +29,58 @@ export function Header() {
   const firestore = useFirestore();
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData } = useDoc(userRef);
+
+  const notifQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(
+      collection(firestore, 'notifications'),
+      where('recipientId', '==', user.uid)
+    );
+  }, [user, firestore]);
+
+  const { data: notifSnap } = useCollection(notifQuery);
+
+  const notifications = useMemo(() => {
+    if (!notifSnap) return [];
+    const list = notifSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+    return list.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+      return timeB - timeA;
+    });
+  }, [notifSnap]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleNotificationClick = async (notif: any) => {
+    if (!notif.read) {
+      try {
+        await updateDoc(doc(firestore, 'notifications', notif.id), {
+          read: true,
+          readAt: serverTimestamp()
+        });
+      } catch (e) {
+        console.warn('Failed to mark notification read:', e);
+      }
+    }
+    if (notif.actionUrl) {
+      router.push(notif.actionUrl);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    const unread = notifications.filter(n => !n.read);
+    for (const n of unread) {
+      try {
+        await updateDoc(doc(firestore, 'notifications', n.id), {
+          read: true,
+          readAt: serverTimestamp()
+        });
+      } catch (e) {
+        console.warn('Failed to mark notification read:', e);
+      }
+    }
+  };
 
   const handleLogout = async () => {
     await signOut(getAuth());
@@ -128,14 +181,98 @@ export function Header() {
       {/* Right Column: Actions */}
       <div className="flex items-center justify-end gap-2">
         {user ? (
-          <Button 
-            variant="ghost" 
-            onClick={handleLogout} 
-            className="rounded-xl font-bold text-white hover:bg-white/10 h-9 px-3"
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline ml-2">Sign Out</span>
-          </Button>
+          <>
+            {/* Real-time Notification Bell Tray */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="relative p-2 rounded-full text-white hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer"
+                  title="Notifications & Operational Alerts"
+                >
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-red-500 text-[10px] font-extrabold text-white shadow-sm animate-pulse">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 sm:w-96 p-0 rounded-2xl shadow-2xl bg-card border border-border z-[70] overflow-hidden">
+                <div className="p-3 bg-muted/60 border-b flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold font-headline">Notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={handleMarkAllRead}
+                      className="text-[11px] text-muted-foreground hover:text-foreground font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" />
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-border/50">
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-muted-foreground">
+                      <Bell className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-xs font-semibold">No notifications</p>
+                      <p className="text-[11px]">All caught up with latest operations.</p>
+                    </div>
+                  ) : (
+                    notifications.slice(0, 7).map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`p-3 text-left transition-colors cursor-pointer hover:bg-muted/50 flex gap-2.5 items-start ${
+                          !n.read ? 'bg-primary/5' : ''
+                        }`}
+                      >
+                        <div className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${!n.read ? 'bg-primary' : 'bg-transparent'}`} />
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <p className="text-xs font-bold text-foreground leading-snug truncate">
+                            {n.title}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                            {n.message}
+                          </p>
+                          {n.actionUrl && (
+                            <span className="inline-block text-[10px] font-semibold text-primary pt-0.5">
+                              View details &rarr;
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="p-2.5 bg-muted/30 border-t text-center">
+                  <Link
+                    href="/messages"
+                    className="text-xs font-bold text-primary hover:underline inline-block w-full py-1"
+                  >
+                    Go to Full Notification Inbox
+                  </Link>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button 
+              variant="ghost" 
+              onClick={handleLogout} 
+              className="rounded-xl font-bold text-white hover:bg-white/10 h-9 px-3"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">Sign Out</span>
+            </Button>
+          </>
         ) : (
           <Link href="/login">
             <Button size="sm" className="rounded-xl font-bold text-primary bg-white hover:bg-white/90 h-9 px-4">

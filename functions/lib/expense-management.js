@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.rejectExpense = exports.approveExpense = exports.reviewExpense = exports.lodgeExpense = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
+const notification_service_1 = require("./notification-service");
 /**
  * Lodges a new operational expense.
  * Restricted to Accountant, Admin, and Management.
@@ -109,6 +110,14 @@ exports.lodgeExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
             receiptUrl: expenseData.receiptUrl,
             status: 'pending'
         }
+    });
+    await (0, notification_service_1.notifyRoles)(db, ['senior_accountant', 'reviewer', 'admin'], {
+        title: 'New Operational Expense Lodged',
+        message: `Expense "${expenseData.title}" (${numericAmount.toLocaleString()} RWF) lodged by ${(userData === null || userData === void 0 ? void 0 : userData.name) || 'Accountant'}. Pending review.`,
+        type: 'expense',
+        severity: 'info',
+        actionUrl: '/admin/expenses',
+        metadata: { expenseId: expenseRef.id, amount: numericAmount }
     });
     return {
         success: true,
@@ -201,6 +210,29 @@ exports.reviewExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
             reviewNotes: reviewNotes || null
         }
     });
+    if (decision === 'endorse') {
+        if (isSeniorAcct) {
+            await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
+                title: 'Expense Endorsed by Senior Reviewer',
+                message: `Expense "${expense.title}" (${(Number(expense.amount) || 0).toLocaleString()} RWF) endorsed by Senior Accountant. Pending Compliance review.`,
+                type: 'expense',
+                severity: 'info',
+                actionUrl: '/admin/expenses',
+                metadata: { expenseId }
+            });
+        }
+        else {
+            await (0, notification_service_1.createNotification)(db, {
+                recipientRole: 'admin',
+                title: 'Expense Awaiting Executive Approval',
+                message: `Expense "${expense.title}" (${(Number(expense.amount) || 0).toLocaleString()} RWF) endorsed by Compliance Reviewer. Ready for final approval and disbursement.`,
+                type: 'expense',
+                severity: 'warning',
+                actionUrl: '/admin/expenses',
+                metadata: { expenseId }
+            });
+        }
+    }
     return {
         success: true,
         expenseId,
@@ -264,6 +296,26 @@ exports.approveExpense = (0, https_1.onCall)({ cors: true }, async (request) => 
             adminNotes: adminNotes || null,
             impact: `Deducted ${expense.amount} from total group assets`
         }
+    });
+    if (expense.lodgedBy) {
+        await (0, notification_service_1.createNotification)(db, {
+            recipientId: expense.lodgedBy,
+            title: 'Operational Expense Approved',
+            message: `Your operational expense voucher "${expense.title}" (${(Number(expense.amount) || 0).toLocaleString()} RWF) has been approved by executive management.`,
+            type: 'expense',
+            severity: 'success',
+            actionUrl: '/admin/expenses',
+            metadata: { expenseId }
+        });
+    }
+    await (0, notification_service_1.createNotification)(db, {
+        recipientRole: 'admin',
+        title: 'Expense Disbursed & Subtracted',
+        message: `Expense "${expense.title}" (${(Number(expense.amount) || 0).toLocaleString()} RWF) ratified. Deducted from group assets.`,
+        type: 'expense',
+        severity: 'info',
+        actionUrl: '/admin/expenses',
+        metadata: { expenseId }
     });
     return {
         success: true,
@@ -331,6 +383,17 @@ exports.rejectExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
             adminNotes: adminNotes || null
         }
     });
+    if (expense.lodgedBy) {
+        await (0, notification_service_1.createNotification)(db, {
+            recipientId: expense.lodgedBy,
+            title: 'Operational Expense Declined',
+            message: `Your operational expense voucher "${expense.title}" was rejected. Reason: ${rejectionReason.trim()}`,
+            type: 'expense',
+            severity: 'destructive',
+            actionUrl: '/admin/expenses',
+            metadata: { expenseId }
+        });
+    }
     return {
         success: true,
         expenseId,

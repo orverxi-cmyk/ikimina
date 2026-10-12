@@ -38,6 +38,7 @@ exports.getInstitutionalLendingPool = getInstitutionalLendingPool;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const loan_schedules_1 = require("./loan-schedules");
+const notification_service_1 = require("./notification-service");
 /**
  * Calculates authoritative institutional liquidity and lending pool metrics.
  * Gross Capital = Verified Member Savings + Total Realized Loan Interest
@@ -115,7 +116,7 @@ exports.getGroupLiquidityMetrics = (0, https_1.onCall)({ cors: true }, async (re
  * 6. No existing active or pending loans
  */
 exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a, _b;
+    var _a, _b, _c, _d;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
@@ -250,6 +251,27 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         managementApprovalFileName: exceedsBorrowingPower ? (managementApprovalFileName || 'management_approval') : null,
         managementApprovalNotes: exceedsBorrowingPower ? ((managementApprovalNotes === null || managementApprovalNotes === void 0 ? void 0 : managementApprovalNotes.trim()) || null) : null
     });
+    const applicantName = ((_c = userSnap.data()) === null || _c === void 0 ? void 0 : _c.name) || ((_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.email) || 'A member';
+    if (isSeniorAcct) {
+        await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
+            title: 'Loan Application Awaiting Review',
+            message: `${applicantName} (Senior Accountant) submitted a loan application of ${loanAmount.toLocaleString()} RWF. Forwarded for Compliance review.`,
+            type: 'loan',
+            severity: 'info',
+            actionUrl: '/admin/approvals?tab=loans',
+            metadata: { loanId: loanRef.id, memberId, amount: loanAmount }
+        });
+    }
+    else {
+        await (0, notification_service_1.notifyRoles)(db, ['senior_accountant', 'reviewer', 'admin'], {
+            title: 'New Loan Application Lodged',
+            message: `${applicantName} submitted a loan application of ${loanAmount.toLocaleString()} RWF. Pending review.`,
+            type: 'loan',
+            severity: 'info',
+            actionUrl: '/admin/approvals?tab=loans',
+            metadata: { loanId: loanRef.id, memberId, amount: loanAmount }
+        });
+    }
     return {
         success: true,
         loanId: loanRef.id,
@@ -394,6 +416,24 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
+        await (0, notification_service_1.createNotification)(db, {
+            recipientId: loanData.memberId,
+            title: 'Loan Facility Approved',
+            message: `Your loan application of ${loanData.amount.toLocaleString()} RWF has been approved. Net disbursed: ${netDisbursed.toLocaleString()} RWF.`,
+            type: 'loan',
+            severity: 'success',
+            actionUrl: '/loans',
+            metadata: { loanId, amount: loanData.amount }
+        });
+        await (0, notification_service_1.createNotification)(db, {
+            recipientRole: 'admin',
+            title: 'Loan Facility Ratified',
+            message: `Loan facility #${loanId.slice(0, 7)} (${loanData.amount.toLocaleString()} RWF) approved and committed to ledger.`,
+            type: 'loan',
+            severity: 'success',
+            actionUrl: '/admin/operations',
+            metadata: { loanId, memberId: loanData.memberId }
+        });
         return { success: true };
     }
     catch (error) {
@@ -443,6 +483,14 @@ exports.recordRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
             submittedBy: request.auth.uid,
             justification: justification || 'Manual member repayment submission'
         });
+        await (0, notification_service_1.notifyRoles)(db, ['senior_accountant', 'reviewer', 'admin'], {
+            title: 'Loan Repayment Slip Submitted',
+            message: `Repayment slip of ${(Number(amount) || 0).toLocaleString()} RWF uploaded for loan #${loanId.slice(0, 7)}. Pending verification.`,
+            type: 'loan',
+            severity: 'info',
+            actionUrl: '/admin/approvals?tab=loans',
+            metadata: { repaymentId: repaymentRef.id, loanId, amount }
+        });
         return { success: true, repaymentId: repaymentRef.id };
     }
     catch (error) {
@@ -453,7 +501,7 @@ exports.recordRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
  * Reviews a loan repayment (Senior Accountant or Reviewer).
  */
 exports.reviewRepayment = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a;
+    var _a, _b, _c;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
@@ -505,13 +553,34 @@ exports.reviewRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
         details: { repaymentId, loanId: repayData.loanId },
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
+    if (isSeniorAcct) {
+        await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
+            title: 'Repayment Endorsed by Senior Reviewer',
+            message: `Repayment for loan #${(_b = repayData.loanId) === null || _b === void 0 ? void 0 : _b.slice(0, 7)} endorsed by Senior Accountant. Pending Compliance review.`,
+            type: 'loan',
+            severity: 'info',
+            actionUrl: '/admin/approvals?tab=loans',
+            metadata: { repaymentId, loanId: repayData.loanId }
+        });
+    }
+    else {
+        await (0, notification_service_1.createNotification)(db, {
+            recipientRole: 'admin',
+            title: 'Repayment Awaiting Executive Verification',
+            message: `Repayment for loan #${(_c = repayData.loanId) === null || _c === void 0 ? void 0 : _c.slice(0, 7)} endorsed by Reviewer. Ready for final verification and ledger credit.`,
+            type: 'loan',
+            severity: 'warning',
+            actionUrl: '/admin/approvals?tab=loans',
+            metadata: { repaymentId, loanId: repayData.loanId }
+        });
+    }
     return { success: true };
 });
 /**
  * Rejects a loan repayment submission.
  */
 exports.rejectRepayment = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a;
+    var _a, _b;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
@@ -528,6 +597,7 @@ exports.rejectRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
     const repaySnap = await repayRef.get();
     if (!repaySnap.exists)
         throw new https_1.HttpsError('not-found', 'Repayment record not found.');
+    const repayData = repaySnap.data();
     await repayRef.update({
         status: 'rejected',
         rejectedBy: request.auth.uid,
@@ -541,6 +611,17 @@ exports.rejectRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
         details: { repaymentId },
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
+    if (repayData.memberId) {
+        await (0, notification_service_1.createNotification)(db, {
+            recipientId: repayData.memberId,
+            title: 'Loan Repayment Slip Declined',
+            message: `Your repayment slip for loan #${(_b = repayData.loanId) === null || _b === void 0 ? void 0 : _b.slice(0, 7)} was declined. Reason: ${rejectionReason.trim()}`,
+            type: 'loan',
+            severity: 'destructive',
+            actionUrl: '/loans',
+            metadata: { repaymentId, loanId: repayData.loanId }
+        });
+    }
     return { success: true };
 });
 /**
@@ -635,6 +716,24 @@ exports.verifyRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
+        await (0, notification_service_1.createNotification)(db, {
+            recipientId: loanData.memberId,
+            title: 'Loan Repayment Verified',
+            message: `Your repayment of ${(Number(repayData.amount) || 0).toLocaleString()} RWF for loan #${repayData.loanId.slice(0, 7)} has been verified and applied to your balance. Remaining balance: ${newBalance.toLocaleString()} RWF.`,
+            type: 'loan',
+            severity: 'success',
+            actionUrl: '/loans',
+            metadata: { repaymentId, loanId: repayData.loanId, amount: repayData.amount }
+        });
+        await (0, notification_service_1.createNotification)(db, {
+            recipientRole: 'admin',
+            title: 'Repayment Reconciliation Logged',
+            message: `Repayment of ${(Number(repayData.amount) || 0).toLocaleString()} RWF verified for loan #${repayData.loanId.slice(0, 7)}.`,
+            type: 'loan',
+            severity: 'info',
+            actionUrl: '/admin/operations',
+            metadata: { repaymentId, loanId: repayData.loanId }
+        });
         return { success: true };
     }
     catch (error) {
@@ -674,6 +773,15 @@ exports.rejectLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
+        await (0, notification_service_1.createNotification)(db, {
+            recipientId: loanData.memberId,
+            title: 'Loan Application Declined',
+            message: `Your loan application of ${(Number(loanData.amount) || 0).toLocaleString()} RWF was not approved. Reason: ${justification || 'Declined by administration'}`,
+            type: 'loan',
+            severity: 'destructive',
+            actionUrl: '/loans',
+            metadata: { loanId }
+        });
         return { success: true };
     }
     catch (error) {
@@ -737,6 +845,27 @@ exports.reviewLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         details: { loanId },
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
+    if (isSeniorAcct) {
+        await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
+            title: 'Loan Endorsed by Senior Reviewer',
+            message: `Loan application #${loanId.slice(0, 7)} has passed initial review by Senior Accountant and awaits compliance review.`,
+            type: 'loan',
+            severity: 'info',
+            actionUrl: '/admin/approvals?tab=loans',
+            metadata: { loanId }
+        });
+    }
+    else {
+        await (0, notification_service_1.createNotification)(db, {
+            recipientRole: 'admin',
+            title: 'Loan Awaiting Executive Approval',
+            message: `Loan application #${loanId.slice(0, 7)} endorsed by Compliance Reviewer. Ready for final approval and disbursement.`,
+            type: 'loan',
+            severity: 'warning',
+            actionUrl: '/admin/approvals?tab=loans',
+            metadata: { loanId }
+        });
+    }
     return { success: true };
 });
 /**

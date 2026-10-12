@@ -53,4 +53,5 @@ __exportStar(require("./financial-management"), exports);
 __exportStar(require("./expense-management"), exports);
 __exportStar(require("./email-management"), exports);
 __exportStar(require("./final-payout-management"), exports);
+__exportStar(require("./notification-service"), exports);
 //# sourceMappingURL=index.js.map
