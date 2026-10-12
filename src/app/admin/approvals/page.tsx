@@ -1618,11 +1618,6 @@ export default function ApprovalsHubPage() {
                           <TableRow key={rep.id} className="hover:bg-muted/30">
                             <TableCell className="px-4 py-3 font-bold text-sm">
                               <div>{getMemberName(rep.memberId)}</div>
-                              {isSelf && (
-                                <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[8px] font-bold mt-0.5">
-                                  Paid by you
-                                </Badge>
-                              )}
                             </TableCell>
                             <TableCell className="px-4 py-3 text-xs font-medium text-foreground">
                               {safeFormatDate(rep.date, 'MMM d, yyyy')}
@@ -2752,7 +2747,7 @@ export default function ApprovalsHubPage() {
               )}
 
               {/* Super Admin: Final Approval */}
-              {isSuperAdmin && (inspectRepayment?.status === 'reviewed' || (!isRepaymentInitiatedByCurrentUser(inspectRepayment) && inspectRepayment?.status === 'pending')) && (
+              {isSuperAdmin && inspectRepayment?.status === 'reviewed' && (
                 <>
                   <Button 
                     variant="outline" 

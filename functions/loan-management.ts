@@ -617,8 +617,8 @@ export const verifyRepayment = onCall({ cors: true }, async (request) => {
     try {
         const repayRef = db.collection('repayments').doc(repaymentId);
         const repaySnap = await repayRef.get();
-        if (!repaySnap.exists || !['pending', 'reviewed'].includes(repaySnap.data()?.status)) {
-            throw new HttpsError('failed-precondition', 'Repayment not found or already processed.');
+        if (!repaySnap.exists || repaySnap.data()?.status !== 'reviewed') {
+            throw new HttpsError('failed-precondition', 'Repayment not found, awaiting reviewer completion, or already processed.');
         }
 
         const repayData = repaySnap.data()!;

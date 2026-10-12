@@ -559,8 +559,8 @@ exports.verifyRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
     try {
         const repayRef = db.collection('repayments').doc(repaymentId);
         const repaySnap = await repayRef.get();
-        if (!repaySnap.exists || !['pending', 'reviewed'].includes((_c = repaySnap.data()) === null || _c === void 0 ? void 0 : _c.status)) {
-            throw new https_1.HttpsError('failed-precondition', 'Repayment not found or already processed.');
+        if (!repaySnap.exists || ((_c = repaySnap.data()) === null || _c === void 0 ? void 0 : _c.status) !== 'reviewed') {
+            throw new https_1.HttpsError('failed-precondition', 'Repayment not found, awaiting reviewer completion, or already processed.');
         }
         const repayData = repaySnap.data();
         if (repayData.memberId === request.auth.uid && repayData.status !== 'reviewed') {
