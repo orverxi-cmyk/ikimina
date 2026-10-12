@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reviewLoan = exports.rejectLoan = exports.verifyRepayment = exports.recordRepayment = exports.approveLoan = exports.withdrawLoanApplication = exports.requestLoan = exports.getGroupLiquidityMetrics = void 0;
+exports.confirmLoanDetails = exports.initiateBulkLoans = exports.reviewLoan = exports.rejectLoan = exports.verifyRepayment = exports.rejectRepayment = exports.reviewRepayment = exports.recordRepayment = exports.approveLoan = exports.withdrawLoanApplication = exports.requestLoan = exports.getGroupLiquidityMetrics = void 0;
 exports.getInstitutionalLendingPool = getInstitutionalLendingPool;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
@@ -405,7 +405,7 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
  * Status is set to 'pending' and does NOT update loan balance until verified.
  */
 exports.recordRepayment = (0, https_1.onCall)({ cors: true }, async (request) => {
-    var _a, _b;
+    var _a, _b, _c;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
@@ -425,6 +425,9 @@ exports.recordRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
                 throw new https_1.HttpsError('permission-denied', 'You can only pay for your own loans.');
             }
         }
+        const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+        const callerRole = (_c = callerSnap.data()) === null || _c === void 0 ? void 0 : _c.role;
+        const isSeniorAcct = callerRole === 'senior_accountant';
         const repaymentRef = db.collection('repayments').doc();
         await repaymentRef.set({
             loanId,
@@ -432,7 +435,11 @@ exports.recordRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
             amount: Number(amount),
             date: admin.firestore.FieldValue.serverTimestamp(),
             proofUrl,
-            status: 'pending',
+            status: isSeniorAcct ? 'pending_reviewer' : 'pending',
+            seniorReviewed: isSeniorAcct ? true : false,
+            seniorReviewedBy: isSeniorAcct ? request.auth.uid : null,
+            seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
+            seniorReviewJustification: isSeniorAcct ? 'Self-submitted repayment by Senior Accountant (Forwarded directly to Reviewer)' : null,
             submittedBy: request.auth.uid,
             justification: justification || 'Manual member repayment submission'
         });
@@ -441,6 +448,100 @@ exports.recordRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
     catch (error) {
         throw new https_1.HttpsError('internal', error.message);
     }
+});
+/**
+ * Reviews a loan repayment (Senior Accountant or Reviewer).
+ */
+exports.reviewRepayment = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = ((_a = callerSnap.data()) === null || _a === void 0 ? void 0 : _a.role) || 'member';
+    if (callerRole !== 'reviewer' && callerRole !== 'senior_accountant' && callerRole !== 'management') {
+        throw new https_1.HttpsError('permission-denied', 'Only designated Reviewers or Senior Accountants can review repayments.');
+    }
+    const { repaymentId, justification } = request.data;
+    if (!repaymentId)
+        throw new https_1.HttpsError('invalid-argument', 'Repayment ID is required.');
+    const repayRef = db.collection('repayments').doc(repaymentId);
+    const repaySnap = await repayRef.get();
+    if (!repaySnap.exists)
+        throw new https_1.HttpsError('not-found', 'Repayment record not found.');
+    const repayData = repaySnap.data();
+    const isSeniorAcct = callerRole === 'senior_accountant';
+    if (isSeniorAcct) {
+        if (repayData.memberId === request.auth.uid) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own repayment. The Reviewer must review it.');
+        }
+        if (repayData.status !== 'pending') {
+            throw new https_1.HttpsError('failed-precondition', 'Repayment is currently in ' + repayData.status + ' status, cannot be reviewed.');
+        }
+        await repayRef.update({
+            status: 'pending_reviewer',
+            seniorReviewed: true,
+            seniorReviewedBy: request.auth.uid,
+            seniorReviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+            seniorReviewJustification: justification || 'Initial review completed'
+        });
+    }
+    else {
+        // Reviewer or Management
+        if (repayData.status !== 'pending_reviewer' && !repayData.seniorReviewed) {
+            throw new https_1.HttpsError('failed-precondition', 'Reviewers can only review repayments that have been initially reviewed by the Senior Accountant.');
+        }
+        await repayRef.update({
+            status: 'reviewed',
+            reviewedBy: request.auth.uid,
+            reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+            reviewJustification: justification || 'Compliance review completed'
+        });
+    }
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REVIEW_REPAYMENT',
+        justification: justification || 'Reviewed',
+        details: { repaymentId, loanId: repayData.loanId },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true };
+});
+/**
+ * Rejects a loan repayment submission.
+ */
+exports.rejectRepayment = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = (_a = callerSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+    if (callerRole !== 'admin' && callerRole !== 'management' && callerRole !== 'senior_accountant' && callerRole !== 'reviewer') {
+        throw new https_1.HttpsError('permission-denied', 'Unauthorized personnel.');
+    }
+    const { repaymentId, rejectionReason } = request.data;
+    if (!repaymentId || !rejectionReason) {
+        throw new https_1.HttpsError('invalid-argument', 'Repayment ID and rejection reason are required.');
+    }
+    const repayRef = db.collection('repayments').doc(repaymentId);
+    const repaySnap = await repayRef.get();
+    if (!repaySnap.exists)
+        throw new https_1.HttpsError('not-found', 'Repayment record not found.');
+    await repayRef.update({
+        status: 'rejected',
+        rejectedBy: request.auth.uid,
+        rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        rejectionReason: rejectionReason.trim()
+    });
+    await db.collection('audit_logs').add({
+        adminId: request.auth.uid,
+        action: 'REJECT_REPAYMENT',
+        justification: rejectionReason,
+        details: { repaymentId },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true };
 });
 /**
  * Verifies a pending repayment and officially updates the loan balance.
@@ -458,10 +559,13 @@ exports.verifyRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
     try {
         const repayRef = db.collection('repayments').doc(repaymentId);
         const repaySnap = await repayRef.get();
-        if (!repaySnap.exists || ((_c = repaySnap.data()) === null || _c === void 0 ? void 0 : _c.status) !== 'pending') {
+        if (!repaySnap.exists || !['pending', 'reviewed'].includes((_c = repaySnap.data()) === null || _c === void 0 ? void 0 : _c.status)) {
             throw new https_1.HttpsError('failed-precondition', 'Repayment not found or already processed.');
         }
         const repayData = repaySnap.data();
+        if (repayData.memberId === request.auth.uid && repayData.status !== 'reviewed') {
+            throw new https_1.HttpsError('failed-precondition', 'Self-repayment must be reviewed by Senior Accountant and Reviewer before approval.');
+        }
         const loanRef = db.collection('loans').doc(repayData.loanId);
         const loanSnap = await loanRef.get();
         if (!loanSnap.exists)
@@ -599,6 +703,9 @@ exports.reviewLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         if (loanData.memberId === request.auth.uid) {
             throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. The Reviewer must review it.');
         }
+        if (loanData.status === 'pending_member_confirmation' || loanData.memberConfirmed === false) {
+            throw new https_1.HttpsError('failed-precondition', 'Cannot review loan before the member has confirmed its details.');
+        }
         if (loanData.status !== 'requested') {
             throw new https_1.HttpsError('failed-precondition', 'Loan is currently in ' + loanData.status + ' status, cannot be reviewed.');
         }
@@ -631,5 +738,122 @@ exports.reviewLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
     return { success: true };
+});
+/**
+ * Initiates bulk legacy/existing loans into the computerized system.
+ * Restricted strictly to Senior Accountant.
+ * Created in 'pending_member_confirmation' status awaiting borrower confirmation.
+ */
+exports.initiateBulkLoans = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    const callerData = callerSnap.data();
+    const callerRole = callerData === null || callerData === void 0 ? void 0 : callerData.role;
+    if (callerRole !== 'senior_accountant') {
+        throw new https_1.HttpsError('permission-denied', 'Only Senior Accountants can enter bulk loans.');
+    }
+    const { loans: loanItems, justification } = request.data || {};
+    if (!Array.isArray(loanItems) || loanItems.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'A list of loans is required.');
+    }
+    if (loanItems.length > 500) {
+        throw new https_1.HttpsError('invalid-argument', 'Maximum 500 loans per batch.');
+    }
+    const batchId = `bulk_loan_${Date.now()}`;
+    const batch = db.batch();
+    const createdLoanIds = [];
+    for (let i = 0; i < loanItems.length; i++) {
+        const item = loanItems[i];
+        const memberId = (_a = item.memberId) === null || _a === void 0 ? void 0 : _a.trim();
+        const amount = Number(item.amount);
+        const durationMonths = Number(item.durationMonths) || 12;
+        const description = ((_b = item.description) === null || _b === void 0 ? void 0 : _b.trim()) || 'Computerized bulk loan record';
+        if (!memberId) {
+            throw new https_1.HttpsError('invalid-argument', `Item at row ${i + 1} is missing a memberId.`);
+        }
+        if (!amount || isNaN(amount) || amount <= 0) {
+            throw new https_1.HttpsError('invalid-argument', `Item at row ${i + 1} has an invalid amount (${item.amount}).`);
+        }
+        const loanRef = db.collection('loans').doc();
+        batch.set(loanRef, {
+            memberId,
+            amount,
+            description,
+            status: 'pending_member_confirmation',
+            memberConfirmed: false,
+            isBulkLoan: true,
+            batchId,
+            durationMonths,
+            balance: 0,
+            interestAmount: 0,
+            penaltyRate: 0,
+            isTopUp: false,
+            seniorReviewed: false,
+            complianceReviewed: false,
+            enteredBy: request.auth.uid,
+            enteredByName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Senior Accountant',
+            requestDate: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        createdLoanIds.push(loanRef.id);
+    }
+    const auditRef = db.collection('audit_logs').doc();
+    batch.set(auditRef, {
+        adminId: request.auth.uid,
+        action: 'INITIATE_BULK_LOANS',
+        justification: (justification === null || justification === void 0 ? void 0 : justification.trim()) || 'Senior Accountant entered bulk loans',
+        details: { batchId, count: loanItems.length, loanIds: createdLoanIds },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+    return {
+        success: true,
+        batchId,
+        count: createdLoanIds.length
+    };
+});
+/**
+ * Confirms details of a bulk entered loan by the ordinary member.
+ * Transitions loan from 'pending_member_confirmation' to 'requested' for Senior Accountant review.
+ */
+exports.confirmLoanDetails = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const { loanId, notes } = request.data || {};
+    if (!loanId)
+        throw new https_1.HttpsError('invalid-argument', 'Loan ID is required.');
+    const db = admin.firestore();
+    const loanRef = db.collection('loans').doc(loanId);
+    const loanSnap = await loanRef.get();
+    if (!loanSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Loan record not found.');
+    }
+    const loanData = loanSnap.data();
+    if (loanData.memberId !== request.auth.uid) {
+        throw new https_1.HttpsError('permission-denied', 'You can only confirm your own loan details.');
+    }
+    if (loanData.status !== 'pending_member_confirmation') {
+        throw new https_1.HttpsError('failed-precondition', 'Loan is not awaiting member confirmation.');
+    }
+    const batch = db.batch();
+    batch.update(loanRef, {
+        status: 'requested',
+        memberConfirmed: true,
+        memberConfirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+        memberConfirmationNotes: (notes === null || notes === void 0 ? void 0 : notes.trim()) || 'Confirmed by borrower'
+    });
+    const auditRef = db.collection('audit_logs').doc();
+    batch.set(auditRef, {
+        adminId: request.auth.uid,
+        action: 'CONFIRM_LOAN_DETAILS',
+        justification: (notes === null || notes === void 0 ? void 0 : notes.trim()) || 'Borrower confirmed loan details',
+        details: { loanId, memberId: request.auth.uid, amount: loanData.amount },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+    return { success: true, loanId };
 });
 //# sourceMappingURL=loan-management.js.map

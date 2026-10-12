@@ -68,7 +68,9 @@ import {
   reviewLoanAction,
   rejectLoanAction,
   withdrawLoanApplicationAction,
-  getGroupLiquidityMetricsAction 
+  getGroupLiquidityMetricsAction,
+  initiateBulkLoansAction,
+  confirmLoanDetailsAction
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { formatCurrency } from '@/lib/currency';
@@ -77,6 +79,8 @@ import Link from 'next/link';
 import { useSettings } from '@/context/settings-context';
 import { canExportLoans, exportLoansToExcel } from '@/lib/loans-export';
 import { ExportLoansDialog } from '@/components/admin/export-loans-dialog';
+import * as XLSX from 'xlsx';
+import { downloadBulkLoanTemplate } from '@/lib/excel-template';
 
 function LoansPageContent() {
   const { toast } = useToast();
@@ -106,6 +110,13 @@ function LoansPageContent() {
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [loanToWithdraw, setLoanToWithdraw] = useState<any>(null);
   const [withdrawReason, setWithdrawReason] = useState('');
+  
+  // Bulk loans & member confirmation states
+  const [isBulkLoansOpen, setIsBulkLoansOpen] = useState(false);
+  const [bulkLoanFile, setBulkLoanFile] = useState<File | null>(null);
+  const [bulkLoanJustification, setBulkLoanJustification] = useState('');
+  const [isConfirmDetailsOpen, setIsConfirmDetailsOpen] = useState(false);
+  const [confirmNotes, setConfirmNotes] = useState('');
   
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
   const [selectedInstallment, setSelectedInstallment] = useState<any>(null);
@@ -302,7 +313,7 @@ function LoansPageContent() {
     return Boolean(myActive && myRepaid >= minLoanAmount && !myPending);
   }, [myActive, myRepaid, minLoanAmount, myPending]);
   const activeLoans = useMemo(() => loans.filter((l: any) => l.status === 'approved'), [loans]);
-  const historyLoans = useMemo(() => loans.filter((l: any) => ['approved', 'rejected', 'completed', 'requested', 'withdrawn'].includes(l.status)), [loans]);
+  const historyLoans = useMemo(() => loans.filter((l: any) => ['approved', 'rejected', 'completed', 'requested', 'withdrawn', 'pending_member_confirmation', 'pending_reviewer', 'reviewed'].includes(l.status)), [loans]);
 
   const handleWithdrawLoan = async () => {
     if (!loanToWithdraw) return;
@@ -553,6 +564,92 @@ function LoansPageContent() {
     }
   };
 
+  const handleBulkLoansSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkLoanFile) {
+      return toast({ variant: "destructive", title: "File Required", description: "Please select an Excel or CSV file containing loan records." });
+    }
+    setIsSubmitting(true);
+    try {
+      const buffer = await bulkLoanFile.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
+
+      if (rawRows.length === 0) throw new Error('Uploaded file is empty or contains no data rows.');
+
+      const parsedLoans = rawRows.map((row) => {
+        const normalized: Record<string, any> = {};
+        Object.keys(row).forEach((k) => {
+          normalized[k.trim().toLowerCase().replace(/[\s_()\-]/g, '')] = row[k];
+        });
+
+        const memberIdentifier = String(
+          normalized.memberemail || normalized.email || normalized.memberid || normalized.id || ''
+        ).trim().toLowerCase();
+
+        const matchedMember = members.find((m: any) => 
+          m.id?.toLowerCase() === memberIdentifier || 
+          m.email?.toLowerCase() === memberIdentifier
+        );
+        const memberId = matchedMember ? matchedMember.id : (normalized.memberid || normalized.id || memberIdentifier);
+        const amount = Number(normalized.amount || normalized.amountrwf || normalized.principal || 0);
+        const durationMonths = Number(normalized.durationmonths || normalized.duration || 12);
+        const description = String(
+          normalized.loanpurposedescription || normalized.description || normalized.purpose || 'Computerized bulk loan record'
+        ).trim();
+
+        return { memberId, amount, durationMonths, description };
+      }).filter((l) => l.memberId && l.amount > 0);
+
+      if (parsedLoans.length === 0) {
+        throw new Error('No valid loan entries found in the file. Ensure columns include Member Email (or Member ID) and Amount.');
+      }
+
+      const res = await initiateBulkLoansAction({
+        loans: parsedLoans,
+        justification: bulkLoanJustification.trim() || 'Senior Accountant entered bulk computerized loans'
+      });
+
+      toast({
+        title: "Bulk Loans Added",
+        description: `Successfully entered ${res.count} loans. Borrowers can now review and confirm loan details.`
+      });
+      setIsBulkLoansOpen(false);
+      setBulkLoanFile(null);
+      setBulkLoanJustification('');
+    } catch (error: any) {
+      const parsed = parseAppError(error);
+      toast({ variant: "destructive", title: parsed.title || "Bulk Upload Failed", description: parsed.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmDetailsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLoan) return;
+    setIsSubmitting(true);
+    try {
+      await confirmLoanDetailsAction({
+        loanId: selectedLoan.id,
+        notes: confirmNotes.trim()
+      });
+      toast({
+        title: "Loan Details Confirmed",
+        description: "You have verified your loan details. It has been routed to the Senior Accountant for review."
+      });
+      setIsConfirmDetailsOpen(false);
+      setSelectedLoan(null);
+      setConfirmNotes('');
+    } catch (error: any) {
+      const parsed = parseAppError(error);
+      toast({ variant: "destructive", title: parsed.title || "Confirmation Failed", description: parsed.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getStatusBadge = (dueDate: any, status: string, paidAmount: number = 0, targetAmount: number = 0, remainingAmount?: number) => {
     const d = parseSafeDate(dueDate) || new Date();
     const rem = remainingAmount !== undefined ? remainingAmount : Math.max(0, targetAmount - paidAmount);
@@ -621,6 +718,24 @@ function LoansPageContent() {
                  </DropdownMenuItem>
                </DropdownMenuContent>
              </DropdownMenu>
+           )}
+           {isSeniorAccountant && (
+             <>
+               <Button
+                 variant="outline"
+                 onClick={() => downloadBulkLoanTemplate({ prefillMembers: members })}
+                 className="rounded-[10px] font-bold text-[12px] h-10 px-3.5 border-primary/20 text-primary shadow-sm gap-1.5"
+               >
+                 <Download className="h-4 w-4" /> Template (.xlsx)
+               </Button>
+               <Button
+                 variant="outline"
+                 onClick={() => setIsBulkLoansOpen(true)}
+                 className="rounded-[10px] font-bold text-[12px] h-10 px-4 border-primary/20 text-primary shadow-sm gap-1.5"
+               >
+                 <FileSpreadsheet className="h-4 w-4" /> Bulk Loans
+               </Button>
+             </>
            )}
            {isManagement && (
              <Button asChild className="rounded-[10px] font-bold text-[12px] h-10 px-5 shadow-sm">
@@ -810,13 +925,13 @@ function LoansPageContent() {
                   </TableBody>
                 </Table>
               ) : (
-                <Table>
+                <Table className="w-full">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="px-6 text-[12px] font-bold uppercase">Due Date</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase">Amount</TableHead>
-                      <TableHead className="text-[12px] font-bold uppercase">Status</TableHead>
-                      <TableHead className="text-right px-6 text-[12px] font-bold uppercase">Actions</TableHead>
+                      <TableHead className="px-3 sm:px-6 text-[12px] font-bold uppercase">Due Date</TableHead>
+                      <TableHead className="px-3 sm:px-6 text-[12px] font-bold uppercase">Amount</TableHead>
+                      <TableHead className="px-3 sm:px-6 text-[12px] font-bold uppercase">Status</TableHead>
+                      <TableHead className="text-right px-3 sm:px-6 text-[12px] font-bold uppercase">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -834,24 +949,24 @@ function LoansPageContent() {
 
                           return (
                             <TableRow key={`${loan.id}-${inst.installmentNumber}`} className="hover:bg-muted/30 transition-colors">
-                              <TableCell className="px-6 py-3.5">
+                              <TableCell className="px-3 sm:px-6 py-3.5">
                                 <div className="font-bold text-sm text-foreground">
                                   {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
                                 </div>
                               </TableCell>
-                              <TableCell className="py-3.5">
+                              <TableCell className="px-3 sm:px-6 py-3.5">
                                 <div className="font-semibold text-foreground text-sm">
                                   {formatCurrency(target, currency)}
                                 </div>
                               </TableCell>
-                              <TableCell className="py-3.5">
+                              <TableCell className="px-3 sm:px-6 py-3.5">
                                 {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
                               </TableCell>
-                              <TableCell className="text-right px-6 py-3.5">
+                              <TableCell className="text-right px-3 sm:px-6 py-3.5 whitespace-nowrap">
                                 {!isFullyPaid && (
                                   <Button 
                                     size="sm" 
-                                    className="h-8 rounded-[10px] font-bold shadow-xs px-4" 
+                                    className="h-8 rounded-[10px] font-bold shadow-xs px-3 sm:px-4" 
                                     onClick={() => { 
                                       setSelectedLoan(loan); 
                                       setSelectedInstallment(inst);
@@ -923,10 +1038,12 @@ function LoansPageContent() {
                                variant={
                                  loan.status === 'rejected' ? 'destructive' : 
                                  loan.status === 'requested' ? 'secondary' : 
+                                 loan.status === 'pending_member_confirmation' ? 'outline' :
                                  loan.status === 'withdrawn' ? 'outline' : 'outline'
                                } 
                                className={cn(
                                  "uppercase font-bold text-[9px] border-none",
+                                 loan.status === 'pending_member_confirmation' && "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-300",
                                  loan.status === 'requested' && "bg-primary/10 text-primary",
                                  loan.status === 'approved' && "bg-green-600/10 text-green-700 dark:text-green-400",
                                  loan.status === 'withdrawn' && "bg-muted text-muted-foreground",
@@ -934,11 +1051,23 @@ function LoansPageContent() {
                                  loan.status === 'completed' && "bg-muted text-muted-foreground"
                                )}
                              >
-                               {loan.status}
+                               {loan.status === 'pending_member_confirmation' ? 'Awaiting Confirmation' : loan.status}
                              </Badge>
                           </TableCell>
                           <TableCell className="font-bold text-primary">{formatCurrency(loan.balance || 0, currency)}</TableCell>
                           <TableCell className="text-right px-6">
+                            {loan.status === 'pending_member_confirmation' && isOwner && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedLoan(loan);
+                                  setIsConfirmDetailsOpen(true);
+                                }}
+                                className="h-7 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white mr-1"
+                              >
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm Details
+                              </Button>
+                            )}
                             {loan.status === 'requested' && isOwner && (
                               <Button
                                 size="sm"
@@ -1128,13 +1257,14 @@ function LoansPageContent() {
                 </div>
              </div>
 
-             <div className="max-h-[400px] overflow-auto border rounded-xl">
-               <Table>
+             <div className="max-h-[400px] overflow-y-auto overflow-x-hidden border rounded-xl">
+               <Table className="w-full">
                   <TableHeader className="sticky top-0 bg-blue-600 z-10 shadow-sm">
                      <TableRow className="border-b border-blue-700/50 hover:bg-transparent">
-                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Due Date</TableHead>
-                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-4">Amount</TableHead>
-                       <TableHead className="text-[11px] font-bold uppercase text-white text-right py-3 px-4">Status</TableHead>
+                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-3">Due Date</TableHead>
+                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-3">Amount</TableHead>
+                       <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-3">Status</TableHead>
+                       <TableHead className="text-[11px] font-bold uppercase text-white text-right py-3 px-3">Actions</TableHead>
                      </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1146,18 +1276,32 @@ function LoansPageContent() {
 
                       return (
                         <TableRow key={inst.installmentNumber}>
-                          <TableCell className="py-3 px-4">
-                            <div className="font-bold text-sm text-foreground">
+                          <TableCell className="py-2.5 px-3">
+                            <div className="font-bold text-xs sm:text-sm text-foreground">
                               {safeFormatDate(inst.dueDate, 'MMM d, yyyy')}
                             </div>
                           </TableCell>
-                          <TableCell className="py-3 px-4">
-                            <div className="font-semibold text-foreground text-sm">
+                          <TableCell className="py-2.5 px-3">
+                            <div className="font-semibold text-foreground text-xs sm:text-sm">
                               {formatCurrency(target, currency)}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right py-3 px-4">
+                          <TableCell className="py-2.5 px-3">
                              {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
+                          </TableCell>
+                          <TableCell className="text-right py-2.5 px-3 whitespace-nowrap">
+                            {!isFullyPaid && (
+                              <Button
+                                size="sm"
+                                className="h-8 rounded-[10px] font-bold text-xs px-3 shadow-xs bg-primary text-primary-foreground"
+                                onClick={() => {
+                                  setSelectedInstallment(inst);
+                                  setIsRepayOpen(true);
+                                }}
+                              >
+                                Pay Now
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -1958,6 +2102,137 @@ function LoansPageContent() {
               Confirm Withdrawal
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BULK LOANS MODAL (Senior Accountant Only) */}
+      <Dialog open={isBulkLoansOpen} onOpenChange={setIsBulkLoansOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <form onSubmit={handleBulkLoansSubmit}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-primary" /> Enter Bulk Loans
+              </DialogTitle>
+              <DialogDescription>
+                Upload legacy or existing loans via CSV. Once entered, each member must confirm their loan details before Senior Accountant review.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4 text-xs">
+              <div className="p-3 bg-primary/5 rounded-xl border border-primary/10 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-foreground text-xs">Standard Bulk Loan Template</p>
+                  <p className="text-[10px] text-muted-foreground">Download preformatted Excel template with sample records</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadBulkLoanTemplate({ prefillMembers: members })}
+                  className="h-8 px-3 rounded-lg border-primary/20 text-primary text-xs font-bold gap-1.5 shadow-2xs"
+                >
+                  <Download className="h-3.5 w-3.5" /> Template
+                </Button>
+              </div>
+
+              <div className="p-3 bg-muted/40 rounded-xl border space-y-1">
+                <p className="font-semibold text-foreground">Required columns:</p>
+                <p className="text-muted-foreground font-mono">Member Email, Amount, Duration, Description</p>
+                <p className="text-[11px] text-muted-foreground">Accepts .xlsx Excel or .csv files</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="bulk-loan-csv">Data File (.xlsx or .csv) *</Label>
+                <Input
+                  id="bulk-loan-csv"
+                  type="file"
+                  accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  onChange={(e) => setBulkLoanFile(e.target.files?.[0] || null)}
+                  required
+                  className="rounded-xl h-10"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="bulk-loan-justification">Batch Justification</Label>
+                <Textarea
+                  id="bulk-loan-justification"
+                  value={bulkLoanJustification}
+                  onChange={(e) => setBulkLoanJustification(e.target.value)}
+                  placeholder="e.g. Computerization of preexisting active loans"
+                  className="rounded-xl resize-none text-xs"
+                  rows={2}
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsBulkLoansOpen(false)} className="rounded-xl">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting || !bulkLoanFile} className="rounded-xl font-bold">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-1.5" /> : <FileSpreadsheet className="h-4 w-4 mr-1.5" />}
+                Add Bulk Loans
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* CONFIRM LOAN DETAILS MODAL (Ordinary Member) */}
+      <Dialog open={isConfirmDetailsOpen} onOpenChange={setIsConfirmDetailsOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <form onSubmit={handleConfirmDetailsSubmit}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Confirm Loan Details
+              </DialogTitle>
+              <DialogDescription>
+                Please verify that the entered loan amount and terms match your existing facility.
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedLoan && (
+              <div className="space-y-3 py-3 text-xs">
+                <div className="p-3 bg-muted/40 rounded-xl space-y-2 border">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Principal Amount:</span>
+                    <span className="font-bold text-foreground text-sm">{formatCurrency(selectedLoan.amount, currency)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Duration:</span>
+                    <span className="font-semibold text-foreground">{selectedLoan.durationMonths || 12} Months</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Purpose / Note:</span>
+                    <span className="font-medium text-foreground">{selectedLoan.description || 'Preexisting loan facility'}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirm-loan-notes">Member Confirmation Notes (Optional)</Label>
+                  <Textarea
+                    id="confirm-loan-notes"
+                    value={confirmNotes}
+                    onChange={(e) => setConfirmNotes(e.target.value)}
+                    placeholder="e.g. Verified and approved according to historical records"
+                    className="rounded-xl resize-none text-xs"
+                    rows={2}
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsConfirmDetailsOpen(false)} className="rounded-xl">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-1.5" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
+                Confirm Loan
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

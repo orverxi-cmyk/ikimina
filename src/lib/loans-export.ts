@@ -43,6 +43,7 @@ export function formatRoleLabel(role?: string): string {
 export function formatLoanStatus(status?: string): string {
   if (!status) return 'Unknown';
   const map: Record<string, string> = {
+    pending_member_confirmation: 'Awaiting Member Confirmation',
     requested: 'Pending Initial Review',
     pending_reviewer: 'Awaiting Compliance Reviewer',
     reviewed: 'Reviewed — Pending Admin Approval',

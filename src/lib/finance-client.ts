@@ -616,6 +616,34 @@ export async function recordRepaymentAction(data: { loanId: string, amount: numb
 }
 
 /**
+ * Reviews a loan repayment in Cloud Functions (Senior Accountant or Reviewer).
+ */
+export async function reviewRepaymentAction(data: { repaymentId: string; justification: string }) {
+  const functions = getFinanceFunctions();
+  const revFn = httpsCallable(functions, 'reviewRepayment');
+  try {
+    const result = await revFn(data);
+    return result.data as { success: boolean };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review repayment');
+  }
+}
+
+/**
+ * Rejects a loan repayment in Cloud Functions.
+ */
+export async function rejectRepaymentAction(data: { repaymentId: string; rejectionReason: string }) {
+  const functions = getFinanceFunctions();
+  const rejFn = httpsCallable(functions, 'rejectRepayment');
+  try {
+    const result = await rejFn(data);
+    return result.data as { success: boolean };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to reject repayment');
+  }
+}
+
+/**
  * Verifies a loan repayment in Cloud Functions.
  */
 export async function verifyRepaymentAction(data: { repaymentId: string, justification: string }) {
@@ -1407,3 +1435,32 @@ export async function reviewLoanAction(data: { loanId: string; justification?: s
     throw formatFinanceActionError(error, 'Failed to review loan');
   }
 }
+
+export async function initiateBulkLoansAction(data: {
+  loans: Array<{ memberId: string; amount: number; durationMonths?: number; description?: string }>;
+  justification?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'initiateBulkLoans');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; batchId: string; count: number };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to add bulk loans');
+  }
+}
+
+export async function confirmLoanDetailsAction(data: {
+  loanId: string;
+  notes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'confirmLoanDetails');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; loanId: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to confirm loan details');
+  }
+}
+

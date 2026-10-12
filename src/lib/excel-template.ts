@@ -312,3 +312,70 @@ export async function parseStaffContributionExcel(
     detectedPeriod
   };
 }
+
+/**
+ * Downloads a formatted Excel (.xlsx) template for bulk loan entry.
+ */
+export function downloadBulkLoanTemplate(options?: {
+  prefillMembers?: Array<Partial<RegisteredMember> | Record<string, any>>;
+  fileName?: string;
+}) {
+  const dataRows: Record<string, any>[] = [];
+
+  if (options?.prefillMembers && options.prefillMembers.length > 0) {
+    options.prefillMembers.forEach((m) => {
+      dataRows.push({
+        'Member Email': m.email || '',
+        'Member Name': m.name || '',
+        'Amount (RWF)': 500000,
+        'Duration (Months)': 12,
+        'Loan Purpose / Description': 'Computerized legacy loan'
+      });
+    });
+  } else {
+    dataRows.push(
+      {
+        'Member Email': 'member1@example.com',
+        'Member Name': 'John Doe',
+        'Amount (RWF)': 500000,
+        'Duration (Months)': 12,
+        'Loan Purpose / Description': 'Computerized legacy loan'
+      },
+      {
+        'Member Email': 'member2@example.com',
+        'Member Name': 'Jane Smith',
+        'Amount (RWF)': 1000000,
+        'Duration (Months)': 24,
+        'Loan Purpose / Description': 'Preexisting equipment credit facility'
+      }
+    );
+  }
+
+  const wb = XLSX.utils.book_new();
+  const wsData = XLSX.utils.json_to_sheet(dataRows);
+  wsData['!cols'] = [
+    { wch: 30 }, // Member Email
+    { wch: 25 }, // Member Name
+    { wch: 18 }, // Amount
+    { wch: 20 }, // Duration
+    { wch: 40 }  // Description
+  ];
+  XLSX.utils.book_append_sheet(wb, wsData, 'Bulk Loans');
+
+  const instructions = [
+    ['IKIMINA COOPERATIVE - BULK LOAN IMPORT TEMPLATE'],
+    [''],
+    ['Instructions:'],
+    ['1. Fill in the "Member Email" with the registered email of the borrower.'],
+    ['2. Specify the principal "Amount (RWF)". Positive numeric values only.'],
+    ['3. Specify the duration in months (e.g. 12, 24). Default is 12 if left blank.'],
+    ['4. Include a brief description or purpose of the legacy/existing loan facility.'],
+    ['5. Once uploaded, each borrower must confirm the loan details before Senior Accountant review.'],
+  ];
+  const wsInst = XLSX.utils.aoa_to_sheet(instructions);
+  XLSX.utils.book_append_sheet(wb, wsInst, 'Instructions');
+
+  const fileName = options?.fileName || `ikimina_bulk_loans_template.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+

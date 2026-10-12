@@ -45,7 +45,8 @@ import {
   ShieldAlert,
   UserX,
   UserMinus,
-  Trash2
+  Trash2,
+  CreditCard
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, orderBy, doc, limit, where, Timestamp } from 'firebase/firestore';
@@ -59,6 +60,7 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   downloadStaffContributionTemplate, 
+  downloadBulkLoanTemplate,
   parseStaffContributionExcel, 
   ParsedContributionRow, 
   ParseResult, 
@@ -72,6 +74,9 @@ import {
   bulkApproveContributionBatchesAction,
   verifyContributionAction, reviewContributionAction, reviewLoanAction,
   rejectContributionAction,
+  reviewRepaymentAction,
+  verifyRepaymentAction,
+  rejectRepaymentAction,
   bulkVerifyContributionsAction,
   bulkRejectContributionsAction,
   approveLoanAction,
@@ -131,7 +136,7 @@ export default function ApprovalsHubPage() {
   const canReview = isReviewer || isSeniorAccountant;
   const canApprove = userRole === 'admin' || userRole === 'management';
 
-  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'expenses' | 'interest' | 'members' | 'deletions'>('batches');
+  const [mainTab, setMainTab] = useState<'batches' | 'deposits' | 'loans' | 'repayments' | 'expenses' | 'interest' | 'members' | 'deletions'>('batches');
   const [isBatchUploadOpen, setIsBatchUploadOpen] = useState(false);
   const [batchSubTab, setBatchSubTab] = useState<'pending' | 'all'>('pending');
   const [interestSubTab, setInterestSubTab] = useState<'pending' | 'all'>('pending');
@@ -142,6 +147,9 @@ export default function ApprovalsHubPage() {
   const [isMemberBatchModalOpen, setIsMemberBatchModalOpen] = useState(false);
   const [memberBatchReviewNotes, setMemberBatchReviewNotes] = useState('');
   const [memberBatchApprovalNotes, setMemberBatchApprovalNotes] = useState('');
+  const [inspectRepayment, setInspectRepayment] = useState<any | null>(null);
+  const [isRepaymentModalOpen, setIsRepaymentModalOpen] = useState(false);
+  const [repaymentJustification, setRepaymentJustification] = useState('');
 
   // New Batch Upload States (Accountant / Admin)
   const [batchTitle, setBatchTitle] = useState<string>('Staff Contributions Population');
@@ -208,8 +216,11 @@ export default function ApprovalsHubPage() {
   const pendingSlipsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'contributions'), where('status', 'in', ['pending', 'pending_reviewer', 'reviewed']), limit(100)) : null, [firestore, isAuthorized]);
   const { data: pendingSlipsSnap, loading: loadingSlips } = useCollection(pendingSlipsQuery);
 
-  const pendingLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans'), where('status', 'in', ['requested', 'pending_reviewer', 'reviewed']), limit(50)) : null, [firestore, isAuthorized]);
+  const pendingLoansQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'loans'), where('status', 'in', ['pending_member_confirmation', 'requested', 'pending_reviewer', 'reviewed']), limit(50)) : null, [firestore, isAuthorized]);
   const { data: pendingLoansSnap, loading: loadingLoans } = useCollection(pendingLoansQuery);
+
+  const pendingRepaymentsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'repayments'), where('status', 'in', ['pending', 'pending_reviewer', 'reviewed']), limit(50)) : null, [firestore, isAuthorized]);
+  const { data: pendingRepaymentsSnap, loading: loadingRepayments } = useCollection(pendingRepaymentsQuery);
 
   const pendingExpensesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'expenses'), where('status', 'in', ['pending', 'pending_review', 'pending_reviewer', 'pending_approval']), limit(50)) : null, [firestore, isAuthorized]);
   const { data: pendingExpensesSnap, loading: loadingExpenses } = useCollection(pendingExpensesQuery);
@@ -266,8 +277,15 @@ export default function ApprovalsHubPage() {
     if (isReviewer && !isSuperAdmin) return l.status === 'pending_reviewer';
     if (isSeniorAccountant) return l.status === 'requested';
     if (isSuperAdmin) return l.status === 'reviewed';
-    return l.status === 'requested' || l.status === 'pending_reviewer' || l.status === 'reviewed';
+    return l.status === 'pending_member_confirmation' || l.status === 'requested' || l.status === 'pending_reviewer' || l.status === 'reviewed';
   }), [pendingLoansSnap, isReviewer, isSeniorAccountant, isSuperAdmin]);
+
+  const pendingRepayments = useMemo(() => (pendingRepaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []).filter((r: any) => {
+    if (isReviewer && !isSuperAdmin) return r.status === 'pending_reviewer';
+    if (isSeniorAccountant) return r.status === 'pending';
+    if (isSuperAdmin) return r.status === 'reviewed';
+    return r.status === 'pending' || r.status === 'pending_reviewer' || r.status === 'reviewed';
+  }), [pendingRepaymentsSnap, isReviewer, isSeniorAccountant, isSuperAdmin]);
 
   const pendingExpenses = useMemo(() => (pendingExpensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []).filter((e: any) => {
     if (isReviewer && !isSuperAdmin) return e.status === 'pending_reviewer';
@@ -295,7 +313,7 @@ export default function ApprovalsHubPage() {
     return b.status === 'pending_review' || b.status === 'pending_reviewer' || b.status === 'pending_approval' || b.status === 'revision_requested';
   }), [allMemberBatches, isReviewer, isSeniorAccountant, isSuperAdmin]);
 
-  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingExpenses.length + pendingInterestRequests.length + pendingDeletionRequests.length + pendingMemberBatches.length;
+  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingRepayments.length + pendingExpenses.length + pendingInterestRequests.length + pendingDeletionRequests.length + pendingMemberBatches.length;
 
   // -------------------------------------------------------------
   // FINANCIAL KPI METRICS (SCREENSHOT 1)
@@ -468,6 +486,7 @@ export default function ApprovalsHubPage() {
   const isBatchInitiatedByCurrentUser = (batch: any) => Boolean(user && batch && batch.initiatedBy === user.uid);
   const isSlipInitiatedByCurrentUser = (slip: any) => Boolean(user && slip && (slip.memberId === user.uid || slip.recordedBy === user.uid));
   const isLoanInitiatedByCurrentUser = (loan: any) => Boolean(user && loan && loan.memberId === user.uid);
+  const isRepaymentInitiatedByCurrentUser = (rep: any) => Boolean(user && rep && (rep.memberId === user.uid || rep.submittedBy === user.uid));
   const isExpenseInitiatedByCurrentUser = (exp: any) => Boolean(user && exp && (exp.recordedBy === user.uid || exp.createdBy === user.uid));
   const isInterestInitiatedByCurrentUser = (req: any) => Boolean(user && req && req.initiatedBy === user.uid);
   const isMemberBatchInitiatedByCurrentUser = (batch: any) => Boolean(user && batch && batch.initiatedBy === user.uid);
@@ -713,6 +732,59 @@ export default function ApprovalsHubPage() {
       setIsLoanModalOpen(false);
       setInspectLoan(null);
       setLoanJustification('');
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({ variant: "destructive", title: parsed.title, description: parsed.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Loan Repayment Action
+  // -------------------------------------------------------------
+  const handleActionRepayment = async (decision: 'review' | 'verify' | 'reject') => {
+    if (!inspectRepayment || !user) return;
+    if (isBrowserOffline()) {
+      return toast({
+        variant: "destructive",
+        title: "Network Offline",
+        description: "Please check your connection and try again."
+      });
+    }
+
+    if (!repaymentJustification.trim() && decision !== 'verify') {
+      return toast({
+        variant: "destructive",
+        title: "Justification Required",
+        description: "Please provide audit notes or reason."
+      });
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (decision === 'review') {
+        await reviewRepaymentAction({
+          repaymentId: inspectRepayment.id,
+          justification: repaymentJustification.trim()
+        });
+        toast({ title: "Repayment Reviewed", description: "Repayment moved to the next review/approval stage." });
+      } else if (decision === 'verify') {
+        await verifyRepaymentAction({
+          repaymentId: inspectRepayment.id,
+          justification: repaymentJustification.trim() || 'Repayment verified and loan balance updated'
+        });
+        toast({ title: "Repayment Verified", description: `Loan repayment of ${formatCurrency(inspectRepayment.amount, currency)} verified and balance updated.` });
+      } else {
+        await rejectRepaymentAction({
+          repaymentId: inspectRepayment.id,
+          rejectionReason: repaymentJustification.trim()
+        });
+        toast({ title: "Repayment Rejected", description: "Loan repayment submission rejected." });
+      }
+      setIsRepaymentModalOpen(false);
+      setInspectRepayment(null);
+      setRepaymentJustification('');
     } catch (err: any) {
       const parsed = parseAppError(err);
       toast({ variant: "destructive", title: parsed.title, description: parsed.message });
@@ -1125,7 +1197,14 @@ export default function ApprovalsHubPage() {
                 onClick={() => downloadStaffContributionTemplate({ prefillMembers: registeredMembers, period: selectedPeriod, defaultAmount: settings.contributionInterestRate || 50000 })}
                 className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-border shadow-sm gap-1.5"
               >
-                <Download className="h-4 w-4 text-primary" /> Template (.xlsx)
+                <Download className="h-4 w-4 text-primary" /> Contributions Template (.xlsx)
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => downloadBulkLoanTemplate({ prefillMembers: registeredMembers })}
+                className="rounded-xl h-10 px-3.5 font-bold text-[12px] border-border shadow-sm gap-1.5"
+              >
+                <Download className="h-4 w-4 text-blue-600" /> Bulk Loans Template (.xlsx)
               </Button>
               <Button 
                 onClick={() => { setMainTab('batches'); setIsBatchUploadOpen(prev => !prev); }}
@@ -1141,7 +1220,7 @@ export default function ApprovalsHubPage() {
       {/* Main Approvals Tabs */}
       <Tabs value={mainTab} onValueChange={(val: any) => setMainTab(val)} className="w-full space-y-4">
         <div className="w-full overflow-x-auto no-scrollbar pb-1">
-          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 h-11 sm:grid sm:grid-cols-7">
+          <TabsList className="inline-flex w-full min-w-max sm:min-w-0 h-11 sm:grid sm:grid-cols-8">
             <TabsTrigger value="batches" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Layers className="h-3.5 w-3.5" /> Batches {pendingBatches.length > 0 && `(${pendingBatches.length})`}
             </TabsTrigger>
@@ -1150,6 +1229,9 @@ export default function ApprovalsHubPage() {
             </TabsTrigger>
             <TabsTrigger value="loans" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <HandCoins className="h-3.5 w-3.5" /> Loans {pendingLoans.length > 0 && `(${pendingLoans.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="repayments" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" /> Repayments {pendingRepayments.length > 0 && `(${pendingRepayments.length})`}
             </TabsTrigger>
             <TabsTrigger value="expenses" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <Receipt className="h-3.5 w-3.5" /> Expenses {pendingExpenses.length > 0 && `(${pendingExpenses.length})`}
@@ -1486,6 +1568,95 @@ export default function ApprovalsHubPage() {
                                 size="sm" 
                                 variant="outline" 
                                 onClick={() => { setInspectLoan(loan); setIsLoanModalOpen(true); }}
+                                className="h-8 rounded-xl font-bold text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Details
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* LOAN REPAYMENTS TAB */}
+        <TabsContent value="repayments" className="space-y-4">
+          <Card className="border border-border shadow-md rounded-2xl overflow-hidden bg-card">
+            <CardHeader className="bg-blue-600 text-white p-4 sm:p-5">
+              <CardTitle className="text-[13px] font-bold text-white flex items-center gap-2">
+                <CreditCard className="h-4 w-4" /> Pending Loan Repayments
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto no-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b hover:bg-transparent">
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Borrower</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Date</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Note / Ref</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Amount</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Receipt</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Status</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingRepayments ? (
+                      <TableRow><TableCell colSpan={7} className="h-28 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                    ) : pendingRepayments.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground italic">No pending loan repayments awaiting audit.</TableCell></TableRow>
+                    ) : (
+                      pendingRepayments.map((rep: any) => {
+                        const isSelf = isRepaymentInitiatedByCurrentUser(rep);
+                        return (
+                          <TableRow key={rep.id} className="hover:bg-muted/30">
+                            <TableCell className="px-4 py-3 font-bold text-sm">
+                              <div>{getMemberName(rep.memberId)}</div>
+                              {isSelf && (
+                                <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[8px] font-bold mt-0.5">
+                                  Paid by you
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs font-medium text-foreground">
+                              {safeFormatDate(rep.date, 'MMM d, yyyy')}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs text-muted-foreground max-w-xs truncate">
+                              {rep.justification || 'Installment Repayment'}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right font-bold text-sm text-primary">
+                              {formatCurrency(rep.amount, currency)}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-center">
+                              {rep.proofUrl ? (
+                                <a href={rep.proofUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline font-bold text-xs">
+                                  <FileText className="h-3.5 w-3.5" /> Proof
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground text-xs italic">None</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-center">
+                              <Badge className={cn(
+                                "text-[9px] uppercase font-bold border-none",
+                                rep.status === 'pending' && "bg-amber-500/10 text-amber-700",
+                                rep.status === 'pending_reviewer' && "bg-blue-500/10 text-blue-700",
+                                rep.status === 'reviewed' && "bg-indigo-500/10 text-indigo-700"
+                              )}>
+                                {rep.status === 'pending' ? 'Pending Review' : rep.status === 'pending_reviewer' ? 'Awaiting Reviewer' : 'Reviewed'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => { setInspectRepayment(rep); setIsRepaymentModalOpen(true); }}
                                 className="h-8 rounded-xl font-bold text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
                               >
                                 <Eye className="h-3.5 w-3.5" /> Details
@@ -2446,6 +2617,158 @@ export default function ApprovalsHubPage() {
                   >
                     {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
                     Approve Loan
+                  </Button>
+                </>
+              )}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* LOAN REPAYMENT APPROVAL MODAL */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog open={isRepaymentModalOpen} onOpenChange={setIsRepaymentModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl bg-card border border-border shadow-2xl p-6 space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center justify-between">
+              <span>Loan Repayment Verification</span>
+              <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase font-bold">
+                {inspectRepayment?.status === 'reviewed' ? 'Reviewed' : inspectRepayment?.status === 'pending_reviewer' ? 'Awaiting Reviewer' : 'Pending Review'}
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          {isSeniorAccountant && isRepaymentInitiatedByCurrentUser(inspectRepayment) && inspectRepayment?.status === 'pending' && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>Segregation of duties: You cannot review your own repayment. The Reviewer must review it.</span>
+            </div>
+          )}
+
+          {isSuperAdmin && isRepaymentInitiatedByCurrentUser(inspectRepayment) && inspectRepayment?.status !== 'reviewed' && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>Your self-repayment must be reviewed by the Senior Accountant and Reviewer before final sign-off.</span>
+            </div>
+          )}
+
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between py-1 border-b">
+              <span className="text-muted-foreground">Borrower:</span>
+              <span className="font-bold">{getMemberName(inspectRepayment?.memberId)}</span>
+            </div>
+            <div className="flex justify-between py-1 border-b">
+              <span className="text-muted-foreground">Repayment Amount:</span>
+              <span className="font-bold text-primary">{formatCurrency(inspectRepayment?.amount, currency)}</span>
+            </div>
+            <div className="flex justify-between py-1 border-b">
+              <span className="text-muted-foreground">Note / Reference:</span>
+              <span className="font-semibold">{inspectRepayment?.justification || 'Loan repayment'}</span>
+            </div>
+
+            {inspectRepayment?.proofUrl && (
+              <div className="py-1 border-b">
+                <Button variant="outline" size="sm" className="w-full rounded-xl text-xs font-bold gap-1.5 h-9" asChild>
+                  <a href={inspectRepayment.proofUrl} target="_blank" rel="noopener noreferrer">
+                    <Eye className="h-3.5 w-3.5 text-primary" /> View Bank Receipt / Proof
+                  </a>
+                </Button>
+              </div>
+            )}
+
+            {/* Operation Description */}
+            <div className="p-3 bg-muted/20 rounded-xl border border-border/60 text-xs space-y-1">
+              <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Operation Description:</span>
+              <p className="text-foreground leading-relaxed">
+                Loan repayment of {formatCurrency(inspectRepayment?.amount || 0, currency)} paid by {getMemberName(inspectRepayment?.memberId)}.
+              </p>
+            </div>
+
+            {renderReviewTrail(inspectRepayment)}
+
+            {((isSeniorAccountant && inspectRepayment?.status === 'pending' && !isRepaymentInitiatedByCurrentUser(inspectRepayment)) ||
+              (isReviewer && !isSuperAdmin && inspectRepayment?.status === 'pending_reviewer') ||
+              (isSuperAdmin && (inspectRepayment?.status === 'reviewed' || (!isRepaymentInitiatedByCurrentUser(inspectRepayment) && inspectRepayment?.status === 'pending')))) && (
+              <div className="space-y-2 pt-2">
+                <Label className="text-xs font-bold uppercase tracking-wider">Approval / Audit Notes</Label>
+                <Input 
+                  value={repaymentJustification} 
+                  onChange={e => setRepaymentJustification(e.target.value)} 
+                  placeholder="e.g. Bank statement verified, payment confirmed"
+                  className="rounded-xl text-xs h-10"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex items-center justify-between gap-2 pt-3">
+            <Button variant="ghost" onClick={() => setIsRepaymentModalOpen(false)} className="rounded-xl text-xs font-bold">
+              Cancel
+            </Button>
+            <div className="flex items-center gap-2">
+              {/* Senior Accountant: Initial Review */}
+              {isSeniorAccountant && inspectRepayment?.status === 'pending' && !isRepaymentInitiatedByCurrentUser(inspectRepayment) && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionRepayment('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
+                  <Button 
+                    onClick={() => handleActionRepayment('review')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-primary text-primary-foreground gap-1"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                    Review
+                  </Button>
+                </>
+              )}
+
+              {/* Reviewer: Compliance Review */}
+              {isReviewer && !isSuperAdmin && inspectRepayment?.status === 'pending_reviewer' && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionRepayment('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
+                  <Button 
+                    onClick={() => handleActionRepayment('review')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    Review
+                  </Button>
+                </>
+              )}
+
+              {/* Super Admin: Final Approval */}
+              {isSuperAdmin && (inspectRepayment?.status === 'reviewed' || (!isRepaymentInitiatedByCurrentUser(inspectRepayment) && inspectRepayment?.status === 'pending')) && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleActionRepayment('reject')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold border-destructive/30 text-destructive"
+                  >
+                    Reject
+                  </Button>
+                  <Button 
+                    onClick={() => handleActionRepayment('verify')} 
+                    disabled={isSubmitting}
+                    className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    Approve Repayment
                   </Button>
                 </>
               )}
