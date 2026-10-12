@@ -1264,7 +1264,9 @@ function LoansPageContent() {
                        <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-3">Due Date</TableHead>
                        <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-3">Amount</TableHead>
                        <TableHead className="text-[11px] font-bold uppercase text-white py-3 px-3">Status</TableHead>
-                       <TableHead className="text-[11px] font-bold uppercase text-white text-right py-3 px-3">Actions</TableHead>
+                       {selectedLoan?.memberId === user?.uid && (
+                         <TableHead className="text-[11px] font-bold uppercase text-white text-right py-3 px-3">Actions</TableHead>
+                       )}
                      </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1289,20 +1291,22 @@ function LoansPageContent() {
                           <TableCell className="py-2.5 px-3">
                              {getStatusBadge(inst.dueDate, inst.status, paid, target, remaining)}
                           </TableCell>
-                          <TableCell className="text-right py-2.5 px-3 whitespace-nowrap">
-                            {!isFullyPaid && (
-                              <Button
-                                size="sm"
-                                className="h-8 rounded-[10px] font-bold text-xs px-3 shadow-xs bg-primary text-primary-foreground"
-                                onClick={() => {
-                                  setSelectedInstallment(inst);
-                                  setIsRepayOpen(true);
-                                }}
-                              >
-                                Pay Now
-                              </Button>
-                            )}
-                          </TableCell>
+                          {selectedLoan?.memberId === user?.uid && (
+                            <TableCell className="text-right py-2.5 px-3 whitespace-nowrap">
+                              {!isFullyPaid && (
+                                <Button
+                                  size="sm"
+                                  className="h-8 rounded-[10px] font-bold text-xs px-3 shadow-xs bg-primary text-primary-foreground"
+                                  onClick={() => {
+                                    setSelectedInstallment(inst);
+                                    setIsRepayOpen(true);
+                                  }}
+                                >
+                                  Pay Now
+                                </Button>
+                              )}
+                            </TableCell>
+                          )}
                         </TableRow>
                       );
                     })}
