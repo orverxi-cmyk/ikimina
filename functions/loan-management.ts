@@ -995,57 +995,82 @@ export const initiateBulkLoans = onCall({ cors: true }, async (request) => {
     }
 
     const batchId = `bulk_loan_${Date.now()}`;
-    const batch = db.batch();
     const createdLoanIds: string[] = [];
 
-    for (let i = 0; i < loanItems.length; i++) {
-        const item = loanItems[i];
-        const memberId = item.memberId?.trim();
-        const amount = Number(item.amount);
-        const durationMonths = Number(item.durationMonths) || 12;
-        const description = item.description?.trim() || 'Computerized bulk loan record';
+    // Process loans and dispatch notifications in batches (max 200 items per batch to stay under 500 ops limit)
+    const chunkSize = 200;
+    for (let c = 0; c < loanItems.length; c += chunkSize) {
+        const chunk = loanItems.slice(c, c + chunkSize);
+        const batch = db.batch();
 
-        if (!memberId) {
-            throw new HttpsError('invalid-argument', `Item at row ${i + 1} is missing a memberId.`);
-        }
-        if (!amount || isNaN(amount) || amount <= 0) {
-            throw new HttpsError('invalid-argument', `Item at row ${i + 1} has an invalid amount (${item.amount}).`);
+        for (let i = 0; i < chunk.length; i++) {
+            const item = chunk[i];
+            const rowIndex = c + i + 1;
+            const memberId = item.memberId?.trim();
+            const amount = Number(item.amount);
+            const durationMonths = Number(item.durationMonths) || 12;
+            const description = item.description?.trim() || 'Computerized bulk loan record';
+
+            if (!memberId) {
+                throw new HttpsError('invalid-argument', `Item at row ${rowIndex} is missing a memberId.`);
+            }
+            if (!amount || isNaN(amount) || amount <= 0) {
+                throw new HttpsError('invalid-argument', `Item at row ${rowIndex} has an invalid amount (${item.amount}).`);
+            }
+
+            const loanRef = db.collection('loans').doc();
+            batch.set(loanRef, {
+                memberId,
+                amount,
+                description,
+                status: 'pending_member_confirmation',
+                memberConfirmed: false,
+                isBulkLoan: true,
+                batchId,
+                durationMonths,
+                balance: 0,
+                interestAmount: 0,
+                penaltyRate: 0,
+                isTopUp: false,
+                seniorReviewed: false,
+                complianceReviewed: false,
+                enteredBy: request.auth.uid,
+                enteredByName: callerData?.name || callerData?.email || 'Senior Accountant',
+                requestDate: admin.firestore.FieldValue.serverTimestamp(),
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            createdLoanIds.push(loanRef.id);
+
+            // Authoritative in-app notification to the borrower so they can review and confirm
+            const notifRef = db.collection('notifications').doc();
+            batch.set(notifRef, {
+                recipientId: memberId,
+                recipientRole: null,
+                title: 'Action Required: Confirm Bulk Loan Application',
+                message: `An institutional loan of ${amount.toLocaleString()} RWF was entered on your behalf by the Senior Accountant (${description}). Please review and confirm to proceed.`,
+                type: 'loan',
+                severity: 'warning',
+                actionUrl: '/loans',
+                metadata: { loanId: loanRef.id, amount, batchId },
+                read: false,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
         }
 
-        const loanRef = db.collection('loans').doc();
-        batch.set(loanRef, {
-            memberId,
-            amount,
-            description,
-            status: 'pending_member_confirmation',
-            memberConfirmed: false,
-            isBulkLoan: true,
-            batchId,
-            durationMonths,
-            balance: 0,
-            interestAmount: 0,
-            penaltyRate: 0,
-            isTopUp: false,
-            seniorReviewed: false,
-            complianceReviewed: false,
-            enteredBy: request.auth.uid,
-            enteredByName: callerData?.name || callerData?.email || 'Senior Accountant',
-            requestDate: admin.firestore.FieldValue.serverTimestamp(),
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        createdLoanIds.push(loanRef.id);
+        // Include audit log in first batch
+        if (c === 0) {
+            const auditRef = db.collection('audit_logs').doc();
+            batch.set(auditRef, {
+                adminId: request.auth.uid,
+                action: 'INITIATE_BULK_LOANS',
+                justification: justification?.trim() || 'Senior Accountant entered bulk loans',
+                details: { batchId, count: loanItems.length, loanIds: createdLoanIds },
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        await batch.commit();
     }
-
-    const auditRef = db.collection('audit_logs').doc();
-    batch.set(auditRef, {
-        adminId: request.auth.uid,
-        action: 'INITIATE_BULK_LOANS',
-        justification: justification?.trim() || 'Senior Accountant entered bulk loans',
-        details: { batchId, count: loanItems.length, loanIds: createdLoanIds },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    await batch.commit();
 
     return {
         success: true,
@@ -1081,6 +1106,9 @@ export const confirmLoanDetails = onCall({ cors: true }, async (request) => {
         throw new HttpsError('failed-precondition', 'Loan is not awaiting member confirmation.');
     }
 
+    const userSnap = await db.collection('users').doc(request.auth.uid).get();
+    const borrowerName = userSnap.data()?.name || userSnap.data()?.email || 'Borrower';
+
     const batch = db.batch();
     batch.update(loanRef, {
         status: 'requested',
@@ -1099,6 +1127,16 @@ export const confirmLoanDetails = onCall({ cors: true }, async (request) => {
     });
 
     await batch.commit();
+
+    // Notify Senior Accountants and Reviewers that the loan has been confirmed and is ready for audit
+    await notifyRoles(db, ['senior_accountant', 'reviewer', 'admin'], {
+        title: 'Bulk Loan Confirmed by Member',
+        message: `${borrowerName} confirmed their bulk loan of ${Number(loanData.amount).toLocaleString()} RWF. Ready for Senior Accountant review.`,
+        type: 'loan',
+        severity: 'info',
+        actionUrl: '/admin/approvals?tab=loans',
+        metadata: { loanId, memberId: request.auth.uid, amount: loanData.amount }
+    });
 
     return { success: true, loanId };
 });

@@ -299,6 +299,15 @@ function LoansPageContent() {
     return (loans.find((l: any) => l.memberId === user.uid && l.status === 'requested') as any) || null;
   }, [loans, user]);
 
+  const myAwaitingConfirmation = useMemo(() => {
+    if (!user) return null;
+    return (loans.find((l: any) => l.memberId === user.uid && l.status === 'pending_member_confirmation') as any) || null;
+  }, [loans, user]);
+
+  const managementPendingConfirmationCount = useMemo(() => {
+    return isManagement ? loans.filter((l: any) => l.status === 'pending_member_confirmation').length : 0;
+  }, [loans, isManagement]);
+
   const myActive = useMemo(() => {
     if (!user) return null;
     return (loans.find((l: any) => l.memberId === user.uid && l.status === 'approved' && (Number(l.balance) || 0) > 0) as any) || null;
@@ -784,6 +793,39 @@ function LoansPageContent() {
       {/* Member Alerts: Pending Loan Withdrawal & Top-Up Opportunities */}
       {!isManagement && (
         <div className="space-y-4">
+            {myAwaitingConfirmation && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/20 text-amber-600 rounded-lg shrink-0">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-sm text-foreground">
+                        Action Required: Confirm Bulk Loan Application
+                      </p>
+                      <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[9px] uppercase font-bold">
+                        Awaiting Confirmation
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      A loan facility of <strong className="text-foreground">{formatCurrency(myAwaitingConfirmation.amount, currency)}</strong> was entered on your behalf by the Senior Accountant ({myAwaitingConfirmation.description || 'Institutional bulk loan'}). Please confirm to proceed to credit review.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSelectedLoan(myAwaitingConfirmation);
+                    setIsConfirmDetailsOpen(true);
+                  }}
+                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shrink-0 shadow-sm"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Confirm Details Now
+                </Button>
+              </div>
+            )}
+
             {myPending && (
               <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -847,14 +889,45 @@ function LoansPageContent() {
         </div>
       )}
 
-      <Tabs defaultValue="schedule" onValueChange={setActiveTab} className="w-full">
+      {isManagement && managementPendingConfirmationCount > 0 && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/20 text-amber-600 rounded-lg shrink-0">
+              <Clock className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-foreground">
+                {managementPendingConfirmationCount} Staged Bulk Loan{managementPendingConfirmationCount > 1 ? 's' : ''} Awaiting Member Confirmation
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Entered by Senior Accountant. Once each borrower logs in and confirms their loan details, the loans will move to the management approval queue.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setActiveTab('history')}
+            className="rounded-xl border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 font-bold text-xs gap-1.5 shrink-0"
+          >
+            View in History
+          </Button>
+        </div>
+      )}
+
+      <Tabs defaultValue="schedule" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="w-full overflow-x-auto no-scrollbar pb-1 mb-6">
           <TabsList className="inline-flex w-full min-w-max md:min-w-0 md:grid md:grid-cols-4 h-12 p-1 bg-muted rounded-xl border border-border/60">
             <TabsTrigger value="schedule" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
               <Calendar className="h-4 w-4 shrink-0" /> {isManagement ? 'Active Loans' : 'Schedule'}
             </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
+            <TabsTrigger value="history" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4 relative">
               <HistoryIcon className="h-4 w-4 shrink-0" /> History
+              {isManagement && managementPendingConfirmationCount > 0 && (
+                <span className="ml-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white font-bold">
+                  {managementPendingConfirmationCount}
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="interest" className="gap-2 uppercase tracking-wider text-[11px] whitespace-nowrap px-3 sm:px-4">
               <Landmark className="h-4 w-4 shrink-0" /> Interest

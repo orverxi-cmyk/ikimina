@@ -280,6 +280,11 @@ export default function ApprovalsHubPage() {
     return l.status === 'pending_member_confirmation' || l.status === 'requested' || l.status === 'pending_reviewer' || l.status === 'reviewed';
   }), [pendingLoansSnap, isReviewer, isSeniorAccountant, isSuperAdmin]);
 
+  const awaitingMemberConfirmationLoans = useMemo(() => {
+    return (allLoansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [])
+      .filter((l: any) => l.status === 'pending_member_confirmation');
+  }, [allLoansSnap]);
+
   const pendingRepayments = useMemo(() => (pendingRepaymentsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || []).filter((r: any) => {
     if (isReviewer && !isSuperAdmin) return r.status === 'pending_reviewer';
     if (isSeniorAccountant) return r.status === 'pending';
@@ -1228,7 +1233,7 @@ export default function ApprovalsHubPage() {
               <Wallet className="h-3.5 w-3.5" /> Deposits {pendingSlips.length > 0 && `(${pendingSlips.length})`}
             </TabsTrigger>
             <TabsTrigger value="loans" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
-              <HandCoins className="h-3.5 w-3.5" /> Loans {pendingLoans.length > 0 && `(${pendingLoans.length})`}
+              <HandCoins className="h-3.5 w-3.5" /> Loans {(pendingLoans.length + awaitingMemberConfirmationLoans.length) > 0 && `(${pendingLoans.length + awaitingMemberConfirmationLoans.length})`}
             </TabsTrigger>
             <TabsTrigger value="repayments" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <CreditCard className="h-3.5 w-3.5" /> Repayments {pendingRepayments.length > 0 && `(${pendingRepayments.length})`}
@@ -1515,10 +1520,76 @@ export default function ApprovalsHubPage() {
 
         {/* 3. LOAN APPLICATIONS TAB */}
         <TabsContent value="loans" className="space-y-4">
+          {/* Staged Bulk Loans Awaiting Member Confirmation */}
+          {awaitingMemberConfirmationLoans.length > 0 && (
+            <Card className="border border-amber-500/30 shadow-md rounded-2xl overflow-hidden bg-card">
+              <CardHeader className="bg-amber-600 text-white p-4 sm:p-5 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-[13px] font-bold text-white flex items-center gap-2">
+                    <Clock className="h-4 w-4" /> Staged Bulk Loans &mdash; Awaiting Member Confirmation ({awaitingMemberConfirmationLoans.length})
+                  </CardTitle>
+                  <CardDescription className="text-amber-100 text-xs mt-1">
+                    Entered in bulk by Senior Accountant. Borrowers have been notified to review &amp; confirm loan details before they enter the management approval audit queue.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto no-scrollbar">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b hover:bg-transparent">
+                        <TableHead className="px-4 py-3 text-xs font-bold uppercase">Borrower</TableHead>
+                        <TableHead className="px-4 py-3 text-xs font-bold uppercase">Staged Date</TableHead>
+                        <TableHead className="px-4 py-3 text-xs font-bold uppercase">Description</TableHead>
+                        <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Amount</TableHead>
+                        <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Status</TableHead>
+                        <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {awaitingMemberConfirmationLoans.map((loan: any) => (
+                        <TableRow key={loan.id} className="hover:bg-muted/30">
+                          <TableCell className="px-4 py-3 font-bold text-sm">
+                            <div>{getMemberName(loan.memberId)}</div>
+                            <div className="text-[10px] text-muted-foreground">{loan.enteredByName ? `Entered by: ${loan.enteredByName}` : 'Bulk import'}</div>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-xs font-medium text-foreground">
+                            {safeFormatDate(loan.requestDate || loan.createdAt, 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-xs text-muted-foreground max-w-xs truncate">
+                            {loan.description || 'Computerized bulk loan record'}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right font-bold text-sm text-primary">
+                            {formatCurrency(loan.amount, currency)}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-center">
+                            <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-300 text-[9px] uppercase font-bold">
+                              Awaiting Borrower Confirmation
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => { setInspectLoan(loan); setIsLoanModalOpen(true); }}
+                              className="h-8 rounded-xl font-bold text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> Details
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border border-border shadow-md rounded-2xl overflow-hidden bg-card">
             <CardHeader className="bg-blue-600 text-white p-4 sm:p-5">
               <CardTitle className="text-[13px] font-bold text-white flex items-center gap-2">
-                <HandCoins className="h-4 w-4" /> Pending Loan Applications
+                <HandCoins className="h-4 w-4" /> Pending Loan Applications (Ready for Audit)
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">

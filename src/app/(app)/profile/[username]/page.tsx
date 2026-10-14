@@ -128,9 +128,7 @@ export default function ProfilePage() {
     if (targetId !== user.uid && !isManagement) return null;
     return query(
       collection(firestore, 'account_deletion_requests'),
-      where('userId', '==', targetId),
-      orderBy('requestedAt', 'desc'),
-      limit(1)
+      where('userId', '==', targetId)
     );
   }, [targetId, userLoading, user, isManagement]);
 
@@ -140,8 +138,17 @@ export default function ProfilePage() {
 
   const latestDeletionRequest: any = useMemo(() => {
     if (!deletionRequestsSnap || deletionRequestsSnap.empty) return null;
-    const d = deletionRequestsSnap.docs[0];
-    return { id: d.id, ...(d.data() as any) };
+    const docs = deletionRequestsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+    docs.sort((a, b) => {
+      const getMillis = (val: any) => {
+        if (!val) return 0;
+        if (typeof val.toMillis === 'function') return val.toMillis();
+        if (typeof val.seconds === 'number') return val.seconds * 1000;
+        return new Date(val).getTime() || 0;
+      };
+      return getMillis(b.requestedAt) - getMillis(a.requestedAt);
+    });
+    return docs[0] || null;
   }, [deletionRequestsSnap]);
 
   const contributions = useMemo(() => {
