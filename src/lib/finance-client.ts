@@ -204,6 +204,23 @@ export async function rejectInterestDistributionAction(data: {
 }
 
 /**
+ * Allows an administrator or initiator to withdraw a pending interest distribution proposal.
+ */
+export async function withdrawInterestDistributionAction(data: {
+  requestId: string;
+  reason?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const withFn = httpsCallable(functions, 'withdrawInterestDistribution');
+  try {
+    const result = await withFn(data);
+    return result.data as { success: boolean; requestId: string; status: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to withdraw interest distribution proposal.');
+  }
+}
+
+/**
  * Step 2: Reviewer / Senior Accountant reviews interest distribution proposal.
  */
 export async function reviewInterestDistributionAction(data: {

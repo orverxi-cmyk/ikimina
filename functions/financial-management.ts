@@ -893,6 +893,71 @@ export const rejectInterestDistribution = onCall({ cors: true }, async (request)
 });
 
 /**
+ * Allows an administrator or the proposal initiator to withdraw a pending interest distribution proposal.
+ */
+export const withdrawInterestDistribution = onCall({ cors: true }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+    const callerUid = request.auth.uid;
+
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(callerUid).get();
+    const callerData = callerSnap.data();
+
+    const { requestId, reason } = request.data || {};
+    if (!requestId) throw new HttpsError('invalid-argument', 'Request ID is required.');
+
+    const reqRef = db.collection('interest_distribution_requests').doc(requestId);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists) throw new HttpsError('not-found', 'Request not found.');
+
+    const reqData = reqSnap.data()!;
+    const isInitiator = reqData.initiatedBy === callerUid || reqData.adminId === callerUid;
+    const isAdmin = callerData?.role === 'admin' || callerData?.role === 'senior_accountant';
+
+    if (!isInitiator && !isAdmin) {
+        throw new HttpsError('permission-denied', 'Only an administrator, senior accountant, or the proposal initiator can withdraw this proposal.');
+    }
+
+    const pendingStatuses = ['pending', 'pending_review', 'pending_reviewer', 'pending_approval', 'revision_requested'];
+    if (!pendingStatuses.includes(reqData.status)) {
+        throw new HttpsError('failed-precondition', `Cannot withdraw proposal with status '${reqData.status}'. Only pending proposals can be withdrawn.`);
+    }
+
+    const withdrawalReason = (reason && typeof reason === 'string' && reason.trim()) ? reason.trim() : 'Withdrawn by administrator';
+
+    await reqRef.update({
+        status: 'withdrawn',
+        withdrawnAt: admin.firestore.FieldValue.serverTimestamp(),
+        withdrawnBy: callerUid,
+        withdrawnByName: callerData?.name || callerData?.email || 'Admin',
+        withdrawalReason
+    });
+
+    const logRef = db.collection('audit_logs').doc();
+    await logRef.set({
+        adminId: callerUid,
+        action: 'WITHDRAW_INTEREST_DISTRIBUTION',
+        justification: withdrawalReason,
+        details: { requestId, totalInterestToDistribute: reqData.totalInterestToDistribute },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Close payout campaign if linked to this withdrawn proposal
+    const settingsRef = db.collection('settings').doc('financials');
+    const settingsSnap = await settingsRef.get();
+    if (settingsSnap.data()?.payoutCampaign?.pendingRequestId === requestId) {
+        await settingsRef.set({
+            payoutCampaign: {
+                status: 'closed',
+                closedAt: admin.firestore.FieldValue.serverTimestamp()
+            }
+        }, { merge: true });
+    }
+
+    return { success: true, requestId, status: 'withdrawn' };
+});
+
+/**
  * Updates global financial settings like default interest rates and borrowing limits.
  */
 export const updateFinancialSettings = onCall({ cors: true }, async (request) => {

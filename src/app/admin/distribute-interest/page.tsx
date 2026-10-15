@@ -67,6 +67,7 @@ import {
   reviewInterestDistributionAction,
   approveInterestDistributionAction,
   rejectInterestDistributionAction,
+  withdrawInterestDistributionAction,
   openInterestPayoutCampaignAction,
   setMemberPayoutPreferenceAction,
 } from '@/lib/finance-client';
@@ -415,6 +416,31 @@ export default function DistributeInterestPage() {
       toast({ variant: 'destructive', title: parsed.title || 'Action Failed', description: parsed.message });
     } finally {
       setIsPerformingAction(false);
+    }
+  };
+
+  const [withdrawingProposalId, setWithdrawingProposalId] = useState<string | null>(null);
+
+  const handleWithdrawProposal = async (proposal: any) => {
+    if (!proposal || !user) return;
+    const confirmed = window.confirm(`Are you sure you want to withdraw this interest distribution proposal of ${formatCurrency(Number(proposal.totalInterestToDistribute || proposal.amountDistributed) || 0, currency)}? This will cancel the proposal and close any associated election campaign.`);
+    if (!confirmed) return;
+
+    setWithdrawingProposalId(proposal.id);
+    try {
+      await withdrawInterestDistributionAction({ requestId: proposal.id });
+      toast({
+        title: 'Proposal Withdrawn',
+        description: 'The interest distribution proposal has been successfully withdrawn and cancelled.',
+      });
+      if (inspectRun?.id === proposal.id) {
+        setInspectRun(null);
+      }
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({ variant: 'destructive', title: parsed.title || 'Withdrawal Failed', description: parsed.message });
+    } finally {
+      setWithdrawingProposalId(null);
     }
   };
 
@@ -802,11 +828,13 @@ export default function DistributeInterestPage() {
                                 prop.status === 'pending_approval' && "bg-violet-500/10 text-violet-700 border-violet-400/30",
                                 prop.status === 'approved' && "bg-green-600/10 text-green-700 border-green-500/30",
                                 prop.status === 'rejected' && "bg-red-500/10 text-red-700 border-red-500/30",
-                                prop.status === 'revision_requested' && "bg-orange-500/10 text-orange-700 border-orange-400/30"
+                                prop.status === 'revision_requested' && "bg-orange-500/10 text-orange-700 border-orange-400/30",
+                                prop.status === 'withdrawn' && "bg-slate-500/10 text-slate-700 border-slate-400/30"
                               )}>
                                 {prop.status === 'pending_reviewer' ? 'Awaiting Reviewer' :
                                  prop.status === 'pending_approval' ? 'Awaiting Admin Approval' :
-                                 prop.status === 'approved' ? 'Approved & Committed' : prop.status}
+                                 prop.status === 'approved' ? 'Approved & Committed' :
+                                 prop.status === 'withdrawn' ? 'Withdrawn' : prop.status}
                               </Badge>
                             </TableCell>
                             <TableCell className="px-4 py-3 text-xs text-muted-foreground">
@@ -845,6 +873,19 @@ export default function DistributeInterestPage() {
                                     className="h-7 px-2.5 rounded-lg text-xs font-bold gap-1 bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
                                   >
                                     <Eye className="h-3 w-3" /> Review
+                                  </Button>
+                                )}
+
+                                {/* WITHDRAW BUTTON: for initiator or admin on pending proposals */}
+                                {['pending', 'pending_review', 'pending_reviewer', 'pending_approval', 'revision_requested'].includes(prop.status) && (isSelf || isSuperAdmin || isSeniorAccountant) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleWithdrawProposal(prop)}
+                                    disabled={withdrawingProposalId === prop.id}
+                                    className="h-7 px-2 rounded-lg text-xs font-semibold gap-1 text-muted-foreground hover:text-destructive hover:border-destructive/40"
+                                  >
+                                    {withdrawingProposalId === prop.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Withdraw
                                   </Button>
                                 )}
 
@@ -1446,10 +1487,65 @@ export default function DistributeInterestPage() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row items-center justify-between gap-2">
             <Button type="button" variant="outline" onClick={() => setInspectRun(null)} className="rounded-xl font-bold">
               Close
             </Button>
+            {inspectRun && (
+              <div className="flex items-center gap-2">
+                {/* REVIEW BUTTON */}
+                {((isReviewer && (inspectRun.status === 'pending_reviewer' || inspectRun.status === 'pending_review')) ||
+                  (isSeniorAccountant && (inspectRun.status === 'pending_review' || inspectRun.status === 'pending')) ||
+                  (isSuperAdmin && (inspectRun.status === 'pending_review' || inspectRun.status === 'pending_reviewer'))) && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const propToAct = inspectRun;
+                      setInspectRun(null);
+                      setActionProposal(propToAct);
+                      setActionType('review');
+                      setActionNotes('');
+                    }}
+                    disabled={isProposalInitiatedByCurrentUser(inspectRun) && !isSeniorAccountant && !isSuperAdmin}
+                    className="rounded-xl text-xs font-bold gap-1 bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Review Proposal
+                  </Button>
+                )}
+
+                {/* APPROVE BUTTON */}
+                {isSuperAdmin && (inspectRun.status === 'pending_approval' || inspectRun.status === 'pending_reviewer') && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const propToAct = inspectRun;
+                      setInspectRun(null);
+                      setActionProposal(propToAct);
+                      setActionType('approve');
+                      setActionNotes('');
+                    }}
+                    disabled={isProposalInitiatedByCurrentUser(inspectRun)}
+                    className="rounded-xl text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Approve Distribution
+                  </Button>
+                )}
+
+                {/* WITHDRAW BUTTON IN BREAKDOWN MODAL */}
+                {['pending', 'pending_review', 'pending_reviewer', 'pending_approval', 'revision_requested'].includes(inspectRun.status) &&
+                  (isProposalInitiatedByCurrentUser(inspectRun) || isSuperAdmin || isSeniorAccountant) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleWithdrawProposal(inspectRun)}
+                    disabled={withdrawingProposalId === inspectRun.id}
+                    className="rounded-xl text-xs font-semibold gap-1 text-muted-foreground hover:text-destructive hover:border-destructive/40"
+                  >
+                    {withdrawingProposalId === inspectRun.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Withdraw Proposal
+                  </Button>
+                )}
+              </div>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

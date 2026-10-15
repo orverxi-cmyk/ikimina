@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setMemberPayoutPreference = exports.closeInterestPayoutCampaign = exports.openInterestPayoutCampaign = exports.approveInterestPayoutCampaign = exports.reviewInterestPayoutCampaign = exports.initiateInterestPayoutCampaign = exports.getSystemSettings = exports.resetFinancialData = exports.updateFinancialSettings = exports.rejectInterestDistribution = exports.approveInterestDistribution = exports.reviewInterestDistribution = exports.initiateInterestDistribution = exports.allocateInterest = void 0;
+exports.setMemberPayoutPreference = exports.closeInterestPayoutCampaign = exports.openInterestPayoutCampaign = exports.approveInterestPayoutCampaign = exports.reviewInterestPayoutCampaign = exports.initiateInterestPayoutCampaign = exports.getSystemSettings = exports.resetFinancialData = exports.updateFinancialSettings = exports.withdrawInterestDistribution = exports.rejectInterestDistribution = exports.approveInterestDistribution = exports.reviewInterestDistribution = exports.initiateInterestDistribution = exports.allocateInterest = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const notification_service_1 = require("./notification-service");
@@ -817,6 +817,63 @@ exports.rejectInterestDistribution = (0, https_1.onCall)({ cors: true }, async (
         }, { merge: true });
     }
     return { success: true, requestId };
+});
+/**
+ * Allows an administrator or the proposal initiator to withdraw a pending interest distribution proposal.
+ */
+exports.withdrawInterestDistribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const callerUid = request.auth.uid;
+    const db = admin.firestore();
+    const callerSnap = await db.collection('users').doc(callerUid).get();
+    const callerData = callerSnap.data();
+    const { requestId, reason } = request.data || {};
+    if (!requestId)
+        throw new https_1.HttpsError('invalid-argument', 'Request ID is required.');
+    const reqRef = db.collection('interest_distribution_requests').doc(requestId);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists)
+        throw new https_1.HttpsError('not-found', 'Request not found.');
+    const reqData = reqSnap.data();
+    const isInitiator = reqData.initiatedBy === callerUid || reqData.adminId === callerUid;
+    const isAdmin = (callerData === null || callerData === void 0 ? void 0 : callerData.role) === 'admin' || (callerData === null || callerData === void 0 ? void 0 : callerData.role) === 'senior_accountant';
+    if (!isInitiator && !isAdmin) {
+        throw new https_1.HttpsError('permission-denied', 'Only an administrator, senior accountant, or the proposal initiator can withdraw this proposal.');
+    }
+    const pendingStatuses = ['pending', 'pending_review', 'pending_reviewer', 'pending_approval', 'revision_requested'];
+    if (!pendingStatuses.includes(reqData.status)) {
+        throw new https_1.HttpsError('failed-precondition', `Cannot withdraw proposal with status '${reqData.status}'. Only pending proposals can be withdrawn.`);
+    }
+    const withdrawalReason = (reason && typeof reason === 'string' && reason.trim()) ? reason.trim() : 'Withdrawn by administrator';
+    await reqRef.update({
+        status: 'withdrawn',
+        withdrawnAt: admin.firestore.FieldValue.serverTimestamp(),
+        withdrawnBy: callerUid,
+        withdrawnByName: (callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Admin',
+        withdrawalReason
+    });
+    const logRef = db.collection('audit_logs').doc();
+    await logRef.set({
+        adminId: callerUid,
+        action: 'WITHDRAW_INTEREST_DISTRIBUTION',
+        justification: withdrawalReason,
+        details: { requestId, totalInterestToDistribute: reqData.totalInterestToDistribute },
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    // Close payout campaign if linked to this withdrawn proposal
+    const settingsRef = db.collection('settings').doc('financials');
+    const settingsSnap = await settingsRef.get();
+    if (((_b = (_a = settingsSnap.data()) === null || _a === void 0 ? void 0 : _a.payoutCampaign) === null || _b === void 0 ? void 0 : _b.pendingRequestId) === requestId) {
+        await settingsRef.set({
+            payoutCampaign: {
+                status: 'closed',
+                closedAt: admin.firestore.FieldValue.serverTimestamp()
+            }
+        }, { merge: true });
+    }
+    return { success: true, requestId, status: 'withdrawn' };
 });
 /**
  * Updates global financial settings like default interest rates and borrowing limits.
