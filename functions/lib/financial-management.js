@@ -195,6 +195,7 @@ async function computeTimeWeightedBreakdown(db, amountToDistribute) {
                 memberName: m.memberData.name || 'Unknown',
                 memberEmail: m.memberData.email || '',
                 contributions: m.memberTotal,
+                days: Math.round(m.memberWeighted / m.memberTotal),
                 shareRatio: m.shareRatio,
                 sharePercentage: (m.shareRatio * 100).toFixed(2),
                 distributedShare,

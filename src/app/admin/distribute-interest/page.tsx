@@ -555,6 +555,49 @@ export default function DistributeInterestPage() {
     );
   }, [inspectRun, breakdownSearch]);
 
+  // Helper to resolve effective active contribution days for a member in the breakdown
+  const getMemberEffectiveDays = (item: any) => {
+    if (item.days != null) return `${item.days} d`;
+    if (item.daysActive != null) return `${item.daysActive} d`;
+    if (item.rwfDays && item.contributions) {
+      return `${Math.round(item.rwfDays / item.contributions)} d`;
+    }
+    if (contributionsSnap && item.memberId) {
+      const now = new Date();
+      const KIGALI_OFFSET_MS = 2 * 60 * 60 * 1000;
+      const MS_PER_DAY = 86_400_000;
+      const nowDayIndex = Math.floor((now.getTime() + KIGALI_OFFSET_MS) / MS_PER_DAY);
+
+      let memberTotal = 0;
+      let memberWeighted = 0;
+
+      contributionsSnap.docs.forEach(doc => {
+        const c = doc.data();
+        if (c.memberId === item.memberId && c.status === 'verified') {
+          const amt = Number(c.amount) || 0;
+          if (amt <= 0) return;
+          const rawDate = c.verifiedAt || c.date || c.createdAt;
+          let dt: Date | null = null;
+          if (rawDate?.toDate) dt = rawDate.toDate();
+          else if (rawDate?.seconds) dt = new Date(rawDate.seconds * 1000);
+          else if (rawDate) dt = new Date(rawDate);
+
+          if (dt && !isNaN(dt.getTime())) {
+            const contribDayIndex = Math.floor((dt.getTime() + KIGALI_OFFSET_MS) / MS_PER_DAY);
+            const daysActive = Math.max(0, nowDayIndex - contribDayIndex);
+            memberTotal += amt;
+            memberWeighted += amt * daysActive;
+          }
+        }
+      });
+
+      if (memberTotal > 0 && memberWeighted > 0) {
+        return `${Math.round(memberWeighted / memberTotal)} d`;
+      }
+    }
+    return '—';
+  };
+
   if (userDataLoading && !cachedRole && !isPrimaryAdmin) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -1441,6 +1484,7 @@ export default function DistributeInterestPage() {
                   <TableRow className="border-none hover:bg-transparent">
                     <TableHead className="py-2.5 px-3 text-white font-bold text-xs">Recipient Member</TableHead>
                     <TableHead className="text-right text-white font-bold text-xs">Savings at Run</TableHead>
+                    <TableHead className="text-right text-white font-bold text-xs">Active Days</TableHead>
                     <TableHead className="text-right text-white font-bold text-xs">Share Ratio</TableHead>
                     <TableHead className="text-center text-white font-bold text-xs">Payout Channel</TableHead>
                     <TableHead className="text-right text-white font-bold text-xs text-emerald-200">Dividend Credited</TableHead>
@@ -1455,6 +1499,9 @@ export default function DistributeInterestPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(Number(b.contributions || b.savings || 0), currency)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs text-muted-foreground font-semibold">
+                          {getMemberEffectiveDays(b)}
                         </TableCell>
                         <TableCell className="text-right font-mono text-primary font-bold">
                           {b.shareRatio ? `${(b.shareRatio * 100).toFixed(2)}%` : '—'}
@@ -1477,7 +1524,7 @@ export default function DistributeInterestPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground text-xs italic">
+                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground text-xs italic">
                         {inspectRun?.breakdown ? 'No matching members found.' : 'Detailed breakdown not stored for this record.'}
                       </TableCell>
                     </TableRow>
