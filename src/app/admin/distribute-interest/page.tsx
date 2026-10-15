@@ -68,6 +68,7 @@ import {
   approveInterestDistributionAction,
   rejectInterestDistributionAction,
   openInterestPayoutCampaignAction,
+  setMemberPayoutPreferenceAction,
 } from '@/lib/finance-client';
 import { parseAppError, isBrowserOffline } from '@/lib/error-handler';
 import { canExportInterest, exportInterestToExcel } from '@/lib/interest-export';
@@ -163,6 +164,11 @@ export default function DistributeInterestPage() {
   const [campaignDurationDays, setCampaignDurationDays] = useState(7);
   const [isLaunchingCampaign, setIsLaunchingCampaign] = useState(false);
 
+  // Member Payout Mode Register States
+  const [preferenceFilter, setPreferenceFilter] = useState<'all' | 'defined' | 'undefined'>('all');
+  const [preferenceSearch, setPreferenceSearch] = useState('');
+  const [isUpdatingMemberPref, setIsUpdatingMemberPref] = useState<string | null>(null);
+
   // Subscriptions
   const membersQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'users')) : null, [firestore, isAuthorized]);
   const { data: membersSnap } = useCollection(membersQuery);
@@ -170,6 +176,45 @@ export default function DistributeInterestPage() {
   const memberMap = useMemo(() => new Map(members.map((m: any) => [m.id, m])), [members]);
 
   const getMemberName = (id: string) => (memberMap.get(id) as any)?.name || id || 'Unknown Member';
+
+  const membersWithoutPreference = useMemo(() => {
+    return members.filter((m: any) => !m.interestPayoutPreference && !m.payoutPreference);
+  }, [members]);
+
+  const membersWithPreference = useMemo(() => {
+    return members.filter((m: any) => Boolean(m.interestPayoutPreference || m.payoutPreference));
+  }, [members]);
+
+  const filteredPreferenceMembers = useMemo(() => {
+    return members.filter((m: any) => {
+      const hasPref = Boolean(m.interestPayoutPreference || m.payoutPreference);
+      if (preferenceFilter === 'defined' && !hasPref) return false;
+      if (preferenceFilter === 'undefined' && hasPref) return false;
+      if (preferenceSearch.trim()) {
+        const query = preferenceSearch.toLowerCase();
+        const name = (m.name || '').toLowerCase();
+        const email = (m.email || '').toLowerCase();
+        return name.includes(query) || email.includes(query);
+      }
+      return true;
+    });
+  }, [members, preferenceFilter, preferenceSearch]);
+
+  const handleSetMemberPreference = async (memberId: string, preference: 'add_to_contribution' | 'receive_payout') => {
+    setIsUpdatingMemberPref(memberId);
+    try {
+      await setMemberPayoutPreferenceAction(preference, memberId);
+      toast({
+        title: 'Preference Updated',
+        description: `Member preference set to ${preference === 'add_to_contribution' ? 'Reinvestment in Savings' : 'Liquid Cash Payout'}.`,
+      });
+    } catch (err: any) {
+      const parsed = parseAppError(err);
+      toast({ variant: 'destructive', title: parsed.title || 'Update Failed', description: parsed.message });
+    } finally {
+      setIsUpdatingMemberPref(null);
+    }
+  };
 
   // Interest Distribution Proposals
   const requestsQuery = useMemoFirebase(
@@ -769,8 +814,8 @@ export default function DistributeInterestPage() {
                             </TableCell>
                             <TableCell className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                {/* ADMIN APPROVES: ONLY for pending_approval. NEVER reviews! */}
-                                {isSuperAdmin && prop.status === 'pending_approval' && (
+                                {/* ADMIN APPROVES: for pending_approval or pending_reviewer */}
+                                {isSuperAdmin && (prop.status === 'pending_approval' || prop.status === 'pending_reviewer') && (
                                   <Button
                                     size="sm"
                                     onClick={() => {
@@ -785,8 +830,10 @@ export default function DistributeInterestPage() {
                                   </Button>
                                 )}
 
-                                {/* REVIEWER REVIEWS: for pending_reviewer */}
-                                {!isSuperAdmin && ((isReviewer && prop.status === 'pending_reviewer') || (isSeniorAccountant && prop.status === 'pending')) && (
+                                {/* REVIEWER REVIEWS: for pending_review or pending_reviewer */}
+                                {((isReviewer && (prop.status === 'pending_reviewer' || prop.status === 'pending_review')) ||
+                                  (isSeniorAccountant && (prop.status === 'pending_review' || prop.status === 'pending')) ||
+                                  (isSuperAdmin && (prop.status === 'pending_review' || prop.status === 'pending_reviewer'))) && (
                                   <Button
                                     size="sm"
                                     onClick={() => {
@@ -794,7 +841,7 @@ export default function DistributeInterestPage() {
                                       setActionType('review');
                                       setActionNotes('');
                                     }}
-                                    disabled={isSelf && !isSeniorAccountant}
+                                    disabled={isSelf && !isSeniorAccountant && !isSuperAdmin}
                                     className="h-7 px-2.5 rounded-lg text-xs font-bold gap-1 bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
                                   >
                                     <Eye className="h-3 w-3" /> Review
@@ -958,6 +1005,146 @@ export default function DistributeInterestPage() {
                     <Play className="h-4 w-4" /> Open Campaign Window
                   </Button>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* MEMBER ELECTION REGISTER */}
+            <Card className="border border-border shadow-sm rounded-2xl bg-card overflow-hidden md:col-span-2">
+              <CardHeader className="bg-blue-600 text-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  <div>
+                    <CardTitle className="text-sm font-bold text-white">Member Payout Mode Status Register</CardTitle>
+                    <CardDescription className="text-blue-100 text-xs">
+                      Inspect individual member election choices and track who has not defined their mode of interest payment.
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-white/20 text-white border-none text-[10px] font-bold">
+                    {membersWithoutPreference.length} Undefined
+                  </Badge>
+                  <Badge className="bg-emerald-500 text-white border-none text-[10px] font-bold">
+                    {membersWithPreference.length} Defined
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5 p-1 bg-muted rounded-xl w-full sm:w-auto">
+                    <Button
+                      size="sm"
+                      variant={preferenceFilter === 'all' ? 'default' : 'ghost'}
+                      onClick={() => setPreferenceFilter('all')}
+                      className="h-7 text-xs rounded-lg font-bold"
+                    >
+                      All ({members.length})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={preferenceFilter === 'undefined' ? 'default' : 'ghost'}
+                      onClick={() => setPreferenceFilter('undefined')}
+                      className={cn("h-7 text-xs rounded-lg font-bold gap-1", preferenceFilter === 'undefined' ? "bg-amber-600 text-white" : "text-amber-700 dark:text-amber-400")}
+                    >
+                      <AlertCircle className="h-3 w-3" /> Undefined ({membersWithoutPreference.length})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={preferenceFilter === 'defined' ? 'default' : 'ghost'}
+                      onClick={() => setPreferenceFilter('defined')}
+                      className="h-7 text-xs rounded-lg font-bold"
+                    >
+                      Defined ({membersWithPreference.length})
+                    </Button>
+                  </div>
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search member by name..."
+                      value={preferenceSearch}
+                      onChange={e => setPreferenceSearch(e.target.value)}
+                      className="pl-9 h-8 text-xs rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="border rounded-xl overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b bg-muted/40">
+                        <TableHead className="px-4 py-2.5 text-xs font-bold uppercase">Member</TableHead>
+                        <TableHead className="px-4 py-2.5 text-xs font-bold uppercase">Email</TableHead>
+                        <TableHead className="px-4 py-2.5 text-xs font-bold uppercase text-center">Payout Preference Mode</TableHead>
+                        <TableHead className="px-4 py-2.5 text-xs font-bold uppercase text-right">Quick Set Mode</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPreferenceMembers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="h-24 text-center text-xs text-muted-foreground italic">
+                            No members found matching filter.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredPreferenceMembers.map((m: any) => {
+                          const pref = m.interestPayoutPreference || m.payoutPreference;
+                          const isUndef = !pref;
+                          const isUpdating = isUpdatingMemberPref === m.id;
+
+                          return (
+                            <TableRow key={m.id} className="hover:bg-muted/30">
+                              <TableCell className="px-4 py-2.5">
+                                <div className="font-bold text-xs text-foreground">{m.name || 'Unknown'}</div>
+                                <div className="text-[10px] text-muted-foreground">{m.phone || m.id.slice(0, 10)}</div>
+                              </TableCell>
+                              <TableCell className="px-4 py-2.5 text-xs text-muted-foreground">
+                                {m.email || '—'}
+                              </TableCell>
+                              <TableCell className="px-4 py-2.5 text-center">
+                                {isUndef ? (
+                                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-400/30 font-bold text-[9px] gap-1 py-0.5">
+                                    <AlertCircle className="h-3 w-3" /> Not Defined (Default: Cash)
+                                  </Badge>
+                                ) : pref === 'add_to_contribution' ? (
+                                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-400/30 font-bold text-[9px] gap-1 py-0.5">
+                                    <PiggyBank className="h-3 w-3" /> Reinvest to Savings
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-400/30 font-bold text-[9px] gap-1 py-0.5">
+                                    <Banknote className="h-3 w-3" /> Liquid Cash Payout
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="px-4 py-2.5 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant={pref === 'add_to_contribution' ? 'secondary' : 'outline'}
+                                    disabled={isUpdating}
+                                    onClick={() => handleSetMemberPreference(m.id, 'add_to_contribution')}
+                                    className="h-6 text-[10px] px-2 rounded-lg font-semibold"
+                                  >
+                                    Reinvest
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={pref === 'receive_payout' ? 'secondary' : 'outline'}
+                                    disabled={isUpdating}
+                                    onClick={() => handleSetMemberPreference(m.id, 'receive_payout')}
+                                    className="h-6 text-[10px] px-2 rounded-lg font-semibold"
+                                  >
+                                    Cash
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </div>

@@ -431,10 +431,15 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
             breakdown
         } = await computeTimeWeightedBreakdown(db, parsedAmount);
 
+        const isSeniorAcct = callerData?.role === 'senior_accountant';
         const reqRef = db.collection('interest_distribution_requests').doc();
         const requestPayload = {
             id: reqRef.id,
-            status: 'pending_review',
+            status: isSeniorAcct ? 'pending_reviewer' : 'pending_review',
+            seniorReviewed: isSeniorAcct,
+            seniorReviewedBy: isSeniorAcct ? callerUid : null,
+            seniorReviewedByName: isSeniorAcct ? (callerData?.name || callerData?.email || 'Senior Accountant') : null,
+            seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
             totalInterestToDistribute: parsedAmount,
             totalPool,
             totalRealizedInterest,
@@ -489,11 +494,21 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
         await batch.commit();
 
         await notifyRoles(db, ['reviewer', 'admin'], {
-            title: 'Interest Distribution Proposal Staged',
+            title: isSeniorAcct ? 'Interest Proposal Staged by Senior Accountant' : 'Interest Distribution Proposal Staged',
             message: `Proposal to distribute ${parsedAmount.toLocaleString()} RWF to ${recipientsCount} members was initiated by ${callerData?.name || 'Accountant'}. Pending review.`,
             type: 'interest',
             severity: 'info',
             actionUrl: '/admin/distribute-interest',
+            metadata: { requestId: reqRef.id, amount: parsedAmount }
+        });
+
+        // Broadcast to members immediately so they can elect whether to add to contributions or be paid
+        await notifyRoles(db, ['member'] as any, {
+            title: 'Dividend Payout Election Open',
+            message: 'An interest distribution has been initiated. Please elect whether your dividend should be added to your savings or received as cash.',
+            type: 'interest',
+            severity: 'info',
+            actionUrl: '/dashboard',
             metadata: { requestId: reqRef.id, amount: parsedAmount }
         });
 

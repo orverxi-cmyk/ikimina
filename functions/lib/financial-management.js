@@ -397,10 +397,15 @@ exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async
         }
         // 4. Calculate Time-Weighted Member Contribution Breakdown
         const { totalPool, recipientsCount, capitalizedCount, cashPayoutCount, totalCapitalizedToContributions, totalCashPayout, breakdown } = await computeTimeWeightedBreakdown(db, parsedAmount);
+        const isSeniorAcct = (callerData === null || callerData === void 0 ? void 0 : callerData.role) === 'senior_accountant';
         const reqRef = db.collection('interest_distribution_requests').doc();
         const requestPayload = {
             id: reqRef.id,
-            status: 'pending_review',
+            status: isSeniorAcct ? 'pending_reviewer' : 'pending_review',
+            seniorReviewed: isSeniorAcct,
+            seniorReviewedBy: isSeniorAcct ? callerUid : null,
+            seniorReviewedByName: isSeniorAcct ? ((callerData === null || callerData === void 0 ? void 0 : callerData.name) || (callerData === null || callerData === void 0 ? void 0 : callerData.email) || 'Senior Accountant') : null,
+            seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
             totalInterestToDistribute: parsedAmount,
             totalPool,
             totalRealizedInterest,
@@ -450,11 +455,20 @@ exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async
         });
         await batch.commit();
         await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
-            title: 'Interest Distribution Proposal Staged',
+            title: isSeniorAcct ? 'Interest Proposal Staged by Senior Accountant' : 'Interest Distribution Proposal Staged',
             message: `Proposal to distribute ${parsedAmount.toLocaleString()} RWF to ${recipientsCount} members was initiated by ${(callerData === null || callerData === void 0 ? void 0 : callerData.name) || 'Accountant'}. Pending review.`,
             type: 'interest',
             severity: 'info',
             actionUrl: '/admin/distribute-interest',
+            metadata: { requestId: reqRef.id, amount: parsedAmount }
+        });
+        // Broadcast to members immediately so they can elect whether to add to contributions or be paid
+        await (0, notification_service_1.notifyRoles)(db, ['member'], {
+            title: 'Dividend Payout Election Open',
+            message: 'An interest distribution has been initiated. Please elect whether your dividend should be added to your savings or received as cash.',
+            type: 'interest',
+            severity: 'info',
+            actionUrl: '/dashboard',
             metadata: { requestId: reqRef.id, amount: parsedAmount }
         });
         return {
