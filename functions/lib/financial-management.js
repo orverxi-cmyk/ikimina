@@ -766,7 +766,7 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
     if (((_a = adminSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Admin privileges required.');
     }
-    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, maxLendingPoolPercentage, minLoanAmount, penaltyRate, depositBankName, depositAccountNumber, infrastructureBranding, appName, aboutUs, termsOfService, privacyPolicy, copyrightNotice, justification } = request.data;
+    const { currency, loanInterestRate, interestModel, interestType, contributionInterestRate, maxLoanPercentage, maxLendingPoolPercentage, maxRepaymentPeriod, minLoanAmount, penaltyRate, depositBankName, depositAccountNumber, infrastructureBranding, appName, aboutUs, termsOfService, privacyPolicy, copyrightNotice, justification } = request.data;
     try {
         const batch = db.batch();
         const settingsRef = db.collection('settings').doc('financials');
@@ -778,6 +778,7 @@ exports.updateFinancialSettings = (0, https_1.onCall)({ cors: true }, async (req
             contributionInterestRate: Number(contributionInterestRate),
             maxLoanPercentage: Number(maxLoanPercentage),
             maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
+            maxRepaymentPeriod: maxRepaymentPeriod !== undefined ? Number(maxRepaymentPeriod) : 12,
             minLoanAmount: Number(minLoanAmount),
             penaltyRate: Number(penaltyRate || 2),
             depositBankName: depositBankName ? String(depositBankName).trim() : '',
@@ -972,6 +973,7 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
             contributionInterestRate: 50000,
             maxLoanPercentage: 200,
             maxLendingPoolPercentage: 90,
+            maxRepaymentPeriod: 12,
             minLoanAmount: 5000,
             penaltyRate: 2,
             depositBankName: '',
@@ -994,6 +996,7 @@ exports.getSystemSettings = (0, https_1.onCall)({ cors: true }, async (request) 
         contributionInterestRate: Number(data.contributionInterestRate) || 50000,
         maxLoanPercentage: Number(data.maxLoanPercentage) || 200,
         maxLendingPoolPercentage: data.maxLendingPoolPercentage !== undefined ? Number(data.maxLendingPoolPercentage) : 90,
+        maxRepaymentPeriod: data.maxRepaymentPeriod !== undefined ? Number(data.maxRepaymentPeriod) : 12,
         minLoanAmount: Number(data.minLoanAmount) || 5000,
         penaltyRate: Number(data.penaltyRate) || 2,
         depositBankName: data.depositBankName || '',

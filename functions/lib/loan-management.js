@@ -131,6 +131,12 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     const settings = settingsSnap.data() || {};
     const minLoanAmount = Number(settings.minLoanAmount) || 5000;
     const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
+    const maxRepaymentPeriod = Number(settings.maxRepaymentPeriod) || 12;
+    const requestedDurationMonths = Number(durationMonths) || 12;
+    if (requestedDurationMonths < 1) {
+        throw new https_1.HttpsError('invalid-argument', 'Loan repayment period must be at least 1 month.');
+    }
+    const exceedsRepaymentPeriod = requestedDurationMonths > maxRepaymentPeriod;
     if (loanAmount < minLoanAmount) {
         throw new https_1.HttpsError('failed-precondition', `Loan amount must be at least ${minLoanAmount}.`);
     }
@@ -211,6 +217,7 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     const trustBonusLimit = (accruedInterest + (completedLoansCount * 10000)) * 2;
     const effectiveLimit = Math.max(percentageLimit, equityLimit, trustBonusLimit);
     const exceedsBorrowingPower = loanAmount > effectiveLimit;
+    const requiresSpecialApproval = Boolean(exceedsBorrowingPower || exceedsRepaymentPeriod);
     if (exceedsBorrowingPower) {
         if (!managementApprovalUrl || typeof managementApprovalUrl !== 'string' || !managementApprovalUrl.trim()) {
             throw new https_1.HttpsError('failed-precondition', `Requested loan amount of ${loanAmount.toLocaleString()} exceeds your standard borrowing power of ${effectiveLimit.toLocaleString()}. You must attach a valid management approval document to proceed.`);
@@ -222,6 +229,11 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         }
         if (effectiveLimit < minLoanAmount) {
             throw new https_1.HttpsError('failed-precondition', `Your current borrowing limit of ${effectiveLimit.toLocaleString()} is below the minimum allowed loan amount of ${minLoanAmount.toLocaleString()}. Attach management approval to apply for this amount.`);
+        }
+    }
+    if (exceedsRepaymentPeriod) {
+        if ((!managementApprovalUrl || !managementApprovalUrl.trim()) && (!managementApprovalNotes || !managementApprovalNotes.trim())) {
+            throw new https_1.HttpsError('failed-precondition', `Requested repayment period of ${requestedDurationMonths} months exceeds the cooperative policy limit of ${maxRepaymentPeriod} months. Special management approval attachment is required to proceed.`);
         }
     }
     const userRole = (_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.role;
@@ -241,15 +253,22 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         balance: 0,
         interestAmount: 0,
         penaltyRate: 0,
-        durationMonths: Number(durationMonths) || 12,
+        durationMonths: requestedDurationMonths,
+        maxRepaymentPeriodAtRequest: maxRepaymentPeriod,
+        exceedsRepaymentPeriod: Boolean(exceedsRepaymentPeriod),
+        requiresSpecialApproval: Boolean(requiresSpecialApproval),
+        specialApprovalReasons: [
+            ...(exceedsBorrowingPower ? ['EXCEEDS_BORROWING_POWER'] : []),
+            ...(exceedsRepaymentPeriod ? ['EXCEEDS_MAX_REPAYMENT_PERIOD'] : [])
+        ],
         isTopUp: Boolean(isTopUp),
         parentLoanId: isTopUp ? parentLoanId : null,
         repaidPrincipalAtRequest: isTopUp ? availableRepaidPrincipal : null,
         exceedsBorrowingPower: Boolean(exceedsBorrowingPower),
         borrowingPowerAtRequest: effectiveLimit,
-        managementApprovalUrl: exceedsBorrowingPower ? managementApprovalUrl.trim() : null,
-        managementApprovalFileName: exceedsBorrowingPower ? (managementApprovalFileName || 'management_approval') : null,
-        managementApprovalNotes: exceedsBorrowingPower ? ((managementApprovalNotes === null || managementApprovalNotes === void 0 ? void 0 : managementApprovalNotes.trim()) || null) : null
+        managementApprovalUrl: requiresSpecialApproval ? ((managementApprovalUrl === null || managementApprovalUrl === void 0 ? void 0 : managementApprovalUrl.trim()) || null) : null,
+        managementApprovalFileName: requiresSpecialApproval ? (managementApprovalFileName || 'management_approval') : null,
+        managementApprovalNotes: requiresSpecialApproval ? ((managementApprovalNotes === null || managementApprovalNotes === void 0 ? void 0 : managementApprovalNotes.trim()) || null) : null
     });
     const applicantName = ((_c = userSnap.data()) === null || _c === void 0 ? void 0 : _c.name) || ((_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.email) || 'A member';
     if (isSeniorAcct) {
@@ -349,7 +368,7 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         throw new https_1.HttpsError('permission-denied', 'Only admin can approve loans.');
     }
     const { loanId, terms = {}, justification } = request.data;
-    const { durationMonths = 12, startDate: startDateStr, checkUrl = '' } = terms;
+    const { durationMonths: termsDurationMonths, startDate: startDateStr, checkUrl = '' } = terms;
     try {
         const loanRef = db.collection('loans').doc(loanId);
         const loanSnap = await loanRef.get();
@@ -381,7 +400,8 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         const interestToAddToRepayment = isImmediate ? 0 : interestAmount;
         const totalBalance = isImmediate ? loanData.amount : (loanData.amount + interestAmount);
         const netDisbursed = isImmediate ? Math.max(0, loanData.amount - interestAmount) : loanData.amount;
-        const schedule = (0, loan_schedules_1.calculateAmortizationSchedule)(loanData.amount, interestToAddToRepayment, Number(durationMonths) || 12, startDate);
+        const effectiveDuration = Number(termsDurationMonths) || Number(loanData.durationMonths) || 12;
+        const schedule = (0, loan_schedules_1.calculateAmortizationSchedule)(loanData.amount, interestToAddToRepayment, effectiveDuration, startDate);
         const batch = db.batch();
         batch.update(loanRef, {
             status: 'approved',
@@ -391,7 +411,7 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             penaltyRate,
             balance: totalBalance,
             netDisbursed,
-            durationMonths: Number(durationMonths) || 12,
+            durationMonths: effectiveDuration,
             amortization: schedule,
             checkUrl,
             approvedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -904,7 +924,7 @@ exports.initiateBulkLoans = (0, https_1.onCall)({ cors: true }, async (request) 
             const memberId = (_a = item.memberId) === null || _a === void 0 ? void 0 : _a.trim();
             const amount = Number(item.amount);
             const durationMonths = Number(item.durationMonths) || 12;
-            const description = ((_b = item.description) === null || _b === void 0 ? void 0 : _b.trim()) || 'Computerized bulk loan record';
+            const description = ((_b = item.description) === null || _b === void 0 ? void 0 : _b.trim()) || 'Preexisting loan facility';
             if (!memberId) {
                 throw new https_1.HttpsError('invalid-argument', `Item at row ${rowIndex} is missing a memberId.`);
             }
@@ -933,13 +953,16 @@ exports.initiateBulkLoans = (0, https_1.onCall)({ cors: true }, async (request) 
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
             createdLoanIds.push(loanRef.id);
-            // Authoritative in-app notification to the borrower so they can review and confirm
+            // Authoritative in-app notification to the borrower so they can review and confirm loan balance
             const notifRef = db.collection('notifications').doc();
+            const cleanDescription = (!description || description.toLowerCase().includes('bulk') || description.toLowerCase().includes('computerized'))
+                ? 'Preexisting loan facility'
+                : description;
             batch.set(notifRef, {
                 recipientId: memberId,
                 recipientRole: null,
-                title: 'Action Required: Confirm Bulk Loan Application',
-                message: `An institutional loan of ${amount.toLocaleString()} RWF was entered on your behalf by the Senior Accountant (${description}). Please review and confirm to proceed.`,
+                title: 'Action Required: Confirm Loan Balance',
+                message: `A loan balance of ${amount.toLocaleString()} RWF was recorded on your behalf by the Senior Accountant (${cleanDescription}). Please review and confirm your loan balance to proceed.`,
                 type: 'loan',
                 severity: 'warning',
                 actionUrl: '/loans',
@@ -1011,8 +1034,8 @@ exports.confirmLoanDetails = (0, https_1.onCall)({ cors: true }, async (request)
     await batch.commit();
     // Notify Senior Accountants and Reviewers that the loan has been confirmed and is ready for audit
     await (0, notification_service_1.notifyRoles)(db, ['senior_accountant', 'reviewer', 'admin'], {
-        title: 'Bulk Loan Confirmed by Member',
-        message: `${borrowerName} confirmed their bulk loan of ${Number(loanData.amount).toLocaleString()} RWF. Ready for Senior Accountant review.`,
+        title: 'Loan Balance Confirmed by Member',
+        message: `${borrowerName} confirmed their loan balance of ${Number(loanData.amount).toLocaleString()} RWF. Ready for Senior Accountant review.`,
         type: 'loan',
         severity: 'info',
         actionUrl: '/admin/approvals?tab=loans',

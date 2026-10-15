@@ -723,7 +723,7 @@ export default function ApprovalsHubPage() {
       } else if (decision === 'approve') {
         await approveLoanAction({
           loanId: inspectLoan.id,
-          terms: { durationMonths: 12 },
+          terms: { durationMonths: Number(inspectLoan.durationMonths) || 12 },
           justification: loanJustification.trim()
         });
         toast({ title: "Loan Approved", description: `Loan facility of ${formatCurrency(inspectLoan.amount, currency)} approved.` });
@@ -1557,7 +1557,7 @@ export default function ApprovalsHubPage() {
                             {safeFormatDate(loan.requestDate || loan.createdAt, 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell className="px-4 py-3 text-xs text-muted-foreground max-w-xs truncate">
-                            {loan.description || 'Computerized bulk loan record'}
+                            {loan.description || 'Preexisting loan facility'}
                           </TableCell>
                           <TableCell className="px-4 py-3 text-right font-bold text-sm text-primary">
                             {formatCurrency(loan.amount, currency)}
@@ -1616,8 +1616,11 @@ export default function ApprovalsHubPage() {
                           <TableRow key={loan.id} className="hover:bg-muted/30">
                             <TableCell className="px-4 py-3 font-bold text-sm">
                               <div>{getMemberName(loan.memberId)}</div>
-                              <div className="flex items-center gap-1 mt-0.5">
+                              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                 {loan.isTopUp && <Badge variant="outline" className="text-[8px] font-bold border-emerald-500/30 text-emerald-700 bg-emerald-500/5">Top-Up</Badge>}
+                                <Badge variant="outline" className={`text-[8px] font-bold ${loan.exceedsRepaymentPeriod ? 'border-amber-500/50 text-amber-700 dark:text-amber-400 bg-amber-500/10' : 'border-border text-muted-foreground'}`}>
+                                  {loan.durationMonths || 12} mos {loan.exceedsRepaymentPeriod && '• Special Approval'}
+                                </Badge>
                                 {isSelf && (
                                   <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[8px] font-bold">
                                     Requested by you
@@ -2588,15 +2591,63 @@ export default function ApprovalsHubPage() {
               <span className="font-bold text-primary">{formatCurrency(inspectLoan?.amount, currency)}</span>
             </div>
             <div className="flex justify-between py-1 border-b">
+              <span className="text-muted-foreground">Repayment Schedule:</span>
+              <div className="text-right">
+                <span className="font-bold text-foreground">{inspectLoan?.durationMonths || 12} Months</span>
+                <span className="text-xs text-muted-foreground block">
+                  ~{formatCurrency(Math.round((Number(inspectLoan?.amount) || 0) / (Number(inspectLoan?.durationMonths) || 12)), currency)}/mo
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-between py-1 border-b">
               <span className="text-muted-foreground">Purpose:</span>
               <span className="font-semibold">{inspectLoan?.description}</span>
             </div>
+
+            {/* Special Approval Notice & Document Preview */}
+            {(inspectLoan?.exceedsRepaymentPeriod || inspectLoan?.exceedsBorrowingPower || inspectLoan?.managementApprovalUrl) && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">
+                  <ShieldAlert className="h-4 w-4" />
+                  <span>Special Approval Information</span>
+                </div>
+                {inspectLoan?.exceedsRepaymentPeriod && (
+                  <p className="text-muted-foreground">
+                    Repayment period of <strong>{inspectLoan?.durationMonths} months</strong> exceeds standard policy limit ({inspectLoan?.maxRepaymentPeriodAtRequest || settings.maxRepaymentPeriod || 12} months).
+                  </p>
+                )}
+                {inspectLoan?.exceedsBorrowingPower && (
+                  <p className="text-muted-foreground">
+                    Requested amount exceeds standard personal borrowing quota.
+                  </p>
+                )}
+                {inspectLoan?.managementApprovalNotes && (
+                  <div className="bg-background/80 p-2 rounded-lg border border-border text-[11px]">
+                    <span className="font-semibold text-foreground">Minutes / Reference: </span>
+                    <span className="text-muted-foreground">{inspectLoan.managementApprovalNotes}</span>
+                  </div>
+                )}
+                {inspectLoan?.managementApprovalUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    className="h-7 text-xs font-bold border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 w-full justify-center gap-1"
+                  >
+                    <a href={inspectLoan.managementApprovalUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-3.5 w-3.5" /> View Attached Approval Document
+                    </a>
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/* Operation Description */}
             <div className="p-3 bg-muted/20 rounded-xl border border-border/60 text-xs space-y-1">
               <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Operation Description:</span>
               <p className="text-foreground leading-relaxed">
-                Loan facility request of {formatCurrency(inspectLoan?.amount || 0, currency)} applied by {getMemberName(inspectLoan?.memberId)} for purpose: &ldquo;{inspectLoan?.description || 'Credit facility'}&rdquo;.
+                Loan facility request of {formatCurrency(inspectLoan?.amount || 0, currency)} ({inspectLoan?.durationMonths || 12} months schedule) applied by {getMemberName(inspectLoan?.memberId)} for purpose: &ldquo;{inspectLoan?.description || 'Credit facility'}&rdquo;.
               </p>
             </div>
 

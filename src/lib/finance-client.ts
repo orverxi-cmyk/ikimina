@@ -53,6 +53,7 @@ export type SystemSettings = {
   contributionInterestRate: number;
   maxLoanPercentage: number;
   maxLendingPoolPercentage?: number;
+  maxRepaymentPeriod?: number;
   minLoanAmount: number;
   maxLoanAmount?: number;
   penaltyRate: number;
@@ -84,6 +85,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   contributionInterestRate: 50000,
   maxLoanPercentage: 200,
   maxLendingPoolPercentage: 90,
+  maxRepaymentPeriod: 12,
   minLoanAmount: 5000,
   penaltyRate: 2,
   depositBankName: '',
@@ -348,6 +350,7 @@ export async function updateFinancialSettingsAction(data: {
   contributionInterestRate: number, 
   maxLoanPercentage: number, 
   maxLendingPoolPercentage?: number,
+  maxRepaymentPeriod?: number,
   minLoanAmount: number, 
   maxLoanAmount?: number,
   penaltyRate?: number,
@@ -808,6 +811,8 @@ export async function requestLoanAction(data: {
   isTopUp?: boolean; 
   parentLoanId?: string;
   exceedsBorrowingPower?: boolean;
+  exceedsRepaymentPeriod?: boolean;
+  requiresSpecialApproval?: boolean;
   managementApprovalUrl?: string;
   managementApprovalFileName?: string;
   managementApprovalNotes?: string;
@@ -816,7 +821,7 @@ export async function requestLoanAction(data: {
   const reqFn = httpsCallable(functions, 'requestLoan');
   try {
     const result = await reqFn(data);
-    return result.data as { success: boolean, loanId: string, isTopUp?: boolean, exceedsBorrowingPower?: boolean };
+    return result.data as { success: boolean, loanId: string, isTopUp?: boolean, exceedsBorrowingPower?: boolean, exceedsRepaymentPeriod?: boolean };
   } catch (error: any) {
     throw formatFinanceActionError(error, 'Failed to submit loan application');
   }

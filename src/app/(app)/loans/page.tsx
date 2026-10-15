@@ -304,6 +304,15 @@ function LoansPageContent() {
     return (loans.find((l: any) => l.memberId === user.uid && l.status === 'pending_member_confirmation') as any) || null;
   }, [loans, user]);
 
+  const getFacilityDescription = (desc?: string) => {
+    if (!desc) return 'Preexisting loan facility';
+    const lower = desc.toLowerCase();
+    if (lower.includes('bulk') || lower.includes('computerized')) {
+      return 'Preexisting loan facility';
+    }
+    return desc;
+  };
+
   const managementPendingConfirmationCount = useMemo(() => {
     return isManagement ? loans.filter((l: any) => l.status === 'pending_member_confirmation').length : 0;
   }, [loans, isManagement]);
@@ -605,7 +614,7 @@ function LoansPageContent() {
         const amount = Number(normalized.amount || normalized.amountrwf || normalized.principal || 0);
         const durationMonths = Number(normalized.durationmonths || normalized.duration || 12);
         const description = String(
-          normalized.loanpurposedescription || normalized.description || normalized.purpose || 'Computerized bulk loan record'
+          normalized.loanpurposedescription || normalized.description || normalized.purpose || 'Preexisting loan facility'
         ).trim();
 
         return { memberId, amount, durationMonths, description };
@@ -645,8 +654,8 @@ function LoansPageContent() {
         notes: confirmNotes.trim()
       });
       toast({
-        title: "Loan Details Confirmed",
-        description: "You have verified your loan details. It has been routed to the Senior Accountant for review."
+        title: "Loan Balance Confirmed",
+        description: "You have verified your loan balance. It has been routed to the Senior Accountant for review."
       });
       setIsConfirmDetailsOpen(false);
       setSelectedLoan(null);
@@ -802,14 +811,14 @@ function LoansPageContent() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-sm text-foreground">
-                        Action Required: Confirm Bulk Loan Application
+                        Action Required: Confirm Loan Balance
                       </p>
                       <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[9px] uppercase font-bold">
                         Awaiting Confirmation
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      A loan facility of <strong className="text-foreground">{formatCurrency(myAwaitingConfirmation.amount, currency)}</strong> was entered on your behalf by the Senior Accountant ({myAwaitingConfirmation.description || 'Institutional bulk loan'}). Please confirm to proceed to credit review.
+                      A loan balance of <strong className="text-foreground">{formatCurrency(myAwaitingConfirmation.amount, currency)}</strong> was entered on your behalf by the Senior Accountant ({getFacilityDescription(myAwaitingConfirmation.description)}). Please confirm your loan balance to proceed to credit review.
                     </p>
                   </div>
                 </div>
@@ -821,7 +830,7 @@ function LoansPageContent() {
                   }}
                   className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shrink-0 shadow-sm"
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Confirm Details Now
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Confirm Loan Balance
                 </Button>
               </div>
             )}
@@ -1138,7 +1147,7 @@ function LoansPageContent() {
                                 }}
                                 className="h-7 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white mr-1"
                               >
-                                <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm Details
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm Loan Balance
                               </Button>
                             )}
                             {loan.status === 'requested' && isOwner && (
@@ -1913,7 +1922,7 @@ function LoansPageContent() {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase tracking-wider">Months</Label>
-                      <Input name="durationMonths" type="number" defaultValue="12" required className="h-11 rounded-[10px] bg-muted border-none" />
+                      <Input name="durationMonths" type="number" key={selectedLoan?.id || 'duration'} defaultValue={selectedLoan?.durationMonths || 12} required className="h-11 rounded-[10px] bg-muted border-none" />
                     </div>
                   </div>
 
@@ -2262,10 +2271,10 @@ function LoansPageContent() {
           <form onSubmit={handleConfirmDetailsSubmit}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Confirm Loan Details
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Confirm Loan Balance
               </DialogTitle>
               <DialogDescription>
-                Please verify that the entered loan amount and terms match your existing facility.
+                Please verify that the recorded loan balance and terms match your existing facility.
               </DialogDescription>
             </DialogHeader>
 
@@ -2273,16 +2282,16 @@ function LoansPageContent() {
               <div className="space-y-3 py-3 text-xs">
                 <div className="p-3 bg-muted/40 rounded-xl space-y-2 border">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Principal Amount:</span>
+                    <span className="text-muted-foreground">Loan Balance:</span>
                     <span className="font-bold text-foreground text-sm">{formatCurrency(selectedLoan.amount, currency)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Duration:</span>
+                    <span className="text-muted-foreground">Duration / Term:</span>
                     <span className="font-semibold text-foreground">{selectedLoan.durationMonths || 12} Months</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Purpose / Note:</span>
-                    <span className="font-medium text-foreground">{selectedLoan.description || 'Preexisting loan facility'}</span>
+                    <span className="text-muted-foreground">Facility Description:</span>
+                    <span className="font-medium text-foreground">{getFacilityDescription(selectedLoan.description)}</span>
                   </div>
                 </div>
 
@@ -2306,7 +2315,7 @@ function LoansPageContent() {
               </Button>
               <Button type="submit" disabled={isSubmitting} className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
                 {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-1.5" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
-                Confirm Loan
+                Confirm Loan Balance
               </Button>
             </DialogFooter>
           </form>

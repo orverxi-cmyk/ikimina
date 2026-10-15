@@ -329,7 +329,7 @@ export function downloadBulkLoanTemplate(options?: {
         'Member Name': m.name || '',
         'Amount (RWF)': 500000,
         'Duration (Months)': 12,
-        'Loan Purpose / Description': 'Computerized legacy loan'
+        'Loan Purpose / Description': 'Preexisting loan facility'
       });
     });
   } else {
@@ -339,7 +339,7 @@ export function downloadBulkLoanTemplate(options?: {
         'Member Name': 'John Doe',
         'Amount (RWF)': 500000,
         'Duration (Months)': 12,
-        'Loan Purpose / Description': 'Computerized legacy loan'
+        'Loan Purpose / Description': 'Preexisting loan facility'
       },
       {
         'Member Email': 'member2@example.com',
@@ -370,7 +370,7 @@ export function downloadBulkLoanTemplate(options?: {
     ['2. Specify the principal "Amount (RWF)". Positive numeric values only.'],
     ['3. Specify the duration in months (e.g. 12, 24). Default is 12 if left blank.'],
     ['4. Include a brief description or purpose of the legacy/existing loan facility.'],
-    ['5. Once uploaded, each borrower must confirm the loan details before Senior Accountant review.'],
+    ['5. Once uploaded, each borrower must confirm their loan balance before Senior Accountant review.'],
   ];
   const wsInst = XLSX.utils.aoa_to_sheet(instructions);
   XLSX.utils.book_append_sheet(wb, wsInst, 'Instructions');

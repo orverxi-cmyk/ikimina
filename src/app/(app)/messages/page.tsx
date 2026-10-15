@@ -33,6 +33,17 @@ import { useRouter } from 'next/navigation';
 
 import { parseSafeDate, safeFormatDate } from '@/lib/loan-utils';
 
+const cleanNotificationText = (text?: string) => {
+  if (!text) return '';
+  return text
+    .replace(/Action Required:\s*Confirm Bulk Loan Application/gi, 'Action Required: Confirm Loan Balance')
+    .replace(/Bulk Loan Confirmed by Member/gi, 'Loan Balance Confirmed by Member')
+    .replace(/\(Computerized bulk loan record\)/gi, '(Preexisting loan facility)')
+    .replace(/\(Institutional bulk loan\)/gi, '(Preexisting loan facility)')
+    .replace(/their bulk loan of/gi, 'their loan balance of')
+    .replace(/bulk loan application/gi, 'loan balance');
+};
+
 export default function MessagesPage() {
   const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
@@ -340,12 +351,12 @@ export default function MessagesPage() {
                         <IconComponent className="h-3.5 w-3.5" />
                       </div>
                       <span className="text-xs font-bold text-foreground truncate flex-1">
-                        {notif.title}
+                        {cleanNotificationText(notif.title)}
                       </span>
                     </div>
 
                     <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed pl-7">
-                      {notif.message}
+                      {cleanNotificationText(notif.message)}
                     </p>
 
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground/80 pt-1 pl-7">
@@ -374,7 +385,7 @@ export default function MessagesPage() {
                   {activeNotification.type || 'Operation'}
                 </Badge>
                 <h3 className="font-headline text-lg font-bold text-foreground mt-1">
-                  {activeNotification.title}
+                  {cleanNotificationText(activeNotification.title)}
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
                   Delivered on {activeNotification.formattedDate}
@@ -394,7 +405,7 @@ export default function MessagesPage() {
 
             <div className="space-y-3">
               <p className="text-sm text-foreground/90 leading-relaxed font-normal">
-                {activeNotification.message}
+                {cleanNotificationText(activeNotification.message)}
               </p>
             </div>
 

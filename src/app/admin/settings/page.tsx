@@ -409,6 +409,7 @@ export default function AdminSettingsPage() {
     const contributionInterestRate = Number(formData.get('contributionInterestRate'));
     const maxLoanPercentage = Number(formData.get('maxLoanPercentage'));
     const maxLendingPoolPercentage = Number(formData.get('maxLendingPoolPercentage')) || 90;
+    const maxRepaymentPeriod = Number(formData.get('maxRepaymentPeriod')) || 12;
     const minLoanAmount = Number(formData.get('minLoanAmount'));
     const penaltyRate = Number(formData.get('penaltyRate'));
     const depositBankNameVal = (formData.get('depositBankName') as string)?.trim() ?? depositBankName;
@@ -430,6 +431,7 @@ export default function AdminSettingsPage() {
         contributionInterestRate, 
         maxLoanPercentage, 
         maxLendingPoolPercentage,
+        maxRepaymentPeriod,
         minLoanAmount, 
         penaltyRate,
         depositBankName: depositBankNameVal,
@@ -628,8 +630,8 @@ export default function AdminSettingsPage() {
                   </div>
                 </div>
 
-                <div className="pt-2">
-                  <div className="space-y-2 max-w-sm">
+                <div className="grid gap-6 md:grid-cols-2 pt-2">
+                  <div className="space-y-2">
                     <Label>Min Loan Amount</Label>
                     <Input 
                       name="minLoanAmount" 
@@ -640,6 +642,25 @@ export default function AdminSettingsPage() {
                     />
                     <p className="text-[10px] text-muted-foreground">
                       Minimum threshold required per loan request.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1 font-bold">
+                      Max Loan Repayment Period (Months)
+                    </Label>
+                    <Input 
+                      name="maxRepaymentPeriod" 
+                      type="number" 
+                      step="1"
+                      min="1"
+                      max="60"
+                      defaultValue={settings.maxRepaymentPeriod ?? 12} 
+                      required 
+                      className="h-11 rounded-[10px] bg-muted border-none font-bold"
+                    />
+                    <p className="text-[10px] text-muted-foreground leading-tight">
+                      Standard policy repayment ceiling. Borrowers requesting a period longer than this will require special management approval.
                     </p>
                   </div>
                 </div>

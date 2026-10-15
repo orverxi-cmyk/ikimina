@@ -21,6 +21,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+const cleanNotificationText = (text?: string) => {
+  if (!text) return '';
+  return text
+    .replace(/Action Required:\s*Confirm Bulk Loan Application/gi, 'Action Required: Confirm Loan Balance')
+    .replace(/Bulk Loan Confirmed by Member/gi, 'Loan Balance Confirmed by Member')
+    .replace(/\(Computerized bulk loan record\)/gi, '(Preexisting loan facility)')
+    .replace(/\(Institutional bulk loan\)/gi, '(Preexisting loan facility)')
+    .replace(/their bulk loan of/gi, 'their loan balance of')
+    .replace(/bulk loan application/gi, 'loan balance');
+};
+
 export function Header() {
   const { user } = useUser();
   const { settings } = useSettings();
@@ -237,10 +248,10 @@ export function Header() {
                         <div className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${!n.read ? 'bg-primary' : 'bg-transparent'}`} />
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <p className="text-xs font-bold text-foreground leading-snug truncate">
-                            {n.title}
+                            {cleanNotificationText(n.title)}
                           </p>
                           <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                            {n.message}
+                            {cleanNotificationText(n.message)}
                           </p>
                           {n.actionUrl && (
                             <span className="inline-block text-[10px] font-semibold text-primary pt-0.5">

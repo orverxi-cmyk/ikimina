@@ -28,7 +28,10 @@ import {
   ShieldAlert,
   FileCheck,
   Landmark,
-  AlertOctagon
+  AlertOctagon,
+  Calendar,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeFirebase } from '@/firebase';
@@ -66,6 +69,8 @@ function LoanApplyContent() {
   const [withdrawReason, setWithdrawReason] = useState('');
   const [isTopUpMode, setIsTopUpMode] = useState(isTopUpRequested);
   const [requestedAmount, setRequestedAmount] = useState<string>('');
+  const [repaymentMonths, setRepaymentMonths] = useState<string>('12');
+  const [showSchedulePreview, setShowSchedulePreview] = useState(false);
   const [showExceptionForm, setShowExceptionForm] = useState(false);
   
   // Management approval exception state
@@ -103,6 +108,13 @@ function LoanApplyContent() {
   const currency = settings.currency || 'RWF';
   const minLoanAmount = settings.minLoanAmount || 5000;
   const maxLoanPercentage = Number(settings.maxLoanPercentage) || 200;
+  const policyMaxPeriod = Number(settings.maxRepaymentPeriod) || 12;
+
+  useEffect(() => {
+    if (settings.maxRepaymentPeriod) {
+      setRepaymentMonths(String(settings.maxRepaymentPeriod));
+    }
+  }, [settings.maxRepaymentPeriod]);
 
   // 1. Fetch user's loans to check for pending or active loans
   const loansQuery = useMemoFirebase(() => {
@@ -240,7 +252,11 @@ function LoanApplyContent() {
   const exceedsGroupPool = Boolean(availableGroupPool !== null && numericAmount > availableGroupPool);
   // Exceeds personal standard quota (can attach management exception only if within available pool):
   const exceedsBorrowingPower = numericAmount > effectiveApplicationMax && !exceedsGroupPool;
-  const hasManagementApprovalAttached = Boolean(managementApprovalUrl || managementFile);
+
+  const numericMonths = Math.max(1, parseInt(repaymentMonths, 10) || 1);
+  const exceedsRepaymentPeriod = numericMonths > policyMaxPeriod;
+  const requiresSpecialApproval = Boolean(exceedsBorrowingPower || exceedsRepaymentPeriod);
+  const hasManagementApprovalAttached = Boolean(managementApprovalUrl || managementFile || managementApprovalNotes.trim());
 
   // File Upload Handlers
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -386,12 +402,18 @@ function LoanApplyContent() {
     }
 
     const isExceeding = amount > effectiveApplicationMax;
+    const exceedsPeriod = numericMonths > policyMaxPeriod;
+    const requiresSpecial = isExceeding || exceedsPeriod;
 
-    if (isExceeding && !managementApprovalUrl && !managementFile) {
+    if (requiresSpecial && !managementApprovalUrl && !managementFile && !managementApprovalNotes.trim()) {
       toast({ 
         variant: "destructive", 
-        title: "Management Approval Required", 
-        description: `Your requested loan of ${formatCurrency(amount, currency)} exceeds your borrowing power (${formatCurrency(effectiveApplicationMax, currency)}). You must attach official management approval to proceed.` 
+        title: "Special Approval Required", 
+        description: exceedsPeriod && isExceeding
+          ? `Your loan request exceeds both your borrowing power and the maximum policy repayment period (${policyMaxPeriod} months). Please attach management approval or authorized minute details to proceed.`
+          : exceedsPeriod
+            ? `Your requested repayment period of ${numericMonths} months exceeds the policy maximum of ${policyMaxPeriod} months. Please attach management approval or authorized minute details to proceed.`
+            : `Your requested loan of ${formatCurrency(amount, currency)} exceeds your borrowing power (${formatCurrency(effectiveApplicationMax, currency)}). You must attach official management approval to proceed.` 
       });
       return;
     }
@@ -417,7 +439,7 @@ function LoanApplyContent() {
     setIsSubmitting(true);
     try {
       let finalApprovalUrl = managementApprovalUrl;
-      if (isExceeding && !finalApprovalUrl && managementFile) {
+      if (requiresSpecial && !finalApprovalUrl && managementFile) {
         setIsUploadingDoc(true);
         const storage = getStorage(initializeFirebase().app);
         const fileRef = ref(storage, `loan_management_approvals/${user.uid}/${Date.now()}_${managementFile.name}`);
@@ -432,20 +454,22 @@ function LoanApplyContent() {
         description: isTopUpMode 
           ? `[Top-Up on Loan #${activeLoan?.id?.slice(0, 8)}] ${description}` 
           : description,
-        durationMonths: 12,
+        durationMonths: numericMonths,
         isTopUp: isTopUpMode,
         parentLoanId: isTopUpMode && activeLoan ? activeLoan.id : undefined,
         exceedsBorrowingPower: isExceeding,
-        managementApprovalUrl: isExceeding ? finalApprovalUrl : undefined,
-        managementApprovalFileName: isExceeding ? (managementFile?.name || managementApprovalFileName || 'management_approval') : undefined,
-        managementApprovalNotes: isExceeding ? managementApprovalNotes.trim() : undefined,
+        exceedsRepaymentPeriod: exceedsPeriod,
+        requiresSpecialApproval: requiresSpecial,
+        managementApprovalUrl: requiresSpecial ? finalApprovalUrl : undefined,
+        managementApprovalFileName: requiresSpecial ? (managementFile?.name || managementApprovalFileName || 'management_approval') : undefined,
+        managementApprovalNotes: requiresSpecial ? managementApprovalNotes.trim() : undefined,
       });
 
       toast({ 
         title: isTopUpMode 
           ? "Top-Up Application Submitted" 
-          : isExceeding 
-            ? "Application Submitted with Management Approval" 
+          : requiresSpecial 
+            ? "Application Submitted with Special Approval" 
             : "Application Submitted", 
         description: "Your loan request has been sent to management for audit and approval." 
       });
@@ -802,18 +826,99 @@ function LoanApplyContent() {
                   </div>
                 )}
 
-                {/* Upfront interest calculation preview */}
+                {/* LOAN REPAYMENT SCHEDULE & DURATION */}
+                <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-3.5 mt-2">
+                  <div className="flex justify-between items-center flex-wrap gap-2">
+                    <Label htmlFor="loan-duration" className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      Loan Repayment Schedule
+                    </Label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground font-semibold">Policy Ceiling:</span>
+                      <Badge variant="outline" className="text-[10px] font-bold border-primary/30 text-primary">
+                        Max {policyMaxPeriod} Months
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <div className="relative">
+                      <Input
+                        id="loan-duration"
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={repaymentMonths}
+                        onChange={(e) => setRepaymentMonths(e.target.value)}
+                        placeholder={`1 - ${policyMaxPeriod}`}
+                        disabled={!canApply || isSubmitting}
+                        className={`h-11 rounded-[10px] pr-20 bg-background font-bold text-base ${
+                          exceedsRepaymentPeriod 
+                            ? 'border-amber-500 text-amber-900 dark:text-amber-300 focus-visible:ring-amber-500' 
+                            : 'border-border focus-visible:ring-primary'
+                        }`}
+                      />
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground select-none">
+                        Months
+                      </div>
+                    </div>
+
+                    {/* Quick Duration Buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {[1, 3, 6, Math.min(12, policyMaxPeriod), policyMaxPeriod]
+                        .filter((v, i, a) => a.indexOf(v) === i && v > 0)
+                        .map((m) => (
+                          <Button
+                            key={m}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setRepaymentMonths(m.toString())}
+                            className={`h-8 text-xs rounded-lg px-2.5 font-bold transition-all ${
+                              numericMonths === m 
+                                ? 'bg-primary text-primary-foreground border-primary shadow-xs' 
+                                : 'hover:border-primary/50'
+                            }`}
+                          >
+                            {m} {m === 1 ? 'mo' : 'mos'} {m === policyMaxPeriod && `(Max)`}
+                          </Button>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Policy Comparison Helper */}
+                  {exceedsRepaymentPeriod ? (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-900 dark:text-amber-200 font-medium flex items-start gap-2 animate-in fade-in">
+                      <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-amber-700 dark:text-amber-300">
+                          Special Approval Required for Extended Repayment Period
+                        </p>
+                        <p className="text-[11px] opacity-90 mt-0.5 leading-relaxed">
+                          Your requested duration of <strong>{numericMonths} months</strong> exceeds the cooperative policy maximum of <strong>{policyMaxPeriod} months</strong>. You must attach management approval or authorized minute details below.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                      Within cooperative policy schedule ({numericMonths} of {policyMaxPeriod} months).
+                    </p>
+                  )}
+                </div>
+
+                {/* Upfront interest calculation & repayment schedule preview */}
                 {numericAmount >= minLoanAmount && (() => {
                   const rate = settings.loanInterestRate || 10;
                   const interestAmt = Math.round(numericAmount * (rate / 100));
                   const netReceived = Math.max(0, numericAmount - interestAmt);
-                  const monthlyEst = Math.round(numericAmount / 12);
+                  const monthlyEst = Math.round(numericAmount / numericMonths);
 
                   return (
-                    <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2 mt-2">
+                    <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-3 mt-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Upfront Interest Calculation
+                          Upfront Interest &amp; Repayment Schedule Preview
                         </span>
                         <Badge className="bg-emerald-600 text-white font-bold text-[8px] uppercase">
                           Interest Deducted at Source
@@ -833,13 +938,58 @@ function LoanApplyContent() {
                           <p className="font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatCurrency(netReceived, currency)}</p>
                         </div>
                         <div className="p-2 bg-background rounded-lg border border-border">
-                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Total Repayable</p>
-                          <p className="font-bold text-primary mt-0.5">{formatCurrency(numericAmount, currency)}</p>
-                          <p className="text-[9px] text-muted-foreground mt-0.5">({formatCurrency(monthlyEst, currency)}/mo)</p>
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Monthly Installment</p>
+                          <p className="font-bold text-primary mt-0.5">{formatCurrency(monthlyEst, currency)}/mo</p>
+                          <p className="text-[9px] text-muted-foreground mt-0.5">({numericMonths} installments)</p>
                         </div>
                       </div>
+
+                      {/* Repayment Schedule Installments Breakdown Toggle */}
+                      <div className="pt-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowSchedulePreview(!showSchedulePreview)}
+                          className="h-7 text-xs font-bold text-primary gap-1 px-2 hover:bg-primary/10"
+                        >
+                          {showSchedulePreview ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          {showSchedulePreview ? 'Hide Proposed Repayment Schedule' : `View Proposed ${numericMonths}-Month Repayment Schedule`}
+                        </Button>
+
+                        {showSchedulePreview && (
+                          <div className="mt-2.5 rounded-lg border border-border overflow-hidden bg-background">
+                            <div className="max-h-48 overflow-y-auto no-scrollbar">
+                              <table className="w-full text-xs">
+                                <thead className="bg-muted text-[10px] uppercase font-bold text-muted-foreground border-b border-border sticky top-0">
+                                  <tr>
+                                    <th className="py-2 px-3 text-left">#</th>
+                                    <th className="py-2 px-3 text-left">Estimated Due Date</th>
+                                    <th className="py-2 px-3 text-right">Installment Amount</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/60">
+                                  {Array.from({ length: numericMonths }).map((_, idx) => {
+                                    const instNum = idx + 1;
+                                    const dueDate = new Date();
+                                    dueDate.setMonth(dueDate.getMonth() + instNum);
+                                    return (
+                                      <tr key={instNum} className="hover:bg-muted/20">
+                                        <td className="py-1.5 px-3 font-semibold text-muted-foreground">Month {instNum}</td>
+                                        <td className="py-1.5 px-3 text-foreground font-medium">{dueDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                                        <td className="py-1.5 px-3 text-right font-bold text-primary">{formatCurrency(monthlyEst, currency)}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       <p className="text-[10px] text-muted-foreground italic">
-                        * The {rate}% interest is deducted from the approved loan at disbursement. You receive {formatCurrency(netReceived, currency)}, and your 12-month payment schedule will repay the total amount of {formatCurrency(numericAmount, currency)}.
+                        * The {rate}% interest is deducted from the approved loan at disbursement. You receive {formatCurrency(netReceived, currency)}, and your {numericMonths}-month repayment schedule will repay the total amount of {formatCurrency(numericAmount, currency)} in {numericMonths} monthly installments of {formatCurrency(monthlyEst, currency)}.
                       </p>
                     </div>
                   );
@@ -866,30 +1016,59 @@ function LoanApplyContent() {
                 {exceedsBorrowingPower && (
                   <p className="text-xs text-primary font-bold flex items-center gap-1 pt-1">
                     <ShieldAlert className="h-3.5 w-3.5" />
-                    Exceeds standard personal quota ({formatCurrency(personalBorrowingPower, currency)}). Management approval attachment is required.
+                    Exceeds standard personal quota ({formatCurrency(personalBorrowingPower, currency)}). Special management approval is required.
+                  </p>
+                )}
+                {exceedsRepaymentPeriod && !exceedsBorrowingPower && (
+                  <p className="text-xs text-amber-600 font-bold flex items-center gap-1 pt-1">
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                    Repayment period exceeds policy ceiling ({policyMaxPeriod} months). Special management approval is required.
                   </p>
                 )}
               </div>
 
-              {/* MANAGEMENT APPROVAL ATTACHMENT CARD */}
-              {exceedsBorrowingPower && (
+              {/* SPECIAL / MANAGEMENT APPROVAL ATTACHMENT CARD */}
+              {requiresSpecialApproval && (
                 <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-foreground space-y-4 animate-in fade-in duration-200">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <ShieldAlert className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                       <div className="space-y-1">
                         <p className="font-bold text-sm">
-                          Management Approval Attachment Required
+                          Special Management Approval Required
                         </p>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          Your requested loan of <strong>{formatCurrency(numericAmount, currency)}</strong> exceeds your calculated borrowing power of <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong> by <strong>{formatCurrency(numericAmount - effectiveApplicationMax, currency)}</strong>.
-                          Please attach an official signed management approval letter or resolution to validate this request.
+                          {exceedsBorrowingPower && exceedsRepaymentPeriod ? (
+                            <>
+                              Your request exceeds both your borrowing limit (by <strong>{formatCurrency(numericAmount - effectiveApplicationMax, currency)}</strong>) and the policy repayment period (<strong>{numericMonths} months</strong> vs <strong>{policyMaxPeriod} months</strong> max).
+                              Please attach signed management authorization or provide resolution minute details.
+                            </>
+                          ) : exceedsRepaymentPeriod ? (
+                            <>
+                              Your requested repayment period of <strong>{numericMonths} months</strong> exceeds the cooperative policy limit of <strong>{policyMaxPeriod} months</strong>.
+                              Please attach an official signed management approval letter or resolution to validate this extended schedule.
+                            </>
+                          ) : (
+                            <>
+                              Your requested loan of <strong>{formatCurrency(numericAmount, currency)}</strong> exceeds your calculated borrowing power of <strong>{formatCurrency(effectiveApplicationMax, currency)}</strong> by <strong>{formatCurrency(numericAmount - effectiveApplicationMax, currency)}</strong>.
+                              Please attach an official signed management approval letter or resolution to validate this request.
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
-                    <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase shrink-0">
-                      Quota Exception
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {exceedsBorrowingPower && (
+                        <Badge className="bg-primary text-primary-foreground font-bold text-[9px] uppercase">
+                          Quota Exception
+                        </Badge>
+                      )}
+                      {exceedsRepaymentPeriod && (
+                        <Badge className="bg-amber-600 text-white font-bold text-[9px] uppercase">
+                          Extended Schedule ({numericMonths}m)
+                        </Badge>
+                      )}
+                    </div>
                   </div>
 
                   {/* File Upload Area */}
@@ -1001,8 +1180,6 @@ function LoanApplyContent() {
               </div>
             </div>
 
-            
-
             <Button 
               type="submit" 
               disabled={
@@ -1012,7 +1189,7 @@ function LoanApplyContent() {
                 isAmountTooLow || 
                 exceedsGroupPool ||
                 numericAmount <= 0 ||
-                (exceedsBorrowingPower && !hasManagementApprovalAttached)
+                (requiresSpecialApproval && !hasManagementApprovalAttached)
               } 
               className="w-full h-14 rounded-[10px] font-bold shadow-lg text-lg transition-all"
             >
@@ -1023,22 +1200,22 @@ function LoanApplyContent() {
                 </>
               ) : exceedsGroupPool ? (
                 `Exceeds Available Pool (Max: ${formatCurrency(availableGroupPool || 0, currency)})`
-              ) : exceedsBorrowingPower && !hasManagementApprovalAttached ? (
-                "Attach Management Approval to Submit"
-              ) : exceedsBorrowingPower ? (
+              ) : requiresSpecialApproval && !hasManagementApprovalAttached ? (
+                "Attach Special Approval to Submit"
+              ) : requiresSpecialApproval ? (
                 <>
                   <ShieldCheck className="mr-2 h-5 w-5 text-white" />
-                  Submit with Management Approval ({formatCurrency(numericAmount, currency)})
+                  Submit with Special Approval ({formatCurrency(numericAmount, currency)} • {numericMonths} mos)
                 </>
               ) : isTopUpMode ? (
                 <>
                   <TrendingUp className="mr-2 h-5 w-5" />
-                  Submit Top-Up Request ({formatCurrency(numericAmount || minLoanAmount, currency)})
+                  Submit Top-Up Request ({formatCurrency(numericAmount || minLoanAmount, currency)} • {numericMonths} mos)
                 </>
               ) : (
                 <>
                   <HandCoins className="mr-2 h-5 w-5" />
-                  Submit Loan Request ({formatCurrency(numericAmount || minLoanAmount, currency)})
+                  Submit Loan Request ({formatCurrency(numericAmount || minLoanAmount, currency)} • {numericMonths} mos)
                 </>
               )}
             </Button>
