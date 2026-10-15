@@ -4,6 +4,216 @@ import * as admin from 'firebase-admin';
 import { createNotification, notifyRoles } from './notification-service';
 
 /**
+ * Computes time-weighted (contribution amount * active calendar days in UTC+2)
+ * interest distribution breakdown using the Largest-Remainder (Hare-Niemeyer) method.
+ */
+async function computeTimeWeightedBreakdown(
+    db: admin.firestore.Firestore,
+    amountToDistribute: number
+) {
+    // 1. Establish prior distribution date to bound the active period
+    const lastDistSnap = await db.collection('interest_distributions')
+        .orderBy('distributedAt', 'desc')
+        .limit(1)
+        .get();
+
+    let lastDistDate: Date | null = null;
+    if (!lastDistSnap.empty) {
+        const rawDist = lastDistSnap.docs[0].data()?.distributedAt;
+        if (rawDist?.toDate && typeof rawDist.toDate === 'function') {
+            lastDistDate = rawDist.toDate();
+        } else if (rawDist?.seconds) {
+            lastDistDate = new Date(rawDist.seconds * 1000);
+        } else if (rawDist) {
+            const d = new Date(rawDist);
+            if (!isNaN(d.getTime())) lastDistDate = d;
+        }
+    }
+
+    const MS_PER_DAY = 86_400_000;
+    const KIGALI_OFFSET_MS = 2 * 60 * 60 * 1000; // Africa/Kigali (UTC+2)
+    const getKigaliDayIndex = (date: Date): number => {
+        return Math.floor((date.getTime() + KIGALI_OFFSET_MS) / MS_PER_DAY);
+    };
+
+    const now = new Date();
+    const nowDayIndex = getKigaliDayIndex(now);
+    const lastDistDayIndex = lastDistDate ? getKigaliDayIndex(lastDistDate) : null;
+
+    // 2. Fetch and aggregate verified contributions with time weighting
+    const contribsSnap = await db.collection('contributions').get();
+    const memberActualTotals: { [memberId: string]: number } = {};
+    const memberWeightedTotals: { [memberId: string]: number } = {};
+    let totalActualPool = 0;
+    let totalWeightedPool = 0;
+
+    contribsSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.status === 'verified') {
+            const amount = Number(data.amount);
+            const memberId = data.memberId;
+            if (!Number.isFinite(amount) || amount <= 0 || typeof memberId !== 'string' || !memberId.trim()) {
+                return;
+            }
+
+            // Authoritative realization date: verifiedAt, fallback to date / createdAt
+            const rawDate = data.verifiedAt || data.date || data.createdAt;
+            let contribDate: Date | null = null;
+            if (rawDate?.toDate && typeof rawDate.toDate === 'function') {
+                contribDate = rawDate.toDate();
+            } else if (rawDate?.seconds) {
+                contribDate = new Date(rawDate.seconds * 1000);
+            } else if (rawDate) {
+                const parsed = new Date(rawDate);
+                if (!isNaN(parsed.getTime())) contribDate = parsed;
+            }
+
+            let daysActive = 0;
+            if (contribDate) {
+                let contribDayIndex = getKigaliDayIndex(contribDate);
+                if (lastDistDayIndex !== null && contribDayIndex < lastDistDayIndex) {
+                    contribDayIndex = lastDistDayIndex;
+                }
+                daysActive = Math.max(0, nowDayIndex - contribDayIndex);
+            }
+
+            const weightedAmount = amount * daysActive;
+            memberActualTotals[memberId] = (memberActualTotals[memberId] || 0) + amount;
+            memberWeightedTotals[memberId] = (memberWeightedTotals[memberId] || 0) + weightedAmount;
+            totalActualPool += amount;
+            totalWeightedPool += weightedAmount;
+        }
+    });
+
+    if (totalActualPool === 0) {
+        throw new HttpsError('failed-precondition', 'Total contribution pool is empty.');
+    }
+    if (totalWeightedPool === 0) {
+        throw new HttpsError('failed-precondition', 'Total weighted contribution pool is zero. No contributions have accrued eligible days for interest distribution.');
+    }
+
+    // 3. Compute initial fractional shares for members
+    const membersSnap = await db.collection('users').get();
+    interface EligibleMember {
+        memberId: string;
+        memberData: admin.firestore.DocumentData;
+        memberTotal: number;
+        memberWeighted: number;
+        shareRatio: number;
+        baseShare: number;
+        remainder: number;
+        preference: string;
+        previousAccruedInterest: number;
+    }
+
+    const eligibleList: EligibleMember[] = [];
+    membersSnap.forEach(memberDoc => {
+        const memberId = memberDoc.id;
+        const memberData = memberDoc.data();
+        const memberTotal = memberActualTotals[memberId] || 0;
+        const memberWeighted = memberWeightedTotals[memberId] || 0;
+        const previousAccruedInterest = Number(memberData.accruedInterest) || 0;
+        const preference = memberData.interestPayoutPreference || memberData.payoutPreference || 'receive_payout';
+
+        if (memberWeighted > 0 && memberTotal > 0) {
+            const shareRatio = memberWeighted / totalWeightedPool;
+            const exactShare = amountToDistribute * shareRatio;
+            const baseShare = Math.floor(exactShare);
+            const remainder = exactShare - baseShare;
+
+            eligibleList.push({
+                memberId,
+                memberData,
+                memberTotal,
+                memberWeighted,
+                shareRatio,
+                baseShare,
+                remainder,
+                preference,
+                previousAccruedInterest,
+            });
+        }
+    });
+
+    if (eligibleList.length === 0) {
+        throw new HttpsError('failed-precondition', 'No eligible members with active contribution days found.');
+    }
+
+    // 4. Largest-Remainder Method (Hare-Niemeyer) for zero-residual integer allocation
+    const totalBaseShare = eligibleList.reduce((sum, m) => sum + m.baseShare, 0);
+    let leftover = Math.round(amountToDistribute - totalBaseShare);
+
+    eligibleList.sort((a, b) => {
+        if (b.remainder !== a.remainder) {
+            return b.remainder - a.remainder;
+        }
+        return a.memberId.localeCompare(b.memberId);
+    });
+
+    const finalShares = new Map<string, number>();
+    for (const m of eligibleList) {
+        let finalShare = m.baseShare;
+        if (leftover > 0) {
+            finalShare += 1;
+            leftover -= 1;
+        }
+        finalShares.set(m.memberId, finalShare);
+    }
+
+    // 5. Construct final breakdown
+    let recipientsCount = 0;
+    let capitalizedCount = 0;
+    let cashPayoutCount = 0;
+    let totalCapitalizedToContributions = 0;
+    let totalCashPayout = 0;
+    const breakdown: any[] = [];
+
+    eligibleList.sort((a, b) => (a.memberData.name || '').localeCompare(b.memberData.name || ''));
+
+    for (const m of eligibleList) {
+        const distributedShare = finalShares.get(m.memberId) || 0;
+        if (distributedShare > 0) {
+            const isCapitalized = m.preference === 'add_to_contribution';
+            if (isCapitalized) {
+                totalCapitalizedToContributions += distributedShare;
+                capitalizedCount++;
+            } else {
+                totalCashPayout += distributedShare;
+                cashPayoutCount++;
+            }
+            recipientsCount++;
+
+            breakdown.push({
+                memberId: m.memberId,
+                memberName: m.memberData.name || 'Unknown',
+                memberEmail: m.memberData.email || '',
+                contributions: m.memberTotal,
+                shareRatio: m.shareRatio,
+                sharePercentage: (m.shareRatio * 100).toFixed(2),
+                distributedShare,
+                payoutType: isCapitalized ? 'add_to_contribution' : 'receive_payout',
+                outcome: isCapitalized ? 'Added to Total Contribution Savings' : 'Accrued for Liquid Cash Payout',
+                previousAccruedInterest: m.previousAccruedInterest,
+                newTotalAccruedInterest: isCapitalized ? m.previousAccruedInterest : m.previousAccruedInterest + distributedShare,
+                projectedSavings: isCapitalized ? m.memberTotal + distributedShare : m.memberTotal,
+                projectedAccruedInterest: isCapitalized ? m.previousAccruedInterest : m.previousAccruedInterest + distributedShare,
+            });
+        }
+    }
+
+    return {
+        totalPool: totalActualPool,
+        totalWeightedPool,
+        recipientsCount,
+        capitalizedCount,
+        cashPayoutCount,
+        totalCapitalizedToContributions,
+        totalCashPayout,
+        breakdown,
+    };
+}
+
+/**
  * Allocates accumulated interest (profit) to members based on their 
  * pro-rata contribution weight in the total pool.
  */
@@ -51,107 +261,45 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
             );
         }
 
-        // 4. Calculate Member Contribution Totals
-        const contribsSnap = await db.collection('contributions').get();
-        const memberTotals: { [memberId: string]: number } = {};
-        let totalPool = 0;
+        // 4. Calculate Time-Weighted Member Contribution Breakdown
+        const {
+            totalPool,
+            recipientsCount,
+            capitalizedCount,
+            cashPayoutCount,
+            totalCapitalizedToContributions,
+            totalCashPayout,
+            breakdown
+        } = await computeTimeWeightedBreakdown(db, totalInterestToDistribute);
 
-        contribsSnap.forEach(doc => {
-            const data = doc.data();
-            // Only count verified contributions
-            if (data.status === 'verified') {
-                const amount = Number(data.amount) || 0;
-                const memberId = data.memberId;
-                memberTotals[memberId] = (memberTotals[memberId] || 0) + amount;
-                totalPool += amount;
-            }
-        });
-
-        if (totalPool === 0) throw new HttpsError('failed-precondition', 'Total contribution pool is empty.');
-
-        const membersSnap = await db.collection('users').get();
         const batch = db.batch();
         const distRef = db.collection('interest_distributions').doc();
         const currentPeriod = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-        let recipientsCount = 0;
-        let capitalizedCount = 0;
-        let cashPayoutCount = 0;
-        let totalCapitalizedToContributions = 0;
-        let totalCashPayout = 0;
-        const breakdown: any[] = [];
-
-        membersSnap.forEach(memberDoc => {
-            const memberId = memberDoc.id;
-            const memberData = memberDoc.data();
-            const memberTotal = memberTotals[memberId] || 0;
-            const previousAccruedInterest = Number(memberData.accruedInterest) || 0;
-            
-            // Read member's payout election preference (default: receive_payout)
-            const preference = memberData.interestPayoutPreference || memberData.payoutPreference || 'receive_payout';
-            
-            if (memberTotal > 0) {
-                const shareRatio = memberTotal / totalPool;
-                const memberShare = Math.floor(totalInterestToDistribute * shareRatio);
-                
-                if (memberShare > 0) {
-                    if (preference === 'add_to_contribution') {
-                        // EXCLUDED from cash payout. Credited directly as a verified contribution to their total contributions!
-                        const contribRef = db.collection('contributions').doc();
-                        batch.set(contribRef, {
-                            memberId,
-                            amount: memberShare,
-                            period: currentPeriod,
-                            date: admin.firestore.FieldValue.serverTimestamp(),
-                            proofUrl: '',
-                            status: 'verified',
-                            verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-                            verifiedBy: adminUid,
-                            justification: `Interest profit capitalized into total savings (Distribution ${distRef.id})`,
-                            type: 'interest_reinvestment'
-                        });
-
-                        totalCapitalizedToContributions += memberShare;
-                        capitalizedCount++;
-
-                        breakdown.push({
-                            memberId,
-                            memberName: memberData.name || 'Unknown',
-                            memberEmail: memberData.email || '',
-                            contributions: memberTotal,
-                            shareRatio,
-                            distributedShare: memberShare,
-                            payoutType: 'add_to_contribution',
-                            outcome: 'Added to Total Contribution Savings',
-                            previousAccruedInterest,
-                            newTotalAccruedInterest: previousAccruedInterest
-                        });
-                    } else {
-                        // Received as Payout / Accrued Interest
-                        batch.update(memberDoc.ref, {
-                            accruedInterest: admin.firestore.FieldValue.increment(memberShare)
-                        });
-
-                        totalCashPayout += memberShare;
-                        cashPayoutCount++;
-
-                        breakdown.push({
-                            memberId,
-                            memberName: memberData.name || 'Unknown',
-                            memberEmail: memberData.email || '',
-                            contributions: memberTotal,
-                            shareRatio,
-                            distributedShare: memberShare,
-                            payoutType: 'receive_payout',
-                            outcome: 'Accrued for Liquid Cash Payout',
-                            previousAccruedInterest,
-                            newTotalAccruedInterest: previousAccruedInterest + memberShare
-                        });
-                    }
-                    recipientsCount++;
+        for (const item of breakdown) {
+            if (item.distributedShare > 0) {
+                if (item.payoutType === 'add_to_contribution') {
+                    const contribRef = db.collection('contributions').doc();
+                    batch.set(contribRef, {
+                        memberId: item.memberId,
+                        amount: item.distributedShare,
+                        period: currentPeriod,
+                        date: admin.firestore.FieldValue.serverTimestamp(),
+                        proofUrl: '',
+                        status: 'verified',
+                        verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        verifiedBy: adminUid,
+                        justification: `Interest profit capitalized into total savings (Distribution ${distRef.id})`,
+                        type: 'interest_reinvestment'
+                    });
+                } else {
+                    const memberRef = db.collection('users').doc(item.memberId);
+                    batch.update(memberRef, {
+                        accruedInterest: admin.firestore.FieldValue.increment(item.distributedShare)
+                    });
                 }
             }
-        });
+        }
 
         // 5. Permanent Ledger Entry in interest_distributions
         batch.set(distRef, {
@@ -272,82 +420,16 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
             );
         }
 
-        // 4. Calculate Member Contribution Totals
-        const contribsSnap = await db.collection('contributions').get();
-        const memberTotals: { [memberId: string]: number } = {};
-        let totalPool = 0;
-
-        contribsSnap.forEach(doc => {
-            const data = doc.data();
-            if (data.status === 'verified') {
-                const amount = Number(data.amount) || 0;
-                const memberId = data.memberId;
-                memberTotals[memberId] = (memberTotals[memberId] || 0) + amount;
-                totalPool += amount;
-            }
-        });
-
-        if (totalPool === 0) throw new HttpsError('failed-precondition', 'Total contribution pool is empty.');
-
-        const membersSnap = await db.collection('users').get();
-        let recipientsCount = 0;
-        let capitalizedCount = 0;
-        let cashPayoutCount = 0;
-        let totalCapitalizedToContributions = 0;
-        let totalCashPayout = 0;
-        const breakdown: any[] = [];
-
-        membersSnap.forEach(memberDoc => {
-            const memberId = memberDoc.id;
-            const memberData = memberDoc.data();
-            const memberTotal = memberTotals[memberId] || 0;
-            const previousAccruedInterest = Number(memberData.accruedInterest) || 0;
-            const preference = memberData.interestPayoutPreference || memberData.payoutPreference || 'receive_payout';
-
-            if (memberTotal > 0) {
-                const shareRatio = memberTotal / totalPool;
-                const memberShare = Math.floor(parsedAmount * shareRatio);
-
-                if (memberShare > 0) {
-                    if (preference === 'add_to_contribution') {
-                        totalCapitalizedToContributions += memberShare;
-                        capitalizedCount++;
-                        breakdown.push({
-                            memberId,
-                            memberName: memberData.name || 'Unknown',
-                            memberEmail: memberData.email || '',
-                            contributions: memberTotal,
-                            shareRatio,
-                            sharePercentage: ((shareRatio * 100).toFixed(2)),
-                            distributedShare: memberShare,
-                            payoutType: 'add_to_contribution',
-                            outcome: 'Added to Total Contribution Savings',
-                            previousAccruedInterest,
-                            projectedSavings: memberTotal + memberShare,
-                            projectedAccruedInterest: previousAccruedInterest
-                        });
-                    } else {
-                        totalCashPayout += memberShare;
-                        cashPayoutCount++;
-                        breakdown.push({
-                            memberId,
-                            memberName: memberData.name || 'Unknown',
-                            memberEmail: memberData.email || '',
-                            contributions: memberTotal,
-                            shareRatio,
-                            sharePercentage: ((shareRatio * 100).toFixed(2)),
-                            distributedShare: memberShare,
-                            payoutType: 'receive_payout',
-                            outcome: 'Accrued for Liquid Cash Payout',
-                            previousAccruedInterest,
-                            projectedSavings: memberTotal,
-                            projectedAccruedInterest: previousAccruedInterest + memberShare
-                        });
-                    }
-                    recipientsCount++;
-                }
-            }
-        });
+        // 4. Calculate Time-Weighted Member Contribution Breakdown
+        const {
+            totalPool,
+            recipientsCount,
+            capitalizedCount,
+            cashPayoutCount,
+            totalCapitalizedToContributions,
+            totalCashPayout,
+            breakdown
+        } = await computeTimeWeightedBreakdown(db, parsedAmount);
 
         const reqRef = db.collection('interest_distribution_requests').doc();
         const requestPayload = {
