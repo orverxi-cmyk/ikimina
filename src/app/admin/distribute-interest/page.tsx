@@ -1460,7 +1460,7 @@ export default function DistributeInterestPage() {
                           {b.shareRatio ? `${(b.shareRatio * 100).toFixed(2)}%` : '—'}
                         </TableCell>
                         <TableCell className="text-center">
-                          {b.payoutType === 'cash_payout' ? (
+                          {(b.payoutType === 'receive_payout' || b.payoutType === 'cash_payout' || b.payoutPreference === 'receive_payout' || b.preference === 'receive_payout' || (memberMap.get(b.memberId)?.interestPayoutPreference === 'receive_payout')) ? (
                             <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-none font-bold text-[9px] gap-1 py-0.5">
                               <Banknote className="h-3 w-3" /> Cash Payout
                             </Badge>

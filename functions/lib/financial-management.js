@@ -1364,6 +1364,45 @@ exports.setMemberPayoutPreference = (0, https_1.onCall)({ cors: true }, async (r
         interestPayoutPreference: preference,
         interestPayoutPreferenceUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
+    // Synchronize updated preference with any active pending interest distribution proposals
+    const pendingReqsSnap = await db.collection('interest_distribution_requests')
+        .where('status', 'in', ['pending', 'pending_review', 'pending_reviewer', 'pending_approval'])
+        .get();
+    for (const doc of pendingReqsSnap.docs) {
+        const reqData = doc.data();
+        let changed = false;
+        let capCount = 0;
+        let cashCount = 0;
+        let totalCap = 0;
+        let totalCash = 0;
+        const updatedBreakdown = (reqData.breakdown || []).map((item) => {
+            if (item.memberId === targetUserId) {
+                changed = true;
+                item.payoutType = preference;
+                item.outcome = preference === 'add_to_contribution'
+                    ? 'Added to Total Contribution Savings'
+                    : 'Accrued for Liquid Cash Payout';
+            }
+            if (item.payoutType === 'add_to_contribution') {
+                capCount++;
+                totalCap += Number(item.distributedShare) || 0;
+            }
+            else {
+                cashCount++;
+                totalCash += Number(item.distributedShare) || 0;
+            }
+            return item;
+        });
+        if (changed) {
+            await doc.ref.update({
+                breakdown: updatedBreakdown,
+                capitalizedCount: capCount,
+                cashPayoutCount: cashCount,
+                totalCapitalizedToContributions: totalCap,
+                totalCashPayout: totalCash
+            });
+        }
+    }
     return { success: true, preference, targetUserId };
 });
 //# sourceMappingURL=financial-management.js.map
