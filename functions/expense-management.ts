@@ -343,8 +343,8 @@ export const rejectExpense = onCall({ cors: true }, async (request) => {
     const userData = userSnap.data();
     const callerRole = userData?.role;
 
-    if (callerRole !== 'admin' && callerRole !== 'management') {
-        throw new HttpsError('permission-denied', 'Only administrators can reject operational expenses.');
+    if (callerRole !== 'admin' && callerRole !== 'management' && callerRole !== 'reviewer') {
+        throw new HttpsError('permission-denied', 'Only authorized reviewers or administrators can reject operational expenses.');
     }
 
     const { expenseId, rejectionReason, adminNotes } = request.data || {};

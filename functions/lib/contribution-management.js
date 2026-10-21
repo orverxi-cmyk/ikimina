@@ -227,7 +227,7 @@ exports.rejectContribution = (0, https_1.onCall)({ cors: true }, async (request)
     const db = admin.firestore();
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
-    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'senior_accountant') {
+    if ((adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'admin' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'management' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'senior_accountant' && (adminData === null || adminData === void 0 ? void 0 : adminData.role) !== 'reviewer') {
         throw new https_1.HttpsError('permission-denied', 'Only authorized personnel can reject contributions.');
     }
     const { contributionId, rejectionReason } = request.data;

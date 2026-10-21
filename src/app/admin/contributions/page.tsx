@@ -1067,7 +1067,7 @@ function SlipsTable({
                           )}
 
                           {/* 2. SENIOR ACCOUNTANT / REVIEWER ACTION: "Review" */}
-                          {!isSuperAdmin && ((isSeniorAccountant && slip.status === 'pending') || (isReviewer && slip.status === 'pending_reviewer')) && (
+                          {!isSuperAdmin && ((isSeniorAccountant && slip.status === 'pending') || (isReviewer && (slip.status === 'pending' || slip.status === 'pending_reviewer'))) && (
                             <Button
                               size="sm"
                               onClick={() => onReview(slip)}

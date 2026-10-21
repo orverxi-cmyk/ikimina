@@ -218,7 +218,7 @@ export const rejectContribution = onCall({ cors: true }, async (request) => {
     const adminSnap = await db.collection('users').doc(request.auth.uid).get();
     const adminData = adminSnap.data();
 
-    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant' && adminData?.role !== 'senior_accountant') {
+    if (adminData?.role !== 'admin' && adminData?.role !== 'management' && adminData?.role !== 'accountant' && adminData?.role !== 'senior_accountant' && adminData?.role !== 'reviewer') {
         throw new HttpsError('permission-denied', 'Only authorized personnel can reject contributions.');
     }
 

@@ -841,8 +841,8 @@ export const rejectInterestDistribution = onCall({ cors: true }, async (request)
     const callerSnap = await db.collection('users').doc(callerUid).get();
     const callerData = callerSnap.data();
 
-    if (callerData?.role !== 'admin') {
-        throw new HttpsError('permission-denied', 'Only an administrator can reject interest distribution requests.');
+    if (callerData?.role !== 'admin' && callerData?.role !== 'management' && callerData?.role !== 'reviewer') {
+        throw new HttpsError('permission-denied', 'Only an authorized reviewer or administrator can reject interest distribution requests.');
     }
 
     const { requestId, rejectionReason } = request.data || {};

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rejectFinalPayout = exports.approveFinalPayout = exports.initiateFinalPayout = void 0;
+exports.withdrawFinalPayout = exports.rejectFinalPayout = exports.approveFinalPayout = exports.reviewFinalPayout = exports.initiateFinalPayout = void 0;
 exports.getMemberFinancialPosition = getMemberFinancialPosition;
 exports.assertMemberHasNoBalance = assertMemberHasNoBalance;
 const https_1 = require("firebase-functions/v2/https");
@@ -144,7 +144,7 @@ exports.initiateFinalPayout = (0, https_1.onCall)({ cors: true }, async (request
     const member = memberSnap.data();
     const existing = await db.collection('final_payouts')
         .where('memberId', '==', memberId)
-        .where('status', 'in', ['pending', 'processing'])
+        .where('status', 'in', ['pending', 'processing', 'pending_review', 'pending_reviewer', 'pending_approval'])
         .limit(1)
         .get();
     if (!existing.empty) {
@@ -175,7 +175,8 @@ exports.initiateFinalPayout = (0, https_1.onCall)({ cors: true }, async (request
         notes: notes.trim(),
         payoutMethod: typeof payoutMethod === 'string' ? payoutMethod.trim() : '',
         payoutReference: typeof payoutReference === 'string' ? payoutReference.trim() : '',
-        status: 'pending',
+        status: 'pending_review',
+        initiatedByRole: (caller === null || caller === void 0 ? void 0 : caller.role) || 'accountant',
         initiatedBy: callerId,
         initiatedByName: initiatorName,
         initiatedByEmail: (caller === null || caller === void 0 ? void 0 : caller.email) || '',
@@ -214,7 +215,109 @@ exports.initiateFinalPayout = (0, https_1.onCall)({ cors: true }, async (request
     };
 });
 /**
- * Step 2: Super Administrator approves the final payout.
+ * Step 2: Senior Accountant or Reviewer reviews/endorses the final payout.
+ * - Senior Accountant endorses: advances status from 'pending_review' to 'pending_reviewer'.
+ * - Reviewer endorses: advances status from 'pending_reviewer' to 'pending_approval'.
+ */
+exports.reviewFinalPayout = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerId = request.auth.uid;
+    const callerSnap = await db.collection('users').doc(callerId).get();
+    const caller = callerSnap.data();
+    const callerRole = caller === null || caller === void 0 ? void 0 : caller.role;
+    const allowedRoles = ['senior_accountant', 'reviewer', 'management', 'admin'];
+    if (!allowedRoles.includes(callerRole)) {
+        throw new https_1.HttpsError('permission-denied', 'Only Senior Accountants or Reviewers can review final payouts.');
+    }
+    const { payoutId, decision, reviewNotes } = request.data || {};
+    if (!payoutId || typeof payoutId !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', 'Payout ID is required.');
+    }
+    if (!decision || !['endorse', 'reject'].includes(decision)) {
+        throw new https_1.HttpsError('invalid-argument', 'Valid review decision (endorse or reject) is required.');
+    }
+    const payoutRef = db.collection('final_payouts').doc(payoutId);
+    const payoutSnap = await payoutRef.get();
+    if (!payoutSnap.exists)
+        throw new https_1.HttpsError('not-found', 'Final payout record not found.');
+    const payout = payoutSnap.data();
+    const isSeniorAcct = callerRole === 'senior_accountant';
+    if (isSeniorAcct) {
+        if (payout.status !== 'pending_review' && payout.status !== 'pending') {
+            throw new https_1.HttpsError('failed-precondition', `Cannot endorse final payout with status '${payout.status}'. It must be pending senior review.`);
+        }
+    }
+    else {
+        // Reviewer / Management / Admin acting as Reviewer
+        if (payout.status !== 'pending_reviewer') {
+            throw new https_1.HttpsError('failed-precondition', `Reviewer can only review final payouts that have been endorsed by the Senior Accountant. Current status: '${payout.status}'.`);
+        }
+        if (payout.initiatedBy === callerId) {
+            throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: You cannot review a payout you initiated.');
+        }
+    }
+    const reviewerName = (caller === null || caller === void 0 ? void 0 : caller.name) || (caller === null || caller === void 0 ? void 0 : caller.email) || (isSeniorAcct ? 'Senior Accountant' : 'Reviewer');
+    if (decision === 'reject') {
+        const batch = db.batch();
+        batch.update(payoutRef, {
+            status: 'rejected',
+            rejectedBy: callerId,
+            rejectedByName: reviewerName,
+            rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            rejectionReason: (reviewNotes && typeof reviewNotes === 'string' && reviewNotes.trim()) ? reviewNotes.trim() : 'Rejected during review',
+        });
+        const memberRef = db.collection('users').doc(payout.memberId);
+        const memberSnap = await memberRef.get();
+        if (memberSnap.exists) {
+            batch.update(memberRef, {
+                finalPayoutPending: false,
+                finalPayoutId: admin.firestore.FieldValue.delete(),
+            });
+        }
+        batch.set(db.collection('audit_logs').doc(), {
+            adminId: callerId,
+            action: isSeniorAcct ? 'SENIOR_ACCOUNTANT_REJECT_FINAL_PAYOUT' : 'REVIEWER_REJECT_FINAL_PAYOUT',
+            justification: reviewNotes || 'Rejected during review',
+            performedBy: callerId,
+            performedByName: reviewerName,
+            details: { payoutId, memberId: payout.memberId, memberName: payout.memberName, totalPayout: payout.totalPayout },
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await batch.commit();
+        return { success: true, payoutId, status: 'rejected' };
+    }
+    const nextStatus = isSeniorAcct ? 'pending_reviewer' : 'pending_approval';
+    const updatePayload = {
+        status: nextStatus,
+    };
+    if (isSeniorAcct) {
+        updatePayload.seniorReviewed = true;
+        updatePayload.seniorReviewedBy = callerId;
+        updatePayload.seniorReviewedByName = reviewerName;
+        updatePayload.seniorReviewedAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.seniorReviewNotes = (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null;
+    }
+    else {
+        updatePayload.complianceReviewed = true;
+        updatePayload.reviewedBy = callerId;
+        updatePayload.reviewedByName = reviewerName;
+        updatePayload.reviewedAt = admin.firestore.FieldValue.serverTimestamp();
+        updatePayload.reviewNotes = (reviewNotes && typeof reviewNotes === 'string') ? reviewNotes.trim() : null;
+    }
+    await payoutRef.update(updatePayload);
+    await db.collection('audit_logs').add({
+        action: isSeniorAcct ? 'SENIOR_ACCOUNTANT_ENDORSE_FINAL_PAYOUT' : 'REVIEWER_ENDORSE_FINAL_PAYOUT',
+        performedBy: callerId,
+        performedByName: reviewerName,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: { payoutId, memberId: payout.memberId, memberName: payout.memberName, nextStatus, reviewNotes: reviewNotes || null },
+    });
+    return { success: true, payoutId, status: nextStatus };
+});
+/**
+ * Step 3: Super Administrator approves the final payout.
  * Settles the member's ledger and PERMANENTLY deletes the member account.
  */
 exports.approveFinalPayout = (0, https_1.onCall)({ cors: true }, async (request) => {
@@ -236,8 +339,8 @@ exports.approveFinalPayout = (0, https_1.onCall)({ cors: true }, async (request)
     if (!payoutSnap.exists)
         throw new https_1.HttpsError('not-found', 'Final payout record not found.');
     const payout = payoutSnap.data();
-    if (payout.status !== 'pending') {
-        throw new https_1.HttpsError('failed-precondition', `This final payout is already ${payout.status}.`);
+    if (payout.status !== 'pending_approval') {
+        throw new https_1.HttpsError('failed-precondition', `This final payout cannot be approved. It must be reviewed and endorsed by the Reviewer first (current status: '${payout.status}').`);
     }
     if (payout.initiatedBy === callerId) {
         throw new https_1.HttpsError('permission-denied', 'Segregation of duties violation: you cannot approve a final payout you initiated.');
@@ -258,8 +361,8 @@ exports.approveFinalPayout = (0, https_1.onCall)({ cors: true }, async (request)
     await db.runTransaction(async (tx) => {
         var _a;
         const fresh = await tx.get(payoutRef);
-        if (((_a = fresh.data()) === null || _a === void 0 ? void 0 : _a.status) !== 'pending') {
-            throw new https_1.HttpsError('failed-precondition', 'This final payout is no longer pending.');
+        if (((_a = fresh.data()) === null || _a === void 0 ? void 0 : _a.status) !== 'pending_approval') {
+            throw new https_1.HttpsError('failed-precondition', 'This final payout is no longer awaiting admin approval.');
         }
         tx.update(payoutRef, { status: 'processing', processingStartedAt: admin.firestore.FieldValue.serverTimestamp() });
     });
@@ -337,7 +440,7 @@ exports.approveFinalPayout = (0, https_1.onCall)({ cors: true }, async (request)
     }
     catch (error) {
         // Release the lock so the payout can be retried or rejected.
-        await payoutRef.update({ status: 'pending', lastError: (error === null || error === void 0 ? void 0 : error.message) || String(error) }).catch(() => undefined);
+        await payoutRef.update({ status: 'pending_approval', lastError: (error === null || error === void 0 ? void 0 : error.message) || String(error) }).catch(() => undefined);
         if (error instanceof https_1.HttpsError)
             throw error;
         throw new https_1.HttpsError('internal', (error === null || error === void 0 ? void 0 : error.message) || 'Failed to process final payout.');
@@ -361,8 +464,9 @@ exports.rejectFinalPayout = (0, https_1.onCall)({ cors: true }, async (request) 
     const callerId = request.auth.uid;
     const callerSnap = await db.collection('users').doc(callerId).get();
     const caller = callerSnap.data();
-    if ((caller === null || caller === void 0 ? void 0 : caller.role) !== 'admin') {
-        throw new https_1.HttpsError('permission-denied', 'Only Super Administrators can reject a final payout.');
+    const allowedRejectRoles = ['admin', 'management', 'reviewer', 'senior_accountant'];
+    if (!allowedRejectRoles.includes(caller === null || caller === void 0 ? void 0 : caller.role)) {
+        throw new https_1.HttpsError('permission-denied', 'Only Senior Accountants, Reviewers, or Administrators can reject a final payout.');
     }
     const { payoutId, rejectionReason } = request.data || {};
     if (!payoutId || typeof payoutId !== 'string') {
@@ -376,10 +480,11 @@ exports.rejectFinalPayout = (0, https_1.onCall)({ cors: true }, async (request) 
     if (!payoutSnap.exists)
         throw new https_1.HttpsError('not-found', 'Final payout record not found.');
     const payout = payoutSnap.data();
-    if (payout.status !== 'pending') {
-        throw new https_1.HttpsError('failed-precondition', `This final payout is already ${payout.status}.`);
+    const rejectableStatuses = ['pending', 'pending_review', 'pending_reviewer', 'pending_approval'];
+    if (!rejectableStatuses.includes(payout.status)) {
+        throw new https_1.HttpsError('failed-precondition', `This final payout cannot be rejected because its status is '${payout.status}'.`);
     }
-    const rejecterName = (caller === null || caller === void 0 ? void 0 : caller.name) || (caller === null || caller === void 0 ? void 0 : caller.email) || 'Super Admin';
+    const rejecterName = (caller === null || caller === void 0 ? void 0 : caller.name) || (caller === null || caller === void 0 ? void 0 : caller.email) || 'Officer';
     const batch = db.batch();
     batch.update(payoutRef, {
         status: 'rejected',
@@ -412,5 +517,66 @@ exports.rejectFinalPayout = (0, https_1.onCall)({ cors: true }, async (request) 
     });
     await batch.commit();
     return { success: true, payoutId };
+});
+/**
+ * Initiator (Accountant or Senior Accountant) withdraws their pending payout before final approval.
+ */
+exports.withdrawFinalPayout = (0, https_1.onCall)({ cors: true }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerId = request.auth.uid;
+    const callerSnap = await db.collection('users').doc(callerId).get();
+    const caller = callerSnap.data();
+    const { payoutId, reason } = request.data || {};
+    if (!payoutId || typeof payoutId !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', 'Payout ID is required.');
+    }
+    const payoutRef = db.collection('final_payouts').doc(payoutId);
+    const payoutSnap = await payoutRef.get();
+    if (!payoutSnap.exists)
+        throw new https_1.HttpsError('not-found', 'Final payout record not found.');
+    const payout = payoutSnap.data();
+    if (payout.initiatedBy !== callerId && (caller === null || caller === void 0 ? void 0 : caller.role) !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only the initiator can withdraw this final payout.');
+    }
+    const withdrawableStatuses = ['pending', 'pending_review', 'pending_reviewer', 'pending_approval'];
+    if (!withdrawableStatuses.includes(payout.status)) {
+        throw new https_1.HttpsError('failed-precondition', `Cannot withdraw final payout with status '${payout.status}'. Only pending payouts can be withdrawn.`);
+    }
+    const withdrawerName = (caller === null || caller === void 0 ? void 0 : caller.name) || (caller === null || caller === void 0 ? void 0 : caller.email) || 'Initiator';
+    const withdrawalReason = (reason && typeof reason === 'string' && reason.trim()) ? reason.trim() : 'Withdrawn by initiator';
+    const batch = db.batch();
+    batch.update(payoutRef, {
+        status: 'withdrawn',
+        withdrawnBy: callerId,
+        withdrawnByName: withdrawerName,
+        withdrawnAt: admin.firestore.FieldValue.serverTimestamp(),
+        withdrawalReason,
+    });
+    const memberRef = db.collection('users').doc(payout.memberId);
+    const memberSnap = await memberRef.get();
+    if (memberSnap.exists) {
+        batch.update(memberRef, {
+            finalPayoutPending: false,
+            finalPayoutId: admin.firestore.FieldValue.delete(),
+        });
+    }
+    batch.set(db.collection('audit_logs').doc(), {
+        adminId: callerId,
+        action: 'WITHDRAW_FINAL_PAYOUT',
+        justification: withdrawalReason,
+        performedBy: callerId,
+        performedByName: withdrawerName,
+        details: {
+            payoutId,
+            memberId: payout.memberId,
+            memberName: payout.memberName,
+            totalPayout: payout.totalPayout,
+        },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+    return { success: true, payoutId, status: 'withdrawn' };
 });
 //# sourceMappingURL=final-payout-management.js.map

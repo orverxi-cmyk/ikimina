@@ -335,8 +335,8 @@ exports.rejectExpense = (0, https_1.onCall)({ cors: true }, async (request) => {
     const userSnap = await db.collection('users').doc(callerId).get();
     const userData = userSnap.data();
     const callerRole = userData === null || userData === void 0 ? void 0 : userData.role;
-    if (callerRole !== 'admin' && callerRole !== 'management') {
-        throw new https_1.HttpsError('permission-denied', 'Only administrators can reject operational expenses.');
+    if (callerRole !== 'admin' && callerRole !== 'management' && callerRole !== 'reviewer') {
+        throw new https_1.HttpsError('permission-denied', 'Only authorized reviewers or administrators can reject operational expenses.');
     }
     const { expenseId, rejectionReason, adminNotes } = request.data || {};
     if (!expenseId || typeof expenseId !== 'string') {

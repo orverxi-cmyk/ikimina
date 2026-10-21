@@ -31,6 +31,8 @@ import {
   initiateFinalPayoutAction,
   approveFinalPayoutAction,
   rejectFinalPayoutAction,
+  reviewFinalPayoutAction,
+  withdrawFinalPayoutAction,
 } from '@/lib/finance-client';
 import { canExportFinalPayouts, exportFinalPayoutsToExcel } from '@/lib/final-payouts-export';
 import { ExportFinalPayoutsDialog } from '@/components/admin/export-final-payouts-dialog';
@@ -60,13 +62,14 @@ export default function FinalPayoutsPage() {
   }, [user?.uid]);
 
   const userRef = useMemoFirebase(() => (user ? doc(firestore, 'users', user.uid) : null), [user]);
-  const { data: userData } = useDoc<any>(userRef);
+  const { data: userData, loading: userDataLoading } = useDoc<any>(userRef);
   const role = userData?.role || cachedRole || (isPrimaryAdmin ? 'admin' : 'member');
   const isSuperAdmin = role === 'admin';
   const canInitiate = ['accountant', 'senior_accountant', 'admin', 'management'].includes(role);
-  const canReview = ['senior_accountant', 'reviewer', 'management'].includes(role);
+  const isSeniorAcct = ['senior_accountant', 'management'].includes(role);
+  const isReviewer = ['reviewer', 'management'].includes(role);
   const canApprove = ['admin', 'management'].includes(role) || isPrimaryAdmin;
-  const canView = canInitiate || canReview || canApprove || ['auditor'].includes(role);
+  const canView = canInitiate || isSeniorAcct || isReviewer || canApprove || ['auditor'].includes(role);
 
   // ---------- Data ----------
   const payoutsQuery = useMemoFirebase(() => (canView ? collection(firestore, 'final_payouts') : null), [canView]);
@@ -76,9 +79,12 @@ export default function FinalPayoutsPage() {
       .sort((a: any, b: any) => tsToMillis(b.createdAt) - tsToMillis(a.createdAt)),
     [payoutsSnap]
   );
-  const pending = useMemo(() => payouts.filter((p: any) => p.status === 'pending' || p.status === 'processing'), [payouts]);
+  const pending = useMemo(
+    () => payouts.filter((p: any) => ['pending', 'processing', 'pending_review', 'pending_reviewer', 'pending_approval'].includes(p.status)),
+    [payouts]
+  );
   const approved = useMemo(() => payouts.filter((p: any) => p.status === 'approved'), [payouts]);
-  const rejected = useMemo(() => payouts.filter((p: any) => p.status === 'rejected'), [payouts]);
+  const rejected = useMemo(() => payouts.filter((p: any) => p.status === 'rejected' || p.status === 'withdrawn'), [payouts]);
   const sum = (list: any[]) => list.reduce((s, p) => s + (Number(p.totalPayout) || 0), 0);
 
   const membersQuery = useMemoFirebase(() => (canInitiate ? collection(firestore, 'users') : null), [canInitiate]);
@@ -204,14 +210,56 @@ export default function FinalPayoutsPage() {
   const [selected, setSelected] = useState<any>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
+  const [reviewNotes, setReviewNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
+  const [withdrawalReason, setWithdrawalReason] = useState('');
   const [confirmDeletion, setConfirmDeletion] = useState(false);
 
   const openReview = (p: any) => {
-    setSelected(p); setAdminNotes(''); setConfirmDeletion(false); setIsReviewOpen(true);
+    setSelected(p); setAdminNotes(''); setReviewNotes(''); setConfirmDeletion(false); setIsReviewOpen(true);
   };
   const isOwnRequest = selected?.initiatedBy === user?.uid;
+  const isPendingSenior = selected?.status === 'pending_review' || selected?.status === 'pending';
+  const isPendingReviewer = selected?.status === 'pending_reviewer';
+  const isPendingApproval = selected?.status === 'pending_approval';
+
+  const handleEndorse = async (decision: 'endorse' | 'reject' = 'endorse') => {
+    if (!selected) return;
+    setIsSubmitting(true);
+    try {
+      const res = await reviewFinalPayoutAction({
+        payoutId: selected.id,
+        decision,
+        reviewNotes: reviewNotes.trim() || undefined,
+      });
+      const stageName = res.status === 'pending_reviewer' ? 'forwarded to Compliance Reviewer' : 'forwarded for Administrator approval';
+      toast({
+        title: 'Final Payout Endorsed',
+        description: `Payout for ${selected.memberName} has been endorsed and ${stageName}.`,
+      });
+      setIsReviewOpen(false); setSelected(null); setReviewNotes('');
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Review Failed', description: err.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!selected) return;
+    setIsSubmitting(true);
+    try {
+      await withdrawFinalPayoutAction({ payoutId: selected.id, reason: withdrawalReason.trim() || undefined });
+      toast({ title: 'Final Payout Withdrawn', description: 'The payout request was cancelled. Member account remains active.' });
+      setIsWithdrawOpen(false); setIsReviewOpen(false); setSelected(null); setWithdrawalReason('');
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Withdrawal Failed', description: err.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleApprove = async () => {
     if (!selected) return;
@@ -274,6 +322,15 @@ export default function FinalPayoutsPage() {
       });
     }
   };
+
+  if (userDataLoading && !cachedRole && !isPrimaryAdmin) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] gap-3 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading permissions...</p>
+      </div>
+    );
+  }
 
   if (!canView) {
     return (
@@ -463,12 +520,27 @@ export default function FinalPayoutsPage() {
                           <Badge className="bg-amber-500/10 text-amber-700 border-none text-[10px] font-bold uppercase gap-1">
                             <Loader2 className="h-3 w-3 animate-spin" /> Processing
                           </Badge>
-                        ) : (canReview || canApprove) ? (
-                          <Button size="sm" onClick={() => openReview(p)} className="rounded-xl font-bold text-xs h-8 px-3 shadow-sm">
-                            {canApprove ? 'Review & Decide' : 'Review'}
-                          </Button>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] font-bold uppercase">Awaiting Review</Badge>
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            {(p.status === 'pending_review' || p.status === 'pending') && (
+                              <Badge variant="outline" className="text-[10px] font-bold uppercase bg-amber-500/10 text-amber-700 border-amber-500/30">
+                                Awaiting Senior Endorsement
+                              </Badge>
+                            )}
+                            {p.status === 'pending_reviewer' && (
+                              <Badge variant="outline" className="text-[10px] font-bold uppercase bg-blue-500/10 text-blue-700 border-blue-500/30">
+                                Awaiting Compliance Review
+                              </Badge>
+                            )}
+                            {p.status === 'pending_approval' && (
+                              <Badge variant="outline" className="text-[10px] font-bold uppercase bg-purple-500/10 text-purple-700 border-purple-500/30">
+                                Awaiting Admin Approval
+                              </Badge>
+                            )}
+                            <Button size="sm" onClick={() => openReview(p)} className="rounded-xl font-bold text-xs h-8 px-3 shadow-sm">
+                              Review &amp; Action
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -541,8 +613,18 @@ export default function FinalPayoutsPage() {
                       <TableCell className="font-bold text-sm text-muted-foreground line-through">{formatCurrency(p.totalPayout, currency)}</TableCell>
                       <TableCell className="text-xs">{p.initiatedByName}</TableCell>
                       <TableCell className="max-w-[260px]">
-                        <p className="text-xs text-destructive font-medium italic">&ldquo;{p.rejectionReason}&rdquo;</p>
-                        <p className="text-[10px] text-muted-foreground">by {p.rejectedByName}</p>
+                        {p.status === 'withdrawn' ? (
+                          <>
+                            <Badge variant="outline" className="text-[10px] uppercase font-bold text-amber-700 border-amber-500/30 mb-1">Withdrawn</Badge>
+                            <p className="text-xs text-muted-foreground italic">&ldquo;{p.withdrawalReason || 'Withdrawn by initiator'}&rdquo;</p>
+                            <p className="text-[10px] text-muted-foreground">by {p.withdrawnByName || 'Initiator'}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-destructive font-medium italic">&ldquo;{p.rejectionReason}&rdquo;</p>
+                            <p className="text-[10px] text-muted-foreground">by {p.rejectedByName}</p>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -555,9 +637,9 @@ export default function FinalPayoutsPage() {
 
       {/* ===== INITIATE DIALOG ===== */}
       <Dialog open={isInitiateOpen} onOpenChange={setIsInitiateOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-xl md:max-w-2xl rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
-          <form onSubmit={handleInitiate} className="flex flex-col">
-            <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/30 border-b">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
+          <form onSubmit={handleInitiate} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/30 border-b shrink-0">
               <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest w-fit mb-1">Accountant Desk</Badge>
               <DialogTitle className="text-lg sm:text-xl font-bold font-headline">Initiate Member Final Payout</DialogTitle>
               <DialogDescription className="text-xs">
@@ -565,7 +647,7 @@ export default function FinalPayoutsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="p-4 sm:p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {/* Member picker */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold uppercase tracking-wider">Member *</Label>
@@ -714,7 +796,7 @@ export default function FinalPayoutsPage() {
               </div>
             </div>
 
-            <DialogFooter className="p-4 sm:p-6 pt-3 bg-muted/30 border-t flex flex-col sm:flex-row gap-2">
+            <DialogFooter className="p-4 sm:p-6 pt-3 bg-muted/30 border-t flex flex-col sm:flex-row gap-2 shrink-0">
               <Button type="button" variant="ghost" onClick={() => setIsInitiateOpen(false)} className="rounded-xl font-bold h-11 w-full sm:w-auto">Cancel</Button>
               <Button
                 type="submit"
@@ -734,29 +816,46 @@ export default function FinalPayoutsPage() {
 
       {/* ===== REVIEW DIALOG (Super Admin) ===== */}
       <Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-xl md:max-w-2xl rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-card border shadow-2xl p-0 overflow-hidden">
           {selected && (
-            <div className="flex flex-col">
-              <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/30 border-b">
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-muted/30 border-b shrink-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">Executive Review</Badge>
+                  <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-widest">
+                    {isPendingSenior ? 'Senior Review' : isPendingReviewer ? 'Compliance Review' : 'Executive Approval'}
+                  </Badge>
                   <Badge variant="outline" className="text-[9px] font-mono">ID: {selected.id.slice(0, 8)}</Badge>
+                  {(isPendingSenior) && (
+                    <Badge variant="outline" className="text-[9px] font-bold bg-amber-500/10 text-amber-700 border-amber-500/30">
+                      Stage 1 of 3
+                    </Badge>
+                  )}
+                  {isPendingReviewer && (
+                    <Badge variant="outline" className="text-[9px] font-bold bg-blue-500/10 text-blue-700 border-blue-500/30">
+                      Stage 2 of 3
+                    </Badge>
+                  )}
+                  {isPendingApproval && (
+                    <Badge variant="outline" className="text-[9px] font-bold bg-purple-500/10 text-purple-700 border-purple-500/30">
+                      Stage 3 of 3 (Final Sign-off)
+                    </Badge>
+                  )}
                 </div>
                 <DialogTitle className="text-lg sm:text-xl font-bold font-headline">
-                  {canApprove ? 'Approve Final Payout' : 'Review Final Payout'}
+                  {isPendingSenior ? 'Senior Accountant Review & Endorsement' : isPendingReviewer ? 'Compliance Review & Endorsement' : isPendingApproval ? (canApprove ? 'Approve Final Payout' : 'Final Payout Sign-off') : 'Review Final Payout'}
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  {canApprove ? 'Inspect the supporting document before approving.' : 'Review the payout details. Final approval requires an Administrator.'}
+                  {isPendingSenior ? 'Review the initiated payout. Endorsing forwards it to the Compliance Reviewer.' : isPendingReviewer ? 'Inspect compliance and documents. Endorsing forwards to the Administrator for final payout and account deletion.' : isPendingApproval ? 'Final dual-control sign-off. Approving pays out savings and permanently deletes member account.' : 'Review final payout record.'}
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="p-4 sm:p-6 space-y-4 max-h-[65vh] overflow-y-auto">
-                <div className="p-4 rounded-xl bg-muted border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Final Payout to {selected.memberName}</span>
-                    <p className="text-2xl font-bold text-foreground font-headline mt-0.5">{formatCurrency(selected.totalPayout, currency)}</p>
+              <div className="p-4 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+                <div className="p-4 rounded-xl bg-muted border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block truncate">Final Payout to {selected.memberName}</span>
+                    <p className="text-xl sm:text-2xl font-bold text-foreground font-headline mt-0.5">{formatCurrency(selected.totalPayout, currency)}</p>
                   </div>
-                  <div className="text-[11px] text-muted-foreground sm:text-right">
+                  <div className="text-[11px] text-muted-foreground sm:text-right shrink-0">
                     <p>Savings: <span className="font-bold text-foreground">{formatCurrency(selected.contributionTotal, currency)}</span></p>
                     <p>Interest: <span className="font-bold text-foreground">{formatCurrency(selected.accruedInterest || 0, currency)}</span></p>
                   </div>
@@ -776,66 +875,160 @@ export default function FinalPayoutsPage() {
                   </div>
                 )}
 
-                <div className="p-3 bg-background rounded-xl border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-3 bg-background rounded-xl border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <FileText className="h-5 w-5 text-primary shrink-0" />
-                    <span className="text-xs font-bold truncate">{selected.documentFileName}</span>
+                    <span className="text-xs font-bold truncate block">{selected.documentFileName}</span>
                   </div>
-                  <Button asChild size="sm" className="h-8 rounded-lg font-bold text-xs gap-1.5 shrink-0">
+                  <Button asChild size="sm" className="h-8 rounded-lg font-bold text-xs gap-1.5 shrink-0 self-start sm:self-auto">
                     <a href={selected.documentUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-3.5 w-3.5" /> Inspect Document</a>
                   </Button>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold uppercase tracking-wider">Administrator Notes (Optional)</Label>
-                  <Input value={adminNotes} onChange={e => setAdminNotes(e.target.value)} placeholder="e.g. Verified transfer slip against bank statement" className="h-10 rounded-xl bg-muted/40 text-xs" />
-                </div>
-
-                {isOwnRequest ? (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                    You initiated this payout. Another administrator must approve it (segregation of duties).
+                {/* Audit trail of reviews */}
+                {(selected.seniorReviewed || selected.complianceReviewed) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-muted/30 p-3 rounded-xl border border-border">
+                    {selected.seniorReviewed && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Senior Endorsement</span>
+                        <p className="font-semibold text-foreground mt-0.5">{selected.seniorReviewedByName || 'Senior Accountant'}</p>
+                        {selected.seniorReviewNotes && <p className="text-[11px] text-muted-foreground italic mt-0.5">&ldquo;{selected.seniorReviewNotes}&rdquo;</p>}
+                      </div>
+                    )}
+                    {selected.complianceReviewed && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Compliance Review</span>
+                        <p className="font-semibold text-foreground mt-0.5">{selected.reviewedByName || 'Reviewer'}</p>
+                        {selected.reviewNotes && <p className="text-[11px] text-muted-foreground italic mt-0.5">&ldquo;{selected.reviewNotes}&rdquo;</p>}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <label className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-900 dark:text-red-200 flex items-start gap-2.5 cursor-pointer">
-                    <Checkbox id="confirm-final-payout-deletion" checked={confirmDeletion} onCheckedChange={v => setConfirmDeletion(v === true)} className="mt-0.5" />
-                    <span className="leading-relaxed">
-                      I confirm that <strong>{formatCurrency(selected.totalPayout, currency)}</strong> has been paid to <strong>{selected.memberName}</strong>.
-                      Approving will <strong>permanently delete</strong> their account and login. This cannot be undone.
-                    </span>
-                  </label>
+                )}
+
+                {/* Stage-specific inputs */}
+                {(isPendingSenior && isSeniorAcct) && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider">Senior Accountant Notes (Optional)</Label>
+                    <Input value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} placeholder="e.g. Verified balance calculations and member sign-off" className="h-10 rounded-xl bg-muted/40 text-xs" />
+                  </div>
+                )}
+
+                {(isPendingReviewer && isReviewer) && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider">Compliance Reviewer Notes (Optional)</Label>
+                    <Input value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} placeholder="e.g. Verified supporting documents and KYC requirements" className="h-10 rounded-xl bg-muted/40 text-xs" />
+                  </div>
+                )}
+
+                {isPendingApproval && canApprove && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold uppercase tracking-wider">Administrator Notes (Optional)</Label>
+                      <Input value={adminNotes} onChange={e => setAdminNotes(e.target.value)} placeholder="e.g. Verified transfer slip against bank statement" className="h-10 rounded-xl bg-muted/40 text-xs" />
+                    </div>
+
+                    {isOwnRequest ? (
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                        You initiated this payout. Another administrator must approve it (segregation of duties).
+                      </div>
+                    ) : (
+                      <label className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-900 dark:text-red-200 flex items-start gap-2.5 cursor-pointer">
+                        <Checkbox id="confirm-final-payout-deletion" checked={confirmDeletion} onCheckedChange={v => setConfirmDeletion(v === true)} className="mt-0.5" />
+                        <span className="leading-relaxed">
+                          I confirm that <strong>{formatCurrency(selected.totalPayout, currency)}</strong> has been paid to <strong>{selected.memberName}</strong>.
+                          Approving will <strong>permanently delete</strong> their account and login. This cannot be undone.
+                        </span>
+                      </label>
+                    )}
+                  </>
+                )}
+
+                {/* Stage guidance if user cannot act */}
+                {isPendingSenior && !isSeniorAcct && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-800 dark:text-amber-200">
+                    <strong>Stage 1:</strong> This payout is awaiting Senior Accountant review and endorsement.
+                  </div>
+                )}
+                {isPendingReviewer && !isReviewer && (
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-800 dark:text-blue-200">
+                    <strong>Stage 2:</strong> Endorsed by Senior Accountant. Awaiting Compliance Reviewer check.
+                  </div>
+                )}
+                {isPendingApproval && !canApprove && (
+                  <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-xs text-purple-800 dark:text-purple-200">
+                    <strong>Stage 3:</strong> Endorsed by Reviewer. Awaiting Administrator final approval and deletion.
+                  </div>
                 )}
               </div>
 
-              <DialogFooter className="p-4 sm:p-6 pt-3 bg-muted/30 border-t flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                {canApprove ? (
-                  <>
-                    <Button type="button" variant="outline" onClick={() => { setRejectionReason(''); setIsRejectOpen(true); }} className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 order-2 md:order-1">
+              <DialogFooter className="p-4 sm:p-6 pt-3 bg-muted/30 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 w-full shrink-0">
+                <div className="flex items-center gap-2 flex-wrap order-2 sm:order-1">
+                  {/* Initiator withdraw button */}
+                  {(isOwnRequest || role === 'admin') && ['pending', 'pending_review', 'pending_reviewer', 'pending_approval'].includes(selected.status) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => { setWithdrawalReason(''); setIsWithdrawOpen(true); }}
+                      className="rounded-xl font-bold border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 h-11 px-4 shrink-0 gap-1.5"
+                    >
+                      <UserMinus className="h-4 w-4" /> Withdraw Payout
+                    </Button>
+                  )}
+                  {/* Reject button available to Senior Accountant, Reviewer, or Admin at their respective stages */}
+                  {((isPendingSenior && isSeniorAcct) || (isPendingReviewer && isReviewer) || (isPendingApproval && canApprove)) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => { setRejectionReason(''); setIsRejectOpen(true); }}
+                      className="rounded-xl font-bold border-destructive/30 text-destructive hover:bg-destructive/10 h-11 px-4 shrink-0"
+                    >
                       <Ban className="mr-2 h-4 w-4" /> Reject
                     </Button>
-                    <div className="flex flex-col-reverse sm:flex-row gap-2 order-1 md:order-2">
-                      <Button type="button" variant="ghost" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-11 px-4">Close</Button>
-                      <Button
-                        id="approve-final-payout-btn"
-                        type="button"
-                        variant="destructive"
-                        disabled={isSubmitting || isOwnRequest || !confirmDeletion}
-                        onClick={handleApprove}
-                        className="rounded-xl font-bold shadow-lg h-11 px-5 gap-2"
-                      >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                        Approve Payout & Delete Member
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex-1 text-xs text-muted-foreground p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                      <strong>Review only:</strong> You can inspect this payout. Final approval requires an Administrator.
-                    </div>
-                    <Button type="button" variant="ghost" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-11 px-4">Close</Button>
-                  </>
-                )}
+                  )}
+                </div>
+
+                <div className="flex flex-col-reverse sm:flex-row gap-2 order-1 sm:order-2 shrink-0">
+                  <Button type="button" variant="ghost" onClick={() => setIsReviewOpen(false)} className="rounded-xl font-bold h-11 px-4 shrink-0">Close</Button>
+                  
+                  {isPendingSenior && isSeniorAcct && (
+                    <Button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => handleEndorse('endorse')}
+                      className="rounded-xl font-bold shadow-lg h-11 px-5 gap-2 shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />}
+                      Endorse &amp; Forward to Reviewer
+                    </Button>
+                  )}
+
+                  {isPendingReviewer && isReviewer && (
+                    <Button
+                      type="button"
+                      disabled={isSubmitting || isOwnRequest}
+                      onClick={() => handleEndorse('endorse')}
+                      className="rounded-xl font-bold shadow-lg h-11 px-5 gap-2 shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                      Endorse for Admin Approval
+                    </Button>
+                  )}
+
+                  {isPendingApproval && canApprove && (
+                    <Button
+                      id="approve-final-payout-btn"
+                      type="button"
+                      variant="destructive"
+                      disabled={isSubmitting || isOwnRequest || !confirmDeletion}
+                      onClick={handleApprove}
+                      className="rounded-xl font-bold shadow-lg h-11 px-5 gap-2 shrink-0"
+                    >
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Approve Payout &amp; Delete Member
+                    </Button>
+                  )}
+                </div>
               </DialogFooter>
             </div>
           )}
@@ -854,6 +1047,23 @@ export default function FinalPayoutsPage() {
             <Button variant="ghost" onClick={() => setIsRejectOpen(false)} className="rounded-xl font-bold">Cancel</Button>
             <Button variant="destructive" disabled={isSubmitting || !rejectionReason.trim()} onClick={handleReject} className="rounded-xl font-bold gap-2">
               {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />} Confirm Rejection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== WITHDRAW DIALOG ===== */}
+      <Dialog open={isWithdrawOpen} onOpenChange={setIsWithdrawOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Withdraw Final Payout</DialogTitle>
+            <DialogDescription className="text-xs">Cancel this payout request. The member account will remain active and unchanged.</DialogDescription>
+          </DialogHeader>
+          <Textarea value={withdrawalReason} onChange={e => setWithdrawalReason(e.target.value)} placeholder="Reason for withdrawing this payout..." rows={3} className="rounded-xl text-xs resize-none" />
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setIsWithdrawOpen(false)} className="rounded-xl font-bold">Cancel</Button>
+            <Button variant="destructive" disabled={isSubmitting} onClick={handleWithdraw} className="rounded-xl font-bold gap-2">
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />} Confirm Withdrawal
             </Button>
           </DialogFooter>
         </DialogContent>

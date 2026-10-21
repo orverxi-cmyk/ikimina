@@ -1241,6 +1241,38 @@ export async function rejectFinalPayoutAction(data: { payoutId: string; rejectio
 }
 
 /**
+ * Senior Accountant or Reviewer reviews/endorses a Final Payout.
+ */
+export async function reviewFinalPayoutAction(data: {
+  payoutId: string;
+  decision: 'endorse' | 'reject';
+  reviewNotes?: string;
+}) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'reviewFinalPayout');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; payoutId: string; status: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to review final payout');
+  }
+}
+
+/**
+ * Initiator (Accountant or Senior Accountant) withdraws a pending final payout.
+ */
+export async function withdrawFinalPayoutAction(data: { payoutId: string; reason?: string }) {
+  const functions = getFinanceFunctions();
+  const fn = httpsCallable(functions, 'withdrawFinalPayout');
+  try {
+    const result = await fn(data);
+    return result.data as { success: boolean; payoutId: string; status: string };
+  } catch (error: any) {
+    throw formatFinanceActionError(error, 'Failed to withdraw final payout');
+  }
+}
+
+/**
  * Triggers or resends an account activation email with an authoritative Firebase link.
  */
 export async function sendMemberActivationEmailAction(data: {

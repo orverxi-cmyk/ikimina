@@ -156,6 +156,7 @@ export function AppSidebar() {
     adminItems.push({ href: '/loans', label: 'Loan Portfolio', icon: Landmark });
     adminItems.push({ href: '/admin/distribute-interest', label: 'Interest Distribution', icon: Coins });
     adminItems.push({ href: '/members', label: 'Members Directory', icon: Users });
+    adminItems.push({ href: '/admin/final-payouts', label: 'Final Payouts', icon: UserMinus });
     adminItems.push({ href: '/admin/audit-logs', label: 'Audit Trail & PDF', icon: ShieldCheck });
     adminItems.push({ href: '/reports', label: 'Financial Reports', icon: FileText });
   }
