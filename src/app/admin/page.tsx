@@ -300,8 +300,8 @@ export default function AdminDashboard() {
     ? Math.min(100, Math.round((totalActivePrincipalBalance / maxLendingPoolAllowed) * 100))
     : 0;
 
-  // Liquid Cash Reserve = (Verified Savings + Verified Repayments) - (Disbursed Loans + Approved Expenses)
-  const liquidCashReserve = Math.max(0, (totalVerifiedSavings + totalVerifiedRepayments) - (totalLoanAmountDisbursed + totalApprovedExpenses));
+  // Liquid Cash Reserve = (Verified Savings + Verified Repayments + Total Loan Interests) - (Disbursed Loans + Approved Expenses)
+  const liquidCashReserve = Math.max(0, (totalVerifiedSavings + totalVerifiedRepayments + totalLoanInterests) - (totalLoanAmountDisbursed + totalApprovedExpenses));
 
   // Filtered members for role assignment
   const filteredStaffMembers = useMemo(() => {
@@ -434,11 +434,11 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="p-5 bg-white space-y-2">
             <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {formatCurrency(totalLoanAmountDisbursed, currency)}
+              {formatCurrency(totalActivePrincipalBalance, currency)}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Active Principal Outstanding:</span>
-              <span className="font-bold text-foreground text-xs">{formatCurrency(totalActivePrincipalBalance, currency)}</span>
+              <span className="text-muted-foreground text-[11px]">Cumulative Disbursed:</span>
+              <span className="font-bold text-foreground text-xs">{formatCurrency(totalLoanAmountDisbursed, currency)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Disbursed Facilities:</span>
@@ -505,6 +505,10 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
               <span className="text-muted-foreground text-[11px]">Accrued to Members:</span>
               <span className="font-bold text-foreground text-xs">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground text-[11px]">Undistributed Yield:</span>
+              <span className="font-bold text-foreground text-xs">{formatCurrency(Math.max(0, totalLoanInterests - totalMemberAccruedInterest), currency)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-[11px]">Policy Rate:</span>
@@ -707,7 +711,7 @@ export default function AdminDashboard() {
                           {formatCurrency(liquidCashReserve, currency)}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
-                          Savings + Repayments - Disbursed Loans - Expenses
+                          Savings + Repayments + Interest - Disbursed Loans - Expenses
                         </p>
                       </div>
                       <Badge className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">

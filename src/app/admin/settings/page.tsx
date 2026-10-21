@@ -122,6 +122,9 @@ export default function AdminSettingsPage() {
   const [isResetting, setIsResetting] = useState(false);
   const [resetConfirmationText, setResetConfirmationText] = useState('');
   const [resetJustification, setResetJustification] = useState('');
+  const [isWipingLogs, setIsWipingLogs] = useState(false);
+  const [isDeletingScript, setIsDeletingScript] = useState(false);
+  const [wipeScriptExists, setWipeScriptExists] = useState<boolean | null>(null);
 
   // Subscriptions for Interest Pool Calculations
   const loansQuery = useMemoFirebase(() => query(collection(firestore, 'loans')), [firestore]);
@@ -225,6 +228,15 @@ export default function AdminSettingsPage() {
       fetchEmailSettings();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetch('/api/admin/audit-logs-cleanup')
+        .then(res => res.json())
+        .then(data => setWipeScriptExists(data.scriptExists))
+        .catch(() => {});
+    }
+  }, [isSuperAdmin]);
 
   const handleApplyPreset = (preset: 'gmail' | 'sendgrid' | 'brevo' | 'resend') => {
     if (preset === 'gmail') {
@@ -502,6 +514,51 @@ export default function AdminSettingsPage() {
       });
     } finally {
       setIsResetting(false);
+    }
+  };
+
+  const handleWipeAuditLogs = async () => {
+    if (!isSuperAdmin) return;
+    if (!window.confirm("Are you sure you want to completely wipe all audit log records? This cannot be undone.")) {
+      return;
+    }
+    setIsWipingLogs(true);
+    try {
+      const res = await fetch('/api/admin/audit-logs-cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'wipe' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to wipe audit logs');
+      toast({ title: "Audit Logs Wiped Clean", description: data.message });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Wipe Failed", description: err.message });
+    } finally {
+      setIsWipingLogs(false);
+    }
+  };
+
+  const handleDeleteWipeScript = async () => {
+    if (!isSuperAdmin) return;
+    if (!window.confirm("Are you sure you want to permanently delete the wipe script from the server?")) {
+      return;
+    }
+    setIsDeletingScript(true);
+    try {
+      const res = await fetch('/api/admin/audit-logs-cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete-script' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to delete script');
+      setWipeScriptExists(false);
+      toast({ title: "Script Deleted", description: data.message });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Deletion Failed", description: err.message });
+    } finally {
+      setIsDeletingScript(false);
     }
   };
 
@@ -1542,6 +1599,40 @@ export default function AdminSettingsPage() {
                     <Trash2 className="h-4 w-4" />
                     Reset All Financial Data to 0
                   </Button>
+                </div>
+
+                <div className="border-t border-destructive/20 pt-4 mt-6 space-y-3">
+                  <h4 className="font-bold text-foreground text-sm flex items-center gap-2">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                    Audit Log Management & Cleanup
+                  </h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Permanently wipe all system audit logs clean for launch readiness, and remove the temporary cleanup script from the server.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    {wipeScriptExists && (
+                      <Button 
+                        type="button" 
+                        variant="destructive" 
+                        onClick={handleWipeAuditLogs}
+                        disabled={isWipingLogs}
+                        className="font-bold h-10 rounded-xl shadow-sm flex items-center gap-2"
+                      >
+                        {isWipingLogs ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        Wipe Audit Logs Clean
+                      </Button>
+                    )}
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={handleDeleteWipeScript}
+                      disabled={isDeletingScript || wipeScriptExists === false}
+                      className="border-destructive/30 text-destructive hover:bg-destructive/10 font-bold h-10 rounded-xl flex items-center gap-2"
+                    >
+                      {isDeletingScript ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      {wipeScriptExists === false ? 'Wipe Script Deleted (Wipe Permanently Disabled)' : 'Delete Wipe Script from Server'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
