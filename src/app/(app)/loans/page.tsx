@@ -708,12 +708,12 @@ function LoansPageContent() {
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-36 sm:pb-24 w-full min-w-0 overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-[13px] font-bold font-headline text-foreground">Lending & Capital</h1>
-          <p className="text-[12px] font-bold text-muted-foreground">Manage borrowing cycles and repayment schedules</p>
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+        <div className="shrink-0 min-w-max">
+          <h1 className="text-base sm:text-lg font-bold font-headline text-foreground tracking-tight whitespace-nowrap">Lending & Capital</h1>
+          <p className="text-xs font-semibold text-muted-foreground whitespace-normal sm:whitespace-nowrap">Manage borrowing cycles and repayment schedules</p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end">
            {canExport && (
              <DropdownMenu>
                <DropdownMenuTrigger asChild>
@@ -762,7 +762,7 @@ function LoansPageContent() {
                </Link>
              </Button>
            )}
-           <div className="grid grid-cols-2 sm:flex gap-1.5 sm:gap-2 w-full sm:w-auto">
+           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {!isManagement && (
                 <div className="bg-primary/5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] border border-primary/20 text-center flex-1 sm:min-w-[120px]">
                     <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Borrow Power</p>

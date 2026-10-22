@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, Suspense } from 'react';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { doc, collection, query, where, orderBy, limit, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy, limit, updateDoc, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { isPast, addDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -21,7 +21,8 @@ import {
   Wallet,
   Landmark,
   Layers,
-  Coins
+  Coins,
+  Trash2
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { parseSafeDate, safeFormatDate } from '@/lib/loan-utils';
 
@@ -44,16 +45,23 @@ const cleanNotificationText = (text?: string) => {
     .replace(/bulk loan application/gi, 'loan balance');
 };
 
-export default function MessagesPage() {
+function MessagesContent() {
   const { user, loading: authLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryId = searchParams?.get('id');
+
   const userRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user]);
   const { data: userData, loading: userDataLoading } = useDoc(userRef);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'unread' | 'approvals' | 'finance'>('all');
   const [activeNotificationId, setActiveNotificationId] = useState<string | null>(null);
+
+  const [optimisticReadIds, setOptimisticReadIds] = useState<Set<string>>(new Set());
+  const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(new Set());
+  const [isClearing, setIsClearing] = useState(false);
 
   const isStaff = userData?.role && ['admin', 'management', 'accountant', 'senior_accountant', 'reviewer', 'auditor'].includes(userData.role);
 
@@ -70,21 +78,38 @@ export default function MessagesPage() {
 
   const firestoreNotifications = useMemo(() => {
     if (!notifSnap) return [];
-    const list = notifSnap.docs.map(d => {
-      const data = d.data();
-      return {
-        id: d.id,
-        ...data,
-        formattedDate: data.createdAt?.toDate ? safeFormatDate(data.createdAt.toDate(), 'MMM d, yyyy · HH:mm') : 'Recent'
-      } as any;
-    });
+    const list = notifSnap.docs
+      .map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          read: optimisticReadIds.has(d.id) ? true : !!data.read,
+          formattedDate: data.createdAt?.toDate ? safeFormatDate(data.createdAt.toDate(), 'MMM d, yyyy · HH:mm') : 'Recent'
+        } as any;
+      })
+      .filter(n => !optimisticDeletedIds.has(n.id));
 
     return list.sort((a, b) => {
       const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
       const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
       return timeB - timeA;
     });
-  }, [notifSnap]);
+  }, [notifSnap, optimisticDeletedIds, optimisticReadIds]);
+
+  // Sync URL query param `?id=...` with active message
+  useEffect(() => {
+    if (queryId) {
+      setActiveNotificationId(queryId);
+      if (!optimisticReadIds.has(queryId)) {
+        setOptimisticReadIds(prev => new Set(prev).add(queryId));
+        updateDoc(doc(firestore, 'notifications', queryId), {
+          read: true,
+          readAt: serverTimestamp()
+        }).catch(e => console.warn('Failed to mark notification read from url:', e));
+      }
+    }
+  }, [queryId]);
 
   // Existing schedule alerts (loan upcoming / overdue alerts)
   const scheduleAlerts = useMemo(() => {
@@ -156,6 +181,8 @@ export default function MessagesPage() {
   }, [activeNotificationId, firestoreNotifications]);
 
   const handleMarkAsRead = async (id: string) => {
+    if (id.startsWith('overdue-') || id.startsWith('upcoming-')) return;
+    setOptimisticReadIds(prev => new Set(prev).add(id));
     try {
       await updateDoc(doc(firestore, 'notifications', id), {
         read: true,
@@ -168,6 +195,8 @@ export default function MessagesPage() {
 
   const handleMarkAllAsRead = async () => {
     const unread = firestoreNotifications.filter(n => !n.read);
+    const unreadIds = unread.map(n => n.id);
+    setOptimisticReadIds(prev => new Set([...prev, ...unreadIds]));
     for (const n of unread) {
       try {
         await updateDoc(doc(firestore, 'notifications', n.id), {
@@ -177,6 +206,42 @@ export default function MessagesPage() {
       } catch (e) {
         console.warn('Failed to mark notification as read:', e);
       }
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    if (id.startsWith('overdue-') || id.startsWith('upcoming-')) return;
+    setOptimisticDeletedIds(prev => new Set(prev).add(id));
+    if (activeNotificationId === id) {
+      setActiveNotificationId(null);
+    }
+    try {
+      await deleteDoc(doc(firestore, 'notifications', id));
+    } catch (e) {
+      console.warn('Failed to delete notification:', e);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (firestoreNotifications.length === 0 || isClearing) return;
+    setIsClearing(true);
+    const allIds = firestoreNotifications.map(n => n.id);
+    setOptimisticDeletedIds(prev => new Set([...prev, ...allIds]));
+    setActiveNotificationId(null);
+    try {
+      const chunkSize = 400;
+      for (let i = 0; i < allIds.length; i += chunkSize) {
+        const chunk = allIds.slice(i, i + chunkSize);
+        const batch = writeBatch(firestore);
+        chunk.forEach(id => {
+          batch.delete(doc(firestore, 'notifications', id));
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Failed to clear notifications:', e);
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -215,17 +280,33 @@ export default function MessagesPage() {
                 </Badge>
               )}
             </div>
-            {unreadCount > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleMarkAllAsRead} 
-                className="h-7 text-[11px] font-semibold text-muted-foreground hover:text-foreground px-2"
-              >
-                <CheckCheck className="h-3.5 w-3.5 mr-1" />
-                Mark all read
-              </Button>
-            )}
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleMarkAllAsRead} 
+                  className="h-7 text-[11px] font-semibold text-muted-foreground hover:text-foreground px-2"
+                  title="Mark all as read"
+                >
+                  <CheckCheck className="h-3.5 w-3.5 mr-1" />
+                  Mark read
+                </Button>
+              )}
+              {firestoreNotifications.length > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleClearAll}
+                  disabled={isClearing}
+                  className="h-7 text-[11px] font-semibold text-muted-foreground hover:text-destructive px-2"
+                  title="Clear all notifications"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Clear all
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="relative">
@@ -391,16 +472,27 @@ export default function MessagesPage() {
                   Delivered on {activeNotification.formattedDate}
                 </p>
               </div>
-              {!activeNotification.read && (
+              <div className="flex items-center gap-2">
+                {!activeNotification.read && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleMarkAsRead(activeNotification.id)}
+                    className="rounded-xl text-xs"
+                  >
+                    Mark read
+                  </Button>
+                )}
                 <Button 
                   size="sm" 
-                  variant="outline" 
-                  onClick={() => handleMarkAsRead(activeNotification.id)}
-                  className="rounded-xl text-xs"
+                  variant="ghost" 
+                  onClick={() => handleDeleteNotification(activeNotification.id)}
+                  className="rounded-xl text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  title="Delete notification"
                 >
-                  Mark read
+                  <Trash2 className="h-4 w-4" />
                 </Button>
-              )}
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -436,5 +528,17 @@ export default function MessagesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-full flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <MessagesContent />
+    </Suspense>
   );
 }

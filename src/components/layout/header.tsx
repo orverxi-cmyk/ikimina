@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/firebase/auth/use-user';
 import { useDoc, useCollection, useMemoFirebase } from '@/firebase/firestore/hooks';
-import { doc, collection, query, where, orderBy, limit, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy, limit, updateDoc, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
-import { useMemo } from 'react';
-import { User, LogOut, LogIn, Wallet, ChevronLeft, UserX, Landmark, Bell, CheckCheck } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { User, LogOut, LogIn, Wallet, ChevronLeft, UserX, Landmark, Bell, CheckCheck, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAuth, signOut } from 'firebase/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -51,20 +51,28 @@ export function Header() {
 
   const { data: notifSnap } = useCollection(notifQuery);
 
+  const [optimisticReadIds, setOptimisticReadIds] = useState<Set<string>>(new Set());
+  const [optimisticClearedIds, setOptimisticClearedIds] = useState<Set<string>>(new Set());
+  const [isClearing, setIsClearing] = useState(false);
+
   const notifications = useMemo(() => {
     if (!notifSnap) return [];
-    const list = notifSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+    const list = notifSnap.docs
+      .map(d => ({ id: d.id, ...d.data() } as any))
+      .filter(n => !optimisticClearedIds.has(n.id))
+      .map(n => optimisticReadIds.has(n.id) ? { ...n, read: true } : n);
     return list.sort((a, b) => {
       const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
       const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
       return timeB - timeA;
     });
-  }, [notifSnap]);
+  }, [notifSnap, optimisticClearedIds, optimisticReadIds]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleNotificationClick = async (notif: any) => {
     if (!notif.read) {
+      setOptimisticReadIds(prev => new Set(prev).add(notif.id));
       try {
         await updateDoc(doc(firestore, 'notifications', notif.id), {
           read: true,
@@ -74,13 +82,17 @@ export function Header() {
         console.warn('Failed to mark notification read:', e);
       }
     }
-    if (notif.actionUrl) {
+    if (notif.actionUrl && notif.actionUrl !== '/messages') {
       router.push(notif.actionUrl);
+    } else {
+      router.push(`/messages?id=${notif.id}`);
     }
   };
 
   const handleMarkAllRead = async () => {
     const unread = notifications.filter(n => !n.read);
+    const unreadIds = unread.map(n => n.id);
+    setOptimisticReadIds(prev => new Set([...prev, ...unreadIds]));
     for (const n of unread) {
       try {
         await updateDoc(doc(firestore, 'notifications', n.id), {
@@ -90,6 +102,28 @@ export function Header() {
       } catch (e) {
         console.warn('Failed to mark notification read:', e);
       }
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (notifications.length === 0 || isClearing) return;
+    setIsClearing(true);
+    const allIds = notifications.map(n => n.id);
+    setOptimisticClearedIds(prev => new Set([...prev, ...allIds]));
+    try {
+      const chunkSize = 400;
+      for (let i = 0; i < allIds.length; i += chunkSize) {
+        const chunk = allIds.slice(i, i + chunkSize);
+        const batch = writeBatch(firestore);
+        chunk.forEach(id => {
+          batch.delete(doc(firestore, 'notifications', id));
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Failed to clear all notifications:', e);
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -209,7 +243,7 @@ export function Header() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80 sm:w-96 p-0 rounded-2xl shadow-2xl bg-card border border-border z-[70] overflow-hidden">
-                <div className="p-3 bg-muted/60 border-b flex items-center justify-between">
+                <div className="p-3 bg-muted/60 border-b flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold font-headline">Notifications</span>
                     {unreadCount > 0 && (
@@ -218,15 +252,29 @@ export function Header() {
                       </span>
                     )}
                   </div>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={handleMarkAllRead}
-                      className="text-[11px] text-muted-foreground hover:text-foreground font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                    >
-                      <CheckCheck className="h-3.5 w-3.5" />
-                      Mark all read
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-[11px] text-muted-foreground hover:text-foreground font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Mark all as read"
+                      >
+                        <CheckCheck className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Mark read</span>
+                      </button>
+                    )}
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={handleClearAll}
+                        disabled={isClearing}
+                        className="text-[11px] text-muted-foreground hover:text-destructive font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Clear all notifications"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Clear all</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="max-h-80 overflow-y-auto divide-y divide-border/50">
