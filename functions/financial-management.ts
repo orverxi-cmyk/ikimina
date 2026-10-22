@@ -1086,7 +1086,13 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
         const expensesSnap = await db.collection('expenses').get();
         const batchesSnap = await db.collection('contribution_batches').get();
         const interestRequestsSnap = await db.collection('interest_distribution_requests').get();
-        const auditSnap = await db.collection('audit_logs').where('action', 'in', ['ALLOCATE_INTEREST', 'LODGE_EXPENSE', 'APPROVE_EXPENSE', 'REJECT_EXPENSE']).get();
+        const finalPayoutsSnap = await db.collection('final_payouts').get();
+        const accountDeletionsSnap = await db.collection('account_deletion_requests').get();
+        const auditSnap = await db.collection('audit_logs').where('action', 'in', [
+            'ALLOCATE_INTEREST', 'LODGE_EXPENSE', 'APPROVE_EXPENSE', 'REJECT_EXPENSE',
+            'INITIATE_FINAL_PAYOUT', 'APPROVE_FINAL_PAYOUT_AND_DELETE_MEMBER', 'REJECT_FINAL_PAYOUT', 'WITHDRAW_FINAL_PAYOUT',
+            'SUBMIT_ACCOUNT_DELETION_REQUEST', 'REVIEW_ACCOUNT_DELETION_REQUEST', 'APPROVE_ACCOUNT_DELETION_REQUEST', 'REJECT_ACCOUNT_DELETION_REQUEST'
+        ]).get();
         const usersSnap = await db.collection('users').get();
 
         let batch = db.batch();
@@ -1142,6 +1148,18 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
             await commitBatchIfNeeded();
         }
 
+        for (const doc of finalPayoutsSnap.docs) {
+            batch.delete(doc.ref);
+            opCount++;
+            await commitBatchIfNeeded();
+        }
+
+        for (const doc of accountDeletionsSnap.docs) {
+            batch.delete(doc.ref);
+            opCount++;
+            await commitBatchIfNeeded();
+        }
+
         for (const doc of auditSnap.docs) {
             batch.delete(doc.ref);
             opCount++;
@@ -1151,7 +1169,11 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
         for (const doc of usersSnap.docs) {
             batch.update(doc.ref, { 
                 accruedInterest: 0,
-                totalContributed: 0
+                totalContributed: 0,
+                finalPayoutPending: admin.firestore.FieldValue.delete(),
+                finalPayoutId: admin.firestore.FieldValue.delete(),
+                deletionRequested: admin.firestore.FieldValue.delete(),
+                deletionRequestId: admin.firestore.FieldValue.delete()
             });
             opCount++;
             await commitBatchIfNeeded();
@@ -1173,6 +1195,8 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
                 expensesDeleted: expensesSnap.size,
                 batchesDeleted: batchesSnap.size,
                 interestRequestsDeleted: interestRequestsSnap.size,
+                finalPayoutsDeleted: finalPayoutsSnap.size,
+                accountDeletionsDeleted: accountDeletionsSnap.size,
                 usersReset: usersSnap.size
             }
         });
@@ -1192,6 +1216,8 @@ export const resetFinancialData = onCall({ cors: true }, async (request) => {
                 expensesDeleted: expensesSnap.size,
                 batchesDeleted: batchesSnap.size,
                 interestRequestsDeleted: interestRequestsSnap.size,
+                finalPayoutsDeleted: finalPayoutsSnap.size,
+                accountDeletionsDeleted: accountDeletionsSnap.size,
                 usersReset: usersSnap.size
             }
         };

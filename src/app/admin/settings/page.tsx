@@ -500,7 +500,7 @@ export default function AdminSettingsPage() {
 
       toast({ 
         title: "Financial Ledger Reset to 0", 
-        description: `Successfully wiped ${result?.summary?.contributionsDeleted || 0} contributions, ${result?.summary?.loansDeleted || 0} loans, ${result?.summary?.expensesDeleted || 0} operating expenses, and reset all member savings and interest balances to 0.` 
+        description: `Successfully wiped ${result?.summary?.contributionsDeleted || 0} contributions, ${result?.summary?.loansDeleted || 0} loans, ${result?.summary?.finalPayoutsDeleted || 0} account closures, ${result?.summary?.expensesDeleted || 0} operating expenses, and reset all member savings and interest balances to 0.` 
       });
 
       setIsResetDialogOpen(false);
@@ -1650,7 +1650,7 @@ export default function AdminSettingsPage() {
                 <DialogTitle className="text-xl font-bold">Confirm Full Financial Reset to 0</DialogTitle>
               </div>
               <DialogDescription className="pt-2">
-                This action is <strong className="text-destructive">permanent and irreversible</strong>. All contributions, active loans, debt balances, and accumulated member interest will be set to 0.
+                This action is <strong className="text-destructive">permanent and irreversible</strong>. All contributions, active loans, debt balances, member payoffs (account closures), and accumulated member interest will be set to 0.
               </DialogDescription>
             </DialogHeader>
 
