@@ -344,17 +344,42 @@ export default function MembersPage() {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const text = event.target?.result as string;
-        const rows = text.split('\n').filter(r => r.trim() !== '');
-        const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-        
+        const rows = text.split(/\r?\n/).filter(r => r.trim() !== '');
+        if (rows.length < 2) {
+          toast({ variant: "destructive", title: "Invalid CSV", description: "CSV file must contain a header row and at least one member row." });
+          setIsSubmitting(false);
+          return;
+        }
+
+        const rawHeaders = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+        const getHeaderKey = (h: string) => {
+          if (h === 'name' || h === 'full name' || h === 'fullname' || h === 'member name') return 'name';
+          if (h === 'first name' || h === 'firstname') return 'firstName';
+          if (h === 'surname' || h === 'last name' || h === 'lastname') return 'surname';
+          if (h === 'email' || h === 'email address') return 'email';
+          if (h === 'phone' || h === 'phone number' || h === 'telephone' || h === 'tel') return 'phone';
+          if (h === 'role' || h === 'system role') return 'role';
+          return h;
+        };
+        const headers = rawHeaders.map(getHeaderKey);
+
         const data = rows.slice(1).map(row => {
-          const values = row.split(',').map(v => v.trim());
+          const values = row.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
           const obj: any = {};
           headers.forEach((header, index) => {
             obj[header] = values[index];
           });
+          if (!obj.name && (obj.firstName || obj.surname)) {
+            obj.name = `${obj.firstName || ''} ${obj.surname || ''}`.trim();
+          }
           return obj;
-        });
+        }).filter(m => m.email && m.email.trim());
+
+        if (data.length === 0) {
+          toast({ variant: "destructive", title: "No Valid Records", description: "No valid member rows with an email address found in CSV." });
+          setIsSubmitting(false);
+          return;
+        }
 
         try {
           if (canInitiateMembers) {
@@ -364,12 +389,12 @@ export default function MembersPage() {
               title: `Member Enrollment Batch (${data.length} records)`
             });
             toast({
-              title: "Enrollment Batch Staged for Review",
-              description: `${data.length} member records submitted for verification and administrative sign-off in the Approvals Hub.`
+              title: "Bulk Enrollment Registered",
+              description: `${data.length} member records created with pending status. Members can now confirm credentials, and records are awaiting verification in the Approvals Hub.`
             });
           } else {
             await bulkRegisterMembersAction(user.uid, data, justification);
-            toast({ title: "Success", description: `${data.length} members processed for system enrollment.` });
+            toast({ title: "Success", description: `${data.length} members processed for system enrollment with pending status.` });
           }
           setIsBulkDialogOpen(false);
         } catch (innerError: any) {

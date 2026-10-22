@@ -312,13 +312,14 @@ export default function ApprovalsHubPage() {
 
   const allMemberBatches = useMemo(() => memberBatchesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [memberBatchesSnap]);
   const pendingMemberBatches = useMemo(() => allMemberBatches.filter((b: any) => {
-    if (isReviewer && !isSuperAdmin) return b.status === 'pending_reviewer';
-    if (isSeniorAccountant) return b.status === 'pending_review' || b.status === 'revision_requested';
-    if (isSuperAdmin) return b.status === 'pending_approval';
-    return b.status === 'pending_review' || b.status === 'pending_reviewer' || b.status === 'pending_approval' || b.status === 'revision_requested';
-  }), [allMemberBatches, isReviewer, isSeniorAccountant, isSuperAdmin]);
+    return b.status === 'pending_review' || b.status === 'pending_reviewer' || b.status === 'pending_approval' || b.status === 'revision_requested' || b.status === 'pending';
+  }), [allMemberBatches]);
 
-  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingRepayments.length + pendingExpenses.length + pendingInterestRequests.length + pendingDeletionRequests.length + pendingMemberBatches.length;
+  const pendingIndividualMembers = useMemo(() => {
+    return members.filter((m: any) => m.status === 'pending' || m.status === 'pending_reviewer' || m.status === 'reviewed');
+  }, [members]);
+
+  const totalPendingItems = pendingBatches.length + pendingSlips.length + pendingLoans.length + pendingRepayments.length + pendingExpenses.length + pendingInterestRequests.length + pendingDeletionRequests.length + pendingMemberBatches.length + pendingIndividualMembers.length;
 
   // -------------------------------------------------------------
   // FINANCIAL KPI METRICS (SCREENSHOT 1)
@@ -1245,7 +1246,7 @@ export default function ApprovalsHubPage() {
               <TrendingUp className="h-3.5 w-3.5" /> Interest {pendingInterestRequests.length > 0 && `(${pendingInterestRequests.length})`}
             </TabsTrigger>
             <TabsTrigger value="members" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
-              <Users className="h-3.5 w-3.5" /> Member Enrolls {pendingMemberBatches.length > 0 && `(${pendingMemberBatches.length})`}
+              <Users className="h-3.5 w-3.5" /> Member Enrolls {(pendingMemberBatches.length + pendingIndividualMembers.length) > 0 && `(${pendingMemberBatches.length + pendingIndividualMembers.length})`}
             </TabsTrigger>
             <TabsTrigger value="deletions" className="uppercase tracking-wider text-[11px] px-3 whitespace-nowrap gap-1.5">
               <UserX className="h-3.5 w-3.5" /> Deletions {pendingDeletionRequests.length > 0 && `(${pendingDeletionRequests.length})`}
@@ -2096,6 +2097,87 @@ export default function ApprovalsHubPage() {
                           </TableRow>
                         );
                       })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Individual Staged & Pending Members Register */}
+          <Card className="border border-border shadow-md rounded-2xl overflow-hidden bg-card mt-6">
+            <CardHeader className="bg-slate-900 text-white p-4 sm:p-5 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-blue-400" />
+                <div>
+                  <CardTitle className="text-[13px] font-bold text-white">Staged & Pending Member Directory</CardTitle>
+                  <CardDescription className="text-slate-300 text-xs mt-0.5">
+                    Real-time status of individual accounts awaiting password confirmation or dual-control authorization.
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-white border-white/30 text-xs font-bold">
+                  {pendingIndividualMembers.length} Pending
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto no-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b hover:bg-transparent">
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Member Name & Email</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase">Phone</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Credential Setup</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Workflow Stage</TableHead>
+                      <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingIndividualMembers.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">No individual members currently in pending state.</TableCell></TableRow>
+                    ) : (
+                      pendingIndividualMembers.map((m: any) => (
+                        <TableRow key={m.id} className="hover:bg-muted/30">
+                          <TableCell className="px-4 py-3 text-xs">
+                            <div className="font-bold text-sm text-foreground">{m.name || 'Member'}</div>
+                            <div className="text-[11px] font-mono text-muted-foreground">{m.email}</div>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-xs text-muted-foreground">
+                            {m.phone || '—'}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-center">
+                            {m.passwordSet ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-none text-[9px] font-bold">
+                                Password Configured
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-none text-[9px] font-bold">
+                                Awaiting Password Setup
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-center">
+                            <Badge className={cn(
+                              "text-[9px] uppercase font-bold border-none",
+                              m.status === 'pending' && "bg-blue-500/10 text-blue-700",
+                              m.status === 'pending_reviewer' && "bg-purple-500/10 text-purple-700",
+                              m.status === 'reviewed' && "bg-amber-500/10 text-amber-700",
+                              m.status === 'active' && "bg-green-600/10 text-green-700"
+                            )}>
+                              {m.status === 'pending' ? (m.passwordSet ? 'Pending Senior Review' : 'Pending Member Confirmation') : m.status === 'pending_reviewer' ? 'Pending Compliance Review' : m.status === 'reviewed' ? 'Pending Admin Activation' : m.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right">
+                            <Button asChild size="sm" variant="outline" className="h-8 rounded-xl font-bold text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10">
+                              <Link href="/members">
+                                View in Directory <ExternalLink className="h-3 w-3 ml-1" />
+                              </Link>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>

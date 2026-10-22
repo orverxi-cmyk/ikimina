@@ -200,6 +200,7 @@ exports.bulkRegisterMembers = (0, https_1.onCall)({ cors: true }, async (request
  * Stages the applicant records in 'pending_review' state awaiting checker review.
  */
 exports.initiateBulkMembers = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
@@ -227,6 +228,61 @@ exports.initiateBulkMembers = (0, https_1.onCall)({ cors: true }, async (request
     }
     const batchDocRef = db.collection('member_registration_batches').doc();
     const batchId = batchDocRef.id;
+    // Immediately persist each member in the users collection with pending status
+    const createdMembers = [];
+    const batchSize = 500;
+    const totalBatches = Math.ceil(cleanMembers.length / batchSize);
+    for (let i = 0; i < totalBatches; i++) {
+        const writeBatch = db.batch();
+        const chunk = cleanMembers.slice(i * batchSize, (i + 1) * batchSize);
+        for (const m of chunk) {
+            const existingUserSnap = await db.collection('users').where('email', '==', m.email).limit(1).get();
+            if (existingUserSnap.empty) {
+                const userRef = db.collection('users').doc();
+                writeBatch.set(userRef, {
+                    name: m.name,
+                    email: m.email,
+                    phone: m.phone || '',
+                    role: m.role || 'member',
+                    status: 'pending',
+                    passwordSet: false,
+                    batchId,
+                    registeredBy: request.auth.uid,
+                    registeredByRole: callerRole || 'senior_accountant',
+                    joinedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                createdMembers.push({ id: userRef.id, name: m.name, email: m.email });
+            }
+            else {
+                const existingDoc = existingUserSnap.docs[0];
+                if (((_a = existingDoc.data()) === null || _a === void 0 ? void 0 : _a.status) === 'pending') {
+                    writeBatch.update(existingDoc.ref, { batchId });
+                }
+                createdMembers.push({ id: existingDoc.id, name: m.name, email: m.email });
+            }
+        }
+        await writeBatch.commit();
+    }
+    // Asynchronously dispatch activation emails for each created member
+    const emailDispatches = createdMembers.map(async (m) => {
+        var _a;
+        if (!m.email)
+            return;
+        try {
+            return await (0, email_service_1.generateAndSendActivationEmail)({
+                email: m.email,
+                name: m.name,
+                memberDocId: m.id,
+                requestedBy: (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid,
+                appUrl: (request.data || {}).appUrl,
+            });
+        }
+        catch (err) {
+            console.error(`Bulk member activation email dispatch failed for ${m.email}:`, err);
+            return null;
+        }
+    });
+    await Promise.allSettled(emailDispatches);
     await batchDocRef.set({
         batchId,
         title: (title === null || title === void 0 ? void 0 : title.trim()) || `Member Enrollment Batch - ${new Date().toLocaleDateString()}`,
@@ -371,6 +427,7 @@ exports.reviewBulkMembers = (0, https_1.onCall)({ cors: true }, async (request) 
  * Creates member user profiles, triggers activation links/emails, and closes batch as 'approved'.
  */
 exports.approveBulkMembers = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
@@ -412,48 +469,48 @@ exports.approveBulkMembers = (0, https_1.onCall)({ cors: true }, async (request)
         return { success: true, batchId, status: 'rejected' };
     }
     const members = batchData.members || [];
-    const batchSize = 500;
-    const totalBatches = Math.ceil(members.length / batchSize);
     const createdMembers = [];
-    for (let i = 0; i < totalBatches; i++) {
-        const writeBatch = db.batch();
-        const chunk = members.slice(i * batchSize, (i + 1) * batchSize);
-        chunk.forEach(m => {
-            const userRef = db.collection('users').doc();
-            const cleanEmail = (m.email || '').toLowerCase().trim();
-            writeBatch.set(userRef, {
+    for (const m of members) {
+        const cleanEmail = (m.email || '').toLowerCase().trim();
+        if (!cleanEmail)
+            continue;
+        const existingSnap = await db.collection('users').where('email', '==', cleanEmail).limit(1).get();
+        if (!existingSnap.empty) {
+            const userDoc = existingSnap.docs[0];
+            const uData = userDoc.data();
+            await userDoc.ref.update({
+                batchId,
+                batchApproved: true,
+                status: uData.passwordSet ? 'active' : 'pending'
+            });
+            createdMembers.push({ id: userDoc.id, name: uData.name || m.name, email: cleanEmail });
+        }
+        else {
+            const userRef = await db.collection('users').add({
                 name: m.name,
                 email: cleanEmail,
                 phone: m.phone || '',
                 role: m.role || 'member',
                 joinedAt: admin.firestore.FieldValue.serverTimestamp(),
                 status: 'pending',
+                passwordSet: false,
                 batchId
             });
             createdMembers.push({ id: userRef.id, name: m.name, email: cleanEmail });
-        });
-        await writeBatch.commit();
+            try {
+                await (0, email_service_1.generateAndSendActivationEmail)({
+                    email: cleanEmail,
+                    name: m.name,
+                    memberDocId: userRef.id,
+                    requestedBy: (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid,
+                    appUrl,
+                });
+            }
+            catch (err) {
+                console.error(`Activation email dispatch failed for ${cleanEmail}:`, err);
+            }
+        }
     }
-    // Asynchronously dispatch activation emails for each created member
-    const emailDispatches = createdMembers.map(async (m) => {
-        var _a;
-        if (!m.email)
-            return;
-        try {
-            return await (0, email_service_1.generateAndSendActivationEmail)({
-                email: m.email,
-                name: m.name,
-                memberDocId: m.id,
-                requestedBy: (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid,
-                appUrl,
-            });
-        }
-        catch (err) {
-            console.error(`Bulk registration email dispatch failed for ${m.email}:`, err);
-            return null;
-        }
-    });
-    await Promise.allSettled(emailDispatches);
     await batchRef.update({
         status: 'approved',
         approvedBy: request.auth.uid,
