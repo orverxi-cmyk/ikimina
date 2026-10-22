@@ -1283,7 +1283,19 @@ function LoansPageContent() {
 
       {/* Bottom Loan Action CTA - Floating on Mobile, Integrated on Desktop (Harmonized with Savings) */}
       {!isManagement && (
-        <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-4 sm:flex sm:justify-end">
+        <div className="fixed bottom-20 left-3.5 right-3.5 z-40 sm:static sm:z-auto sm:pt-4 sm:flex sm:justify-end sm:gap-3 flex flex-col sm:flex-row gap-2">
+          {myActive && (Number(myActive.balance) || 0) > 0 && (
+            <Button 
+              className="w-full sm:w-auto h-12 sm:h-11 px-6 rounded-xl font-bold text-sm shadow-xl sm:shadow-md bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+              onClick={() => {
+                setSelectedLoan(myActive);
+                setSelectedInstallment('full');
+                setIsRepayOpen(true);
+              }}
+            >
+              <CreditCard className="h-4 w-4" /> Pay Off Loan Balance ({formatCurrency(myActive.balance, currency)})
+            </Button>
+          )}
           {canTopUp ? (
             <Button 
               asChild 
@@ -1396,8 +1408,19 @@ function LoansPageContent() {
                 </Table>
              </div>
           </div>
-          <DialogFooter className="p-4 bg-muted/10 border-t">
-             <Button variant="ghost" onClick={() => setIsViewScheduleOpen(false)} className="rounded-[10px] font-bold">Close View</Button>
+          <DialogFooter className="p-4 bg-muted/10 border-t flex flex-col sm:flex-row items-center justify-between gap-3">
+             {selectedLoan?.memberId === user?.uid && (Number(selectedLoan?.balance) || 0) > 0 && (
+               <Button
+                 className="rounded-[10px] font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto"
+                 onClick={() => {
+                   setSelectedInstallment('full');
+                   setIsRepayOpen(true);
+                 }}
+               >
+                 <CreditCard className="mr-2 h-4 w-4" /> Pay Off Loan Balance ({formatCurrency(selectedLoan.balance, currency)})
+               </Button>
+             )}
+             <Button variant="ghost" onClick={() => setIsViewScheduleOpen(false)} className="rounded-[10px] font-bold w-full sm:w-auto">Close View</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2028,15 +2051,23 @@ function LoansPageContent() {
 
               {/* Installment Breakdown Summary */}
               {(() => {
-                const targetInst = selectedInstallment || selectedLoan?.amortization?.find((i: any) => {
+                const isFullPayoff = selectedInstallment === 'full';
+                const targetInst = isFullPayoff ? null : (selectedInstallment || selectedLoan?.amortization?.find((i: any) => {
+                  const target = Number(i.amount) || 0;
+                  const paid = Number(i.paidAmount) || (i.status === 'paid' ? target : 0);
+                  const rem = i.remainingAmount !== undefined ? Number(i.remainingAmount) : Math.max(0, target - paid);
+                  return i.status !== 'paid' && rem > 0;
+                }));
+                const targetAmount = targetInst ? Number(targetInst.amount) || 0 : 0;
+                const paidAmount = targetInst ? Number(targetInst.paidAmount) || (targetInst.status === 'paid' ? targetAmount : 0) : 0;
+                const remainingInst = targetInst ? (targetInst.remainingAmount !== undefined ? Number(targetInst.remainingAmount) : Math.max(0, targetAmount - paidAmount)) : (selectedLoan?.balance || 0);
+                const firstUnpaidInst = selectedLoan?.amortization?.find((i: any) => {
                   const target = Number(i.amount) || 0;
                   const paid = Number(i.paidAmount) || (i.status === 'paid' ? target : 0);
                   const rem = i.remainingAmount !== undefined ? Number(i.remainingAmount) : Math.max(0, target - paid);
                   return i.status !== 'paid' && rem > 0;
                 });
-                const targetAmount = targetInst ? Number(targetInst.amount) || 0 : 0;
-                const paidAmount = targetInst ? Number(targetInst.paidAmount) || (targetInst.status === 'paid' ? targetAmount : 0) : 0;
-                const remainingInst = targetInst ? (targetInst.remainingAmount !== undefined ? Number(targetInst.remainingAmount) : Math.max(0, targetAmount - paidAmount)) : (selectedLoan?.balance || 0);
+                const installmentDueAmt = firstUnpaidInst ? (firstUnpaidInst.remainingAmount !== undefined ? Number(firstUnpaidInst.remainingAmount) : Math.max(0, (Number(firstUnpaidInst.amount) || 0) - (Number(firstUnpaidInst.paidAmount) || 0))) : 0;
 
                 return (
                   <>
@@ -2064,18 +2095,32 @@ function LoansPageContent() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Payment Amount</Label>
-                        {targetInst && remainingInst < (selectedLoan?.balance || 0) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const input = document.querySelector('input[name="repayAmount"]') as HTMLInputElement;
-                              if (input) input.value = String(remainingInst);
-                            }}
-                            className="text-[11px] text-primary font-semibold hover:underline"
-                          >
-                            Pay Installment Due ({formatCurrency(remainingInst, currency)})
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {installmentDueAmt > 0 && installmentDueAmt < (selectedLoan?.balance || 0) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const input = document.querySelector('input[name="repayAmount"]') as HTMLInputElement;
+                                if (input) input.value = String(installmentDueAmt);
+                              }}
+                              className="text-[11px] text-primary font-semibold hover:underline"
+                            >
+                              Installment ({formatCurrency(installmentDueAmt, currency)})
+                            </button>
+                          )}
+                          {(Number(selectedLoan?.balance) || 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const input = document.querySelector('input[name="repayAmount"]') as HTMLInputElement;
+                                if (input) input.value = String(selectedLoan.balance);
+                              }}
+                              className="text-[11px] text-emerald-600 font-semibold hover:underline"
+                            >
+                              Pay Off Balance ({formatCurrency(selectedLoan.balance, currency)})
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="relative">
                         <Input 

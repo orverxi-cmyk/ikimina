@@ -58,6 +58,7 @@ const BATCH_LIMIT = 450;
  * Computes a member's authoritative financial position from the ledgers.
  */
 async function getMemberFinancialPosition(db, memberId, userData) {
+    var _a;
     const contribsSnap = await db.collection('contributions').where('memberId', '==', memberId).get();
     let contributionTotal = 0;
     let verifiedContributionCount = 0;
@@ -87,12 +88,100 @@ async function getMemberFinancialPosition(db, memberId, userData) {
         const userSnap = await db.collection('users').doc(memberId).get();
         data = userSnap.exists ? userSnap.data() : {};
     }
-    const accruedInterest = Number(data === null || data === void 0 ? void 0 : data.accruedInterest) || 0;
+    const storedAccruedInterest = Number(data === null || data === void 0 ? void 0 : data.accruedInterest) || 0;
+    // Calculate pro-rata interim interest from undistributed loan profit pool
+    let interimInterest = 0;
+    try {
+        const loansSnap = await db.collection('loans').get();
+        let totalRealizedInterest = 0;
+        loansSnap.forEach(doc => {
+            const l = doc.data();
+            if (l.status === 'completed' || l.status === 'approved') {
+                totalRealizedInterest += Number(l.interestAmount) || 0;
+            }
+        });
+        const auditSnap = await db.collection('audit_logs').where('action', '==', 'ALLOCATE_INTEREST').get();
+        let previouslyDistributed = 0;
+        auditSnap.forEach(doc => {
+            var _a, _b;
+            previouslyDistributed += Number((_b = (_a = doc.data()) === null || _a === void 0 ? void 0 : _a.details) === null || _b === void 0 ? void 0 : _b.totalDistributed) || 0;
+        });
+        const availablePool = Math.max(0, totalRealizedInterest - previouslyDistributed);
+        if (availablePool > 0) {
+            const lastDistSnap = await db.collection('interest_distributions')
+                .orderBy('distributedAt', 'desc')
+                .limit(1)
+                .get();
+            let lastDistDate = null;
+            if (!lastDistSnap.empty) {
+                const rawDist = (_a = lastDistSnap.docs[0].data()) === null || _a === void 0 ? void 0 : _a.distributedAt;
+                if ((rawDist === null || rawDist === void 0 ? void 0 : rawDist.toDate) && typeof rawDist.toDate === 'function') {
+                    lastDistDate = rawDist.toDate();
+                }
+                else if (rawDist === null || rawDist === void 0 ? void 0 : rawDist.seconds) {
+                    lastDistDate = new Date(rawDist.seconds * 1000);
+                }
+                else if (rawDist) {
+                    const d = new Date(rawDist);
+                    if (!isNaN(d.getTime()))
+                        lastDistDate = d;
+                }
+            }
+            const MS_PER_DAY = 86400000;
+            const KIGALI_OFFSET_MS = 2 * 60 * 60 * 1000;
+            const getKigaliDayIndex = (date) => Math.floor((date.getTime() + KIGALI_OFFSET_MS) / MS_PER_DAY);
+            const nowDayIndex = getKigaliDayIndex(new Date());
+            const lastDistDayIndex = lastDistDate ? getKigaliDayIndex(lastDistDate) : null;
+            const allContribsSnap = await db.collection('contributions').where('status', '==', 'verified').get();
+            let totalWeightedPool = 0;
+            let memberWeighted = 0;
+            allContribsSnap.forEach(doc => {
+                const c = doc.data();
+                const amt = Number(c.amount) || 0;
+                if (amt <= 0)
+                    return;
+                const rawDate = c.verifiedAt || c.date || c.createdAt;
+                let cDate = null;
+                if ((rawDate === null || rawDate === void 0 ? void 0 : rawDate.toDate) && typeof rawDate.toDate === 'function') {
+                    cDate = rawDate.toDate();
+                }
+                else if (rawDate === null || rawDate === void 0 ? void 0 : rawDate.seconds) {
+                    cDate = new Date(rawDate.seconds * 1000);
+                }
+                else if (rawDate) {
+                    const d = new Date(rawDate);
+                    if (!isNaN(d.getTime()))
+                        cDate = d;
+                }
+                let daysActive = 0;
+                if (cDate) {
+                    let cDayIndex = getKigaliDayIndex(cDate);
+                    if (lastDistDayIndex !== null && cDayIndex < lastDistDayIndex) {
+                        cDayIndex = lastDistDayIndex;
+                    }
+                    daysActive = Math.max(0, nowDayIndex - cDayIndex);
+                }
+                const weighted = amt * daysActive;
+                totalWeightedPool += weighted;
+                if (c.memberId === memberId) {
+                    memberWeighted += weighted;
+                }
+            });
+            if (totalWeightedPool > 0 && memberWeighted > 0) {
+                interimInterest = Math.floor(availablePool * (memberWeighted / totalWeightedPool));
+            }
+        }
+    }
+    catch (err) {
+        console.warn('Could not calculate pro-rata interim interest:', err);
+    }
+    const accruedInterest = storedAccruedInterest + interimInterest;
     return {
         contributionTotal,
         verifiedContributionCount,
         pendingContributionCount,
         accruedInterest,
+        interimAccruedInterest: interimInterest,
         outstandingLoanBalance,
         totalPayout: contributionTotal + accruedInterest,
     };
@@ -169,6 +258,7 @@ exports.initiateFinalPayout = (0, https_1.onCall)({ cors: true }, async (request
         contributionTotal: pos.contributionTotal,
         verifiedContributionCount: pos.verifiedContributionCount,
         accruedInterest: pos.accruedInterest,
+        interimAccruedInterest: pos.interimAccruedInterest || 0,
         totalPayout: pos.totalPayout,
         documentUrl: documentUrl.trim(),
         documentFileName: (typeof documentFileName === 'string' && documentFileName.trim()) ? documentFileName.trim() : 'supporting_document',
@@ -428,6 +518,7 @@ exports.approveFinalPayout = (0, https_1.onCall)({ cors: true }, async (request)
                 memberEmail: payout.memberEmail,
                 contributionTotal: payout.contributionTotal,
                 accruedInterest: payout.accruedInterest,
+                interimAccruedInterest: payout.interimAccruedInterest || 0,
                 totalPayout: payout.totalPayout,
                 initiatedBy: payout.initiatedBy,
                 initiatedByName: payout.initiatedByName,
@@ -436,6 +527,20 @@ exports.approveFinalPayout = (0, https_1.onCall)({ cors: true }, async (request)
             },
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
         });
+        if ((Number(payout.interimAccruedInterest) || 0) > 0) {
+            finalBatch.set(db.collection('audit_logs').doc(), {
+                adminId: callerId,
+                action: 'ALLOCATE_INTEREST',
+                justification: `Interim exit interest distribution settled for ${payout.memberName} (${memberId}) via final payout ${payoutId}`,
+                details: {
+                    totalDistributed: Number(payout.interimAccruedInterest),
+                    interimExitPayout: true,
+                    finalPayoutId: payoutId,
+                    memberId
+                },
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        }
         await finalBatch.commit();
     }
     catch (error) {
