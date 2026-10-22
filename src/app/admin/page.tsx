@@ -173,6 +173,16 @@ export default function AdminDashboard() {
   }, [firestore, isSuperAdmin]);
   const { data: pendingDeletionsSnap } = useCollection(pendingDeletionsQuery);
 
+  const finalPayoutsQuery = useMemoFirebase(() => {
+    return collection(firestore, 'final_payouts');
+  }, [firestore]);
+  const { data: finalPayoutsSnap } = useCollection(finalPayoutsQuery);
+
+  const interestDistributionsQuery = useMemoFirebase(() => {
+    return collection(firestore, 'interest_distributions');
+  }, [firestore]);
+  const { data: interestDistributionsSnap } = useCollection(interestDistributionsQuery);
+
   // 2. Parsed entities
   const users = useMemo(() => usersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [usersSnap]);
   const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
@@ -181,6 +191,8 @@ export default function AdminDashboard() {
   const expenses = useMemo(() => expensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [expensesSnap]);
   const recentBatches = useMemo(() => batchesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [batchesSnap]);
   const pendingDeletionRequests = useMemo(() => pendingDeletionsSnap?.docs.map(d => ({ id: d.id, ...(d.data() as any) })) || [], [pendingDeletionsSnap]);
+  const finalPayouts = useMemo(() => finalPayoutsSnap?.docs.map(d => ({ id: d.id, ...(d.data() as any) })) || [], [finalPayoutsSnap]);
+  const interestDistributions = useMemo(() => interestDistributionsSnap?.docs.map(d => ({ id: d.id, ...(d.data() as any) })) || [], [interestDistributionsSnap]);
 
   // Member map helper
   const memberMap = useMemo(() => {
@@ -232,6 +244,32 @@ export default function AdminDashboard() {
   const totalMemberAccruedInterest = useMemo(() => {
     return users.reduce((sum: number, u: any) => sum + (Number(u.accruedInterest) || 0), 0);
   }, [users]);
+
+  // Member Exits / Final Payoffs
+  const approvedPayoffs = useMemo(() => {
+    return finalPayouts.filter((p: any) => p.status === 'approved');
+  }, [finalPayouts]);
+
+  const pendingPayoffs = useMemo(() => {
+    return finalPayouts.filter((p: any) => ['pending', 'processing', 'pending_review', 'pending_reviewer', 'pending_approval'].includes(p.status));
+  }, [finalPayouts]);
+
+  const totalPayoffAmount = useMemo(() => {
+    return approvedPayoffs.reduce((sum: number, p: any) => sum + (Number(p.totalPayout || p.amount) || 0), 0);
+  }, [approvedPayoffs]);
+
+  // Total Interest Distributed (Lifetime Yield)
+  const totalInterestDistributed = useMemo(() => {
+    return interestDistributions.reduce((sum: number, d: any) => sum + (Number(d.amountDistributed || d.totalInterestToDistribute || d.amount) || 0), 0);
+  }, [interestDistributions]);
+
+  const totalInterestCapitalized = useMemo(() => {
+    return interestDistributions.reduce((sum: number, d: any) => sum + (Number(d.totalCapitalizedToContributions || d.capitalizedAmount) || 0), 0);
+  }, [interestDistributions]);
+
+  const totalInterestCashPaid = useMemo(() => {
+    return interestDistributions.reduce((sum: number, d: any) => sum + (Number(d.totalCashPayout || d.cashAmount) || 0), 0);
+  }, [interestDistributions]);
 
   // Verified Repayments collected
   const totalVerifiedRepayments = useMemo(() => {
@@ -385,8 +423,8 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* 6 TOP EXECUTIVE KPI CARDS */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+      {/* 8 TOP EXECUTIVE KPI CARDS */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {/* 1. TOTAL ASSET AMOUNT (WITH EXPENSES SUBTRACTED) */}
         <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
           <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
@@ -578,6 +616,68 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* 7. TOTAL PAYOFF AMOUNT (MEMBER EXITS) */}
+        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
+                Account Closures
+              </span>
+              <CardTitle className="text-base font-bold text-white mt-0.5">
+                Total Member Payoffs
+              </CardTitle>
+            </div>
+            <div className="p-2 bg-white/10 text-white rounded-lg">
+              <UserX className="h-5 w-5 text-white" />
+            </div>
+          </CardHeader>
+          <CardContent className="p-5 bg-white space-y-2">
+            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+              {formatCurrency(totalPayoffAmount, currency)}
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
+              <span className="text-muted-foreground text-[11px]">Exited Members:</span>
+              <span className="font-bold text-foreground text-xs">{approvedPayoffs.length} Settled</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground text-[11px]">Pending Reviews:</span>
+              <Badge variant={pendingPayoffs.length > 0 ? "secondary" : "outline"} className="text-[10px] font-bold h-5">
+                {pendingPayoffs.length} Pending
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 8. TOTAL INTEREST DISTRIBUTED */}
+        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
+                Yield Allocation
+              </span>
+              <CardTitle className="text-base font-bold text-white mt-0.5">
+                Interest Distributed
+              </CardTitle>
+            </div>
+            <div className="p-2 bg-white/10 text-white rounded-lg">
+              <ArrowUpRight className="h-5 w-5 text-white" />
+            </div>
+          </CardHeader>
+          <CardContent className="p-5 bg-white space-y-2">
+            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+              {formatCurrency(totalInterestDistributed, currency)}
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
+              <span className="text-muted-foreground text-[11px]">Capitalized to Savings:</span>
+              <span className="font-bold text-foreground text-xs">{formatCurrency(totalInterestCapitalized, currency)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground text-[11px]">Direct Cash Payouts:</span>
+              <span className="font-bold text-foreground text-xs">{formatCurrency(totalInterestCashPaid, currency)}</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* DETAILED INTERACTIVE MODULE TABS */}
@@ -678,6 +778,38 @@ export default function AdminDashboard() {
                       </div>
                       <span className="font-bold text-destructive text-sm">
                         -{formatCurrency(totalApprovedExpenses, currency)}
+                      </span>
+                    </div>
+
+                    {/* 4. Member Payoff Disbursements */}
+                    <div className="p-4 flex items-center justify-between bg-white hover:bg-muted/10 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-lg bg-slate-100 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-xs">
+                          (⚡)
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">Total Member Payoffs (Account Closures)</p>
+                          <p className="text-[11px] text-muted-foreground">Cumulative capital paid out for exited members ({approvedPayoffs.length} accounts)</p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-foreground text-sm">
+                        {formatCurrency(totalPayoffAmount, currency)}
+                      </span>
+                    </div>
+
+                    {/* 5. Lifetime Distributed Yield */}
+                    <div className="p-4 flex items-center justify-between bg-white hover:bg-muted/10 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-lg bg-purple-500/10 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-xs">
+                          (✦)
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">Total Interest Distributed</p>
+                          <p className="text-[11px] text-muted-foreground">Profit yields allocated to active savers</p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-foreground text-sm">
+                        {formatCurrency(totalInterestDistributed, currency)}
                       </span>
                     </div>
 
