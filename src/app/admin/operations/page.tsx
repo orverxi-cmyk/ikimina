@@ -68,6 +68,10 @@ export default function ApprovedOperationsPage() {
   const membersQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'users'), orderBy('name', 'asc')) : null, [firestore, isAuthorized]);
   const { data: membersSnap } = useCollection(membersQuery);
 
+  // Fetch final payouts for historical / exited member name resolution
+  const finalPayoutsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'final_payouts'), limit(500)) : null, [firestore, isAuthorized]);
+  const { data: finalPayoutsSnap } = useCollection(finalPayoutsQuery);
+
   // Fetch approved/verified individual contributions
   const approvedContributionsQuery = useMemoFirebase(() => isAuthorized ? query(
     collection(firestore, 'contributions'),
@@ -118,9 +122,31 @@ export default function ApprovedOperationsPage() {
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const memberMap = useMemo(() => new Map(members.map((m: any) => [m.id, m])), [members]);
 
-  const getMemberName = (id: string) => {
-    if (!id) return 'Unknown';
-    return (memberMap.get(id) as any)?.name || 'Unknown';
+  const finalPayoutsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    finalPayoutsSnap?.docs.forEach(d => {
+      const p = d.data();
+      if (p.memberId && p.memberName) {
+        map.set(p.memberId, p);
+      }
+    });
+    return map;
+  }, [finalPayoutsSnap]);
+
+  const resolveMember = (id?: string, embeddedName?: string): { name: string; isExited: boolean } => {
+    if (embeddedName && embeddedName.trim() && embeddedName.toLowerCase() !== 'unknown') {
+      return { name: embeddedName, isExited: false };
+    }
+    if (!id) return { name: 'Unknown', isExited: false };
+    const member = memberMap.get(id) as any;
+    if (member?.name) return { name: member.name, isExited: false };
+    const payout = finalPayoutsMap.get(id);
+    if (payout?.memberName) return { name: payout.memberName, isExited: true };
+    return { name: 'Unknown', isExited: false };
+  };
+
+  const getMemberName = (id?: string, embeddedName?: string) => {
+    return resolveMember(id, embeddedName).name;
   };
 
   const formatRoleLabel = (roleSlug: string | undefined): string => {
@@ -144,12 +170,14 @@ export default function ApprovedOperationsPage() {
     // 1. Contributions (Deposits)
     (approvedContributionsSnap?.docs || []).forEach(d => {
       const data = d.data();
+      const memberRes = resolveMember(data.memberId, data.memberName);
       ops.push({
         id: d.id,
         type: 'deposit',
         typeLabel: 'Deposit Slip',
         memberId: data.memberId,
-        memberName: getMemberName(data.memberId),
+        memberName: memberRes.name,
+        isExited: memberRes.isExited,
         amount: Number(data.amount) || 0,
         status: data.status,
         period: data.period || '—',
@@ -174,12 +202,14 @@ export default function ApprovedOperationsPage() {
     // 2. Approved Contribution Batches
     (approvedBatchesSnap?.docs || []).forEach(d => {
       const data = d.data();
+      const initiatorRes = resolveMember(data.initiatedBy, data.initiatorName);
       ops.push({
         id: d.id,
         type: 'deposit',
         typeLabel: 'Deposit Batch',
         memberId: data.initiatedBy,
-        memberName: `${data.initiatorName || getMemberName(data.initiatedBy)} (${data.totalCount || data.items?.length || 0} members)`,
+        memberName: `${initiatorRes.name} (${data.totalCount || data.items?.length || 0} members)`,
+        isExited: initiatorRes.isExited,
         amount: Number(data.totalAmount) || 0,
         status: data.status,
         period: data.title || data.defaultPeriod || '—',
@@ -205,12 +235,14 @@ export default function ApprovedOperationsPage() {
     // 3. Loans
     (approvedLoansSnap?.docs || []).forEach(d => {
       const data = d.data();
+      const memberRes = resolveMember(data.memberId, data.memberName);
       ops.push({
         id: d.id,
         type: 'loan',
         typeLabel: 'Loan Facility',
         memberId: data.memberId,
-        memberName: getMemberName(data.memberId),
+        memberName: memberRes.name,
+        isExited: memberRes.isExited,
         amount: Number(data.amount) || 0,
         status: data.status,
         period: data.description || '—',
@@ -235,12 +267,14 @@ export default function ApprovedOperationsPage() {
     // 4. Expenses
     (approvedExpensesSnap?.docs || []).forEach(d => {
       const data = d.data();
+      const recordedRes = resolveMember(data.recordedBy || data.createdBy, data.recordedByName);
       ops.push({
         id: d.id,
         type: 'expense',
         typeLabel: 'Operating Expense',
         memberId: data.recordedBy || data.createdBy,
-        memberName: data.recordedByName || getMemberName(data.recordedBy || data.createdBy),
+        memberName: recordedRes.name,
+        isExited: recordedRes.isExited,
         amount: Number(data.amount) || 0,
         status: data.status,
         period: data.title || data.category || '—',
@@ -335,7 +369,8 @@ export default function ApprovedOperationsPage() {
     approvedExpensesSnap, 
     approvedInterestRequestsSnap, 
     interestDistributionsSnap, 
-    memberMap
+    memberMap,
+    finalPayoutsMap
   ]);
 
   // Filter and sort
@@ -934,7 +969,16 @@ export default function ApprovedOperationsPage() {
                             {op.typeLabel}
                           </Badge>
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-xs font-bold">{op.memberName}</TableCell>
+                        <TableCell className="px-4 py-3 text-xs font-bold">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{op.memberName}</span>
+                            {op.isExited && (
+                              <Badge variant="outline" className="text-[9px] uppercase font-bold text-amber-700 dark:text-amber-400 border-amber-500/40 bg-amber-500/10 px-1.5 py-0 h-4">
+                                Exited
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="px-4 py-3 text-xs text-muted-foreground font-semibold max-w-[200px] truncate">{op.period}</TableCell>
                         <TableCell className="px-4 py-3 text-xs font-bold text-right text-primary">{formatCurrency(op.amount, currency)}</TableCell>
                         <TableCell className="px-4 py-3 text-[11px] text-muted-foreground text-center whitespace-nowrap">{safeFormatDate(op.date, 'PP')}</TableCell>
@@ -994,7 +1038,14 @@ export default function ApprovedOperationsPage() {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between py-1 border-b">
               <span className="text-muted-foreground">{inspectRecord?.type === 'expense' ? 'Initiator / Recorded By:' : inspectRecord?.type === 'interest' ? 'Allocation Authority:' : 'Member / Initiator:'}</span>
-              <span className="font-bold">{inspectRecord?.memberName}</span>
+              <span className="font-bold flex items-center gap-1.5">
+                <span>{inspectRecord?.memberName}</span>
+                {inspectRecord?.isExited && (
+                  <Badge variant="outline" className="text-[9px] uppercase font-bold text-amber-700 dark:text-amber-400 border-amber-500/40 bg-amber-500/10 px-1.5 py-0 h-4">
+                    Exited
+                  </Badge>
+                )}
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b">
               <span className="text-muted-foreground">Authorized Amount:</span>

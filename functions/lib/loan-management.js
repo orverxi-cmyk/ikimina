@@ -238,10 +238,12 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
     }
     const userRole = (_b = userSnap.data()) === null || _b === void 0 ? void 0 : _b.role;
     const isSeniorAcct = userRole === 'senior_accountant';
+    const applicantName = ((_c = userSnap.data()) === null || _c === void 0 ? void 0 : _c.name) || ((_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.email) || 'A member';
     // 5. Create loan application
     const loanRef = db.collection('loans').doc();
     await loanRef.set({
         memberId,
+        memberName: applicantName,
         amount: loanAmount,
         description: description || (isTopUp ? `Loan Top-Up against facility #${parentLoanId.slice(0, 7)}` : 'Member capital loan application'),
         status: isSeniorAcct ? 'pending_reviewer' : 'requested',
@@ -270,7 +272,6 @@ exports.requestLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         managementApprovalFileName: requiresSpecialApproval ? (managementApprovalFileName || 'management_approval') : null,
         managementApprovalNotes: requiresSpecialApproval ? ((managementApprovalNotes === null || managementApprovalNotes === void 0 ? void 0 : managementApprovalNotes.trim()) || null) : null
     });
-    const applicantName = ((_c = userSnap.data()) === null || _c === void 0 ? void 0 : _c.name) || ((_d = userSnap.data()) === null || _d === void 0 ? void 0 : _d.email) || 'A member';
     if (isSeniorAcct) {
         await (0, notification_service_1.notifyRoles)(db, ['reviewer', 'admin'], {
             title: 'Loan Application Awaiting Review',
@@ -359,6 +360,7 @@ exports.withdrawLoanApplication = (0, https_1.onCall)({ cors: true }, async (req
  * Loads authoritative interest rate and terms from settings/financials.
  */
 exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const db = admin.firestore();
@@ -402,8 +404,11 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         const netDisbursed = isImmediate ? Math.max(0, loanData.amount - interestAmount) : loanData.amount;
         const effectiveDuration = Number(termsDurationMonths) || Number(loanData.durationMonths) || 12;
         const schedule = (0, loan_schedules_1.calculateAmortizationSchedule)(loanData.amount, interestToAddToRepayment, effectiveDuration, startDate);
+        const borrowerSnap = await db.collection('users').doc(loanData.memberId).get();
+        const borrowerName = ((_a = borrowerSnap.data()) === null || _a === void 0 ? void 0 : _a.name) || ((_b = borrowerSnap.data()) === null || _b === void 0 ? void 0 : _b.email) || loanData.memberName || 'A member';
         const batch = db.batch();
         batch.update(loanRef, {
+            memberName: borrowerName,
             status: 'approved',
             startDate: admin.firestore.Timestamp.fromDate(startDate),
             interestAmount,
@@ -427,6 +432,7 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             details: {
                 loanId,
                 memberId: loanData.memberId,
+                memberName: borrowerName,
                 principal: loanData.amount,
                 interest: interestAmount,
                 rate: globalRate,

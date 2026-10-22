@@ -259,11 +259,13 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
 
     const userRole = userSnap.data()?.role;
     const isSeniorAcct = userRole === 'senior_accountant';
+    const applicantName = userSnap.data()?.name || userSnap.data()?.email || 'A member';
 
     // 5. Create loan application
     const loanRef = db.collection('loans').doc();
     await loanRef.set({
         memberId,
+        memberName: applicantName,
         amount: loanAmount,
         description: description || (isTopUp ? `Loan Top-Up against facility #${parentLoanId.slice(0, 7)}` : 'Member capital loan application'),
         status: isSeniorAcct ? 'pending_reviewer' : 'requested',
@@ -293,7 +295,6 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
         managementApprovalNotes: requiresSpecialApproval ? (managementApprovalNotes?.trim() || null) : null
     });
 
-    const applicantName = userSnap.data()?.name || userSnap.data()?.email || 'A member';
     if (isSeniorAcct) {
         await notifyRoles(db, ['reviewer', 'admin'], {
             title: 'Loan Application Awaiting Review',
@@ -448,9 +449,13 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
         const effectiveDuration = Number(termsDurationMonths) || Number(loanData.durationMonths) || 12;
         const schedule = calculateAmortizationSchedule(loanData.amount, interestToAddToRepayment, effectiveDuration, startDate);
 
+        const borrowerSnap = await db.collection('users').doc(loanData.memberId).get();
+        const borrowerName = borrowerSnap.data()?.name || borrowerSnap.data()?.email || loanData.memberName || 'A member';
+
         const batch = db.batch();
         
         batch.update(loanRef, {
+            memberName: borrowerName,
             status: 'approved',
             startDate: admin.firestore.Timestamp.fromDate(startDate),
             interestAmount,
@@ -476,6 +481,7 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
             details: { 
                 loanId, 
                 memberId: loanData.memberId, 
+                memberName: borrowerName,
                 principal: loanData.amount, 
                 interest: interestAmount, 
                 rate: globalRate,
