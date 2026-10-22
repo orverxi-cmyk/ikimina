@@ -72,6 +72,7 @@ import {
   exportContributionsToExcel,
 } from '@/lib/contributions-export';
 import { ExportContributionsDialog } from '@/components/admin/export-contributions-dialog';
+import { downloadStaffContributionTemplate, RegisteredMember } from '@/lib/excel-template';
 
 function safeDate(val: any): Date | null {
   if (!val) return null;
@@ -174,6 +175,16 @@ export default function AdminContributionsPage() {
 
   const getMemberData = (id: string) => (memberMap.get(id) as any) || null;
   const getMemberName = (id: string) => (memberMap.get(id) as any)?.name || id || 'Unknown Member';
+
+  const registeredMembers: RegisteredMember[] = useMemo(() => {
+    return members.map((m: any) => ({
+      id: m.id,
+      name: m.name || 'Member',
+      email: m.email || '',
+      phone: m.phone || '',
+      role: m.role || 'member'
+    }));
+  }, [members]);
 
   // Fetch all individual contributions
   const slipsQuery = useMemoFirebase(
@@ -481,6 +492,16 @@ export default function AdminContributionsPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {(isAccountant || isSuperAdmin) && (
+            <Button
+              variant="outline"
+              onClick={() => downloadStaffContributionTemplate({ prefillMembers: registeredMembers, defaultAmount: 50000 })}
+              className="rounded-xl h-10 px-3.5 font-bold text-xs gap-1.5 border-border shadow-sm hover:bg-muted"
+            >
+              <Download className="h-4 w-4 text-primary" /> Contributions Template (.xlsx)
+            </Button>
+          )}
+
           {canExport && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -507,7 +528,7 @@ export default function AdminContributionsPage() {
 
           <Link href="/admin/approvals">
             <Button className="rounded-xl h-10 px-4 font-bold text-xs gap-2 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
-              <ShieldCheck className="h-4 w-4" /> Open Approvals Hub
+              <ShieldCheck className="h-4 w-4" /> {isAccountant ? 'Initiate Batch / Approvals' : 'Open Approvals Hub'}
             </Button>
           </Link>
         </div>
