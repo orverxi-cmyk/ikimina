@@ -978,10 +978,12 @@ exports.resetFinancialData = (0, https_1.onCall)({ cors: true }, async (request)
         const interestRequestsSnap = await db.collection('interest_distribution_requests').get();
         const finalPayoutsSnap = await db.collection('final_payouts').get();
         const accountDeletionsSnap = await db.collection('account_deletion_requests').get();
+        const campaignRequestsSnap = await db.collection('campaign_requests').get();
         const auditSnap = await db.collection('audit_logs').where('action', 'in', [
             'ALLOCATE_INTEREST', 'LODGE_EXPENSE', 'APPROVE_EXPENSE', 'REJECT_EXPENSE',
             'INITIATE_FINAL_PAYOUT', 'APPROVE_FINAL_PAYOUT_AND_DELETE_MEMBER', 'REJECT_FINAL_PAYOUT', 'WITHDRAW_FINAL_PAYOUT',
-            'SUBMIT_ACCOUNT_DELETION_REQUEST', 'REVIEW_ACCOUNT_DELETION_REQUEST', 'APPROVE_ACCOUNT_DELETION_REQUEST', 'REJECT_ACCOUNT_DELETION_REQUEST'
+            'SUBMIT_ACCOUNT_DELETION_REQUEST', 'REVIEW_ACCOUNT_DELETION_REQUEST', 'APPROVE_ACCOUNT_DELETION_REQUEST', 'REJECT_ACCOUNT_DELETION_REQUEST',
+            'INITIATE_INTEREST_PAYOUT_CAMPAIGN', 'REVIEW_INTEREST_PAYOUT_CAMPAIGN', 'APPROVE_INTEREST_PAYOUT_CAMPAIGN', 'OPEN_INTEREST_PAYOUT_CAMPAIGN', 'CLOSE_INTEREST_PAYOUT_CAMPAIGN'
         ]).get();
         const usersSnap = await db.collection('users').get();
         let batch = db.batch();
@@ -1038,6 +1040,11 @@ exports.resetFinancialData = (0, https_1.onCall)({ cors: true }, async (request)
             opCount++;
             await commitBatchIfNeeded();
         }
+        for (const doc of campaignRequestsSnap.docs) {
+            batch.delete(doc.ref);
+            opCount++;
+            await commitBatchIfNeeded();
+        }
         for (const doc of auditSnap.docs) {
             batch.delete(doc.ref);
             opCount++;
@@ -1050,11 +1057,22 @@ exports.resetFinancialData = (0, https_1.onCall)({ cors: true }, async (request)
                 finalPayoutPending: admin.firestore.FieldValue.delete(),
                 finalPayoutId: admin.firestore.FieldValue.delete(),
                 deletionRequested: admin.firestore.FieldValue.delete(),
-                deletionRequestId: admin.firestore.FieldValue.delete()
+                deletionRequestId: admin.firestore.FieldValue.delete(),
+                interestPayoutPreference: admin.firestore.FieldValue.delete()
             });
             opCount++;
             await commitBatchIfNeeded();
         }
+        // Close and clear active payout campaign in settings/financials
+        const settingsRef = db.collection('settings').doc('financials');
+        batch.set(settingsRef, {
+            payoutCampaign: {
+                status: 'closed',
+                closedAt: admin.firestore.FieldValue.serverTimestamp()
+            }
+        }, { merge: true });
+        opCount++;
+        await commitBatchIfNeeded();
         // Record permanent audit log of the financial reset
         const resetAuditRef = db.collection('audit_logs').doc();
         batch.set(resetAuditRef, {
@@ -1073,6 +1091,7 @@ exports.resetFinancialData = (0, https_1.onCall)({ cors: true }, async (request)
                 interestRequestsDeleted: interestRequestsSnap.size,
                 finalPayoutsDeleted: finalPayoutsSnap.size,
                 accountDeletionsDeleted: accountDeletionsSnap.size,
+                campaignRequestsDeleted: campaignRequestsSnap.size,
                 usersReset: usersSnap.size
             }
         });
@@ -1092,6 +1111,7 @@ exports.resetFinancialData = (0, https_1.onCall)({ cors: true }, async (request)
                 interestRequestsDeleted: interestRequestsSnap.size,
                 finalPayoutsDeleted: finalPayoutsSnap.size,
                 accountDeletionsDeleted: accountDeletionsSnap.size,
+                campaignRequestsDeleted: campaignRequestsSnap.size,
                 usersReset: usersSnap.size
             }
         };

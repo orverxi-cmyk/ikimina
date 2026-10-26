@@ -584,7 +584,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </aside>
           
           <main className="flex-1 overflow-y-auto overflow-x-hidden rounded-[10px] relative min-w-0 flex flex-col">
-            <div className="flex-1 min-w-0 w-full">
+            <div className="flex-1 min-w-0 w-full [&>*]:ml-0 [&>*]:w-full [&>*]:max-w-none">
               {children}
             </div>
             <AppFooter />
