@@ -1179,9 +1179,6 @@ export default function ApprovalsHubPage() {
             <Badge className="bg-primary/10 text-primary border-none text-[9px] uppercase font-bold tracking-wider">
               Governance & Dual-Control
             </Badge>
-            <Badge variant="outline" className="text-[9px] uppercase font-bold border-green-500/30 text-green-700 bg-green-500/5">
-              <ShieldCheck className="h-3 w-3 mr-1" /> 4-Eyes Principle Enforced
-            </Badge>
             {totalPendingItems > 0 && (
               <Badge className="bg-amber-500/10 text-amber-700 border-none text-[9px] font-bold">
                 {totalPendingItems} Pending Action{totalPendingItems > 1 ? 's' : ''}
