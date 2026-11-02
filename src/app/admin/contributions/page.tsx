@@ -259,9 +259,7 @@ export default function AdminContributionsPage() {
   }, [isSuperAdmin, isSeniorAccountant, isReviewer, slipsReadyForAdminApproval, allSlips]);
 
   // KPI numbers
-  const totalContributedSlips = useMemo(() => approvedSlips.reduce((s, c) => s + (Number(c.amount) || 0), 0), [approvedSlips]);
-  const totalContributedBatches = useMemo(() => approvedBatches.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0), [approvedBatches]);
-  const totalContributed = totalContributedSlips + totalContributedBatches;
+  const totalContributed = useMemo(() => approvedSlips.reduce((s, c) => s + (Number(c.amount) || 0), 0), [approvedSlips]);
 
   // Filtered slips based on active tab and search query
   const filteredSlips = useMemo(() => {

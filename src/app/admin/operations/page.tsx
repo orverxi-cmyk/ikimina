@@ -167,10 +167,19 @@ export default function ApprovedOperationsPage() {
   const allOperations = useMemo(() => {
     const ops: any[] = [];
 
+    // Map approved batches by ID to inherit dual-control audit trails on batch-committed deposits
+    const batchMap = new Map<string, any>();
+    (approvedBatchesSnap?.docs || []).forEach(d => {
+      const bData = d.data();
+      batchMap.set(d.id, bData);
+      if (bData.batchId) batchMap.set(bData.batchId, bData);
+    });
+
     // 1. Contributions (Deposits)
     (approvedContributionsSnap?.docs || []).forEach(d => {
       const data = d.data();
-      const memberRes = resolveMember(data.memberId, data.memberName);
+      const parentBatch = data.batchId ? batchMap.get(data.batchId) : null;
+      const memberRes = resolveMember(data.memberId, data.memberName || data.staffName);
       ops.push({
         id: d.id,
         type: 'deposit',
@@ -182,52 +191,20 @@ export default function ApprovedOperationsPage() {
         status: data.status,
         period: data.period || '—',
         date: data.createdAt || data.verifiedAt || data.date,
-        seniorReviewedBy: data.seniorReviewedBy,
-        seniorReviewedByName: data.seniorReviewedByName,
-        seniorReviewedAt: data.seniorReviewedAt,
-        seniorReviewNotes: data.seniorReviewJustification || data.seniorReviewNotes,
-        reviewedBy: data.reviewedBy,
-        reviewedByName: data.reviewedByName || data.reviewerName,
-        reviewedAt: data.reviewedAt,
-        reviewNotes: data.reviewJustification || data.reviewNotes,
-        approvedBy: data.approvedBy,
-        approvedByName: data.approvedByName || data.approverName,
-        approvedAt: data.approvedAt,
-        approvalNotes: data.approvalJustification || data.approvalNotes || data.justification,
+        seniorReviewedBy: data.seniorReviewedBy || parentBatch?.seniorReviewedBy,
+        seniorReviewedByName: data.seniorReviewedByName || parentBatch?.seniorReviewedByName,
+        seniorReviewedAt: data.seniorReviewedAt || parentBatch?.seniorReviewedAt,
+        seniorReviewNotes: data.seniorReviewJustification || data.seniorReviewNotes || parentBatch?.seniorReviewNotes,
+        reviewedBy: data.reviewedBy || parentBatch?.reviewedBy,
+        reviewedByName: data.reviewedByName || data.reviewerName || parentBatch?.reviewedByName || parentBatch?.reviewerName,
+        reviewedAt: data.reviewedAt || parentBatch?.reviewedAt,
+        reviewNotes: data.reviewJustification || data.reviewNotes || parentBatch?.reviewNotes,
+        approvedBy: data.approvedBy || parentBatch?.approvedBy,
+        approvedByName: data.approvedByName || data.approverName || parentBatch?.approvedByName || parentBatch?.approverName,
+        approvedAt: data.approvedAt || parentBatch?.approvedAt,
+        approvalNotes: data.approvalJustification || data.approvalNotes || data.justification || parentBatch?.approvalNotes,
+        auditTrail: data.auditTrail || parentBatch?.auditTrail,
         notes: data.notes || data.justification,
-        raw: data,
-      });
-    });
-
-    // 2. Approved Contribution Batches
-    (approvedBatchesSnap?.docs || []).forEach(d => {
-      const data = d.data();
-      const initiatorRes = resolveMember(data.initiatedBy, data.initiatorName);
-      ops.push({
-        id: d.id,
-        type: 'deposit',
-        typeLabel: 'Deposit Batch',
-        memberId: data.initiatedBy,
-        memberName: `${initiatorRes.name} (${data.totalCount || data.items?.length || 0} members)`,
-        isExited: initiatorRes.isExited,
-        amount: Number(data.totalAmount) || 0,
-        status: data.status,
-        period: data.title || data.defaultPeriod || '—',
-        date: data.approvedAt || data.initiatedAt || data.createdAt,
-        seniorReviewedBy: data.seniorReviewedBy,
-        seniorReviewedByName: data.seniorReviewedByName,
-        seniorReviewedAt: data.seniorReviewedAt,
-        seniorReviewNotes: data.seniorReviewNotes,
-        reviewedBy: data.reviewedBy,
-        reviewedByName: data.reviewedByName || data.reviewerName,
-        reviewedAt: data.reviewedAt,
-        reviewNotes: data.reviewNotes,
-        approvedBy: data.approvedBy,
-        approvedByName: data.approvedByName || data.approverName,
-        approvedAt: data.approvedAt,
-        approvalNotes: data.approvalNotes,
-        auditTrail: data.auditTrail,
-        notes: data.title,
         raw: data,
       });
     });
