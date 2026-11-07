@@ -423,274 +423,17 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* 8 TOP EXECUTIVE KPI CARDS */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {/* 1. TOTAL ASSET AMOUNT (WITH EXPENSES SUBTRACTED) */}
-        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
-                Institutional Balance
-              </span>
-              <CardTitle className="text-base font-bold text-white mt-0.5">
-                Total Net Assets
-              </CardTitle>
-            </div>
-            <div className="p-2 bg-white/10 text-white rounded-lg">
-              <Wallet className="h-5 w-5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {formatCurrency(totalAssetAmount, currency)}
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Gross Capital:</span>
-              <span className="font-bold text-foreground text-xs">{formatCurrency(grossCapital, currency)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium text-[11px]">Approved Expenses:</span>
-              <span className="font-bold text-destructive text-xs">-{formatCurrency(totalApprovedExpenses, currency)}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 2. TOTAL LOAN AMOUNT */}
-        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
-                Credit Facility
-              </span>
-              <CardTitle className="text-base font-bold text-white mt-0.5">
-                Total Loan Portfolio
-              </CardTitle>
-            </div>
-            <div className="p-2 bg-white/10 text-white rounded-lg">
-              <Landmark className="h-5 w-5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {formatCurrency(totalActivePrincipalBalance, currency)}
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Cumulative Disbursed:</span>
-              <span className="font-bold text-foreground text-xs">{formatCurrency(totalLoanAmountDisbursed, currency)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground text-[11px]">Disbursed Facilities:</span>
-              <span className="font-semibold text-foreground text-xs">{approvedLoans.length} Loans</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 3. TOTAL ARREARS AMOUNT */}
-        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
-                Default Risk Watch
-              </span>
-              <CardTitle className="text-base font-bold text-white mt-0.5">
-                Total Arrears Amount
-              </CardTitle>
-            </div>
-            <div className="p-2 bg-white/10 text-white rounded-lg">
-              <AlertTriangle className="h-5 w-5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {formatCurrency(totalArrearsAmount, currency)}
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Overdue Installments:</span>
-              <Badge variant={totalArrearsAmount > 0 ? "destructive" : "outline"} className="text-[10px] font-bold h-5">
-                {arrearsList.length} Missed
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground text-[11px]">Portfolio Risk:</span>
-              <span className="font-semibold text-[11px] text-foreground">
-                {totalActivePrincipalBalance > 0 
-                  ? `${Math.round((totalArrearsAmount / totalActivePrincipalBalance) * 100)}% of active debt` 
-                  : '0%'}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 4. TOTAL INTERESTS */}
-        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
-                Revenue Generation
-              </span>
-              <CardTitle className="text-base font-bold text-white mt-0.5">
-                Total Group Interest
-              </CardTitle>
-            </div>
-            <div className="p-2 bg-white/10 text-white rounded-lg">
-              <TrendingUp className="h-5 w-5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {formatCurrency(totalLoanInterests, currency)}
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Accrued to Members:</span>
-              <span className="font-bold text-foreground text-xs">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground text-[11px]">Undistributed Yield:</span>
-              <span className="font-bold text-foreground text-xs">{formatCurrency(Math.max(0, totalLoanInterests - totalMemberAccruedInterest), currency)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground text-[11px]">Policy Rate:</span>
-              <span className="font-semibold text-foreground text-xs">{settings.loanInterestRate || 10}% ({settings.interestModel || 'one-off'})</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 5. TOTAL MEMBERS */}
-        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
-                Scheme Participation
-              </span>
-              <CardTitle className="text-base font-bold text-white mt-0.5">
-                Total Members
-              </CardTitle>
-            </div>
-            <div className="p-2 bg-white/10 text-white rounded-lg">
-              <Users className="h-5 w-5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {totalMembersCount}
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Staff Participants:</span>
-              <span className="font-semibold text-foreground text-xs">{regularMembersCount} Savers</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground text-[11px]">Administrative Officers:</span>
-              <span className="font-semibold text-foreground text-xs">{staffOfficersCount} Staff</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 6. OPERATING EXPENSES (DEDUCTED FROM ASSETS) */}
-        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
-                Operational Outflows
-              </span>
-              <CardTitle className="text-base font-bold text-white mt-0.5">
-                Operating Expenses
-              </CardTitle>
-            </div>
-            <div className="p-2 bg-white/10 text-white rounded-lg">
-              <Receipt className="h-5 w-5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {formatCurrency(totalApprovedExpenses, currency)}
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Pending Approvals:</span>
-              <Badge variant={pendingExpenses.length > 0 ? "secondary" : "outline"} className="text-[10px] font-bold">
-                {pendingExpenses.length} Pending
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground text-[11px]">Audited Vouchers:</span>
-              <span className="font-semibold text-foreground text-xs">{approvedExpenses.length} Approved</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 7. TOTAL PAYOFF AMOUNT (MEMBER EXITS) */}
-        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
-                Account Closures
-              </span>
-              <CardTitle className="text-base font-bold text-white mt-0.5">
-                Total Member Payoffs
-              </CardTitle>
-            </div>
-            <div className="p-2 bg-white/10 text-white rounded-lg">
-              <UserX className="h-5 w-5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {formatCurrency(totalPayoffAmount, currency)}
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Exited Members:</span>
-              <span className="font-bold text-foreground text-xs">{approvedPayoffs.length} Settled</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground text-[11px]">Pending Reviews:</span>
-              <Badge variant={pendingPayoffs.length > 0 ? "secondary" : "outline"} className="text-[10px] font-bold h-5">
-                {pendingPayoffs.length} Pending
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 8. TOTAL INTEREST DISTRIBUTED */}
-        <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white p-4 border-b border-blue-700/30 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">
-                Yield Allocation
-              </span>
-              <CardTitle className="text-base font-bold text-white mt-0.5">
-                Interest Distributed
-              </CardTitle>
-            </div>
-            <div className="p-2 bg-white/10 text-white rounded-lg">
-              <ArrowUpRight className="h-5 w-5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 bg-white space-y-2">
-            <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
-              {formatCurrency(totalInterestDistributed, currency)}
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-              <span className="text-muted-foreground text-[11px]">Capitalized to Savings:</span>
-              <span className="font-bold text-foreground text-xs">{formatCurrency(totalInterestCapitalized, currency)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground text-[11px]">Direct Cash Payouts:</span>
-              <span className="font-bold text-foreground text-xs">{formatCurrency(totalInterestCashPaid, currency)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* DETAILED INTERACTIVE MODULE TABS */}
+      {/* UNIFIED EXECUTIVE TABBED MENU */}
       <Tabs defaultValue="balance-sheet" className="space-y-6">
         <div className="w-full overflow-x-auto no-scrollbar pb-1">
           <TabsList className="inline-flex w-full min-w-max md:min-w-0 md:grid md:grid-cols-4 h-11 p-1 bg-muted rounded-xl border border-border/60 gap-1">
             <TabsTrigger value="balance-sheet" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <PieChart className="h-3.5 w-3.5" />
-              Asset Reconciliation
+              Capital &amp; Assets
             </TabsTrigger>
             <TabsTrigger value="arrears-watchlist" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <AlertTriangle className="h-3.5 w-3.5" />
-              Arrears Watchlist
+              Credit &amp; Arrears
               {arrearsList.length > 0 && (
                 <Badge className="bg-destructive text-white font-mono text-[9px] h-4 min-w-4 px-1 rounded-full border-none">
                   {arrearsList.length}
@@ -699,7 +442,7 @@ export default function AdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="expenses-ledger" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Receipt className="h-3.5 w-3.5" />
-              Operating Expenses
+              Expenses &amp; Payoffs
               {pendingExpenses.length > 0 && (
                 <Badge data-tab-count="true" className="tab-badge font-mono text-[9px] h-4 min-w-4 px-1.5 rounded-full border-none transition-colors">
                   {pendingExpenses.length}
@@ -707,14 +450,147 @@ export default function AdminDashboard() {
               )}
             </TabsTrigger>
             <TabsTrigger value="source-deductions" className="gap-2 px-3 sm:px-4 whitespace-nowrap shrink-0 rounded-lg text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              Payroll Batches
+              <Users className="h-3.5 w-3.5" />
+              Members &amp; Payroll
             </TabsTrigger>
           </TabsList>
         </div>
 
-        {/* TAB 1: ASSET RECONCILIATION & BALANCE SHEET */}
+        {/* TAB 1: CAPITAL & ASSETS */}
         <TabsContent value="balance-sheet" className="space-y-6">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
+            {/* 1. TOTAL ASSET AMOUNT (WITH EXPENSES SUBTRACTED) */}
+            <Card className="flex flex-col h-full shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+              <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Institutional Balance
+                  </span>
+                  <CardTitle className="text-base font-bold text-foreground mt-0.5">
+                    Total Net Assets
+                  </CardTitle>
+                </div>
+                <div className="p-2 bg-blue-500/10 text-blue-600 rounded-lg shrink-0">
+                  <Wallet className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-1 bg-white flex-1 flex flex-col justify-between gap-3">
+                <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+                  {formatCurrency(totalAssetAmount, currency)}
+                </div>
+                <div className="pt-2.5 border-t border-border space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Gross Capital:</span>
+                    <span className="font-bold text-foreground text-xs">{formatCurrency(grossCapital, currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground font-medium text-[11px]">Approved Expenses:</span>
+                    <span className="font-bold text-destructive text-xs">-{formatCurrency(totalApprovedExpenses, currency)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 2. TOTAL LOAN AMOUNT */}
+            <Card className="flex flex-col h-full shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+              <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Credit Facility
+                  </span>
+                  <CardTitle className="text-base font-bold text-foreground mt-0.5">
+                    Total Loan Portfolio
+                  </CardTitle>
+                </div>
+                <div className="p-2 bg-indigo-500/10 text-indigo-600 rounded-lg shrink-0">
+                  <Landmark className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-1 bg-white flex-1 flex flex-col justify-between gap-3">
+                <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+                  {formatCurrency(totalActivePrincipalBalance, currency)}
+                </div>
+                <div className="pt-2.5 border-t border-border space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Cumulative Disbursed:</span>
+                    <span className="font-bold text-foreground text-xs">{formatCurrency(totalLoanAmountDisbursed, currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Disbursed Facilities:</span>
+                    <span className="font-semibold text-foreground text-xs">{approvedLoans.length} Loans</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 4. TOTAL INTERESTS */}
+            <Card className="flex flex-col h-full shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+              <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Revenue Generation
+                  </span>
+                  <CardTitle className="text-base font-bold text-foreground mt-0.5">
+                    Total Group Interest
+                  </CardTitle>
+                </div>
+                <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-lg shrink-0">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-1 bg-white flex-1 flex flex-col justify-between gap-3">
+                <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+                  {formatCurrency(totalLoanInterests, currency)}
+                </div>
+                <div className="pt-2.5 border-t border-border space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Accrued to Members:</span>
+                    <span className="font-bold text-foreground text-xs">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Undistributed Yield:</span>
+                    <span className="font-bold text-foreground text-xs">{formatCurrency(Math.max(0, totalLoanInterests - totalMemberAccruedInterest), currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Policy Rate:</span>
+                    <span className="font-semibold text-foreground text-xs">{settings.loanInterestRate || 10}% ({settings.interestModel || 'one-off'})</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 8. TOTAL INTEREST DISTRIBUTED */}
+            <Card className="flex flex-col h-full shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+              <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Yield Allocation
+                  </span>
+                  <CardTitle className="text-base font-bold text-foreground mt-0.5">
+                    Interest Distributed
+                  </CardTitle>
+                </div>
+                <div className="p-2 bg-purple-500/10 text-purple-600 rounded-lg shrink-0">
+                  <ArrowUpRight className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-1 bg-white flex-1 flex flex-col justify-between gap-3">
+                <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+                  {formatCurrency(totalInterestDistributed, currency)}
+                </div>
+                <div className="pt-2.5 border-t border-border space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Capitalized to Savings:</span>
+                    <span className="font-bold text-foreground text-xs">{formatCurrency(totalInterestCapitalized, currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Direct Cash Payouts:</span>
+                    <span className="font-bold text-foreground text-xs">{formatCurrency(totalInterestCashPaid, currency)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
           <Card className="border border-border shadow-sm bg-white rounded-[10px] overflow-hidden">
             <CardHeader className="bg-blue-600 text-white p-5 border-b border-blue-700/30">
               <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
@@ -908,8 +784,45 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
 
-        {/* TAB 2: ARREARS WATCHLIST */}
+        {/* TAB 2: CREDIT & ARREARS */}
         <TabsContent value="arrears-watchlist" className="space-y-4">
+          {/* 3. TOTAL ARREARS AMOUNT */}
+          <Card className="shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+            <CardContent className="p-4 bg-white grid grid-cols-1 sm:grid-cols-3 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Default Risk Watch
+                  </span>
+                  <CardTitle className="text-base font-bold text-foreground mt-0.5">
+                    Total Arrears Amount
+                  </CardTitle>
+                  <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground mt-1">
+                    {formatCurrency(totalArrearsAmount, currency)}
+                  </div>
+                </div>
+                <div className="p-2 bg-amber-500/10 text-amber-600 rounded-lg shrink-0">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+              </div>
+              <div className="pt-3 sm:pt-0 sm:pl-4 flex flex-col justify-center gap-1.5">
+                <span className="text-muted-foreground text-[11px]">Overdue Installments:</span>
+                <div>
+                  <Badge variant={totalArrearsAmount > 0 ? "destructive" : "outline"} className="text-[10px] font-bold h-5">
+                    {arrearsList.length} Missed
+                  </Badge>
+                </div>
+              </div>
+              <div className="pt-3 sm:pt-0 sm:pl-4 flex flex-col justify-center gap-1.5">
+                <span className="text-muted-foreground text-[11px]">Portfolio Risk:</span>
+                <span className="font-semibold text-xs text-foreground">
+                  {totalActivePrincipalBalance > 0 
+                    ? `${Math.round((totalArrearsAmount / totalActivePrincipalBalance) * 100)}% of active debt` 
+                    : '0%'}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
           <Card className="border border-border shadow-sm">
             <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
               <div>
@@ -989,8 +902,77 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
 
-        {/* TAB 3: OPERATING EXPENSES HUB OVERVIEW */}
+        {/* TAB 3: EXPENSES & PAYOFFS */}
         <TabsContent value="expenses-ledger" className="space-y-4">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 items-stretch">
+            {/* 6. OPERATING EXPENSES (DEDUCTED FROM ASSETS) */}
+            <Card className="flex flex-col h-full shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+              <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Operational Outflows
+                  </span>
+                  <CardTitle className="text-base font-bold text-foreground mt-0.5">
+                    Operating Expenses
+                  </CardTitle>
+                </div>
+                <div className="p-2 bg-amber-500/10 text-amber-600 rounded-lg shrink-0">
+                  <Receipt className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-1 bg-white flex-1 flex flex-col justify-between gap-3">
+                <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+                  {formatCurrency(totalApprovedExpenses, currency)}
+                </div>
+                <div className="pt-2.5 border-t border-border space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Pending Approvals:</span>
+                    <Badge variant={pendingExpenses.length > 0 ? "secondary" : "outline"} className="text-[10px] font-bold">
+                      {pendingExpenses.length} Pending
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Audited Vouchers:</span>
+                    <span className="font-semibold text-foreground text-xs">{approvedExpenses.length} Approved</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 7. TOTAL PAYOFF AMOUNT (MEMBER EXITS) */}
+            <Card className="flex flex-col h-full shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+              <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Account Closures
+                  </span>
+                  <CardTitle className="text-base font-bold text-foreground mt-0.5">
+                    Total Member Payoffs
+                  </CardTitle>
+                </div>
+                <div className="p-2 bg-rose-500/10 text-rose-600 rounded-lg shrink-0">
+                  <UserX className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-1 bg-white flex-1 flex flex-col justify-between gap-3">
+                <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+                  {formatCurrency(totalPayoffAmount, currency)}
+                </div>
+                <div className="pt-2.5 border-t border-border space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Exited Members:</span>
+                    <span className="font-bold text-foreground text-xs">{approvedPayoffs.length} Settled</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Pending Reviews:</span>
+                    <Badge variant={pendingPayoffs.length > 0 ? "secondary" : "outline"} className="text-[10px] font-bold h-5">
+                      {pendingPayoffs.length} Pending
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
           <Card className="border border-border shadow-sm">
             <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between flex-wrap gap-3">
               <div>
@@ -1077,46 +1059,80 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
 
-        {/* TAB 4: SOURCE DEDUCTIONS & PAYROLL BATCHES */}
+        {/* TAB 4: MEMBERS & PAYROLL */}
         <TabsContent value="source-deductions" className="space-y-6">
-          {/* Primary Feature Highlight: Source Deductions Upload */}
-          <Card className="shadow-md border-primary/20 bg-gradient-to-r from-primary/5 via-card to-background">
-            <CardContent className="pt-6 pb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <div className="space-y-2 max-w-xl">
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-primary text-primary-foreground border-none text-[10px] uppercase font-bold">
-                    Accountant Tool
-                  </Badge>
-                  <span className="text-xs text-muted-foreground font-semibold">Monthly Payroll Integration</span>
+          <div className="grid gap-4 lg:grid-cols-3 items-stretch">
+            {/* 5. TOTAL MEMBERS */}
+            <Card className="flex flex-col h-full shadow-sm border border-border bg-white rounded-[10px] overflow-hidden">
+              <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Scheme Participation
+                  </span>
+                  <CardTitle className="text-base font-bold text-foreground mt-0.5">
+                    Total Members
+                  </CardTitle>
                 </div>
-                <h3 className="text-xl font-bold font-headline">
-                  Upload Staff Contributions from Excel
-                </h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Deduct contributions at source and upload in bulk using standard Excel or CSV files. Automatically cross-references staff by email, validates amounts, and updates member balances instantly.
-                </p>
-              </div>
+                <div className="p-2 bg-blue-500/10 text-blue-600 rounded-lg shrink-0">
+                  <Users className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-1 bg-white flex-1 flex flex-col justify-between gap-3">
+                <div className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground">
+                  {totalMembersCount}
+                </div>
+                <div className="pt-2.5 border-t border-border space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Staff Participants:</span>
+                    <span className="font-semibold text-foreground text-xs">{regularMembersCount} Savers</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground text-[11px]">Administrative Officers:</span>
+                    <span className="font-semibold text-foreground text-xs">{staffOfficersCount} Staff</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-              <div className="flex items-center gap-3 shrink-0 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => downloadStaffContributionTemplate({ defaultAmount: 50000 })}
-                  className="rounded-xl font-bold text-xs gap-2 bg-card"
-                >
-                  <Download className="h-3.5 w-3.5 text-primary" />
-                  Download Template (.xlsx)
-                </Button>
+            {/* Primary Feature Highlight: Source Deductions Upload */}
+            <Card className="lg:col-span-2 flex flex-col justify-center shadow-md border-primary/20 bg-gradient-to-r from-primary/5 via-card to-background">
+              <CardContent className="pt-6 pb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-2 max-w-xl">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-primary text-primary-foreground border-none text-[10px] uppercase font-bold">
+                      Accountant Tool
+                    </Badge>
+                    <span className="text-xs text-muted-foreground font-semibold">Monthly Payroll Integration</span>
+                  </div>
+                  <h3 className="text-xl font-bold font-headline">
+                    Upload Staff Contributions from Excel
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Deduct contributions at source and upload in bulk using standard Excel or CSV files. Automatically cross-references staff by email, validates amounts, and updates member balances instantly.
+                  </p>
+                </div>
 
-                <Button asChild size="sm" className="rounded-xl font-bold text-xs gap-2 shadow-md">
-                  <Link href="/admin/contributions">
-                    <FileSpreadsheet className="h-3.5 w-3.5" />
-                    Go to Bulk Upload <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadStaffContributionTemplate({ defaultAmount: 50000 })}
+                    className="rounded-xl font-bold text-xs gap-2 bg-card"
+                  >
+                    <Download className="h-3.5 w-3.5 text-primary" />
+                    Download Template (.xlsx)
+                  </Button>
+
+                  <Button asChild size="sm" className="rounded-xl font-bold text-xs gap-2 shadow-md">
+                    <Link href="/admin/contributions">
+                      <FileSpreadsheet className="h-3.5 w-3.5" />
+                      Go to Bulk Upload <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Members & Audit Grid */}
           <div className="grid gap-6 md:grid-cols-2">
