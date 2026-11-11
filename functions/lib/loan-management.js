@@ -388,8 +388,8 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
         // Authoritatively fetch policy settings from Firestore
         const settingsSnap = await db.collection('settings').doc('financials').get();
         const settings = settingsSnap.data() || {};
-        const globalRate = Number(settings.loanInterestRate) || 10;
-        const penaltyRate = Number(settings.penaltyRate) || 2;
+        const globalRate = loanData.isBulkLoan ? 0 : (settings.loanInterestRate !== undefined && settings.loanInterestRate !== null ? Number(settings.loanInterestRate) : 10);
+        const penaltyRate = settings.penaltyRate !== undefined && settings.penaltyRate !== null ? Number(settings.penaltyRate) : 2;
         const interestType = settings.interestType || 'immediate';
         // Authoritative interest calculation on the server:
         // One-off interest is deducted from the approved loan amount.

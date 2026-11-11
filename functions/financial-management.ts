@@ -1042,7 +1042,7 @@ export const updateFinancialSettings = onCall({ cors: true }, async (request) =>
             maxLendingPoolPercentage: maxLendingPoolPercentage !== undefined ? Number(maxLendingPoolPercentage) : 90,
             maxRepaymentPeriod: maxRepaymentPeriod !== undefined ? Number(maxRepaymentPeriod) : 12,
             minLoanAmount: Number(minLoanAmount),
-            penaltyRate: Number(penaltyRate || 2),
+            penaltyRate: penaltyRate !== undefined && penaltyRate !== null ? Number(penaltyRate) : 2,
             depositBankName: depositBankName ? String(depositBankName).trim() : '',
             depositAccountNumber: depositAccountNumber ? String(depositAccountNumber).trim() : '',
             infrastructureBranding: infrastructureBranding !== undefined ? String(infrastructureBranding).trim() : 'Secure Infrastructure Provided by ORVEXI',
@@ -1322,7 +1322,7 @@ export const getSystemSettings = onCall({ cors: true }, async (request) => {
     const data = snap.data()!;
     return {
         currency: data.currency || 'RWF',
-        loanInterestRate: Number(data.loanInterestRate) || 10,
+        loanInterestRate: data.loanInterestRate !== undefined && data.loanInterestRate !== null ? Number(data.loanInterestRate) : 10,
         interestModel: data.interestModel || 'one-off',
         interestType: data.interestType || 'immediate',
         contributionInterestRate: Number(data.contributionInterestRate) || 50000,
@@ -1330,7 +1330,7 @@ export const getSystemSettings = onCall({ cors: true }, async (request) => {
         maxLendingPoolPercentage: data.maxLendingPoolPercentage !== undefined ? Number(data.maxLendingPoolPercentage) : 90,
         maxRepaymentPeriod: data.maxRepaymentPeriod !== undefined ? Number(data.maxRepaymentPeriod) : 12,
         minLoanAmount: Number(data.minLoanAmount) || 5000,
-        penaltyRate: Number(data.penaltyRate) || 2,
+        penaltyRate: data.penaltyRate !== undefined && data.penaltyRate !== null ? Number(data.penaltyRate) : 2,
         depositBankName: data.depositBankName || '',
         depositAccountNumber: data.depositAccountNumber || '',
         infrastructureBranding: data.infrastructureBranding || 'Secure Infrastructure Provided by ORVEXI',

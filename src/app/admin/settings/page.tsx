@@ -728,8 +728,9 @@ export default function AdminSettingsPage() {
                     <Input 
                       name="penaltyRate" 
                       type="number" 
+                      min="0"
                       step="0.1" 
-                      defaultValue={settings.penaltyRate || 2} 
+                      defaultValue={settings.penaltyRate ?? 2} 
                       required 
                       className="h-11 rounded-[10px] bg-muted border-none"
                     />
@@ -825,8 +826,9 @@ export default function AdminSettingsPage() {
                     <Input 
                       name="loanInterestRate" 
                       type="number" 
+                      min="0"
                       step="0.01" 
-                      defaultValue={settings.loanInterestRate || 10} 
+                      defaultValue={settings.loanInterestRate ?? 10} 
                       required 
                       className="h-11 rounded-[10px] bg-muted border-none"
                     />

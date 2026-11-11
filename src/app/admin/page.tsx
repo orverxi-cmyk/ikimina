@@ -552,7 +552,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground text-[11px]">Policy Rate:</span>
-                    <span className="font-semibold text-foreground text-xs">{settings.loanInterestRate || 10}% ({settings.interestModel || 'one-off'})</span>
+                    <span className="font-semibold text-foreground text-xs">{settings.loanInterestRate ?? 10}% ({settings.interestModel || 'one-off'})</span>
                   </div>
                 </div>
               </CardContent>

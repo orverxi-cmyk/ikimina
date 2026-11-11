@@ -909,7 +909,7 @@ function LoanApplyContent() {
 
                 {/* Upfront interest calculation & repayment schedule preview */}
                 {numericAmount >= minLoanAmount && (() => {
-                  const rate = settings.loanInterestRate || 10;
+                  const rate = settings.loanInterestRate ?? 10;
                   const interestAmt = Math.round(numericAmount * (rate / 100));
                   const netReceived = Math.max(0, numericAmount - interestAmt);
                   const monthlyEst = Math.round(numericAmount / numericMonths);

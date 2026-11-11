@@ -94,8 +94,8 @@ function LoansPageContent() {
 
   const { settings } = useSettings();
   const currency = settings.currency;
-  const globalRate = settings.loanInterestRate || 10;
-  const globalPenaltyRate = settings.penaltyRate || 2;
+  const globalRate = settings.loanInterestRate ?? 10;
+  const globalPenaltyRate = settings.penaltyRate ?? 2;
   const globalInterestType = settings.interestType || 'immediate';
   const minLoanAmount = settings.minLoanAmount || 5000;
   
@@ -520,7 +520,8 @@ function LoansPageContent() {
           return;
         }
 
-        const calculatedInterest = Math.round(selectedLoan.amount * (globalRate / 100));
+        const effectiveRate = selectedLoan.isBulkLoan ? 0 : globalRate;
+        const calculatedInterest = Math.round(selectedLoan.amount * (effectiveRate / 100));
         const terms = {
           interestAmount: calculatedInterest,
           durationMonths: Number(formData.get('durationMonths')) || (Number(selectedLoan.durationMonths) || 12),
@@ -1438,7 +1439,8 @@ function LoansPageContent() {
             const requestedAmt = Number(selectedLoan.amount) || 0;
             const isEligible = borrowingPower >= requestedAmt && borrowingPower > 0;
             const coveragePercent = borrowingPower > 0 ? Math.round((requestedAmt / borrowingPower) * 100) : 0;
-            const loanInterest = Math.round(requestedAmt * (globalRate / 100));
+            const effectiveRate = selectedLoan.isBulkLoan ? 0 : globalRate;
+            const loanInterest = Math.round(requestedAmt * (effectiveRate / 100));
             // In accordance with upfront interest policy:
             // One-off interest is deducted from the approved loan at disbursement:
             // Amount received (disbursed) = loan amount - interest (e.g. 300,000 - 30,000 = 270,000)
@@ -1691,7 +1693,7 @@ function LoansPageContent() {
                       </div>
                       <div className="rounded-lg border border-border shadow-sm overflow-hidden bg-white dark:bg-card flex flex-col min-w-0">
                         <div className="bg-blue-600 text-white px-2 py-1 border-b border-blue-700/30">
-                          <p className="text-[10px] text-white uppercase font-semibold truncate">Interest ({globalRate}%)</p>
+                          <p className="text-[10px] text-white uppercase font-semibold truncate">Interest ({effectiveRate}%)</p>
                         </div>
                         <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-center">
                           <p className="text-xs sm:text-sm font-bold text-foreground truncate">-{formatCurrency(loanInterest, currency)}</p>
