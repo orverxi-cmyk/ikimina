@@ -137,7 +137,7 @@ export default function MembersPage() {
     return members.some((m: any) => m.email?.toLowerCase().trim() === normalizedFormEmail);
   }, [members, normalizedFormEmail, isEditing]);
 
-  const pendingMembers = useMemo(() => members.filter((m: any) => m.status === 'pending'), [members]);
+  const pendingMembers = useMemo(() => members.filter((m: any) => m.status === 'pending' || m.status === 'pending_reviewer' || m.status === 'reviewed'), [members]);
   const pendingCount = pendingMembers.length;
 
   const filteredMembers = useMemo(() => members.filter((m: any) => {
@@ -147,7 +147,7 @@ export default function MembersPage() {
       m.phone?.includes(searchTerm);
     
     if (!matchesSearch) return false;
-    if (statusFilter === 'pending') return m.status === 'pending';
+    if (statusFilter === 'pending') return m.status === 'pending' || m.status === 'pending_reviewer' || m.status === 'reviewed';
     if (statusFilter === 'active') return m.status === 'active';
     return true;
   }), [members, searchTerm, statusFilter]);
@@ -766,7 +766,7 @@ export default function MembersPage() {
                             <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 uppercase text-[9px] font-bold px-2.5 py-0.5 flex items-center gap-1">
                               <Clock className="h-3 w-3" /> Pending
                             </Badge>
-                            {((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer')) && (
+                            {(!member.role || member.role === 'member') && ((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer')) && (
                               <Button 
                                 size="sm" 
                                 onClick={() => {
@@ -785,7 +785,7 @@ export default function MembersPage() {
                                 Review
                               </Button>
                             )}
-                            {isAdmin && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor' || member.role === 'admin') && member.status === 'pending')) && (
+                            {isAdmin && Boolean(member.passwordSet) && (member.status === 'reviewed' || (Boolean(member.role && member.role !== 'member') && member.status === 'pending')) && (
                               <Button 
                                 size="sm" 
                                 onClick={() => {
@@ -818,7 +818,7 @@ export default function MembersPage() {
                             <DropdownMenuItem className="font-bold" onClick={() => { setSelectedMember(member); setFormEmail(member.email || ''); setIsEditing(true); setIsAddDialogOpen(true); }}>Edit Role & Profile</DropdownMenuItem>
                           )}
                           {member.status !== 'active' ? (
-                            ((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer')) ? (
+                            ((!member.role || member.role === 'member') && ((isSeniorAccountant && member.status === 'pending') || (isReviewer && member.status === 'pending_reviewer'))) ? (
                               <DropdownMenuItem 
                                 className="font-bold text-blue-600 flex items-center gap-1.5 focus:text-blue-600 focus:bg-blue-50 dark:focus:bg-blue-950/20 cursor-pointer" 
                                 onClick={() => {
@@ -830,7 +830,7 @@ export default function MembersPage() {
                               >
                                 <Eye className="h-4 w-4" /> Review Membership
                               </DropdownMenuItem>
-                            ) : (isAdmin && (member.status === 'reviewed' || ((member.role === 'reviewer' || member.role === 'auditor' || member.role === 'admin') && member.status === 'pending'))) ? (
+                            ) : (isAdmin && Boolean(member.passwordSet) && (member.status === 'reviewed' || (Boolean(member.role && member.role !== 'member') && member.status === 'pending'))) ? (
                               <DropdownMenuItem 
                                 className="font-bold text-emerald-600 flex items-center gap-1.5 focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 cursor-pointer" 
                                 onClick={() => {

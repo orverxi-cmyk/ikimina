@@ -2166,12 +2166,12 @@ export default function ApprovalsHubPage() {
                           <TableCell className="px-4 py-3 text-center">
                             <Badge className={cn(
                               "text-[9px] uppercase font-bold border-none",
-                              m.status === 'pending' && "bg-blue-500/10 text-blue-700",
+                              m.status === 'pending' && !(m.passwordSet && m.role && m.role !== 'member') && "bg-blue-500/10 text-blue-700",
                               m.status === 'pending_reviewer' && "bg-purple-500/10 text-purple-700",
-                              m.status === 'reviewed' && "bg-amber-500/10 text-amber-700",
+                              (m.status === 'reviewed' || (m.status === 'pending' && m.passwordSet && m.role && m.role !== 'member')) && "bg-amber-500/10 text-amber-700",
                               m.status === 'active' && "bg-green-600/10 text-green-700"
                             )}>
-                              {m.status === 'pending' ? (m.passwordSet ? 'Pending Senior Review' : 'Pending Member Confirmation') : m.status === 'pending_reviewer' ? 'Pending Compliance Review' : m.status === 'reviewed' ? 'Pending Admin Activation' : m.status}
+                              {(m.status === 'reviewed' || (m.status === 'pending' && m.passwordSet && m.role && m.role !== 'member')) ? 'Pending Admin Activation' : m.status === 'pending' ? (m.passwordSet ? 'Pending Senior Review' : 'Pending Member Confirmation') : m.status === 'pending_reviewer' ? 'Pending Compliance Review' : m.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="px-4 py-3 text-right">
