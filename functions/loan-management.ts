@@ -268,11 +268,11 @@ export const requestLoan = onCall({ cors: true }, async (request) => {
         memberName: applicantName,
         amount: loanAmount,
         description: description || (isTopUp ? `Loan Top-Up against facility #${parentLoanId.slice(0, 7)}` : 'Member capital loan application'),
-        status: isSeniorAcct ? 'pending_reviewer' : 'requested',
-        seniorReviewed: isSeniorAcct ? true : false,
-        seniorReviewedBy: isSeniorAcct ? memberId : null,
-        seniorReviewedAt: isSeniorAcct ? admin.firestore.FieldValue.serverTimestamp() : null,
-        seniorReviewJustification: isSeniorAcct ? 'Self-applied by Senior Accountant (Forwarded directly to Reviewer for compliance check)' : null,
+        status: 'requested',
+        seniorReviewed: false,
+        seniorReviewedBy: null,
+        seniorReviewedAt: null,
+        seniorReviewJustification: null,
         requestDate: admin.firestore.FieldValue.serverTimestamp(),
         balance: 0,
         interestAmount: 0,
@@ -938,9 +938,6 @@ export const reviewLoan = onCall({ cors: true }, async (request) => {
     const isSeniorAcct = callerRole === 'senior_accountant';
 
     if (isSeniorAcct) {
-        if (loanData.memberId === request.auth.uid) {
-            throw new HttpsError('permission-denied', 'Segregation of duties violation: You cannot review your own loan application. The Reviewer must review it.');
-        }
         if (loanData.status === 'pending_member_confirmation' || loanData.memberConfirmed === false) {
             throw new HttpsError('failed-precondition', 'Cannot review loan before the member has confirmed its details.');
         }

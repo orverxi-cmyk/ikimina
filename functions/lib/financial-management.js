@@ -247,17 +247,28 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
                 totalRealizedInterest += Number(loan.interestAmount) || 0;
             }
         });
-        // 2. Calculate Previously Distributed Group Interest
+        // 2. Calculate Approved Operating Expenses (Deducted from Profit)
+        const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
+        let totalApprovedExpenses = 0;
+        expensesSnap.forEach(doc => {
+            var _a;
+            totalApprovedExpenses += Number((_a = doc.data()) === null || _a === void 0 ? void 0 : _a.amount) || 0;
+        });
+        if (totalApprovedExpenses > totalRealizedInterest) {
+            throw new https_1.HttpsError('failed-precondition', `Cannot distribute profit because approved operating expenses (${totalApprovedExpenses}) exceed total profit generated (${totalRealizedInterest}).`);
+        }
+        const netProfit = Math.max(0, totalRealizedInterest - totalApprovedExpenses);
+        // 3. Calculate Previously Distributed Group Interest
         const auditSnap = await db.collection('audit_logs').where('action', '==', 'ALLOCATE_INTEREST').get();
         let previouslyDistributed = 0;
         auditSnap.forEach(doc => {
             var _a, _b;
             previouslyDistributed += Number((_b = (_a = doc.data()) === null || _a === void 0 ? void 0 : _a.details) === null || _b === void 0 ? void 0 : _b.totalDistributed) || 0;
         });
-        // 3. Available Undistributed Profit Guardrail
-        const availableToDistribute = Math.max(0, totalRealizedInterest - previouslyDistributed);
+        // 4. Available Undistributed Profit Guardrail
+        const availableToDistribute = Math.max(0, netProfit - previouslyDistributed);
         if (totalInterestToDistribute > availableToDistribute) {
-            throw new https_1.HttpsError('failed-precondition', `Cannot distribute ${totalInterestToDistribute}. Available undistributed profit is ${availableToDistribute} (Total Earned: ${totalRealizedInterest}, Already Distributed: ${previouslyDistributed}).`);
+            throw new https_1.HttpsError('failed-precondition', `Cannot distribute ${totalInterestToDistribute}. Available undistributed profit after expenses is ${availableToDistribute} (Total Earned: ${totalRealizedInterest}, Approved Expenses: ${totalApprovedExpenses}, Already Distributed: ${previouslyDistributed}).`);
         }
         // 4. Calculate Time-Weighted Member Contribution Breakdown
         const { totalPool, recipientsCount, capitalizedCount, cashPayoutCount, totalCapitalizedToContributions, totalCashPayout, breakdown } = await computeTimeWeightedBreakdown(db, totalInterestToDistribute);
@@ -296,6 +307,8 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
             amountDistributed: totalInterestToDistribute,
             totalPool,
             totalRealizedInterest,
+            totalApprovedExpenses,
+            netProfit,
             previouslyDistributed,
             availableBeforeDistribution: availableToDistribute,
             availableAfterDistribution: availableToDistribute - totalInterestToDistribute,
@@ -384,17 +397,28 @@ exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async
                 totalRealizedInterest += Number(loan.interestAmount) || 0;
             }
         });
-        // 2. Calculate Previously Distributed Group Interest
+        // 2. Calculate Approved Operating Expenses (Deducted from Profit)
+        const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
+        let totalApprovedExpenses = 0;
+        expensesSnap.forEach(doc => {
+            var _a;
+            totalApprovedExpenses += Number((_a = doc.data()) === null || _a === void 0 ? void 0 : _a.amount) || 0;
+        });
+        if (totalApprovedExpenses > totalRealizedInterest) {
+            throw new https_1.HttpsError('failed-precondition', `Cannot initiate profit distribution because approved operating expenses (${totalApprovedExpenses}) exceed total profit generated (${totalRealizedInterest}).`);
+        }
+        const netProfit = Math.max(0, totalRealizedInterest - totalApprovedExpenses);
+        // 3. Calculate Previously Distributed Group Interest
         const auditSnap = await db.collection('audit_logs').where('action', '==', 'ALLOCATE_INTEREST').get();
         let previouslyDistributed = 0;
         auditSnap.forEach(doc => {
             var _a, _b;
             previouslyDistributed += Number((_b = (_a = doc.data()) === null || _a === void 0 ? void 0 : _a.details) === null || _b === void 0 ? void 0 : _b.totalDistributed) || 0;
         });
-        // 3. Available Undistributed Profit Guardrail
-        const availableToDistribute = Math.max(0, totalRealizedInterest - previouslyDistributed);
+        // 4. Available Undistributed Profit Guardrail
+        const availableToDistribute = Math.max(0, netProfit - previouslyDistributed);
         if (parsedAmount > availableToDistribute) {
-            throw new https_1.HttpsError('failed-precondition', `Cannot distribute ${parsedAmount}. Available undistributed profit is ${availableToDistribute} (Total Earned: ${totalRealizedInterest}, Already Distributed: ${previouslyDistributed}).`);
+            throw new https_1.HttpsError('failed-precondition', `Cannot distribute ${parsedAmount}. Available undistributed profit after expenses is ${availableToDistribute} (Total Earned: ${totalRealizedInterest}, Approved Expenses: ${totalApprovedExpenses}, Already Distributed: ${previouslyDistributed}).`);
         }
         // 4. Calculate Time-Weighted Member Contribution Breakdown
         const { totalPool, recipientsCount, capitalizedCount, cashPayoutCount, totalCapitalizedToContributions, totalCashPayout, breakdown } = await computeTimeWeightedBreakdown(db, parsedAmount);
@@ -410,6 +434,8 @@ exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async
             totalInterestToDistribute: parsedAmount,
             totalPool,
             totalRealizedInterest,
+            totalApprovedExpenses,
+            netProfit,
             previouslyDistributed,
             availableBeforeDistribution: availableToDistribute,
             justification: justification.trim(),

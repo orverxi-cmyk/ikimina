@@ -244,6 +244,9 @@ export default function ApprovalsHubPage() {
   const allAuditLogsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'audit_logs'), orderBy('timestamp', 'desc')) : null, [firestore, isAuthorized]);
   const { data: allAuditLogsSnap } = useCollection(allAuditLogsQuery);
 
+  const allExpensesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'expenses')) : null, [firestore, isAuthorized]);
+  const { data: allExpensesSnap } = useCollection(allExpensesQuery);
+
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const memberMap = useMemo(() => new Map(members.map((m: any) => [m.id, m])), [members]);
 
@@ -328,6 +331,7 @@ export default function ApprovalsHubPage() {
     const rawLoans = allLoansSnap?.docs.map(d => d.data()) || [];
     const rawContributions = allContributionsSnap?.docs.map(d => d.data()) || [];
     const rawLogs = allAuditLogsSnap?.docs.map(d => d.data()) || [];
+    const rawExpenses = allExpensesSnap?.docs.map(d => d.data()) || [];
 
     const totalRealizedInterest = rawLoans.reduce((acc, l: any) => {
       if (l.status === 'completed' || l.status === 'approved') {
@@ -336,6 +340,15 @@ export default function ApprovalsHubPage() {
       return acc;
     }, 0);
 
+    const totalApprovedExpenses = rawExpenses.reduce((acc, e: any) => {
+      if (e.status === 'approved') {
+        return acc + (Number(e.amount) || 0);
+      }
+      return acc;
+    }, 0);
+
+    const netProfit = Math.max(0, totalRealizedInterest - totalApprovedExpenses);
+
     const lifetimeDistributedInterest = rawLogs.reduce((acc, log: any) => {
       if (log.action === 'ALLOCATE_INTEREST') {
         return acc + (Number(log.details?.totalDistributed) || 0);
@@ -343,7 +356,7 @@ export default function ApprovalsHubPage() {
       return acc;
     }, 0);
 
-    const availableUndistributedInterest = Math.max(0, totalRealizedInterest - lifetimeDistributedInterest);
+    const availableUndistributedInterest = Math.max(0, netProfit - lifetimeDistributedInterest);
 
     let totalVerifiedSavings = 0;
     const saverSet = new Set<string>();
@@ -357,12 +370,14 @@ export default function ApprovalsHubPage() {
 
     return {
       totalRealizedInterest,
+      totalApprovedExpenses,
+      netProfit,
       lifetimeDistributedInterest,
       availableUndistributedInterest,
       totalVerifiedSavings,
       activeSaversCount: saverSet.size
     };
-  }, [allLoansSnap, allContributionsSnap, allAuditLogsSnap]);
+  }, [allLoansSnap, allContributionsSnap, allAuditLogsSnap, allExpensesSnap]);
 
   const getMemberName = (id: string) => {
     if (!id) return 'Unknown Member';
@@ -702,13 +717,6 @@ export default function ApprovalsHubPage() {
   // -------------------------------------------------------------
   const handleActionLoan = async (decision: 'review' | 'approve' | 'reject') => {
     if (!inspectLoan || !user) return;
-    if (!isSeniorAccountant && !isSuperAdmin && isLoanInitiatedByCurrentUser(inspectLoan)) {
-      return toast({
-        variant: "destructive",
-        title: "Segregation of Duties Violation",
-        description: "You cannot approve your own loan application. Another administrator must approve it."
-      });
-    }
     if (!loanJustification.trim()) {
       return toast({ variant: "destructive", title: "Justification Required", description: "Please provide audit notes." });
     }
@@ -1868,7 +1876,7 @@ export default function ApprovalsHubPage() {
                   {formatCurrency(poolMetrics.totalRealizedInterest, currency)}
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Cumulative lifetime earnings from loans
+                  Expenses Deducted: -{formatCurrency(poolMetrics.totalApprovedExpenses, currency)}
                 </p>
               </CardContent>
             </Card>
@@ -2653,13 +2661,6 @@ export default function ApprovalsHubPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {!isSeniorAccountant && !isSuperAdmin && isLoanInitiatedByCurrentUser(inspectLoan) && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>You cannot approve your own loan application. Another administrator must audit it.</span>
-            </div>
-          )}
-
           <div className="space-y-3 text-sm">
             <div className="flex justify-between py-1 border-b">
               <span className="text-muted-foreground">Applicant:</span>
@@ -2732,7 +2733,7 @@ export default function ApprovalsHubPage() {
 
             {renderReviewTrail(inspectLoan)}
             {((isSeniorAccountant && inspectLoan?.status === 'requested') ||
-              (isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer' && !isLoanInitiatedByCurrentUser(inspectLoan)) ||
+              (isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer') ||
               (isSuperAdmin && inspectLoan?.status === 'reviewed')) && (
               <div className="space-y-2 pt-2">
                 <Label className="text-xs font-bold uppercase tracking-wider">Approval / Audit Justification *</Label>
@@ -2774,7 +2775,7 @@ export default function ApprovalsHubPage() {
               )}
 
               {/* Reviewer: Compliance Review */}
-              {isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer' && !isLoanInitiatedByCurrentUser(inspectLoan) && (
+              {isReviewer && !isSuperAdmin && inspectLoan?.status === 'pending_reviewer' && (
                 <>
                   <Button 
                     variant="outline" 

@@ -102,17 +102,24 @@ export default function ReportsPage() {
     return query(collection(firestore, 'interest_distributions'), orderBy('distributedAt', 'desc'));
   }, [isAuthorized]);
 
+  const expensesQuery = useMemoFirebase(() => {
+    if (!isAuthorized) return null;
+    return collection(firestore, 'expenses');
+  }, [isAuthorized]);
+
   const { data: membersSnap, loading: loadingMembers } = useCollection(membersQuery);
   const { data: contributionsSnap, loading: loadingContributions } = useCollection(contributionsQuery);
   const { data: loansSnap, loading: loadingLoans } = useCollection(loansQuery);
   const { data: auditLogsSnap, loading: loadingLogs } = useCollection(auditLogsQuery);
   const { data: distributionsSnap } = useCollection(distributionsQuery);
+  const { data: expensesSnap } = useCollection(expensesQuery);
 
   const members = useMemo(() => membersSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [membersSnap]);
   const contributions = useMemo(() => contributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [contributionsSnap]);
   const loans = useMemo(() => loansSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [loansSnap]);
   const auditLogs = useMemo(() => auditLogsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [auditLogsSnap]);
   const distributions = useMemo(() => distributionsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [distributionsSnap]);
+  const expenses = useMemo(() => expensesSnap?.docs.map(d => ({ id: d.id, ...d.data() })) || [], [expensesSnap]);
 
   const availableYears = useMemo(() => {
     const years = new Set<number>();
@@ -152,6 +159,14 @@ export default function ReportsPage() {
       return acc;
     }, 0);
 
+    // Approved operating expenses deducted from profit
+    const totalApprovedExpenses = expenses.reduce((acc, exp: any) => {
+      if (exp.status === 'approved') {
+        return acc + (Number(exp.amount) || 0);
+      }
+      return acc;
+    }, 0);
+
     // Lifetime interest distributed to date from audit logs
     const lifetimeDistributedInterest = auditLogs.reduce((acc, log: any) => {
       if (log.action === 'ALLOCATE_INTEREST') {
@@ -160,8 +175,8 @@ export default function ReportsPage() {
       return acc;
     }, 0);
 
-    // Exact net undistributed interest pool available for safe distribution
-    const availableUndistributedInterest = Math.max(0, lifetimeRealizedInterest - lifetimeDistributedInterest);
+    // Exact net undistributed interest pool available for safe distribution after expenses
+    const availableUndistributedInterest = Math.max(0, lifetimeRealizedInterest - totalApprovedExpenses - lifetimeDistributedInterest);
 
     // Period-filtered interest in (both approved and completed loans count)
     const filteredInterestIn = loans.reduce((acc, loan: any) => {
@@ -229,6 +244,7 @@ export default function ReportsPage() {
     return {
       totalContributed,
       lifetimeRealizedInterest,
+      totalApprovedExpenses,
       lifetimeDistributedInterest,
       availableUndistributedInterest,
       filteredInterestIn,
@@ -239,7 +255,7 @@ export default function ReportsPage() {
       netPotValue: totalContributed + filteredInterestIn - filteredInterestOut,
       memberSummaries
     };
-  }, [members, contributions, loans, auditLogs, periodFilter]);
+  }, [members, contributions, loans, auditLogs, expenses, periodFilter]);
 
 
 
@@ -374,7 +390,7 @@ export default function ReportsPage() {
                 </Badge>
               </div>
               <p className="text-xs text-blue-100 mt-0.5">
-                Total Realized: {formatCurrency(reportData.lifetimeRealizedInterest, currency)} &bull; Previously Distributed: {formatCurrency(reportData.lifetimeDistributedInterest, currency)}
+                Total Realized: {formatCurrency(reportData.lifetimeRealizedInterest, currency)} &bull; Approved Expenses: -{formatCurrency(reportData.totalApprovedExpenses, currency)} &bull; Previously Distributed: {formatCurrency(reportData.lifetimeDistributedInterest, currency)}
               </p>
             </div>
           </div>

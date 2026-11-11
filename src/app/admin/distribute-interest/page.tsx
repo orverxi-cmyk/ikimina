@@ -241,11 +241,15 @@ export default function DistributeInterestPage() {
   const auditLogsQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'audit_logs')) : null, [firestore, isAuthorized]);
   const { data: auditLogsSnap } = useCollection(auditLogsQuery);
 
+  const expensesQuery = useMemoFirebase(() => isAuthorized ? query(collection(firestore, 'expenses')) : null, [firestore, isAuthorized]);
+  const { data: expensesSnap } = useCollection(expensesQuery);
+
   // Calculate Realized Pool & Lifetime Distributed
   const poolMetrics = useMemo(() => {
     const rawLoans = loansSnap?.docs.map(d => d.data()) || [];
     const rawContributions = contributionsSnap?.docs.map(d => d.data()) || [];
     const rawLogs = auditLogsSnap?.docs.map(d => d.data()) || [];
+    const rawExpenses = expensesSnap?.docs.map(d => d.data()) || [];
 
     const totalRealizedInterest = rawLoans.reduce((acc, l: any) => {
       if (l.status === 'completed' || l.status === 'approved') {
@@ -254,6 +258,15 @@ export default function DistributeInterestPage() {
       return acc;
     }, 0);
 
+    const totalApprovedExpenses = rawExpenses.reduce((acc, e: any) => {
+      if (e.status === 'approved') {
+        return acc + (Number(e.amount) || 0);
+      }
+      return acc;
+    }, 0);
+
+    const netProfit = Math.max(0, totalRealizedInterest - totalApprovedExpenses);
+
     const lifetimeDistributedInterest = rawLogs.reduce((acc, log: any) => {
       if (log.action === 'ALLOCATE_INTEREST') {
         return acc + (Number(log.details?.totalDistributed) || 0);
@@ -261,7 +274,7 @@ export default function DistributeInterestPage() {
       return acc;
     }, 0);
 
-    const availableUndistributedInterest = Math.max(0, totalRealizedInterest - lifetimeDistributedInterest);
+    const availableUndistributedInterest = Math.max(0, netProfit - lifetimeDistributedInterest);
 
     let totalVerifiedSavings = 0;
     const saverSet = new Set<string>();
@@ -275,12 +288,14 @@ export default function DistributeInterestPage() {
 
     return {
       totalRealizedInterest,
+      totalApprovedExpenses,
+      netProfit,
       lifetimeDistributedInterest,
       availableUndistributedInterest,
       totalVerifiedSavings,
       activeSaversCount: saverSet.size,
     };
-  }, [loansSnap, contributionsSnap, auditLogsSnap]);
+  }, [loansSnap, contributionsSnap, auditLogsSnap, expensesSnap]);
 
   // Parse proposals
   const allProposals = useMemo(() => {
@@ -305,6 +320,14 @@ export default function DistributeInterestPage() {
   // Handle Initiate Proposal
   const handleInitiateProposal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (poolMetrics.totalApprovedExpenses > poolMetrics.totalRealizedInterest) {
+      toast({
+        variant: 'destructive',
+        title: 'Expenses Exceed Profit',
+        description: `Cannot initiate profit distribution because approved expenses (${formatCurrency(poolMetrics.totalApprovedExpenses, currency)}) exceed profit generated (${formatCurrency(poolMetrics.totalRealizedInterest, currency)}).`,
+      });
+      return;
+    }
     if (!initiateAmount || Number(initiateAmount) <= 0) {
       toast({ variant: 'destructive', title: 'Invalid Amount', description: 'Please enter a valid distribution amount.' });
       return;
@@ -684,7 +707,7 @@ export default function DistributeInterestPage() {
                     setInitiateJustification('');
                     setIsInitiateModalOpen(true);
                   }}
-                  disabled={poolMetrics.availableUndistributedInterest <= 0}
+                  disabled={poolMetrics.availableUndistributedInterest <= 0 || poolMetrics.totalApprovedExpenses > poolMetrics.totalRealizedInterest}
                   className="rounded-xl h-10 px-4 font-bold text-xs gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
                 >
                   <Plus className="h-4 w-4" /> Initiate Distribution Proposal
@@ -746,7 +769,7 @@ export default function DistributeInterestPage() {
               {formatCurrency(poolMetrics.totalRealizedInterest, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 text-xs">
-              Cumulative lifetime earnings from loans
+              Expenses Deducted: -{formatCurrency(poolMetrics.totalApprovedExpenses, currency)}
             </p>
           </CardContent>
         </Card>
@@ -1249,7 +1272,15 @@ export default function DistributeInterestPage() {
 
           <form onSubmit={handleInitiateProposal} className="space-y-4 text-xs py-2">
             <div className="p-3 bg-muted/40 rounded-xl border border-border/50 space-y-1">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-muted-foreground">Gross Realized Interest</span>
+                <span className="font-semibold text-foreground">{formatCurrency(poolMetrics.totalRealizedInterest, currency)}</span>
+              </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-muted-foreground">Less Approved Expenses</span>
+                <span className="font-semibold text-destructive">-{formatCurrency(poolMetrics.totalApprovedExpenses, currency)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-border/50">
                 <span className="text-muted-foreground font-semibold">Available Pool Ceiling</span>
                 <span className="font-bold text-emerald-600 text-sm">
                   {formatCurrency(poolMetrics.availableUndistributedInterest, currency)}

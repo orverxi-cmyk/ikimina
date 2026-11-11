@@ -324,11 +324,10 @@ export default function AdminDashboard() {
   const regularMembersCount = users.filter((u: any) => !u.role || u.role === 'member').length;
   const staffOfficersCount = users.filter((u: any) => u.role && u.role !== 'member').length;
 
-  // G. TOTAL ASSET AMOUNT (Authoritatively Subtracted by Approved Expenses)
-  // Gross Institutional Capital = Verified Savings + Total Realized Loan Interest
-  // Net Total Assets = Gross Capital - Total Approved Expenses
+  // G. TOTAL ASSET AMOUNT (Expenses Deducted from Profit / Realized Interest, Principal Savings Intact)
+  const netProfitAfterExpenses = Math.max(0, totalLoanInterests - totalApprovedExpenses);
   const grossCapital = totalVerifiedSavings + totalLoanInterests;
-  const totalAssetAmount = Math.max(0, grossCapital - totalApprovedExpenses);
+  const totalAssetAmount = totalVerifiedSavings + netProfitAfterExpenses;
 
   // Group Lending Pool Ceiling Metrics (% of Total Net Assets)
   const maxLendingPoolPercentage = Number(settings.maxLendingPoolPercentage) || 90;
@@ -480,12 +479,12 @@ export default function AdminDashboard() {
                 </div>
                 <div className="pt-2.5 border-t border-border space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground text-[11px]">Gross Capital:</span>
-                    <span className="font-bold text-foreground text-xs">{formatCurrency(grossCapital, currency)}</span>
+                    <span className="text-muted-foreground text-[11px]">Verified Savings:</span>
+                    <span className="font-bold text-foreground text-xs">{formatCurrency(totalVerifiedSavings, currency)}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground font-medium text-[11px]">Approved Expenses:</span>
-                    <span className="font-bold text-destructive text-xs">-{formatCurrency(totalApprovedExpenses, currency)}</span>
+                    <span className="text-muted-foreground font-medium text-[11px]">Net Profit (After Expenses):</span>
+                    <span className="font-bold text-emerald-600 text-xs">+{formatCurrency(netProfitAfterExpenses, currency)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -544,12 +543,12 @@ export default function AdminDashboard() {
                 </div>
                 <div className="pt-2.5 border-t border-border space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground text-[11px]">Accrued to Members:</span>
-                    <span className="font-bold text-foreground text-xs">{formatCurrency(totalMemberAccruedInterest, currency)}</span>
+                    <span className="text-muted-foreground text-[11px]">Expenses Deducted:</span>
+                    <span className="font-bold text-destructive text-xs">-{formatCurrency(totalApprovedExpenses, currency)}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground text-[11px]">Undistributed Yield:</span>
-                    <span className="font-bold text-foreground text-xs">{formatCurrency(Math.max(0, totalLoanInterests - totalMemberAccruedInterest), currency)}</span>
+                    <span className="font-bold text-foreground text-xs">{formatCurrency(Math.max(0, netProfitAfterExpenses - totalMemberAccruedInterest), currency)}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground text-[11px]">Policy Rate:</span>
@@ -641,7 +640,7 @@ export default function AdminDashboard() {
                       </span>
                     </div>
 
-                    {/* 3. Approved Operating Expenses (SUBTRACTED) */}
+                    {/* 3. Approved Operating Expenses (DEDUCTED FROM PROFIT) */}
                     <div className="p-4 flex items-center justify-between bg-white hover:bg-muted/10 transition-colors">
                       <div className="flex items-center gap-2.5">
                         <div className="h-7 w-7 rounded-lg bg-muted text-foreground flex items-center justify-center font-bold text-xs">
@@ -649,7 +648,7 @@ export default function AdminDashboard() {
                         </div>
                         <div>
                           <p className="font-bold text-foreground">Approved Operating Expenses</p>
-                          <p className="text-[11px] text-muted-foreground">Lodged by Accountant &amp; approved by Admin</p>
+                          <p className="text-[11px] text-muted-foreground">Deducted from loan interest profit (Net Profit: {formatCurrency(netProfitAfterExpenses, currency)})</p>
                         </div>
                       </div>
                       <span className="font-bold text-destructive text-sm">
@@ -694,7 +693,7 @@ export default function AdminDashboard() {
                       <div>
                         <p className="text-base font-bold text-foreground">Total Net Institutional Assets</p>
                         <p className="text-[11px] text-muted-foreground font-normal">
-                          Savings + Interest - Approved Operating Expenses
+                          Verified Member Savings + Net Profit (Interest - Approved Expenses)
                         </p>
                       </div>
                       <span className="text-xl font-headline font-bold text-foreground">
