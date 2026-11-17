@@ -236,17 +236,7 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
     }
 
     try {
-        // 1. Calculate Total Realized Group Interest from Loans
-        const loansSnap = await db.collection('loans').get();
-        let totalRealizedInterest = 0;
-        loansSnap.forEach(doc => {
-            const loan = doc.data();
-            if (loan.status === 'completed' || loan.status === 'approved') {
-                totalRealizedInterest += Number(loan.interestAmount) || 0;
-            }
-        });
-
-        // 2. Calculate Approved Operating Expenses (Deducted from Profit)
+        // 1. Identify Active Distribution Cycle Boundary
         const lastDistSnap = await db.collection('interest_distributions')
             .orderBy('distributedAt', 'desc')
             .limit(1)
@@ -259,6 +249,26 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
             else if (rawDist) lastDistMs = new Date(rawDist).getTime() || 0;
         }
 
+        // 2. Calculate Active Cycle Realized Interest from Loans (Strictly after last distribution)
+        const loansSnap = await db.collection('loans').get();
+        let totalRealizedInterest = 0;
+        loansSnap.forEach(doc => {
+            const loan = doc.data();
+            if (loan.status === 'completed' || loan.status === 'approved') {
+                let loanMs = 0;
+                const rawDate = loan.completedAt || loan.approvedAt || loan.paidAt || loan.startDate || loan.createdAt || loan.requestDate;
+                if (rawDate?.toDate && typeof rawDate.toDate === 'function') loanMs = rawDate.toDate().getTime();
+                else if (rawDate?.seconds) loanMs = rawDate.seconds * 1000;
+                else if (rawDate) loanMs = new Date(rawDate).getTime() || 0;
+
+                if (lastDistMs > 0 && loanMs > 0 && loanMs <= lastDistMs) {
+                    return; // Prior cycle interest, already accounted for
+                }
+                totalRealizedInterest += Number(loan.interestAmount) || 0;
+            }
+        });
+
+        // 3. Calculate Active Cycle Approved Operating Expenses (Strictly after last distribution)
         const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
         let totalApprovedExpenses = 0;
         expensesSnap.forEach(doc => {
@@ -270,7 +280,7 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
             else if (rawExp) expMs = new Date(rawExp).getTime() || 0;
 
             if (lastDistMs > 0 && expMs > 0 && expMs <= lastDistMs) {
-                return;
+                return; // Prior cycle expense, already accounted for
             }
             totalApprovedExpenses += Number(data?.amount) || 0;
         });
@@ -278,25 +288,25 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
         if (totalApprovedExpenses > totalRealizedInterest) {
             throw new HttpsError(
                 'failed-precondition',
-                `Cannot distribute profit because approved operating expenses (${totalApprovedExpenses}) exceed total profit generated (${totalRealizedInterest}).`
+                `Cannot distribute profit because cycle operating expenses (${totalApprovedExpenses}) exceed cycle interest generated (${totalRealizedInterest}).`
             );
         }
 
         const netProfit = Math.max(0, totalRealizedInterest - totalApprovedExpenses);
+        const availableToDistribute = netProfit;
 
-        // 3. Calculate Previously Distributed Group Interest
+        // 4. Lifetime Distributed Group Interest (for Audit & Ledger reporting)
         const auditSnap = await db.collection('audit_logs').where('action', '==', 'ALLOCATE_INTEREST').get();
         let previouslyDistributed = 0;
         auditSnap.forEach(doc => {
             previouslyDistributed += Number(doc.data()?.details?.totalDistributed) || 0;
         });
 
-        // 4. Available Undistributed Profit Guardrail
-        const availableToDistribute = Math.max(0, netProfit - previouslyDistributed);
+        // 5. Distributable Pool Guardrail for Active Cycle
         if (totalInterestToDistribute > availableToDistribute) {
             throw new HttpsError(
                 'failed-precondition', 
-                `Cannot distribute ${totalInterestToDistribute}. Available undistributed profit after expenses is ${availableToDistribute} (Total Earned: ${totalRealizedInterest}, Approved Expenses: ${totalApprovedExpenses}, Already Distributed: ${previouslyDistributed}).`
+                `Cannot distribute ${totalInterestToDistribute}. Available distributable interest for the current cycle is ${availableToDistribute} (Cycle Earned: ${totalRealizedInterest}, Cycle Approved Expenses: ${totalApprovedExpenses}).`
             );
         }
 
@@ -445,17 +455,7 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
     }
 
     try {
-        // 1. Calculate Realized Group Interest from Loans
-        const loansSnap = await db.collection('loans').get();
-        let totalRealizedInterest = 0;
-        loansSnap.forEach(doc => {
-            const loan = doc.data();
-            if (loan.status === 'completed' || loan.status === 'approved') {
-                totalRealizedInterest += Number(loan.interestAmount) || 0;
-            }
-        });
-
-        // 2. Calculate Approved Operating Expenses (Deducted from Profit)
+        // 1. Identify Active Distribution Cycle Boundary
         const lastDistSnap = await db.collection('interest_distributions')
             .orderBy('distributedAt', 'desc')
             .limit(1)
@@ -468,6 +468,26 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
             else if (rawDist) lastDistMs = new Date(rawDist).getTime() || 0;
         }
 
+        // 2. Calculate Active Cycle Realized Interest from Loans (Strictly after last distribution)
+        const loansSnap = await db.collection('loans').get();
+        let totalRealizedInterest = 0;
+        loansSnap.forEach(doc => {
+            const loan = doc.data();
+            if (loan.status === 'completed' || loan.status === 'approved') {
+                let loanMs = 0;
+                const rawDate = loan.completedAt || loan.approvedAt || loan.paidAt || loan.startDate || loan.createdAt || loan.requestDate;
+                if (rawDate?.toDate && typeof rawDate.toDate === 'function') loanMs = rawDate.toDate().getTime();
+                else if (rawDate?.seconds) loanMs = rawDate.seconds * 1000;
+                else if (rawDate) loanMs = new Date(rawDate).getTime() || 0;
+
+                if (lastDistMs > 0 && loanMs > 0 && loanMs <= lastDistMs) {
+                    return; // Prior cycle interest, already accounted for
+                }
+                totalRealizedInterest += Number(loan.interestAmount) || 0;
+            }
+        });
+
+        // 3. Calculate Active Cycle Approved Operating Expenses (Strictly after last distribution)
         const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
         let totalApprovedExpenses = 0;
         expensesSnap.forEach(doc => {
@@ -479,7 +499,7 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
             else if (rawExp) expMs = new Date(rawExp).getTime() || 0;
 
             if (lastDistMs > 0 && expMs > 0 && expMs <= lastDistMs) {
-                return;
+                return; // Prior cycle expense, already accounted for
             }
             totalApprovedExpenses += Number(data?.amount) || 0;
         });
@@ -487,25 +507,25 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
         if (totalApprovedExpenses > totalRealizedInterest) {
             throw new HttpsError(
                 'failed-precondition',
-                `Cannot initiate profit distribution because approved operating expenses (${totalApprovedExpenses}) exceed total profit generated (${totalRealizedInterest}).`
+                `Cannot initiate profit distribution because cycle operating expenses (${totalApprovedExpenses}) exceed cycle interest generated (${totalRealizedInterest}).`
             );
         }
 
         const netProfit = Math.max(0, totalRealizedInterest - totalApprovedExpenses);
+        const availableToDistribute = netProfit;
 
-        // 3. Calculate Previously Distributed Group Interest
+        // 4. Lifetime Distributed Group Interest (for Audit & Ledger reporting)
         const auditSnap = await db.collection('audit_logs').where('action', '==', 'ALLOCATE_INTEREST').get();
         let previouslyDistributed = 0;
         auditSnap.forEach(doc => {
             previouslyDistributed += Number(doc.data()?.details?.totalDistributed) || 0;
         });
 
-        // 4. Available Undistributed Profit Guardrail
-        const availableToDistribute = Math.max(0, netProfit - previouslyDistributed);
+        // 5. Distributable Pool Guardrail for Active Cycle
         if (parsedAmount > availableToDistribute) {
             throw new HttpsError(
                 'failed-precondition', 
-                `Cannot distribute ${parsedAmount}. Available undistributed profit after expenses is ${availableToDistribute} (Total Earned: ${totalRealizedInterest}, Approved Expenses: ${totalApprovedExpenses}, Already Distributed: ${previouslyDistributed}).`
+                `Cannot distribute ${parsedAmount}. Available distributable interest for the current cycle is ${availableToDistribute} (Cycle Earned: ${totalRealizedInterest}, Cycle Approved Expenses: ${totalApprovedExpenses}).`
             );
         }
 

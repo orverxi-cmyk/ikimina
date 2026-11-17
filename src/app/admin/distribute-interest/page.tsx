@@ -251,41 +251,53 @@ export default function DistributeInterestPage() {
     const rawLogs = auditLogsSnap?.docs.map(d => d.data()) || [];
     const rawExpenses = expensesSnap?.docs.map(d => d.data()) || [];
 
-    const totalRealizedInterest = rawLoans.reduce((acc, l: any) => {
-      if (l.status === 'completed' || l.status === 'approved') {
-        return acc + (Number(l.interestAmount) || 0);
-      }
-      return acc;
-    }, 0);
-
-    // Latest completed distribution timestamp to bound completed cycle expenses
+    // Latest completed distribution timestamp to bound completed cycles
     let latestDistMs = 0;
     (distributionsSnap?.docs || []).forEach(d => {
       const ms = parseDateMs(d.data()?.distributedAt || d.data()?.createdAt);
       if (ms > latestDistMs) latestDistMs = ms;
     });
 
-    const totalApprovedExpenses = rawExpenses.reduce((acc, e: any) => {
+    // Active cycle realized interest (loans realized/approved strictly after latest completed distribution)
+    const cycleRealizedInterest = rawLoans.reduce((acc, l: any) => {
+      if (l.status === 'completed' || l.status === 'approved') {
+        const loanMs = parseDateMs(l.completedAt || l.approvedAt || l.paidAt || l.startDate || l.createdAt || l.requestDate);
+        if (latestDistMs > 0 && loanMs > 0 && loanMs <= latestDistMs) {
+          return acc; // Prior cycle interest, already accounted for
+        }
+        return acc + (Number(l.interestAmount) || 0);
+      }
+      return acc;
+    }, 0);
+
+    // Active cycle approved expenses (expenses approved strictly after latest completed distribution)
+    const cycleApprovedExpenses = rawExpenses.reduce((acc, e: any) => {
       if (e.status === 'approved') {
         const expMs = parseDateMs(e.approvedAt || e.createdAt || e.expenseDate);
         if (latestDistMs > 0 && expMs > 0 && expMs <= latestDistMs) {
-          return acc;
+          return acc; // Prior cycle expense, already settled or accounted for
         }
         return acc + (Number(e.amount) || 0);
       }
       return acc;
     }, 0);
 
-    const netProfit = Math.max(0, totalRealizedInterest - totalApprovedExpenses);
+    // Cycle Distributable Interest (Current cycle interest minus current cycle expenses)
+    const cycleDistributableInterest = Math.max(0, cycleRealizedInterest - cycleApprovedExpenses);
 
-    const lifetimeDistributedInterest = rawLogs.reduce((acc, log: any) => {
+    const lifetimeDistributedInterest = (distributionsSnap?.docs || []).reduce((acc, d: any) => {
+      return acc + (Number(d.data()?.amountDistributed) || 0);
+    }, 0) || rawLogs.reduce((acc, log: any) => {
       if (log.action === 'ALLOCATE_INTEREST') {
         return acc + (Number(log.details?.totalDistributed) || 0);
       }
       return acc;
     }, 0);
 
-    const availableUndistributedInterest = Math.max(0, netProfit - lifetimeDistributedInterest);
+    const totalRealizedInterest = cycleRealizedInterest;
+    const totalApprovedExpenses = cycleApprovedExpenses;
+    const netProfit = cycleDistributableInterest;
+    const availableUndistributedInterest = cycleDistributableInterest;
 
     let totalVerifiedSavings = 0;
     const saverSet = new Set<string>();
@@ -1312,12 +1324,6 @@ export default function DistributeInterestPage() {
                 <span className="text-muted-foreground">Net Interest</span>
                 <span className="font-semibold text-foreground">{formatCurrency(poolMetrics.netProfit, currency)}</span>
               </div>
-              {poolMetrics.lifetimeDistributedInterest > 0 && (
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-muted-foreground">Less Distributed to Date</span>
-                  <span className="font-semibold text-primary">-{formatCurrency(poolMetrics.lifetimeDistributedInterest, currency)}</span>
-                </div>
-              )}
               <div className="flex justify-between items-center pt-1 border-t border-border/50">
                 <span className="text-muted-foreground font-semibold">Distributable Interest (Ceiling)</span>
                 <span className="font-bold text-emerald-600 text-sm">
