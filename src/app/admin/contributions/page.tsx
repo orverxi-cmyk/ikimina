@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,6 +36,7 @@ import {
   ShieldAlert,
   FileSpreadsheet,
   Download,
+  Users,
 } from 'lucide-react';
 import { useCollection, useDoc, useMemoFirebase } from '@/firebase/firestore/hooks';
 import { collection, query, doc } from 'firebase/firestore';
@@ -153,7 +154,7 @@ export default function AdminContributionsPage() {
   const canExport = canExportContributions(userRole, user?.email);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'batches'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'batches' | 'members'>('all');
   const [search, setSearch] = useState('');
   const [inspectSlip, setInspectSlip] = useState<any | null>(null);
   const [inspectBatch, setInspectBatch] = useState<any | null>(null);
@@ -294,6 +295,41 @@ export default function AdminContributionsPage() {
     }
     return list;
   }, [activeTab, pendingBatches, approvedBatches, allBatches, search]);
+
+  // Aggregate current contribution totals (sum) per member
+  const memberContributionTotals = useMemo(() => {
+    return members.map((m: any) => {
+      const memberApprovedSlips = approvedSlips.filter((s: any) => s.memberId === m.id);
+      const totalVerified = memberApprovedSlips.reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0);
+      const allMemberSlips = allSlips.filter((s: any) => s.memberId === m.id);
+      const latestDate = allMemberSlips.length > 0 ? (allMemberSlips[0].createdAt || allMemberSlips[0].date) : null;
+
+      return {
+        id: m.id,
+        name: m.name || 'Member',
+        email: m.email || '',
+        phone: m.phone || '',
+        role: m.role || 'member',
+        totalVerified,
+        verifiedCount: memberApprovedSlips.length,
+        totalCount: allMemberSlips.length,
+        latestDate,
+      };
+    }).sort((a, b) => b.totalVerified - a.totalVerified);
+  }, [members, approvedSlips, allSlips]);
+
+  // Filtered member totals based on search query
+  const filteredMemberTotals = useMemo(() => {
+    if (!search.trim()) return memberContributionTotals;
+    const q = search.toLowerCase();
+    return memberContributionTotals.filter(m =>
+      m.name.toLowerCase().includes(q) ||
+      m.email.toLowerCase().includes(q) ||
+      m.phone.toLowerCase().includes(q) ||
+      (m.role || '').toLowerCase().includes(q) ||
+      String(m.totalVerified).includes(q)
+    );
+  }, [memberContributionTotals, search]);
 
   const isLoading = loadingSlips || loadingBatches;
 
@@ -588,9 +624,12 @@ export default function AdminContributionsPage() {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full sm:w-auto">
-            <TabsList className="grid grid-cols-4 w-full sm:w-auto h-10 p-1 bg-muted/60 rounded-xl">
+            <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full sm:w-auto h-auto sm:h-10 p-1 bg-muted/60 rounded-xl gap-1">
               <TabsTrigger value="all" className="text-[11px] uppercase tracking-wider px-3.5 gap-1.5 rounded-lg font-bold">
                 <Filter className="h-3 w-3" /> All
+              </TabsTrigger>
+              <TabsTrigger value="members" className="text-[11px] uppercase tracking-wider px-3.5 gap-1.5 rounded-lg font-bold">
+                <Users className="h-3 w-3" /> Member Totals
               </TabsTrigger>
               <TabsTrigger value="pending" className="text-[11px] uppercase tracking-wider px-3.5 gap-1.5 rounded-lg font-bold">
                 <Clock className="h-3 w-3" /> Pending {pendingSlips.length + pendingBatches.length > 0 && `(${pendingSlips.length + pendingBatches.length})`}
@@ -638,6 +677,12 @@ export default function AdminContributionsPage() {
               currency={currency}
               onInspect={setInspectBatch}
             />
+          ) : activeTab === 'members' ? (
+            <MemberTotalsTable
+              memberTotals={filteredMemberTotals}
+              loading={isLoading}
+              currency={currency}
+            />
           ) : activeTab === 'pending' ? (
             <div className="space-y-6">
               <SlipsTable
@@ -662,7 +707,7 @@ export default function AdminContributionsPage() {
                 />
               )}
             </div>
-          ) : (
+          ) : activeTab === 'approved' ? (
             <SlipsTable
               slips={filteredSlips}
               loading={isLoading}
@@ -676,6 +721,27 @@ export default function AdminContributionsPage() {
               onApprove={openApproveModal}
               onReview={openReviewModal}
             />
+          ) : (
+            <div className="space-y-6">
+              <MemberTotalsTable
+                memberTotals={filteredMemberTotals}
+                loading={isLoading}
+                currency={currency}
+              />
+              <SlipsTable
+                slips={filteredSlips}
+                loading={isLoading}
+                currency={currency}
+                getMemberName={getMemberName}
+                isSuperAdmin={isSuperAdmin}
+                isSeniorAccountant={isSeniorAccountant}
+                isReviewer={isReviewer}
+                isSlipInitiatedByCurrentUser={isSlipInitiatedByCurrentUser}
+                onInspect={setInspectSlip}
+                onApprove={openApproveModal}
+                onReview={openReviewModal}
+              />
+            </div>
           )}
         </div>{/* end tab contents space-y-6 */}
       </div>{/* end filter+tabs space-y-4 */}
@@ -1236,4 +1302,90 @@ function formatRoleLabel(roleSlug: string | undefined): string {
     member: 'Member',
   };
   return map[roleSlug] || roleSlug.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function MemberTotalsTable({
+  memberTotals,
+  loading,
+  currency,
+}: {
+  memberTotals: any[];
+  loading: boolean;
+  currency: string;
+}) {
+  const grandTotal = memberTotals.reduce((sum, m) => sum + (Number(m.totalVerified) || 0), 0);
+
+  return (
+    <Card className="border border-border shadow-sm rounded-2xl overflow-hidden bg-card">
+      <CardHeader className="bg-emerald-600 text-white p-4 flex flex-row items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          <div>
+            <CardTitle className="text-[13px] font-bold text-white">Current Contribution Totals per Member</CardTitle>
+            <CardDescription className="text-emerald-100 text-xs">Cumulative sum of verified savings contributions per registered member.</CardDescription>
+          </div>
+        </div>
+        <Badge className="bg-white/20 text-white text-[10px] font-bold border-none">{memberTotals.length} Members</Badge>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto no-scrollbar">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b hover:bg-transparent">
+                <TableHead className="px-4 py-3 text-xs font-bold uppercase">Member</TableHead>
+                <TableHead className="px-4 py-3 text-xs font-bold uppercase">Phone</TableHead>
+                <TableHead className="px-4 py-3 text-xs font-bold uppercase text-center">Verified Deposits</TableHead>
+                <TableHead className="px-4 py-3 text-xs font-bold uppercase">Last Contribution</TableHead>
+                <TableHead className="px-4 py-3 text-xs font-bold uppercase text-right">Current Contribution Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-28 text-center">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                  </TableCell>
+                </TableRow>
+              ) : memberTotals.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-28 text-center text-xs text-muted-foreground italic">
+                    No member contribution records found matching criteria.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                memberTotals.map((m) => (
+                  <TableRow key={m.id} className="hover:bg-muted/30">
+                    <TableCell className="px-4 py-3">
+                      <div className="font-semibold text-sm text-foreground">{m.name}</div>
+                      <div className="text-[11px] text-muted-foreground">{m.email}</div>
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-xs text-muted-foreground">{m.phone || '—'}</TableCell>
+                    <TableCell className="px-4 py-3 text-center text-xs font-semibold">
+                      <Badge variant="outline" className="font-mono text-xs">{m.verifiedCount} deposits</Badge>
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-xs text-muted-foreground">
+                      {formatDate(m.latestDate)}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-right font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(m.totalVerified, currency)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+            <TableFooter className="bg-muted/40 font-bold border-t">
+              <TableRow>
+                <TableCell colSpan={4} className="px-4 py-3 text-xs uppercase tracking-wider text-muted-foreground">
+                  Grand Total Verified Contributions
+                </TableCell>
+                <TableCell className="px-4 py-3 text-right text-sm text-emerald-600 dark:text-emerald-400 font-bold">
+                  {formatCurrency(grandTotal, currency)}
+                </TableCell>
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
