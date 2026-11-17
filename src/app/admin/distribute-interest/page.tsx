@@ -730,9 +730,9 @@ export default function DistributeInterestPage() {
         </div>
       </div>
 
-      {/* 4 TOP FINANCIAL KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: UNDISTRIBUTED POOL */}
+      {/* 5 TOP FINANCIAL KPI CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Card 1: DISTRIBUTABLE INTEREST */}
         <Card className="border-none shadow-md bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl overflow-hidden relative">
           <div className="absolute -right-4 -bottom-4 opacity-15">
             <Scale className="h-32 w-32" />
@@ -740,7 +740,7 @@ export default function DistributeInterestPage() {
           <CardHeader className="pb-2 p-5">
             <div className="flex items-center justify-between">
               <CardTitle className="text-[11px] font-bold text-blue-100 uppercase tracking-widest flex items-center gap-1.5">
-                <Scale className="h-3.5 w-3.5" /> Undistributed Pool
+                <Scale className="h-3.5 w-3.5" /> Distributable Interest
               </CardTitle>
               <Badge className="bg-white/20 text-white border-none text-[9px] font-extrabold px-2 py-0.5">
                 {poolMetrics.availableUndistributedInterest > 0 ? 'Ready to Allocate' : 'Allocated'}
@@ -752,16 +752,16 @@ export default function DistributeInterestPage() {
               {formatCurrency(poolMetrics.availableUndistributedInterest, currency)}
             </div>
             <p className="text-[11px] text-blue-100 mt-1 font-medium">
-              Net safe unallocated profit available
+              Available to share with members
             </p>
           </CardContent>
         </Card>
 
-        {/* Card 2: REALIZED LOAN INTEREST */}
+        {/* Card 2: CUMULATIVE INTEREST */}
         <Card className="border border-border/60 shadow-sm bg-card rounded-2xl overflow-hidden">
           <div className="bg-blue-600 px-4 py-2 border-b border-blue-700/60">
             <p className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
-              <Coins className="h-3.5 w-3.5 text-white" /> Realized Loan Interest
+              <Coins className="h-3.5 w-3.5 text-white" /> Cumulative Interest
             </p>
           </div>
           <CardContent className="p-5">
@@ -769,12 +769,46 @@ export default function DistributeInterestPage() {
               {formatCurrency(poolMetrics.totalRealizedInterest, currency)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 text-xs">
-              Expenses Deducted: -{formatCurrency(poolMetrics.totalApprovedExpenses, currency)}
+              Total interest generated so far
             </p>
           </CardContent>
         </Card>
 
-        {/* Card 3: DISTRIBUTED TO DATE */}
+        {/* Card 3: DEDUCTED EXPENSES */}
+        <Card className="border border-border/60 shadow-sm bg-card rounded-2xl overflow-hidden">
+          <div className="bg-blue-600 px-4 py-2 border-b border-blue-700/60">
+            <p className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
+              <Banknote className="h-3.5 w-3.5 text-white" /> Deducted Expenses
+            </p>
+          </div>
+          <CardContent className="p-5">
+            <div className="text-xl sm:text-2xl font-extrabold text-destructive">
+              -{formatCurrency(poolMetrics.totalApprovedExpenses, currency)}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1 text-xs">
+              Approved operating costs deducted
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 4: NET INTEREST */}
+        <Card className="border border-border/60 shadow-sm bg-card rounded-2xl overflow-hidden">
+          <div className="bg-blue-600 px-4 py-2 border-b border-blue-700/60">
+            <p className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5 text-white" /> Net Interest
+            </p>
+          </div>
+          <CardContent className="p-5">
+            <div className="text-xl sm:text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(poolMetrics.netProfit, currency)}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1 text-xs">
+              Interest generated minus expenses
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 5: DISTRIBUTED TO DATE */}
         <Card className="border border-border/60 shadow-sm bg-card rounded-2xl overflow-hidden">
           <div className="bg-blue-600 px-4 py-2 border-b border-blue-700/60">
             <p className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
@@ -787,23 +821,6 @@ export default function DistributeInterestPage() {
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 text-xs">
               Total dividends credited to members
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: ACTIVE SAVERS CAPITAL */}
-        <Card className="border border-border/60 shadow-sm bg-card rounded-2xl overflow-hidden">
-          <div className="bg-blue-600 px-4 py-2 border-b border-blue-700/60">
-            <p className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-white" /> Eligible Capital Base
-            </p>
-          </div>
-          <CardContent className="p-5">
-            <div className="text-xl sm:text-2xl font-extrabold text-foreground">
-              {formatCurrency(poolMetrics.totalVerifiedSavings, currency)}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1 text-xs">
-              Across {poolMetrics.activeSaversCount} active scheme savers
             </p>
           </CardContent>
         </Card>

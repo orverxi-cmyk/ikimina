@@ -171,12 +171,12 @@ export default function ExpensesAdminPage() {
 
   // Segregated Expense Lists
   const pendingExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'pending' || e.status === 'pending_review' || e.status === 'pending_reviewer' || e.status === 'pending_approval'), [expenses]);
-  const approvedExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'approved'), [expenses]);
+  const approvedExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'approved' || e.status === 'settled'), [expenses]);
   const rejectedExpenses = useMemo(() => expenses.filter((e: any) => e.status === 'rejected'), [expenses]);
 
   // Aggregate stats
   const totalApprovedAmount = useMemo(() => {
-    return approvedExpenses.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+    return approvedExpenses.filter((e: any) => e.status === 'approved').reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
   }, [approvedExpenses]);
 
   const totalPendingAmount = useMemo(() => {
@@ -851,8 +851,8 @@ export default function ExpensesAdminPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-none font-bold text-[10px] uppercase">
-                            Deducted
+                          <Badge className={exp.status === 'settled' ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-none font-bold text-[10px] uppercase" : "bg-green-500/10 text-green-700 dark:text-green-400 border-none font-bold text-[10px] uppercase"}>
+                            {exp.status === 'settled' ? 'Settled' : 'Deducted'}
                           </Badge>
                         </TableCell>
                       </TableRow>

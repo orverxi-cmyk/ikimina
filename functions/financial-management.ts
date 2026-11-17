@@ -318,6 +318,16 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
             }
         }
 
+        // Settle approved operating expenses covered by this interest allocation
+        expensesSnap.forEach(expDoc => {
+            batch.update(expDoc.ref, {
+                status: 'settled',
+                settledAt: admin.firestore.FieldValue.serverTimestamp(),
+                distributionId: distRef.id,
+                settledNotes: `Settled and covered by interest distribution ${distRef.id}`
+            });
+        });
+
         // 5. Permanent Ledger Entry in interest_distributions
         batch.set(distRef, {
             distributedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -757,6 +767,17 @@ export const approveInterestDistribution = onCall({ cors: true }, async (request
                 });
             }
         }
+
+        // Settle approved operating expenses covered by this interest distribution
+        const approvedExpensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
+        approvedExpensesSnap.forEach(expDoc => {
+            batch.update(expDoc.ref, {
+                status: 'settled',
+                settledAt: admin.firestore.FieldValue.serverTimestamp(),
+                distributionId: distRef.id,
+                settledNotes: `Settled and covered by interest distribution ${distRef.id}`
+            });
+        });
 
         // Ledger Entry
         batch.set(distRef, {
