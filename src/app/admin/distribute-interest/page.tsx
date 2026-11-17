@@ -258,8 +258,19 @@ export default function DistributeInterestPage() {
       return acc;
     }, 0);
 
+    // Latest completed distribution timestamp to bound completed cycle expenses
+    let latestDistMs = 0;
+    (distributionsSnap?.docs || []).forEach(d => {
+      const ms = parseDateMs(d.data()?.distributedAt || d.data()?.createdAt);
+      if (ms > latestDistMs) latestDistMs = ms;
+    });
+
     const totalApprovedExpenses = rawExpenses.reduce((acc, e: any) => {
       if (e.status === 'approved') {
+        const expMs = parseDateMs(e.approvedAt || e.createdAt || e.expenseDate);
+        if (latestDistMs > 0 && expMs > 0 && expMs <= latestDistMs) {
+          return acc;
+        }
         return acc + (Number(e.amount) || 0);
       }
       return acc;
@@ -295,7 +306,7 @@ export default function DistributeInterestPage() {
       totalVerifiedSavings,
       activeSaversCount: saverSet.size,
     };
-  }, [loansSnap, contributionsSnap, auditLogsSnap, expensesSnap]);
+  }, [loansSnap, contributionsSnap, auditLogsSnap, expensesSnap, distributionsSnap]);
 
   // Parse proposals
   const allProposals = useMemo(() => {
@@ -1290,15 +1301,25 @@ export default function DistributeInterestPage() {
           <form onSubmit={handleInitiateProposal} className="space-y-4 text-xs py-2">
             <div className="p-3 bg-muted/40 rounded-xl border border-border/50 space-y-1">
               <div className="flex justify-between items-center text-[11px]">
-                <span className="text-muted-foreground">Gross Realized Interest</span>
+                <span className="text-muted-foreground">Cumulative Interest</span>
                 <span className="font-semibold text-foreground">{formatCurrency(poolMetrics.totalRealizedInterest, currency)}</span>
               </div>
               <div className="flex justify-between items-center text-[11px]">
-                <span className="text-muted-foreground">Less Approved Expenses</span>
+                <span className="text-muted-foreground">Less Deducted Expenses</span>
                 <span className="font-semibold text-destructive">-{formatCurrency(poolMetrics.totalApprovedExpenses, currency)}</span>
               </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-muted-foreground">Net Interest</span>
+                <span className="font-semibold text-foreground">{formatCurrency(poolMetrics.netProfit, currency)}</span>
+              </div>
+              {poolMetrics.lifetimeDistributedInterest > 0 && (
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-muted-foreground">Less Distributed to Date</span>
+                  <span className="font-semibold text-primary">-{formatCurrency(poolMetrics.lifetimeDistributedInterest, currency)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center pt-1 border-t border-border/50">
-                <span className="text-muted-foreground font-semibold">Available Pool Ceiling</span>
+                <span className="text-muted-foreground font-semibold">Distributable Interest (Ceiling)</span>
                 <span className="font-bold text-emerald-600 text-sm">
                   {formatCurrency(poolMetrics.availableUndistributedInterest, currency)}
                 </span>

@@ -224,6 +224,7 @@ async function computeTimeWeightedBreakdown(db, amountToDistribute) {
  * pro-rata contribution weight in the total pool.
  */
 exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const adminUid = request.auth.uid;
@@ -248,11 +249,36 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
             }
         });
         // 2. Calculate Approved Operating Expenses (Deducted from Profit)
+        const lastDistSnap = await db.collection('interest_distributions')
+            .orderBy('distributedAt', 'desc')
+            .limit(1)
+            .get();
+        let lastDistMs = 0;
+        if (!lastDistSnap.empty) {
+            const rawDist = (_a = lastDistSnap.docs[0].data()) === null || _a === void 0 ? void 0 : _a.distributedAt;
+            if ((rawDist === null || rawDist === void 0 ? void 0 : rawDist.toDate) && typeof rawDist.toDate === 'function')
+                lastDistMs = rawDist.toDate().getTime();
+            else if (rawDist === null || rawDist === void 0 ? void 0 : rawDist.seconds)
+                lastDistMs = rawDist.seconds * 1000;
+            else if (rawDist)
+                lastDistMs = new Date(rawDist).getTime() || 0;
+        }
         const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
         let totalApprovedExpenses = 0;
         expensesSnap.forEach(doc => {
-            var _a;
-            totalApprovedExpenses += Number((_a = doc.data()) === null || _a === void 0 ? void 0 : _a.amount) || 0;
+            const data = doc.data();
+            let expMs = 0;
+            const rawExp = (data === null || data === void 0 ? void 0 : data.approvedAt) || (data === null || data === void 0 ? void 0 : data.createdAt) || (data === null || data === void 0 ? void 0 : data.expenseDate);
+            if ((rawExp === null || rawExp === void 0 ? void 0 : rawExp.toDate) && typeof rawExp.toDate === 'function')
+                expMs = rawExp.toDate().getTime();
+            else if (rawExp === null || rawExp === void 0 ? void 0 : rawExp.seconds)
+                expMs = rawExp.seconds * 1000;
+            else if (rawExp)
+                expMs = new Date(rawExp).getTime() || 0;
+            if (lastDistMs > 0 && expMs > 0 && expMs <= lastDistMs) {
+                return;
+            }
+            totalApprovedExpenses += Number(data === null || data === void 0 ? void 0 : data.amount) || 0;
         });
         if (totalApprovedExpenses > totalRealizedInterest) {
             throw new https_1.HttpsError('failed-precondition', `Cannot distribute profit because approved operating expenses (${totalApprovedExpenses}) exceed total profit generated (${totalRealizedInterest}).`);
@@ -379,6 +405,7 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
  * Computes pro-rata breakdown, checks available pool guardrails, and stages request in pending state.
  */
 exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a;
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
     const callerUid = request.auth.uid;
@@ -407,11 +434,36 @@ exports.initiateInterestDistribution = (0, https_1.onCall)({ cors: true }, async
             }
         });
         // 2. Calculate Approved Operating Expenses (Deducted from Profit)
+        const lastDistSnap = await db.collection('interest_distributions')
+            .orderBy('distributedAt', 'desc')
+            .limit(1)
+            .get();
+        let lastDistMs = 0;
+        if (!lastDistSnap.empty) {
+            const rawDist = (_a = lastDistSnap.docs[0].data()) === null || _a === void 0 ? void 0 : _a.distributedAt;
+            if ((rawDist === null || rawDist === void 0 ? void 0 : rawDist.toDate) && typeof rawDist.toDate === 'function')
+                lastDistMs = rawDist.toDate().getTime();
+            else if (rawDist === null || rawDist === void 0 ? void 0 : rawDist.seconds)
+                lastDistMs = rawDist.seconds * 1000;
+            else if (rawDist)
+                lastDistMs = new Date(rawDist).getTime() || 0;
+        }
         const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
         let totalApprovedExpenses = 0;
         expensesSnap.forEach(doc => {
-            var _a;
-            totalApprovedExpenses += Number((_a = doc.data()) === null || _a === void 0 ? void 0 : _a.amount) || 0;
+            const data = doc.data();
+            let expMs = 0;
+            const rawExp = (data === null || data === void 0 ? void 0 : data.approvedAt) || (data === null || data === void 0 ? void 0 : data.createdAt) || (data === null || data === void 0 ? void 0 : data.expenseDate);
+            if ((rawExp === null || rawExp === void 0 ? void 0 : rawExp.toDate) && typeof rawExp.toDate === 'function')
+                expMs = rawExp.toDate().getTime();
+            else if (rawExp === null || rawExp === void 0 ? void 0 : rawExp.seconds)
+                expMs = rawExp.seconds * 1000;
+            else if (rawExp)
+                expMs = new Date(rawExp).getTime() || 0;
+            if (lastDistMs > 0 && expMs > 0 && expMs <= lastDistMs) {
+                return;
+            }
+            totalApprovedExpenses += Number(data === null || data === void 0 ? void 0 : data.amount) || 0;
         });
         if (totalApprovedExpenses > totalRealizedInterest) {
             throw new https_1.HttpsError('failed-precondition', `Cannot initiate profit distribution because approved operating expenses (${totalApprovedExpenses}) exceed total profit generated (${totalRealizedInterest}).`);

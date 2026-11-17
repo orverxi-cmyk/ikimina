@@ -247,10 +247,32 @@ export const allocateInterest = onCall({ cors: true }, async (request) => {
         });
 
         // 2. Calculate Approved Operating Expenses (Deducted from Profit)
+        const lastDistSnap = await db.collection('interest_distributions')
+            .orderBy('distributedAt', 'desc')
+            .limit(1)
+            .get();
+        let lastDistMs = 0;
+        if (!lastDistSnap.empty) {
+            const rawDist = lastDistSnap.docs[0].data()?.distributedAt;
+            if (rawDist?.toDate && typeof rawDist.toDate === 'function') lastDistMs = rawDist.toDate().getTime();
+            else if (rawDist?.seconds) lastDistMs = rawDist.seconds * 1000;
+            else if (rawDist) lastDistMs = new Date(rawDist).getTime() || 0;
+        }
+
         const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
         let totalApprovedExpenses = 0;
         expensesSnap.forEach(doc => {
-            totalApprovedExpenses += Number(doc.data()?.amount) || 0;
+            const data = doc.data();
+            let expMs = 0;
+            const rawExp = data?.approvedAt || data?.createdAt || data?.expenseDate;
+            if (rawExp?.toDate && typeof rawExp.toDate === 'function') expMs = rawExp.toDate().getTime();
+            else if (rawExp?.seconds) expMs = rawExp.seconds * 1000;
+            else if (rawExp) expMs = new Date(rawExp).getTime() || 0;
+
+            if (lastDistMs > 0 && expMs > 0 && expMs <= lastDistMs) {
+                return;
+            }
+            totalApprovedExpenses += Number(data?.amount) || 0;
         });
 
         if (totalApprovedExpenses > totalRealizedInterest) {
@@ -434,10 +456,32 @@ export const initiateInterestDistribution = onCall({ cors: true }, async (reques
         });
 
         // 2. Calculate Approved Operating Expenses (Deducted from Profit)
+        const lastDistSnap = await db.collection('interest_distributions')
+            .orderBy('distributedAt', 'desc')
+            .limit(1)
+            .get();
+        let lastDistMs = 0;
+        if (!lastDistSnap.empty) {
+            const rawDist = lastDistSnap.docs[0].data()?.distributedAt;
+            if (rawDist?.toDate && typeof rawDist.toDate === 'function') lastDistMs = rawDist.toDate().getTime();
+            else if (rawDist?.seconds) lastDistMs = rawDist.seconds * 1000;
+            else if (rawDist) lastDistMs = new Date(rawDist).getTime() || 0;
+        }
+
         const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
         let totalApprovedExpenses = 0;
         expensesSnap.forEach(doc => {
-            totalApprovedExpenses += Number(doc.data()?.amount) || 0;
+            const data = doc.data();
+            let expMs = 0;
+            const rawExp = data?.approvedAt || data?.createdAt || data?.expenseDate;
+            if (rawExp?.toDate && typeof rawExp.toDate === 'function') expMs = rawExp.toDate().getTime();
+            else if (rawExp?.seconds) expMs = rawExp.seconds * 1000;
+            else if (rawExp) expMs = new Date(rawExp).getTime() || 0;
+
+            if (lastDistMs > 0 && expMs > 0 && expMs <= lastDistMs) {
+                return;
+            }
+            totalApprovedExpenses += Number(data?.amount) || 0;
         });
 
         if (totalApprovedExpenses > totalRealizedInterest) {
