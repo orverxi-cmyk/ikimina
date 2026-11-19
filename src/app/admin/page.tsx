@@ -680,8 +680,10 @@ export default function AdminDashboard() {
                           (✦)
                         </div>
                         <div>
-                          <p className="font-bold text-foreground">Total Interest Distributed</p>
-                          <p className="text-[11px] text-muted-foreground">Profit yields allocated to active savers</p>
+                          <p className="font-bold text-foreground">Recent Interest Paid</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Cash to Savings: <span className="font-semibold text-foreground">{formatCurrency(totalInterestCapitalized, currency)}</span> • Cash Payout: <span className="font-semibold text-foreground">{formatCurrency(totalInterestCashPaid, currency)}</span>
+                          </p>
                         </div>
                       </div>
                       <span className="font-bold text-foreground text-sm">

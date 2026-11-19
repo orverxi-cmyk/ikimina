@@ -46,11 +46,28 @@ export async function getInstitutionalLendingPool(db: admin.firestore.Firestore)
         totalApprovedExpenses += Number(d.data().amount) || 0;
     });
 
-    // 4. Net Total Assets
-    const grossCapital = totalVerifiedSavings + totalLoanInterests;
-    const netTotalAssets = Math.max(0, grossCapital - totalApprovedExpenses);
+    // 4. Interest distributions & Member payoffs
+    const distributionsSnap = await db.collection('interest_distributions').get();
+    let totalInterestDistributed = 0;
+    distributionsSnap.forEach(d => {
+        const data = d.data();
+        totalInterestDistributed += Number(data.amountDistributed || data.totalInterestToDistribute || data.amount) || 0;
+    });
 
-    // 5. Max Lending Pool & Available Capacity
+    const payoutsSnap = await db.collection('final_payouts').where('status', '==', 'approved').get();
+    let totalPayoffAmount = 0;
+    payoutsSnap.forEach(d => {
+        const p = d.data();
+        totalPayoffAmount += Number(p.totalPayout || p.amount) || 0;
+    });
+
+    // 5. Net Total Assets (Cash payouts excluded; capitalized interest in savings + retained undistributed profit)
+    const netProfitAfterExpenses = Math.max(0, totalLoanInterests - totalApprovedExpenses);
+    const undistributedYield = Math.max(0, netProfitAfterExpenses - totalInterestDistributed);
+    const grossCapital = totalVerifiedSavings + totalLoanInterests;
+    const netTotalAssets = Math.max(0, totalVerifiedSavings + undistributedYield - totalPayoffAmount);
+
+    // 6. Max Lending Pool & Available Capacity
     const maxLendingPool = Math.round((netTotalAssets * maxLendingPoolPercentage) / 100);
     const availableLendingPool = Math.max(0, maxLendingPool - currentActiveLoanBalance);
 
