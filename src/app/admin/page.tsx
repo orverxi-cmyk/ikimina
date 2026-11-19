@@ -324,10 +324,11 @@ export default function AdminDashboard() {
   const regularMembersCount = users.filter((u: any) => !u.role || u.role === 'member').length;
   const staffOfficersCount = users.filter((u: any) => u.role && u.role !== 'member').length;
 
-  // G. TOTAL ASSET AMOUNT (Expenses Deducted from Profit / Realized Interest, Principal Savings Intact)
+  // G. TOTAL ASSET AMOUNT (Expenses & Interest Cash Payouts Excluded, Capitalized Interest Intact)
   const netProfitAfterExpenses = Math.max(0, totalLoanInterests - totalApprovedExpenses);
+  const undistributedYield = Math.max(0, netProfitAfterExpenses - totalInterestDistributed);
   const grossCapital = totalVerifiedSavings + totalLoanInterests;
-  const totalAssetAmount = totalVerifiedSavings + netProfitAfterExpenses;
+  const totalAssetAmount = Math.max(0, totalVerifiedSavings + undistributedYield - totalPayoffAmount);
 
   // Group Lending Pool Ceiling Metrics (% of Total Net Assets)
   const maxLendingPoolPercentage = Number(settings.maxLendingPoolPercentage) || 90;
@@ -337,8 +338,8 @@ export default function AdminDashboard() {
     ? Math.min(100, Math.round((totalActivePrincipalBalance / maxLendingPoolAllowed) * 100))
     : 0;
 
-  // Liquid Cash Reserve = (Verified Savings + Verified Repayments + Total Loan Interests) - (Disbursed Loans + Approved Expenses)
-  const liquidCashReserve = Math.max(0, (totalVerifiedSavings + totalVerifiedRepayments + totalLoanInterests) - (totalLoanAmountDisbursed + totalApprovedExpenses));
+  // Liquid Cash Reserve = (Verified Savings + Verified Repayments + Total Loan Interests) - (Disbursed Loans + Approved Expenses + Interest Cash Out + Payoffs)
+  const liquidCashReserve = Math.max(0, (totalVerifiedSavings + totalVerifiedRepayments + totalLoanInterests) - (totalLoanAmountDisbursed + totalApprovedExpenses + totalInterestCashPaid + totalPayoffAmount));
 
   // Filtered members for role assignment
   const filteredStaffMembers = useMemo(() => {
@@ -693,7 +694,7 @@ export default function AdminDashboard() {
                       <div>
                         <p className="text-base font-bold text-foreground">Total Net Institutional Assets</p>
                         <p className="text-[11px] text-muted-foreground font-normal">
-                          Verified Member Savings + Net Profit (Interest - Approved Expenses)
+                          Verified Member Savings + Retained Undistributed Profit
                         </p>
                       </div>
                       <span className="text-xl font-headline font-bold text-foreground">
@@ -718,7 +719,7 @@ export default function AdminDashboard() {
                           {formatCurrency(liquidCashReserve, currency)}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">
-                          Savings + Repayments + Interest - Disbursed Loans - Expenses
+                          Savings + Repayments + Interest - Loans - Expenses - Interest Cash Out
                         </p>
                       </div>
                       <Badge className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
