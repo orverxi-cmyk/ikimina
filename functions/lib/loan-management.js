@@ -39,6 +39,7 @@ const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const loan_schedules_1 = require("./loan-schedules");
 const notification_service_1 = require("./notification-service");
+const financial_management_1 = require("./financial-management");
 /**
  * Calculates authoritative institutional liquidity and lending pool metrics.
  * Gross Capital = Verified Member Savings + Total Realized Loan Interest
@@ -457,6 +458,8 @@ exports.approveLoan = (0, https_1.onCall)({ cors: true }, async (request) => {
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
+        // Update real-time accrued interest across all members for this active cycle
+        await (0, financial_management_1.recalculateActiveCycleAccruedInterest)(db);
         await (0, notification_service_1.createNotification)(db, {
             recipientId: loanData.memberId,
             title: 'Loan Facility Approved',
@@ -757,6 +760,8 @@ exports.verifyRepayment = (0, https_1.onCall)({ cors: true }, async (request) =>
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
         await batch.commit();
+        // Update real-time accrued interest across all members for this active cycle
+        await (0, financial_management_1.recalculateActiveCycleAccruedInterest)(db);
         await (0, notification_service_1.createNotification)(db, {
             recipientId: loanData.memberId,
             title: 'Loan Repayment Verified',
@@ -1001,6 +1006,8 @@ exports.initiateBulkLoans = (0, https_1.onCall)({ cors: true }, async (request) 
             });
         }
         await batch.commit();
+        // Update real-time accrued interest across all members for this active cycle
+        await (0, financial_management_1.recalculateActiveCycleAccruedInterest)(db);
     }
     return {
         success: true,

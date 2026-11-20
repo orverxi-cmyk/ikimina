@@ -2,6 +2,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { createNotification, notifyRoles } from './notification-service';
+import { recalculateActiveCycleAccruedInterest } from './financial-management';
 
 /**
  * Lodges a new operational expense.
@@ -282,6 +283,9 @@ export const approveExpense = onCall({ cors: true }, async (request) => {
         approvedAt: admin.firestore.FieldValue.serverTimestamp(),
         adminNotes: (adminNotes && typeof adminNotes === 'string') ? adminNotes.trim() : null
     });
+
+    // Update real-time active cycle accrued interest after operating expense deduction
+    await recalculateActiveCycleAccruedInterest(db);
 
     // Record authoritative audit trail
     await db.collection('audit_logs').add({

@@ -67,46 +67,71 @@ export async function getMemberFinancialPosition(
         const userSnap = await db.collection('users').doc(memberId).get();
         data = userSnap.exists ? userSnap.data() : {};
     }
-    const storedAccruedInterest = Number(data?.accruedInterest) || 0;
-
-    // Calculate pro-rata interim interest from undistributed loan profit pool
+    // Calculate pro-rata interim interest from undistributed active cycle loan profit pool
     let interimInterest = 0;
     try {
+        const lastDistSnap = await db.collection('interest_distributions')
+            .orderBy('distributedAt', 'desc')
+            .limit(1)
+            .get();
+
+        let lastDistMs = 0;
+        let lastDistDate: Date | null = null;
+        if (!lastDistSnap.empty) {
+            const rawDist = lastDistSnap.docs[0].data()?.distributedAt;
+            if (rawDist?.toDate && typeof rawDist.toDate === 'function') {
+                lastDistDate = rawDist.toDate();
+                lastDistMs = lastDistDate ? lastDistDate.getTime() : 0;
+            } else if (rawDist?.seconds) {
+                lastDistDate = new Date(rawDist.seconds * 1000);
+                lastDistMs = lastDistDate.getTime();
+            } else if (rawDist) {
+                const d = new Date(rawDist);
+                if (!isNaN(d.getTime())) {
+                    lastDistDate = d;
+                    lastDistMs = d.getTime();
+                }
+            }
+        }
+
+        // Active cycle realized interest from loans (strictly after last distribution)
         const loansSnap = await db.collection('loans').get();
-        let totalRealizedInterest = 0;
+        let totalCycleRealizedInterest = 0;
         loansSnap.forEach(doc => {
             const l = doc.data();
             if (l.status === 'completed' || l.status === 'approved') {
-                totalRealizedInterest += Number(l.interestAmount) || 0;
-            }
-        });
+                let loanMs = 0;
+                const rawDate = l.completedAt || l.approvedAt || l.paidAt || l.startDate || l.createdAt || l.requestDate;
+                if (rawDate?.toDate && typeof rawDate.toDate === 'function') loanMs = rawDate.toDate().getTime();
+                else if (rawDate?.seconds) loanMs = rawDate.seconds * 1000;
+                else if (rawDate) loanMs = new Date(rawDate).getTime() || 0;
 
-        const auditSnap = await db.collection('audit_logs').where('action', '==', 'ALLOCATE_INTEREST').get();
-        let previouslyDistributed = 0;
-        auditSnap.forEach(doc => {
-            previouslyDistributed += Number(doc.data()?.details?.totalDistributed) || 0;
-        });
-
-        const availablePool = Math.max(0, totalRealizedInterest - previouslyDistributed);
-        if (availablePool > 0) {
-            const lastDistSnap = await db.collection('interest_distributions')
-                .orderBy('distributedAt', 'desc')
-                .limit(1)
-                .get();
-
-            let lastDistDate: Date | null = null;
-            if (!lastDistSnap.empty) {
-                const rawDist = lastDistSnap.docs[0].data()?.distributedAt;
-                if (rawDist?.toDate && typeof rawDist.toDate === 'function') {
-                    lastDistDate = rawDist.toDate();
-                } else if (rawDist?.seconds) {
-                    lastDistDate = new Date(rawDist.seconds * 1000);
-                } else if (rawDist) {
-                    const d = new Date(rawDist);
-                    if (!isNaN(d.getTime())) lastDistDate = d;
+                if (lastDistMs > 0 && loanMs > 0 && loanMs <= lastDistMs) {
+                    return; // Prior cycle interest, already accounted for
                 }
+                totalCycleRealizedInterest += Number(l.interestAmount) || 0;
             }
+        });
 
+        // Active cycle approved operating expenses (strictly after last distribution)
+        const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
+        let totalCycleApprovedExpenses = 0;
+        expensesSnap.forEach(doc => {
+            const exp = doc.data();
+            let expMs = 0;
+            const rawExp = exp?.approvedAt || exp?.date || exp?.createdAt;
+            if (rawExp?.toDate && typeof rawExp.toDate === 'function') expMs = rawExp.toDate().getTime();
+            else if (rawExp?.seconds) expMs = rawExp.seconds * 1000;
+            else if (rawExp) expMs = new Date(rawExp).getTime() || 0;
+
+            if (lastDistMs > 0 && expMs > 0 && expMs <= lastDistMs) {
+                return; // Prior cycle expense
+            }
+            totalCycleApprovedExpenses += Number(exp?.amount) || 0;
+        });
+
+        const availableCyclePool = Math.max(0, totalCycleRealizedInterest - totalCycleApprovedExpenses);
+        if (availableCyclePool > 0) {
             const MS_PER_DAY = 86_400_000;
             const KIGALI_OFFSET_MS = 2 * 60 * 60 * 1000;
             const getKigaliDayIndex = (date: Date): number => Math.floor((date.getTime() + KIGALI_OFFSET_MS) / MS_PER_DAY);
@@ -150,14 +175,14 @@ export async function getMemberFinancialPosition(
             });
 
             if (totalWeightedPool > 0 && memberWeighted > 0) {
-                interimInterest = Math.floor(availablePool * (memberWeighted / totalWeightedPool));
+                interimInterest = Math.floor(availableCyclePool * (memberWeighted / totalWeightedPool));
             }
         }
     } catch (err) {
         console.warn('Could not calculate pro-rata interim interest:', err);
     }
 
-    const accruedInterest = storedAccruedInterest + interimInterest;
+    const accruedInterest = interimInterest;
 
     return {
         contributionTotal,

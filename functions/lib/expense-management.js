@@ -37,6 +37,7 @@ exports.rejectExpense = exports.approveExpense = exports.reviewExpense = exports
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const notification_service_1 = require("./notification-service");
+const financial_management_1 = require("./financial-management");
 /**
  * Lodges a new operational expense.
  * Restricted to Accountant, Admin, and Management.
@@ -279,6 +280,8 @@ exports.approveExpense = (0, https_1.onCall)({ cors: true }, async (request) => 
         approvedAt: admin.firestore.FieldValue.serverTimestamp(),
         adminNotes: (adminNotes && typeof adminNotes === 'string') ? adminNotes.trim() : null
     });
+    // Update real-time active cycle accrued interest after operating expense deduction
+    await (0, financial_management_1.recalculateActiveCycleAccruedInterest)(db);
     // Record authoritative audit trail
     await db.collection('audit_logs').add({
         action: 'APPROVE_EXPENSE',

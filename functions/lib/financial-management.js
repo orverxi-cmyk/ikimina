@@ -34,9 +34,110 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setMemberPayoutPreference = exports.closeInterestPayoutCampaign = exports.openInterestPayoutCampaign = exports.approveInterestPayoutCampaign = exports.reviewInterestPayoutCampaign = exports.initiateInterestPayoutCampaign = exports.getSystemSettings = exports.resetFinancialData = exports.updateFinancialSettings = exports.withdrawInterestDistribution = exports.rejectInterestDistribution = exports.approveInterestDistribution = exports.reviewInterestDistribution = exports.initiateInterestDistribution = exports.allocateInterest = void 0;
+exports.recalculateActiveCycleAccruedInterest = recalculateActiveCycleAccruedInterest;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const notification_service_1 = require("./notification-service");
+/**
+ * Authoritatively calculates each active member's pro-rata accrued interest
+ * for the current ongoing cycle and writes it directly to `users/{memberId}.accruedInterest`.
+ * Net Cycle Profit = (Loans Interest after last distribution) - (Approved Expenses after last distribution).
+ * Each member's share is proportional to their verified contributions.
+ * When the active cycle has 0 net profit or after cycle distribution, member accrued interest becomes 0.
+ */
+async function recalculateActiveCycleAccruedInterest(db) {
+    var _a;
+    try {
+        // 1. Identify active distribution cycle boundary
+        const lastDistSnap = await db.collection('interest_distributions')
+            .orderBy('distributedAt', 'desc')
+            .limit(1)
+            .get();
+        let lastDistMs = 0;
+        if (!lastDistSnap.empty) {
+            const rawDist = (_a = lastDistSnap.docs[0].data()) === null || _a === void 0 ? void 0 : _a.distributedAt;
+            if ((rawDist === null || rawDist === void 0 ? void 0 : rawDist.toDate) && typeof rawDist.toDate === 'function')
+                lastDistMs = rawDist.toDate().getTime();
+            else if (rawDist === null || rawDist === void 0 ? void 0 : rawDist.seconds)
+                lastDistMs = rawDist.seconds * 1000;
+            else if (rawDist)
+                lastDistMs = new Date(rawDist).getTime() || 0;
+        }
+        // 2. Realized interest from loans strictly within current cycle
+        const loansSnap = await db.collection('loans').get();
+        let cycleRealizedInterest = 0;
+        loansSnap.forEach(doc => {
+            const loan = doc.data();
+            if (loan.status === 'completed' || loan.status === 'approved') {
+                let loanMs = 0;
+                const rawDate = loan.completedAt || loan.approvedAt || loan.paidAt || loan.startDate || loan.createdAt || loan.requestDate;
+                if ((rawDate === null || rawDate === void 0 ? void 0 : rawDate.toDate) && typeof rawDate.toDate === 'function')
+                    loanMs = rawDate.toDate().getTime();
+                else if (rawDate === null || rawDate === void 0 ? void 0 : rawDate.seconds)
+                    loanMs = rawDate.seconds * 1000;
+                else if (rawDate)
+                    loanMs = new Date(rawDate).getTime() || 0;
+                if (lastDistMs > 0 && loanMs > 0 && loanMs <= lastDistMs) {
+                    return; // Prior cycle loan interest
+                }
+                cycleRealizedInterest += Number(loan.interestAmount) || 0;
+            }
+        });
+        // 3. Approved operating expenses strictly within current cycle
+        const expensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();
+        let cycleApprovedExpenses = 0;
+        expensesSnap.forEach(doc => {
+            const data = doc.data();
+            let expMs = 0;
+            const rawExp = (data === null || data === void 0 ? void 0 : data.approvedAt) || (data === null || data === void 0 ? void 0 : data.date) || (data === null || data === void 0 ? void 0 : data.createdAt);
+            if ((rawExp === null || rawExp === void 0 ? void 0 : rawExp.toDate) && typeof rawExp.toDate === 'function')
+                expMs = rawExp.toDate().getTime();
+            else if (rawExp === null || rawExp === void 0 ? void 0 : rawExp.seconds)
+                expMs = rawExp.seconds * 1000;
+            else if (rawExp)
+                expMs = new Date(rawExp).getTime() || 0;
+            if (lastDistMs > 0 && expMs > 0 && expMs <= lastDistMs) {
+                return; // Prior cycle expense
+            }
+            cycleApprovedExpenses += Number(data === null || data === void 0 ? void 0 : data.amount) || 0;
+        });
+        const netCycleProfit = Math.max(0, cycleRealizedInterest - cycleApprovedExpenses);
+        // 4. Fetch verified savings per member
+        const contribsSnap = await db.collection('contributions').where('status', '==', 'verified').get();
+        const memberSavingsMap = {};
+        let totalVerifiedSavings = 0;
+        contribsSnap.forEach(doc => {
+            const c = doc.data();
+            const amt = Number(c.amount) || 0;
+            const mId = c.memberId;
+            if (amt > 0 && mId) {
+                memberSavingsMap[mId] = (memberSavingsMap[mId] || 0) + amt;
+                totalVerifiedSavings += amt;
+            }
+        });
+        // 5. Update each active member's accruedInterest in Firestore
+        const usersSnap = await db.collection('users').get();
+        const batch = db.batch();
+        usersSnap.forEach(userDoc => {
+            const uData = userDoc.data();
+            if (uData.status === 'deleted')
+                return;
+            const memberId = userDoc.id;
+            const memberSavings = memberSavingsMap[memberId] || 0;
+            let memberShare = 0;
+            if (netCycleProfit > 0 && totalVerifiedSavings > 0 && memberSavings > 0) {
+                memberShare = Math.floor(netCycleProfit * (memberSavings / totalVerifiedSavings));
+            }
+            batch.update(userDoc.ref, {
+                accruedInterest: memberShare
+            });
+        });
+        await batch.commit();
+    }
+    catch (err) {
+        console.warn('Could not recalculate active cycle accrued interest:', err);
+    }
+}
 /**
  * Computes time-weighted (contribution amount * active calendar days in UTC+2)
  * interest distribution breakdown using the Largest-Remainder (Hare-Niemeyer) method.
@@ -200,11 +301,11 @@ async function computeTimeWeightedBreakdown(db, amountToDistribute) {
                 sharePercentage: (m.shareRatio * 100).toFixed(2),
                 distributedShare,
                 payoutType: isCapitalized ? 'add_to_contribution' : 'receive_payout',
-                outcome: isCapitalized ? 'Added to Total Contribution Savings' : 'Accrued for Liquid Cash Payout',
+                outcome: isCapitalized ? 'Added to Total Contribution Savings' : 'Disbursed as Liquid Cash Payout',
                 previousAccruedInterest: m.previousAccruedInterest,
-                newTotalAccruedInterest: isCapitalized ? m.previousAccruedInterest : m.previousAccruedInterest + distributedShare,
+                newTotalAccruedInterest: 0,
                 projectedSavings: isCapitalized ? m.memberTotal + distributedShare : m.memberTotal,
-                projectedAccruedInterest: isCapitalized ? m.previousAccruedInterest : m.previousAccruedInterest + distributedShare,
+                projectedAccruedInterest: 0,
             });
         }
     }
@@ -330,12 +431,11 @@ exports.allocateInterest = (0, https_1.onCall)({ cors: true }, async (request) =
                         type: 'interest_reinvestment'
                     });
                 }
-                else {
-                    const memberRef = db.collection('users').doc(item.memberId);
-                    batch.update(memberRef, {
-                        accruedInterest: admin.firestore.FieldValue.increment(item.distributedShare)
-                    });
-                }
+                // Both savings reinvestment and cash payout settle the completed cycle to 0 accrued interest
+                const memberRef = db.collection('users').doc(item.memberId);
+                batch.update(memberRef, {
+                    accruedInterest: 0
+                });
             }
         }
         // Settle approved operating expenses covered by this interest allocation
@@ -766,11 +866,10 @@ exports.approveInterestDistribution = (0, https_1.onCall)({ cors: true }, async 
                     type: 'interest_reinvestment'
                 });
             }
-            else {
-                batch.update(memberRef, {
-                    accruedInterest: admin.firestore.FieldValue.increment(item.distributedShare)
-                });
-            }
+            // Both savings reinvestment and cash payout settle the completed cycle to 0 accrued interest
+            batch.update(memberRef, {
+                accruedInterest: 0
+            });
         }
         // Settle approved operating expenses covered by this interest distribution
         const approvedExpensesSnap = await db.collection('expenses').where('status', '==', 'approved').get();

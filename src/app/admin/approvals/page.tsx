@@ -3230,7 +3230,7 @@ export default function ApprovalsHubPage() {
                           <TableCell className="text-right pr-4 font-medium text-foreground">
                             {saver.payoutType === 'add_to_contribution' 
                               ? `Savings: ${formatCurrency(saver.projectedSavings || (saver.contributions + saver.distributedShare), currency)}`
-                              : `Accrued: ${formatCurrency(saver.projectedAccruedInterest || (saver.previousAccruedInterest + saver.distributedShare), currency)}`}
+                              : `Cash Paid: ${formatCurrency(saver.distributedShare, currency)} (Accrued: ${formatCurrency(0, currency)})`}
                           </TableCell>
                         </TableRow>
                       ))

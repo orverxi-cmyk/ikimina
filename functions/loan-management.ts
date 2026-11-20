@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { calculateAmortizationSchedule } from './loan-schedules';
 import { createNotification, notifyRoles } from './notification-service';
+import { recalculateActiveCycleAccruedInterest } from './financial-management';
 
 /**
  * Calculates authoritative institutional liquidity and lending pool metrics.
@@ -510,6 +511,9 @@ export const approveLoan = onCall({ cors: true }, async (request) => {
 
         await batch.commit();
 
+        // Update real-time accrued interest across all members for this active cycle
+        await recalculateActiveCycleAccruedInterest(db);
+
         await createNotification(db, {
             recipientId: loanData.memberId,
             title: 'Loan Facility Approved',
@@ -852,6 +856,9 @@ export const verifyRepayment = onCall({ cors: true }, async (request) => {
 
         await batch.commit();
 
+        // Update real-time accrued interest across all members for this active cycle
+        await recalculateActiveCycleAccruedInterest(db);
+
         await createNotification(db, {
             recipientId: loanData.memberId,
             title: 'Loan Repayment Verified',
@@ -1119,6 +1126,9 @@ export const initiateBulkLoans = onCall({ cors: true }, async (request) => {
         }
 
         await batch.commit();
+
+        // Update real-time accrued interest across all members for this active cycle
+        await recalculateActiveCycleAccruedInterest(db);
     }
 
     return {
